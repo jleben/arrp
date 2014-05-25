@@ -10,11 +10,14 @@
 "//" { begin(StartCondition__::one_line_comment); }
 <one_line_comment>{
 \n { begin(StartCondition__::INITIAL); }
+.
 }
 
 "/*" { begin(StartCondition__::multi_line_comment); }
 <multi_line_comment>{
 "*/" { begin(StartCondition__::INITIAL); }
+\n
+.
 }
 
 [ \t\n]+ // Skip whitespace

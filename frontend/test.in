@@ -1,2 +1,8 @@
-f(a) = for(3 x in a) { 3 + a * 2.3 };
-xyz = 23.4
+// Function:
+f(a) = for(3 x in a, b) { 3 + a * (2.3 + (b)) };
+// Contant:
+xyz = 23.4;
+/* Multi line
+ * Comment
+ */
+a = (b * 2)
