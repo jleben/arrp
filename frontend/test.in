@@ -1,6 +1,6 @@
 // Function:
-f(a) = for(3 x in a, b) { 3 + a * (2.3 + (b)) };
-// Contant:
+f(a) = for(3 x in a, b;) { 3 + a * (2.3 + (b)) };
+// Constant:
 xyz = 23.4;
 /* Multi line
  * Comment

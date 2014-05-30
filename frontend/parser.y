@@ -14,6 +14,12 @@
 
 %%
 
+/*
+TODO: extend 'for' to express reduction
+Perhaps use 'map' and 'reduce' instead of 'for'?
+Well, 'for' with multi-one-single-one function is already a kind of reduction.
+*/
+
 program: func_def_list
 ;
 
@@ -71,7 +77,15 @@ atom: INT | REAL | ID
 ;
 
 for_stmt:
-  FOR '(' for_spec ')' '{' for_body '}'
+  FOR '(' for_spec_list ')' '{' for_body '}'
+;
+
+for_spec_list:
+  for_spec_list ';' for_spec
+  |
+  for_spec_list ';'
+  |
+  for_spec
 ;
 
 for_spec:
