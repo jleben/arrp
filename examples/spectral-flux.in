@@ -1,0 +1,38 @@
+// Spectral flux
+
+/*
+Assuming 'sum', 'max' and 'dif' are built-in functions that perform reductions.
+Assuming 'log' is a built-in function that computes logarithm of a single value.
+*/
+
+A = 1.0;
+K = 1000;
+
+// S is an individual specturm. It has only 1 dimension - each bin.
+log_spectrum(S, a, k) = for( each #1 in S ) { log(a + k * X) };
+
+// X is same as for 'flux' below
+inter_spectrum_difference(X) =
+  // Iterate over dimension 1 of X (spectrums),
+  // 2 by two items, advancing by 1 item only
+  for( 2 #1 every 1 in X )
+  {
+    // Sum all items that are given as argument (over all dimensions)
+    sum (
+      // Iterate over dimension 2 of X (spectral bins)
+      // 1 by 1 (implicitly)
+      // thus producing pairs of corresponding bins from 2 spectrums
+      // (since the enclosing iteration is of size 2):
+      for( each #2 in X ) {
+        // Max produces either value of second argument, or 0, whichever is larger.
+        max(0, dif( XX ))
+      }
+    )
+  }
+;
+
+
+// X is a sequence of spectrums - it has 2 dimensions:
+// - dimension #1 = each spectrum
+// - dimension #2 = each bin of a spectrum
+flux(X) = inter_spectrum_difference( for( each #1 ) { log_spectrum(X,A,K) } );

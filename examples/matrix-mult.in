@@ -1,0 +1,22 @@
+// Compute matrix multiplication for each pair of matrice from two sequences of
+// matrices
+
+// A, B are each a sequence of matrices.
+matrix_multiply(A,B) =
+  // Iterate all sources over first dimension (sequence).
+  // Since iteration size is (implicitly) 1, the iteration dimension is
+  // removed from data within iteration, hence we obtain individual matrices
+  for ( each #1 )
+  {
+    // iterate over first dimension of matrix A (rows)
+    for ( each #1 in A )
+    {
+      // iterate over second dimension of matrix B (columns)
+      for ( each #2 in B )
+      {
+        // multiplication is assumed to be built-in and operate element-wise
+        // sum is assumed to be built-in and operate on entire range
+        sum( A * B  )
+      }
+    }
+  }
