@@ -4,7 +4,7 @@
 %namespace stream
 
 %token SCANNER_ERROR
-%token INT REAL ID
+%token INT REAL ID INDEX
 %token FOR EACH EVERY AT IN
 
 %left '='
@@ -107,9 +107,9 @@ for_spec:
 ;
 
 for_iter_spec:
-  EACH ID
+  EACH INDEX
   |
-  INT ID for_iter_hop for_iter_offset
+  INT INDEX for_iter_hop for_iter_offset
 ;
 
 for_iter_hop:

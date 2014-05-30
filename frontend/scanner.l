@@ -54,6 +54,7 @@
 
 [[:alpha:]_]+[[:alpha:][:digit:]_]* { return Parser::ID; }
 
+\#[[:digit:]]+ { return Parser::INDEX; }
 
 . {
   /*std::cerr << "ERROR:" << lineNr()

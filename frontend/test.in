@@ -1,8 +1,8 @@
 // Function:
-f(a) = for(3 x in a, b;) { 3 + a * (2.3 + (b)) };
+f(a) = for(3 #1 in a, b;) { 3 + a * (2.3 + (b)) };
 // Constant:
 xyz = 23.4;
 /* Multi line
  * Comment
  */
-a = ( b(2 + 3, for(each x){blah(3)} ) * 2)
+a = ( b(2 + 3, for(each #223){blah(3)} ) * 2)
