@@ -73,7 +73,21 @@ expr:
   atom
 ;
 
-atom: INT | REAL | ID
+atom: INT | REAL | call
+;
+
+call:
+  ID
+  |
+  ID '(' arg_list ')'
+;
+
+arg_list:
+  arg_list ',' expr
+  |
+  expr
+  |
+  // empty
 ;
 
 for_stmt:
