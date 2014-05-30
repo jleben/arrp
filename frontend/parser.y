@@ -48,7 +48,7 @@ func_param_list:
 ;
 
 func_body:
-  expr | for_stmt
+  expr
 ;
 
 expr:
@@ -73,7 +73,7 @@ expr:
   atom
 ;
 
-atom: INT | REAL | call
+atom: INT | REAL | call | for
 ;
 
 call:
@@ -90,7 +90,7 @@ arg_list:
   // empty
 ;
 
-for_stmt:
+for:
   FOR '(' for_spec_list ')' '{' for_body '}'
 ;
 
@@ -138,6 +138,4 @@ for_domain_list:
 
 for_body:
   expr
-  |
-  for_stmt
 ;
