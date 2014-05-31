@@ -9,7 +9,7 @@ make
 ```
 
 This will produce the following executables:
-- `build/frotend/test` - Test the frontend (lexer + parser) on an input file.
+- `build/frontend/test` - Test the frontend (lexer + parser) on an input file.
 
 CMake options:
-- FRONTEND_PRINT_TOKENS - Compile frontend so that it prints all tokens on command-line.
+- `FRONTEND_PRINT_TOKENS` - Compile frontend so that it prints all tokens on command-line.
