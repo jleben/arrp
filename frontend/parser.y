@@ -8,9 +8,9 @@
 %token FOR EACH EVERY AT IN
 
 %left '='
-%left COMPARE EQ NEQ LESS MORE
-%left MATH1 '+' '-'
-%left MATH2 '*' '/'
+%left EQ NEQ LESS MORE
+%left '+' '-'
+%left '*' '/'
 
 %%
 
