@@ -9,14 +9,14 @@ matrix_multiply(A,B) =
   for ( each #1 )
   {
     // iterate over first dimension of matrix A (rows)
-    for ( each #1 in A )
+    for ( row = each #1 in A )
     {
       // iterate over second dimension of matrix B (columns)
-      for ( each #2 in B )
+      for ( col = each #2 in B )
       {
         // multiplication is assumed to be built-in and operate element-wise
         // sum is assumed to be built-in and operate on entire range
-        sum( A * B  )
+        sum( row * col  )
       }
     }
   }

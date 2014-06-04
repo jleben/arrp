@@ -103,37 +103,50 @@ for_spec_list:
 ;
 
 for_spec:
+  ID '=' for_iter_spec for_domain_spec
+  |
   for_iter_spec for_domain_spec
+  |
+  for_iter_spec
 ;
 
 for_iter_spec:
-  EACH INDEX
+  EACH for_iter_size INDEX for_iter_hop for_iter_offset
+;
+
+for_iter_size:
+  // empty
   |
-  INT INDEX for_iter_hop for_iter_offset
+  INT
 ;
 
 for_iter_hop:
   // empty
   |
   EVERY INT
+  |
+  EVERY ID
 ;
 
 for_iter_offset:
   // empty
   |
   AT INT
+  |
+  AT ID
 ;
 
 for_domain_spec:
-  // empty
-  |
   IN for_domain_list
 ;
 
 for_domain_list:
-  ID
+  for_domain_elem
   |
-  ID ',' for_domain_list
+  for_domain_elem ',' for_domain_list
+;
+
+for_domain_elem: ID | INT
 ;
 
 for_body:

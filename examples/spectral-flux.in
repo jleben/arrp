@@ -9,13 +9,13 @@ A = 1.0;
 K = 1000;
 
 // S is an individual specturm. It has only 1 dimension - each bin.
-log_spectrum(S, a, k) = for( each #1 in S ) { log(a + k * X) };
+log_spectrum(S, a, k) = for( bin = each #1 in S ) { log(a + k * bin) };
 
 // X is same as for 'flux' below
 inter_spectrum_difference(X) =
   // Iterate over dimension 1 of X (spectrums),
   // 2 by two items, advancing by 1 item only
-  for( 2 #1 every 1 in X )
+  for( spectrum_pair = each 2 #1 every 1 in X )
   {
     // Sum all items that are given as argument (over all dimensions)
     sum (
@@ -23,9 +23,9 @@ inter_spectrum_difference(X) =
       // 1 by 1 (implicitly)
       // thus producing pairs of corresponding bins from 2 spectrums
       // (since the enclosing iteration is of size 2):
-      for( each #2 in X ) {
+      for( bin_pair = each #2 in X ) {
         // Max produces either value of second argument, or 0, whichever is larger.
-        max(0, dif( XX ))
+        max(0, dif( bin_pair ))
       }
     )
   }
