@@ -5,12 +5,13 @@
 
 %token SCANNER_ERROR
 %token INT REAL ID
-%token FOR EACH TAKES EVERY IN DOTDOT
+%token FOR EACH TAKES EVERY IN
 
 %left '='
 %left EQ NEQ LESS MORE
 %left '+' '-'
 %left '*' '/'
+%left DOTDOT
 
 %%
 
@@ -70,16 +71,56 @@ expr:
   |
   '(' expr ')'
   |
-  atom
+  range
+  |
+  for
+  |
+  call
+  |
+  literal
 ;
 
-atom: INT | REAL | call | for
+literal: INT | REAL
+;
+
+range:
+  expr DOTDOT expr
+  |
+  expr DOTDOT
+  |
+  DOTDOT expr
 ;
 
 call:
-  ID
+  ID call_args call_range
+;
+
+call_args:
+  // empty
   |
-  ID '(' arg_list ')'
+  '(' arg_list ')'
+;
+
+call_range:
+  // empty
+  |
+  '[' call_range_list ']'
+;
+
+call_range_list:
+  // empty
+  |
+  call_range_dim
+  |
+  call_range_list '|' call_range_dim
+;
+
+call_range_dim:
+  '#' INT
+  |
+  '#' INT ':' expr
+  |
+  expr
 ;
 
 arg_list:
@@ -124,31 +165,14 @@ for_hop:
   EVERY int_or_id
 ;
 
-for_domain:
-  int_range
-  |
-  for_source
-;
-
-for_source:
-  ID // Implies iteration over first dimension
-  |
-  ID '{' INT '}'
-  |
-  ID '{' INT ':' int_range '}'
+for_domain: range | call
 ;
 
 for_body:
+  // empty
+  |
   expr
 ;
 
 int_or_id: INT | ID
-;
-
-int_range:
-  int_or_id DOTDOT int_or_id
-  |
-  int_or_id DOTDOT
-  |
-  DOTDOT int_or_id
 ;

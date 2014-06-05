@@ -1,8 +1,11 @@
 
+// FIXME: terminate recursion at some point
+sum( X ) = X[1] + sum( X[2..] );
+
 autocorrelation(X) =
   for each ( k in ..10 )
   {
     sum(
-      for each ( a in X{1}; b in X{1:k..} ) { a * b }
+      for each ( a in X; b in X[k..] ) { a * b }
     )
   }

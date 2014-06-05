@@ -37,6 +37,7 @@
 \* { return '*'; }
 \/ { return '/'; }
 = { return '='; }
+# { return '#'; }
 "==" { return Parser::EQ; }
 "!=" { return Parser::NEQ; }
 "<" { return Parser::LESS; }
@@ -49,7 +50,7 @@
 "in" { return Parser::IN; }
 ".." { return Parser::DOTDOT; }
 
-(\+|\-)?[0-9]+\.[0-9]* { return Parser::REAL; }
+(\+|\-)?[0-9]+\.[0-9]+ { return Parser::REAL; }
 
 (\+|\-)?[0-9]+ { return Parser::INT; }
 
