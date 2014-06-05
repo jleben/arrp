@@ -1,6 +1,7 @@
 // Compute matrix multiplication for each pair of matrice from two sequences of
 // matrices
 
+// Standard helper:
 sum( X ) =
   // Reduce over all dimensions of X by summation:
   reduce( a, b in X{.} ) a + b;

@@ -1,11 +1,17 @@
 // Autocorrelation
 
+// Standard helper:
 sum( X ) =
+  // Reduce over all dimensions of X by summation:
   reduce( a, b in X{.} ) a + b;
 
 autocorrelation(X) =
+  // For each integer from 1 up to the number of elements in
+  // (implicitly) 1st dimension of X
   for each ( k in 1..#X )
   {
-    let products = for each ( a in X; b in X[k..] ) a * b;
+    let products =
+      // For each a in X and each b in X from k-th element on:
+      for each ( a in X; b in X[k..] ) a * b;
     sum( products )
   }
