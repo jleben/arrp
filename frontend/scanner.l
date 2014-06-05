@@ -44,17 +44,16 @@
 
 "for" { return Parser::FOR; }
 "each" { return Parser::EACH; }
+"takes" { return Parser::TAKES; }
 "every" { return Parser::EVERY; }
-"at" { return Parser::AT; }
 "in" { return Parser::IN; }
+".." { return Parser::DOTDOT; }
 
 (\+|\-)?[0-9]+\.[0-9]* { return Parser::REAL; }
 
 (\+|\-)?[0-9]+ { return Parser::INT; }
 
 [[:alpha:]_]+[[:alpha:][:digit:]_]* { return Parser::ID; }
-
-\#[[:digit:]]+ { return Parser::INDEX; }
 
 . {
   /*std::cerr << "ERROR:" << lineNr()

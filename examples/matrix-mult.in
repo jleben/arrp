@@ -6,13 +6,13 @@ matrix_multiply(A,B) =
   // Iterate all sources over first dimension (sequence).
   // Since iteration size is (implicitly) 1, the iteration dimension is
   // removed from data within iteration, hence we obtain individual matrices
-  for ( m = each in A{1}; n = each in B{1} )
+  for each ( m in A{1}; n in B{1} )
   {
     // iterate over first dimension of matrix A (rows)
-    for ( row = each in m{1} )
+    for each ( row in m{1} )
     {
       // iterate over second dimension of matrix B (columns)
-      for ( col = each in n{2} )
+      for each ( col in n{2} )
       {
         // multiplication is assumed to be built-in and operate element-wise
         // sum is assumed to be built-in and operate on entire range

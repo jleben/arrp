@@ -1,8 +1,8 @@
 
 autocorrelation(X) =
-  for ( k = each in 10 )
+  for each ( k in ..10 )
   {
     sum(
-      for ( a = each 1 in X{1}; b = each 1 at k in X{1} ) { a * b }
+      for each ( a in X{1}; b in X{1:k..} ) { a * b }
     )
   }

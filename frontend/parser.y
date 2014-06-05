@@ -4,8 +4,8 @@
 %namespace stream
 
 %token SCANNER_ERROR
-%token INT REAL ID INDEX
-%token FOR EACH EVERY AT IN
+%token INT REAL ID
+%token FOR EACH TAKES EVERY IN DOTDOT
 
 %left '='
 %left EQ NEQ LESS MORE
@@ -91,7 +91,7 @@ arg_list:
 ;
 
 for:
-  FOR '(' for_spec_list ')' '{' for_body '}'
+  FOR EACH '(' for_spec_list ')' '{' for_body '}'
 ;
 
 for_spec_list:
@@ -103,46 +103,52 @@ for_spec_list:
 ;
 
 for_spec:
-  ID '=' for_iter_spec IN for_domain
+  for_iterator for_size for_hop IN for_domain
+;
+
+for_iterator:
+  //empty
   |
-  for_iter_spec IN for_domain
+  ID
 ;
 
-for_iter_spec:
-  EACH for_iter_size for_iter_hop for_iter_offset
-;
-
-for_iter_size:
+for_size:
   // empty
   |
-  INT
+  TAKES int_or_id
 ;
 
-for_iter_hop:
+for_hop:
   // empty
   |
-  EVERY INT
-  |
-  EVERY ID
+  EVERY int_or_id
 ;
 
-for_iter_offset:
-  // empty
+for_domain:
+  int_range
   |
-  AT INT
-  |
-  AT ID
+  for_source
 ;
 
-for_domain: stream_domain | INT
-;
-
-stream_domain:
+for_source:
   ID
   |
   ID '{' INT '}'
+  |
+  ID '{' INT ':' int_range '}'
 ;
 
 for_body:
   expr
+;
+
+int_or_id: INT | ID
+;
+
+int_range:
+  int_or_id DOTDOT int_or_id
+  |
+  int_or_id DOTDOT
+  |
+  DOTDOT int_or_id
 ;
