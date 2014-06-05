@@ -103,15 +103,13 @@ for_spec_list:
 ;
 
 for_spec:
-  ID '=' for_iter_spec for_domain_spec
+  ID '=' for_iter_spec IN for_domain
   |
-  for_iter_spec for_domain_spec
-  |
-  for_iter_spec
+  for_iter_spec IN for_domain
 ;
 
 for_iter_spec:
-  EACH for_iter_size INDEX for_iter_hop for_iter_offset
+  EACH for_iter_size for_iter_hop for_iter_offset
 ;
 
 for_iter_size:
@@ -136,17 +134,13 @@ for_iter_offset:
   AT ID
 ;
 
-for_domain_spec:
-  IN for_domain_list
+for_domain: stream_domain | INT
 ;
 
-for_domain_list:
-  for_domain_elem
+stream_domain:
+  ID
   |
-  for_domain_elem ',' for_domain_list
-;
-
-for_domain_elem: ID | INT
+  ID '{' INT '}'
 ;
 
 for_body:
