@@ -17,7 +17,8 @@ matrix_multiply(A,B) =
       // iterate over second dimension of matrix B (columns)
       for each ( col in n[#2] )
       {
-        // multiplication is assumed to be built-in and operate element-wise
+        // built-in multiplication is assumed to operate
+        // element-wise across entire streams
         sum( row * col  )
       }
     }

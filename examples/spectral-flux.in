@@ -27,7 +27,7 @@ inter_spectrum_difference(X) =
       // (since the enclosing iteration is of size 2):
       for each( bin_pair in X[#2] )
       {
-        // Either a positive increase or 0:
+        // Either a positive change or 0:
         max(0, bin_pair[2] - bin_pair[1])
       };
 
