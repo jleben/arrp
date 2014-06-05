@@ -2,20 +2,21 @@
 // matrices
 
 sum( X ) =
-  reduce( a, b in X ) a + b;
+  // Reduce over all dimensions of X by summation:
+  reduce( a, b in X{.} ) a + b;
 
 // A, B are each a sequence of matrices.
 matrix_multiply(A,B) =
   // Iterate all sources over (implicitly) first dimension (sequence).
   // Since iteration size is (implicitly) 1, the iteration dimension is
   // removed from data within iteration, hence we obtain individual matrices
-  for each ( m in A; n in B )
+  for each ( a in A; b in B )
   {
     // iterate over first dimension of matrix A (rows)
-    for each ( row in m[#1] )
+    for each ( row in a{1} )
     {
       // iterate over second dimension of matrix B (columns)
-      for each ( col in n[#2] )
+      for each ( col in b{2} )
       {
         // built-in multiplication is assumed to operate
         // element-wise across entire streams

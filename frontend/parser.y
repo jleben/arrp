@@ -132,13 +132,27 @@ range:
 ;
 
 call:
-  ID call_args call_range
+  ID call_args call_dim call_range
 ;
 
 call_args:
   // empty
   |
   '(' arg_list ')'
+;
+
+call_dim:
+  // empty
+  |
+  '{' call_dim_list '}'
+;
+
+call_dim_list:
+  '.'
+  |
+  INT
+  |
+  call_dim_list ',' INT
 ;
 
 call_range:
@@ -148,19 +162,9 @@ call_range:
 ;
 
 call_range_list:
-  // empty
-  |
-  call_range_dim
-  |
-  call_range_list '|' call_range_dim
-;
-
-call_range_dim:
-  '#' INT
-  |
-  '#' INT ':' expr
-  |
   expr
+  |
+  call_range_list ',' expr
 ;
 
 arg_list:

@@ -9,7 +9,7 @@ K = 1000;
 max(a, b) = something;
 
 sum( X ) =
-  reduce( a, b in X ) a + b;
+  reduce( a, b in X{.} ) a + b;
 
 // S is an individual specturm. It has only 1 dimension - each bin.
 // Assuming 'log' is a built-in function that computes logarithm of a single value.
@@ -25,7 +25,7 @@ inter_spectrum_difference(X) =
       // Iterate over dimension 2 of X (spectral bins),
       // producing pairs of corresponding bins from 2 spectrums
       // (since the enclosing iteration is of size 2):
-      for each( bin_pair in X[#2] )
+      for each( bin_pair in X{2} )
       {
         // Either a positive change or 0:
         max(0, bin_pair[2] - bin_pair[1])
