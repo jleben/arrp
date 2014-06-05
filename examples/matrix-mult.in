@@ -1,6 +1,9 @@
 // Compute matrix multiplication for each pair of matrice from two sequences of
 // matrices
 
+sum( X ) =
+  reduce( a, b in X ) a + b;
+
 // A, B are each a sequence of matrices.
 matrix_multiply(A,B) =
   // Iterate all sources over (implicitly) first dimension (sequence).
@@ -15,7 +18,6 @@ matrix_multiply(A,B) =
       for each ( col in n[#2] )
       {
         // multiplication is assumed to be built-in and operate element-wise
-        // sum is assumed to be built-in and operate on entire range
         sum( row * col  )
       }
     }
