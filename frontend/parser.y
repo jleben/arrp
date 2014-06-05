@@ -91,11 +91,21 @@ expr:
   |
   '(' expr ')'
   |
+  hash // get index of iterator or size of stream
+  |
   range
   |
   call
   |
   literal
+;
+
+hash:
+  '#' ID // implied dimension 1
+  |
+  '#' '(' ID ')' // implied dimension 1
+  |
+  '#' '(' ID ',' expr ')' // second arg = dimension
 ;
 
 simple_expr:

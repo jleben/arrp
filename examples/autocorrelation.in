@@ -3,7 +3,7 @@
 sum( X ) = X[1] + sum( X[2..] );
 
 autocorrelation(X) =
-  for each ( k in ..10 )
+  for each ( k in 2..#X )
   {
     let products = for each ( a in X; b in X[k..] ) { a * b };
     sum( products )
