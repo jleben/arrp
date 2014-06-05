@@ -5,7 +5,7 @@
 
 %token SCANNER_ERROR
 %token INT REAL ID
-%token LET FOR EACH TAKES EVERY IN
+%token LET REDUCE FOR EACH TAKES EVERY IN
 
 %left '='
 %left EQ NEQ LESS MORE
@@ -116,6 +116,8 @@ complex_expr:
   simple_expr
   |
   for
+  |
+  reduce
 ;
 
 literal: INT | REAL
@@ -207,9 +209,14 @@ for_domain: range | call
 ;
 
 for_body:
-  // empty
-  |
   assignment_body
+;
+
+reduce:
+  REDUCE '(' ID ',' ID IN call ')' reduce_body
+;
+
+reduce_body: assignment_body
 ;
 
 int_or_id: INT | ID

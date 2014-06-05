@@ -1,10 +1,10 @@
 
-// FIXME: terminate recursion at some point
-sum( X ) = X[1] + sum( X[2..] );
+sum( X ) =
+  reduce( a, b in X ) a + b;
 
 autocorrelation(X) =
   for each ( k in 2..#X )
   {
-    let products = for each ( a in X; b in X[k..] ) { a * b };
+    let products = for each ( a in X; b in X[k..] ) a * b;
     sum( products )
   }

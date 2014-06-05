@@ -44,6 +44,7 @@
 ">" { return Parser::MORE; }
 
 "let" { return Parser::LET; }
+"reduce" { return Parser::REDUCE; }
 "for" { return Parser::FOR; }
 "each" { return Parser::EACH; }
 "takes" { return Parser::TAKES; }
