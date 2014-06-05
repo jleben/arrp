@@ -49,7 +49,7 @@ func_param_list:
 ;
 
 func_body:
-  expr
+  complex_expr
 ;
 
 expr:
@@ -73,11 +73,15 @@ expr:
   |
   range
   |
-  for
-  |
   call
   |
   literal
+;
+
+complex_expr:
+  expr
+  |
+  for
 ;
 
 literal: INT | REAL
@@ -124,9 +128,9 @@ call_range_dim:
 ;
 
 arg_list:
-  arg_list ',' expr
+  arg_list ',' complex_expr
   |
-  expr
+  complex_expr
   |
   // empty
 ;
@@ -171,7 +175,7 @@ for_domain: range | call
 for_body:
   // empty
   |
-  expr
+  complex_expr
 ;
 
 int_or_id: INT | ID
