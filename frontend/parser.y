@@ -5,7 +5,7 @@
 
 %token SCANNER_ERROR
 %token INT REAL ID
-%token FOR EACH TAKES EVERY IN
+%token LET FOR EACH TAKES EVERY IN
 
 %left '='
 %left EQ NEQ LESS MORE
@@ -21,35 +21,55 @@ Perhaps use 'map' and 'reduce' instead of 'for'?
 Well, 'for' with multi-one-single-one function is already a kind of reduction.
 */
 
-program: func_def_list
+program: stmt_list
 ;
 
-func_def_list:
+stmt_list:
+  stmt
+  |
+  stmt_list ';' stmt
+;
+
+stmt:
   // empty
   |
-  func_def
+  assignment
+;
+
+assignment:
+  ID '(' param_list ')' '=' assignment_body
   |
-  func_def ';' func_def_list
+  ID '=' assignment_body
 ;
 
-func_def:
-  ID func_param_spec '=' func_body
-;
-
-func_param_spec:
+param_list:
   // empty
   |
-  '(' func_param_list ')'
-;
-
-func_param_list:
   ID
   |
-  ID ',' func_param_list
+  param_list ',' ID
 ;
 
-func_body:
+assignment_body:
   complex_expr
+  |
+  '{' complex_expr '}'
+  |
+  '{' let_stmt_list ';' complex_expr '}'
+;
+
+let_stmt_list:
+  let_stmt
+  |
+  let_stmt_list ';' let_stmt
+;
+
+let_stmt:
+  // empty
+  |
+  LET stmt
+  |
+  LET '{' stmt_list '}'
 ;
 
 expr:
@@ -78,8 +98,12 @@ expr:
   literal
 ;
 
-complex_expr:
+simple_expr:
   expr
+;
+
+complex_expr:
+  simple_expr
   |
   for
 ;
@@ -136,7 +160,7 @@ arg_list:
 ;
 
 for:
-  FOR EACH '(' for_spec_list ')' '{' for_body '}'
+  FOR EACH '(' for_spec_list ')' for_body
 ;
 
 for_spec_list:
@@ -175,7 +199,7 @@ for_domain: range | call
 for_body:
   // empty
   |
-  complex_expr
+  assignment_body
 ;
 
 int_or_id: INT | ID

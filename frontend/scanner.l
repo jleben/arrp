@@ -43,6 +43,7 @@
 "<" { return Parser::LESS; }
 ">" { return Parser::MORE; }
 
+"let" { return Parser::LET; }
 "for" { return Parser::FOR; }
 "each" { return Parser::EACH; }
 "takes" { return Parser::TAKES; }
