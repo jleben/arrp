@@ -131,7 +131,7 @@ for_domain:
 ;
 
 for_source:
-  ID
+  ID // Implies iteration over first dimension
   |
   ID '{' INT '}'
   |
