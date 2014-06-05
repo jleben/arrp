@@ -1,9 +1,14 @@
 option(FRONTEND_PRINT_TOKENS "Parser: enable printing tokens." OFF)
+option(BISON_VERBOSE "Bison: Output detailed information about parser generation." OFF)
 
 set(bison_opts "")
+
 if(FRONTEND_PRINT_TOKENS)
   list(APPEND bison_opts "--print")
-  #set(bison_opts "${bison_opts} --print")
+endif()
+
+if(BISON_VERBOSE)
+  list(APPEND bison_opts "--verbose")
 endif()
 
 add_custom_command(
