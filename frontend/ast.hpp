@@ -12,26 +12,124 @@ using std::vector;
 using std::string;
 template <typename T> using sp = std::shared_ptr<T>;
 
-template <typename T>
-class visitable : public T
+namespace ast {
+
+struct node;
+
+struct semantic_value : public std::shared_ptr<node>
 {
-    template <typename V>
-    void accept( const V & visitor )
+    semantic_value & operator=(node * n)
     {
-        visitor.visit( *static_cast<T*>(this) );
+        reset(n);
+        return *this;
+    }
+
+    template <typename T>
+    T * as()
+    {
+        return static_cast<T*>( get() );
     }
 };
 
+/*
+struct visitor
+{
+    void visit( node *n );
+    void visit( list_node * n );
+};
+*/
 
-namespace ast {
+enum node_type
+{
+    kwd_let,
+    kwd_for,
+    kwd_reduce,
+
+    add,
+    subtract,
+    multiply,
+    divide,
+    lesser,
+    greater,
+    lesser_or_equal,
+    greater_or_equal,
+    equal,
+    not_equal,
+
+    integer_num,
+    real_num,
+    identifier,
+    range,
+
+    //binary_op_expression,
+    call_expression,
+    for_expression,
+    for_iteration,
+    for_iteration_list,
+    reduce_expression,
+    hash_expression,
+    expression_block,
+
+    statement,
+
+    id_list,
+    int_list,
+    expression_list,
+    statement_list,
+
+    program
+};
 
 struct node
 {
-    node(): line(0) {}
-    node( int line ): line(line) {}
+    node_type type;
     int line;
+
+    node( node_type type, int line = 0 ): type(type), line(line) {}
+    virtual ~node() {}
 };
 
+struct list_node : public node
+{
+    vector<sp<node>> elements;
+
+    list_node( node_type type, int line ):
+        node(type, line)
+    {}
+
+    list_node( node_type type, int line,
+               std::initializer_list<sp<node>> elements ):
+        node(type, line),
+        elements(elements)
+    {}
+
+    void append( const sp<node> & element )
+    {
+        elements.push_back(element);
+    }
+};
+
+template<typename T>
+struct leaf_node : public node
+{
+    T value;
+
+    leaf_node (node_type type, int line, const T & v):
+        node(type, line),
+        value(v)
+    {}
+};
+
+struct binary_op_expression : list_node
+{
+    binary_op_expression( const sp<node> & lhs,
+                          node_type op,
+                          const sp<node> & rhs ):
+        list_node( op, lhs->line, { lhs, rhs } )
+    {}
+};
+
+#if 0
 struct statement;
 
 template <typename T>
@@ -197,6 +295,8 @@ struct program : public node
 {
     statement_list statements;
 };
+
+#endif
 
 }
 
