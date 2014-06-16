@@ -19,13 +19,15 @@ class Parser: public ParserBase
 {
     // $insert scannerobject
     Scanner d_scanner;
+    ast::semantic_value d_ast;
 
     public:
         Parser( std::istream & stream ):
-        d_scanner(stream)
+            d_scanner(stream)
         {}
 
         int parse();
+        ast::semantic_value ast() { return d_ast; }
 
     private:
         void error(char const *msg);    // called on (syntax) errors

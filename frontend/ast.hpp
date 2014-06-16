@@ -77,7 +77,9 @@ enum node_type
     expression_list,
     statement_list,
 
-    program
+    program,
+
+    node_type_count
 };
 
 struct node

@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "ast_printer.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -18,5 +19,12 @@ int main(int argc, char *argv[])
 
   stream::Parser parser(input_file);
 
-  return parser.parse();
+  int success = parser.parse();
+
+  if (success != 0)
+      return success;
+
+  stream::ast::printer printer;
+  printer.print( parser.ast().get() );
+  cout << endl;
 }

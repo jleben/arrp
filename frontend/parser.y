@@ -70,6 +70,7 @@ Well, 'for' with multi-one-single-one function is already a kind of reduction.
 */
 
 program: stmt_list
+{ $$ = $1; d_ast = $$; }
 ;
 
 stmt_list:
