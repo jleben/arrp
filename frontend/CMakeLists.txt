@@ -30,5 +30,6 @@ add_custom_command(
 add_executable(test
   lex.cc
   parse.cc
+  symbols.cpp
   test.cpp
 )

@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "ast_printer.hpp"
+#include "symbols.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -24,7 +25,15 @@ int main(int argc, char *argv[])
   if (success != 0)
       return success;
 
+  cout << endl;
+
+  cout << "== Abstract Syntax Tree ==" << endl;
   stream::ast::printer printer;
   printer.print( parser.ast().get() );
   cout << endl;
+
+  cout << endl;
+
+  cout << "== Constructing evironment ==" << endl;
+  stream::symbolic::construct_environment( parser.ast().get() );
 }

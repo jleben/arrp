@@ -60,6 +60,7 @@ public:
         case int_list:
         case expression_list:
         case statement_list:
+        case program:
         {
             list_node *parent = static_cast<list_node*>(n);
             if (!parent->elements.empty())
