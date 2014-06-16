@@ -77,3 +77,7 @@ bisonc++.
 
 The entire project code is available online at:
 https://github.com/jleben/stream-lang
+
+## Author:
+
+Jakob Leben
