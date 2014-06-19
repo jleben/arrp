@@ -156,7 +156,7 @@ let_stmt:
   |
   let stmt
   {
-    $$ = new ast::list_node( ast::statement_list, $1->line, {$1} );
+    $$ = new ast::list_node( ast::statement_list, $1->line, {$2} );
   }
   |
   let '{' stmt_list '}'
