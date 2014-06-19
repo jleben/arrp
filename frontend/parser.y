@@ -252,7 +252,6 @@ call:
 
 call_args:
   // empty
-  { $$ = new ast::list_node( ast::expression_list, d_scanner.lineNr() ); }
   |
   '(' ')'
   { $$ = new ast::list_node( ast::expression_list, d_scanner.lineNr() ); }
@@ -263,7 +262,6 @@ call_args:
 
 call_dim:
   // empty
-  { $$ = new ast::list_node( ast::int_list, d_scanner.lineNr() ); }
   |
   '{' '.' '}'
   { $$ = new ast::list_node( ast::int_list, d_scanner.lineNr() ); }
@@ -285,7 +283,6 @@ int_list:
 
 call_range:
   // empty
-  { $$ = new ast::list_node( ast::expression_list, d_scanner.lineNr() ); }
   |
   '[' simple_expr_list ']'
   { $$ = $2; }
