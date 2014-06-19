@@ -47,6 +47,16 @@ public:
         case identifier:
             cout << ": \"" << static_cast<leaf_node<string>*>(n)->value << "\"";
             break;
+        case add:
+        case subtract:
+        case multiply:
+        case divide:
+        case lesser:
+        case greater:
+        case lesser_or_equal:
+        case greater_or_equal:
+        case equal:
+        case not_equal:
         case range:
         case call_expression:
         case for_expression:
