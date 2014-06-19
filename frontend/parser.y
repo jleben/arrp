@@ -168,28 +168,28 @@ let_stmt:
 
 expr:
   expr EQ expr
-  { $$ = new ast::binary_op_expression( $1, ast::equal, $2 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::equal, $3 ); }
   |
   expr NEQ expr
-  { $$ = new ast::binary_op_expression( $1, ast::not_equal, $2 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::not_equal, $3 ); }
   |
   expr LESS expr
-  { $$ = new ast::binary_op_expression( $1, ast::lesser, $2 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::lesser, $3 ); }
   |
   expr MORE expr
-  { $$ = new ast::binary_op_expression( $1, ast::greater, $2 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::greater, $3 ); }
   |
   expr '+' expr
-  { $$ = new ast::binary_op_expression( $1, ast::add, $2 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::add, $3 ); }
   |
   expr '-' expr
-  { $$ = new ast::binary_op_expression( $1, ast::subtract, $2 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::subtract, $3 ); }
   |
   expr '*' expr
-  { $$ = new ast::binary_op_expression( $1, ast::multiply, $2 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::multiply, $3 ); }
   |
   expr '/' expr
-  { $$ = new ast::binary_op_expression( $1, ast::divide, $2 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::divide, $3 ); }
   |
   '(' expr ')'
   { $$ = $2; }
