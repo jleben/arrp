@@ -23,10 +23,9 @@ inter_spectrum_difference(X) =
   for each( spectrum_pair takes 2 every 1 in X )
   {
     let bin_increases =
-      // Iterate over dimension 2 of X (spectral bins),
-      // producing pairs of corresponding bins from 2 spectrums
-      // (since the enclosing iteration is of size 2):
-      for each( bin_pair in X{2} )
+      // Iterate over dimension 2 (bins) of each pair of spectrums,
+      // producing pairs of corresponding bins from 2 spectrums:
+      for each( bin_pair in spectrum_pair{2} )
       {
         // Either a positive change or 0:
         max(0, bin_pair[2] - bin_pair[1])
