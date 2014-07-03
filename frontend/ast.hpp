@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <cassert>
 
 namespace stream
 {
@@ -82,6 +83,9 @@ enum node_type
     node_type_count
 };
 
+struct list_node;
+template <typename T> struct leaf_node;
+
 struct node
 {
     node_type type;
@@ -89,6 +93,14 @@ struct node
 
     node( node_type type, int line = 0 ): type(type), line(line) {}
     virtual ~node() {}
+
+    virtual bool is_list() { return false; }
+    virtual bool is_leaf() { return false; }
+
+    inline list_node *as_list();
+
+    template <typename T>
+    inline leaf_node<T> *as_leaf();
 };
 
 struct list_node : public node
@@ -105,6 +117,8 @@ struct list_node : public node
         elements(elements)
     {}
 
+    bool is_list() { return true; }
+
     void append( const sp<node> & element )
     {
         elements.push_back(element);
@@ -120,7 +134,22 @@ struct leaf_node : public node
         node(type, line),
         value(v)
     {}
+
+    bool is_leaf() { return true; }
 };
+
+inline list_node *node::as_list()
+{
+    assert(is_list());
+    return static_cast<list_node*>(this);
+}
+
+template <typename T>
+inline leaf_node<T> *node::as_leaf()
+{
+    assert(is_leaf());
+    return static_cast<leaf_node<T>*>(this);
+}
 
 struct binary_op_expression : list_node
 {
