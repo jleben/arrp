@@ -204,13 +204,13 @@ expr:
 ;
 
 hash:
-  '#' id // implied dimension 1
+  '#' call // implied dimension 1
   { $$ = new ast::list_node( ast::hash_expression, $2->line, {$2, nullptr} ); }
   |
-  '#' '(' id ')' // implied dimension 1
+  '#' '(' call ')' // implied dimension 1
   { $$ = new ast::list_node( ast::hash_expression, $3->line, {$3, nullptr} ); }
   |
-  '#' '(' id ',' expr ')' // second arg = dimension
+  '#' '(' call ',' expr ')' // second arg = dimension
   { $$ = new ast::list_node( ast::hash_expression, $3->line, {$3, $5} ); }
 ;
 
