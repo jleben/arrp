@@ -254,7 +254,7 @@ call_args:
   // empty
   |
   '(' ')'
-  { $$ = new ast::list_node( ast::expression_list, d_scanner.lineNr() ); }
+  { $$ = nullptr; }
   |
   '(' complex_expr_list ')'
   { $$ = $2; }
