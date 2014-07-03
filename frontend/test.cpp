@@ -5,6 +5,7 @@
 #include <iostream>
 
 using namespace std;
+using namespace stream;
 
 int main(int argc, char *argv[])
 {
@@ -35,5 +36,27 @@ int main(int argc, char *argv[])
   cout << endl;
 
   cout << "== Constructing evironment ==" << endl;
-  stream::symbolic::construct_environment( parser.ast().get() );
+  stream::semantic::environment env = stream::semantic::top_environment( parser.ast().get() );
+
+  stream::semantic::environment_item *main = env["main"];
+  if (!main)
+  {
+      cerr << "WARNING: no 'main' function." << endl;
+      return 0;
+  }
+
+  vector<std::shared_ptr<semantic::type>> args;
+  args.emplace_back( new semantic::stream({10,20,30}) );
+
+  try {
+      sp<semantic::type> value = main->evaluate(env, args);
+      if (value)
+          cout << "Result = " << *value << endl;
+      else
+          cout << "No result." << endl;
+  }
+  catch (semantic::semantic_error & e)
+  {
+      e.report();
+  }
 }
