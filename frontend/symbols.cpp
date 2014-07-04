@@ -1,5 +1,4 @@
 #include "symbols.hpp"
-//#include "types.hpp"
 
 #include <stdexcept>
 #include <cassert>
@@ -41,26 +40,7 @@ environment top_environment( ast::node * root )
 
     return std::move(env);
 }
-#if 0
-sp<type> evaluate( environment & env,
-                   const sp<function> & f,
-                   const vector<sp<type>> & a )
-{
-    if (a.size() != f->parameters.size())
-        throw semantic_error("Wrong number of arguments.");
 
-    env.enter_scope();
-
-    for (int i = 0; i < f->parameters.size(); ++i)
-    {
-        env.bind(f->parameters[i], a[i]);
-    }
-
-    evaluate_expr_block(env, f->body);
-
-    env.exit_scope();
-}
-#endif
 sp<type> environment_item::evaluate( environment & env, const vector<sp<type>> & args )
 {
     if (m_value)
@@ -204,16 +184,6 @@ sp<type> evaluate_expression( environment & env, const sp<ast::node> & root )
     }
 }
 
-/*
-template<typename RHS>
-type * apply_binop( ast::node_type op, stream * lhs, RHS *rhs );
-
-template<typename LHS>
-type * apply_binop( ast::node_type op, LHS * lhs, stream *rhs );
-
-type * apply_binop( ast::node_type op, stream * lhs, stream *rhs );
-*/
-
 template<typename R, typename LHS, typename RHS>
 R * apply_binop( ast::node_type op, LHS * lhs, RHS * rhs )
 {
@@ -246,30 +216,6 @@ R * apply_binop( ast::node_type op, LHS * lhs, RHS * rhs )
     }
 
     return result;
-}
-
-template<>
-stream * apply_binop<stream,stream,type>( ast::node_type op, stream * lhs, type *rhs )
-{
-    cout << "binop<stream,RHS>" << endl;
-#if 0
-    if ( rhs->get_tag() != type::integer_num &&
-         rhs->get_tag() != type::real_num )
-        throw semantic_error("Right-hand-side operand not a stream or a number.");
-#endif
-    return new stream(lhs->size);
-}
-
-template<>
-stream * apply_binop<stream,type,stream>( ast::node_type op, type * lhs, stream *rhs )
-{
-    cout << "binop<LHS,stream>" << endl;
-#if 0
-    if ( lhs->get_tag() != type::integer_num &&
-         lhs->get_tag() != type::real_num )
-        throw semantic_error("Left-hand-side operand not a stream or a number.");
-#endif
-    return new stream(rhs->size);
 }
 
 template<>
@@ -474,24 +420,6 @@ stream *transpose( stream * in, const sp<ast::node> & n )
     return new stream( std::move(transposed_size) );
 }
 
-#if 0
-stream *slice( stream * s, int dim, int size )
-{
-    if (dim < 1 || dim > s->dimensionality())
-        throw semantic_error("Dimension out of bounds.");
-
-    int d = dim - 1;
-
-    if (size < 1 || size > s->size[d])
-        throw semantic_error("Size out of bounds.");
-
-    stream *sliced = new stream(s->size);
-    sliced->size[d] = size;
-    sliced->reduce();
-
-    return sliced;
-}
-#endif
 sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
 {
     assert(root->type == ast::call_expression);
@@ -726,50 +654,6 @@ sp<type> evaluate_reduction( environment & env, const sp<ast::node> & root )
     return reduct;
 }
 
-#if 0
-function::function( const sp<ast::node> & def )
-{
-    assert(def->type == ast::statement);
-    ast::list_node *statement = def->as_list();
-
-    assert(statement->elements.size() == 3);
-
-    // Get name
-
-    ast::node *id = statement->elements[0].get();
-    assert(id);
-    assert(id->type == ast::identifier);
-
-    name = id->as_leaf<string>()->value;
-
-    // Get parameters
-
-    ast::node *params = statement->elements[1].get();
-    if (params)
-    {
-        assert(params->type == ast::id_list);
-        ast::list_node *param_list = params->as_list();
-        for ( const sp<ast::node> & param : param_list->elements )
-        {
-            assert(param->type == ast::identifier);
-            string param_name = param->as_leaf<string>()->value;
-            parameters.push_back(param_name);
-        }
-    }
-
-    // Store body
-
-    assert( statement->elements[2]->type == ast::expression_block );
-    body = statement->elements[2];
-}
-
-sp<type> func_environment_item::evaluate_type(environment & envir ,
-                                              const vector<sp<type> > & args)
-{
-    // TODO
-    return sp<type>();
-}
-#endif
 
 void semantic_error::report()
 {

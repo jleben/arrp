@@ -2,7 +2,6 @@
 #define STREAM_LANG_SYMBOLIC_INCLUDED
 
 #include "ast.hpp"
-//#include "types.hpp"
 
 #include <string>
 #include <unordered_map>
@@ -31,7 +30,6 @@ struct type
         real_num,
         range,
         stream
-        //function
     };
 
     type(tag t): m_tag(t) {}
@@ -164,27 +162,7 @@ struct stream : public tagged_type<type::stream>
     }
 };
 
-#if 0
-struct function : public tagged_type<type::function>
-{
-    sp<ast::node> body;
-    string name;
-    vector<string> parameters;
-
-    function( const sp<ast::node> & def );
-};
-#endif
-
-struct environment_item;
-
 struct environment;
-
-// TODO:
-// Have one single environment item that optionally has parameters.
-// It is created with an unevaluated reference to ast::node.
-// It is evaluated upon request.
-// If it has no parameters, the first value is cached.
-// Thus we can use evaluate_stmt_list for top-level environment creation.
 
 class environment_item
 {
@@ -210,47 +188,6 @@ private:
     sp<ast::node> m_code;
     sp<type> m_value;
 };
-
-#if 0
-struct environment_item
-{
-    virtual ~environment_item(){}
-    virtual sp<type> evaluate_type( environment & envir, const vector<sp<type>> & ) = 0;
-    //virtual vector<string> parameters() = 0;
-};
-
-struct simple_environment_item : public environment_item
-{
-    sp<type> data;
-
-    simple_environment_item( const sp<type> & d): data(d) {}
-
-#if 0
-    vector<string> parameters()
-    {
-        return vector<string>();
-    }
-#endif
-    sp<type> evaluate_type( environment &, const vector<sp<type>> &)
-    {
-        return data;
-    }
-};
-
-struct func_environment_item : public environment_item
-{
-    sp<function> func;
-
-    func_environment_item( const sp<function> & f ): func(f) {}
-#if 0
-    vector<string> parameters()
-    {
-        return func->parameters;
-    }
-#endif
-    sp<type> evaluate_type( environment & envir, const vector<sp<type>> & );
-};
-#endif
 
 typedef std::unordered_map<string, up<environment_item>> symbol_map;
 
@@ -316,7 +253,6 @@ struct iterator
 
 environment top_environment( ast::node * program );
 
-//sp<type> evaluate( environment & env, sp<function> & f, const vector<sp<type>> & a );
 sp<type> evaluate_expr_block( environment & env, const sp<ast::node> & root );
 void evaluate_stmt_list( environment & env, const sp<ast::node> & root );
 environment_item * evaluate_statement( environment & env, const sp<ast::node> & root );
