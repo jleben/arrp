@@ -212,12 +212,6 @@ public:
         back().emplace(symbol, up<environment_item>(new environment_item(val)));
     }
 
-#if 0
-    void bind( const string & symbol, const sp<function> & f )
-    {
-        back().emplace(symbol, up<environment_item>(new func_environment_item(f)));
-    }
-#endif
     void enter_scope()
     {
         emplace_back();
