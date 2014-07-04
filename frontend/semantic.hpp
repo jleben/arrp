@@ -10,6 +10,7 @@
 #include <memory>
 #include <stdexcept>
 #include <iostream>
+#include <algorithm>
 
 namespace stream {
 namespace semantic {
@@ -157,8 +158,9 @@ struct stream : public tagged_type<type::stream>
 
     void reduce()
     {
-        if (dimensionality() > 1 && size[0] == 1)
-            size = vector<int>(++size.begin(), size.end());
+        size.erase( std::remove(size.begin(), size.end(), 1), size.end() );
+        if (size.empty())
+            size.push_back(1);
     }
 };
 

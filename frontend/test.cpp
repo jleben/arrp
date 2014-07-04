@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
   //args.emplace_back( new semantic::stream({10,20,30}) );
   //args.emplace_back( new semantic::stream({10,20,30}) );
 
-  cout << "evaluating: " << function_name;
+  cout << "Evaluating: " << function_name;
   cout << "(";
   for ( const auto & a : function_args )
   {

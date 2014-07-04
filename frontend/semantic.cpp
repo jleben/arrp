@@ -191,7 +191,7 @@ sp<type> evaluate_expression( environment & env, const sp<ast::node> & root )
 template<typename R, typename LHS, typename RHS>
 R * apply_binop( ast::node_type op, LHS * lhs, RHS * rhs )
 {
-    cout << "binop<LHS,RHS>" << endl;
+    //cout << "binop<LHS,RHS>" << endl;
 
     R *result = new R;
 
@@ -225,7 +225,7 @@ R * apply_binop( ast::node_type op, LHS * lhs, RHS * rhs )
 template<>
 stream * apply_binop<stream,stream,stream>( ast::node_type op, stream * lhs, stream *rhs )
 {
-    cout << "binop<stream,stream>" << endl;
+    //cout << "binop<stream,stream>" << endl;
     if (lhs->dimensionality() != rhs->dimensionality())
         throw semantic_error("Operand streams have different number of dimensions.");
 
@@ -238,7 +238,7 @@ stream * apply_binop<stream,stream,stream>( ast::node_type op, stream * lhs, str
 template<typename LHS>
 type * apply_binop( ast::node_type op, LHS * lhs, type *rhs )
 {
-    cout << "binop<LHS,type>" << endl;
+    //cout << "binop<LHS,type>" << endl;
 
     switch(rhs->get_tag())
     {
@@ -257,7 +257,7 @@ type * apply_binop( ast::node_type op, LHS * lhs, type *rhs )
 
 type * apply_binop( ast::node_type op, type * lhs, type *rhs )
 {
-    cout << "binop<type,type>" << endl;
+    //cout << "binop<type,type>" << endl;
 
     if (lhs->get_tag() == type::stream && rhs->get_tag() == type::stream)
     {
@@ -393,7 +393,11 @@ stream *transpose( stream * in, const sp<ast::node> & n )
     ast::list_node *dims = n->as_list();
 
     if (dims->elements.empty())
-        throw semantic_error("Dimension selector unsupported.", n->line);
+    {
+        // throw semantic_error("Dimension selector unsupported.", n->line);
+        // FIXME: Find more elegant solution.
+        return new stream( {1} );
+    }
 
     if (dims->elements.size() > in->dimensionality())
         throw semantic_error("Too many dimension selector elements.", n->line);
@@ -485,6 +489,8 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
 
 sp<type> evaluate_iteration( environment & env, const sp<ast::node> & root )
 {
+    //cout << "+++ iteration +++" << endl;
+
     assert(root->type == ast::for_expression);
     ast::list_node *iteration = root->as_list();
     assert(iteration->elements.size() == 2);
@@ -524,6 +530,8 @@ sp<type> evaluate_iteration( environment & env, const sp<ast::node> & root )
         operand_stream->reduce();
 
         env.bind(it.id, sp<type>(operand_stream));
+
+        //cout << "iterator: " << it.id << " = " << *operand_stream << endl;
     }
 
     sp<type> result = evaluate_expr_block(env, iteration->elements[1]);
@@ -540,6 +548,7 @@ sp<type> evaluate_iteration( environment & env, const sp<ast::node> & root )
         product->size.insert( product->size.end(),
                               result_stream->size.begin(),
                               result_stream->size.end() );
+        product->reduce();
         break;
     }
     case type::integer_num:
@@ -548,6 +557,10 @@ sp<type> evaluate_iteration( environment & env, const sp<ast::node> & root )
     default:
         throw semantic_error("Unsupported iteration result type.", iteration->elements[1]->line);
     }
+
+    //cout << "result: " << *result << endl;
+    //cout << "product: " << *product << endl;
+    //cout << "--- iteration ---" << endl;
 
     return sp<type>(product);
 }
