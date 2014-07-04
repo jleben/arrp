@@ -7,15 +7,112 @@
 using namespace std;
 using namespace stream;
 
+sp<semantic::type> parse_stream_arg(const string & arg)
+{
+    if (arg.size() < 3)
+        throw std::runtime_error("Misformatted stream argument.");
+
+    if (arg.front() != '[' || arg.back() != ']')
+        throw std::runtime_error("Misformatted stream argument.");
+
+    string size_list = arg.substr(1, arg.size()-2);
+
+    vector<int> sizes;
+    istringstream size_stream(size_list);
+    string elem;
+    while(std::getline(size_stream, elem, ','))
+    {
+        try {
+            size_t pos = 0;
+            int size = stoi(elem, &pos);
+            if (pos == elem.size())
+            {
+                sizes.push_back(size);
+                continue;
+            }
+        } catch (...) {}
+
+        throw std::runtime_error("Misformatted stream argument.");
+    }
+
+    return sp<semantic::type>( new semantic::stream(sizes) );
+}
+
+sp<semantic::type> parse_scalar_arg(const string & arg)
+{
+    try {
+        size_t pos = 0;
+        int i = stoi(arg, &pos);
+        if (pos == arg.size())
+            return sp<semantic::type>( new semantic::integer_num(i) );
+    }
+    catch (...) {}
+
+    try {
+        size_t pos = 0;
+        double d = stod(arg, &pos);
+        if (pos == arg.size())
+            return sp<semantic::type>( new semantic::real_num(d) );
+    }
+    catch (...) {}
+
+    throw std::runtime_error("Misformatted scalar argument.");
+}
+
+sp<semantic::type> parse_range_arg(const string & arg)
+{
+    throw std::runtime_error("Unsupported range argument.");
+}
+
+sp<semantic::type> parse_arg(const string & arg)
+{
+    assert(!arg.empty());
+
+    switch(arg[0])
+    {
+    case '[':
+        return parse_stream_arg(arg);
+    //case '[':
+        //return parse_range_arg(arg);
+    default:
+        return parse_scalar_arg(arg);
+    }
+}
+
 int main(int argc, char *argv[])
 {
-  if (argc < 2)
-  {
-    cerr << "Missing argument: input filename." << endl;
-    return 1;
-  }
+    string input_filename;
+    string function_name;
 
-  string input_filename( argv[1] );
+    if (argc < 2)
+    {
+        cerr << "Missing argument: input filename." << endl;
+        return 1;
+    }
+    input_filename = argv[1];
+
+    if (argc > 2)
+    {
+        function_name = argv[2];
+    }
+    else
+    {
+        function_name = "main";
+        cerr << "WARNING: No starting function name given." << endl
+             << "WARNING: Assuming default: " << function_name << endl;
+    }
+
+    vector<sp<semantic::type>> function_args;
+    for (int i = 3; i < argc; ++i)
+    {
+        try {
+            function_args.emplace_back( parse_arg(argv[i]) );
+        } catch (exception & e)
+        {
+            cerr << "ERROR while parsing arguments: " << e.what() << endl;
+            return 0;
+        }
+    }
 
   ifstream input_file(input_filename);
 
@@ -38,19 +135,28 @@ int main(int argc, char *argv[])
   cout << "== Semantic Analysis ==" << endl;
   stream::semantic::environment env = stream::semantic::top_environment( parser.ast().get() );
 
-  stream::semantic::environment_item *main = env["main"];
+  stream::semantic::environment_item *main = env[function_name];
   if (!main)
   {
-      cerr << "WARNING: no 'main' function." << endl;
+      cerr << "WARNING: no function named '" << function_name << "' available." << endl;
       return 0;
   }
 
-  vector<std::shared_ptr<semantic::type>> args;
-  args.emplace_back( new semantic::stream({10,20,30}) );
+  //vector<std::shared_ptr<semantic::type>> args;
+  //args.emplace_back( new semantic::stream({10,20,30}) );
   //args.emplace_back( new semantic::stream({10,20,30}) );
 
+  cout << "evaluating: " << function_name;
+  cout << "(";
+  for ( const auto & a : function_args )
+  {
+      cout << *a;
+      cout << ", ";
+  }
+  cout << ")" << endl;
+
   try {
-      sp<semantic::type> value = main->evaluate(env, args);
+      sp<semantic::type> value = main->evaluate(env, function_args);
       if (value)
           cout << "Result = " << *value << endl;
       else

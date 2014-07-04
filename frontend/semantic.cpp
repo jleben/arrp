@@ -47,7 +47,11 @@ sp<type> environment_item::evaluate( environment & env, const vector<sp<type>> &
         return m_value;
 
     if (m_parameters.size() != args.size())
-        throw semantic_error("Wrong number of arguments.");
+    {
+        ostringstream msg;
+        msg << "Wrong number of arguments for call to: '" << m_name << "'";
+        throw semantic_error(msg.str());
+    }
 
     sp<type> result;
 
