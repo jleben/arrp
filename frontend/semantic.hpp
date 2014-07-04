@@ -100,9 +100,9 @@ struct integer_num : public scalar<int>, public tagged_type<type::integer_num>
     virtual void print_on( ostream & s ) const
     {
         if (is_constant())
-            s << "<int: " << constant_value() << ">";
+            s << "<i:" << constant_value() << ">";
         else
-            s << "<int>";
+            s << "<i>";
     }
 };
 
@@ -113,9 +113,9 @@ struct real_num : public scalar<double>, public tagged_type<type::real_num>
     virtual void print_on( ostream & s ) const
     {
         if (is_constant())
-            s << "<real: " << constant_value() << ">";
+            s << "<r:" << constant_value() << ">";
         else
-            s << "<real>";
+            s << "<r>";
     }
 };
 
@@ -128,13 +128,13 @@ struct range : public tagged_type<type::range>
 
     virtual void print_on( ostream & s ) const
     {
-        s << "<range: ";
+        s << "[";
         if (start)
             s << *start;
         s << "...";
         if (end)
             s << *end;
-        s << ">";
+        s << "]";
     }
 };
 
@@ -146,14 +146,15 @@ struct stream : public tagged_type<type::stream>
 
     virtual void print_on( ostream & s ) const
     {
-        s << "<stream: [";
-        for (int i : size)
+        s << "[";
+        if (size.size())
+            s << size.front();
+        for (int i = 1; i < size.size(); ++i)
         {
-            s << i;
-            if (i != size.back())
-                s << ",";
+            s << ',';
+            s << size[i];
         }
-        s << "]>";
+        s << "]";
     }
 
     void reduce()

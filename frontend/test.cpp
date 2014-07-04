@@ -148,10 +148,12 @@ int main(int argc, char *argv[])
 
   cout << "Evaluating: " << function_name;
   cout << "(";
-  for ( const auto & a : function_args )
+  if (function_args.size())
+      cout << *function_args.front();
+  for ( int i = 1; i < function_args.size(); ++i )
   {
-      cout << *a;
       cout << ", ";
+      cout << *function_args[i];
   }
   cout << ")" << endl;
 
