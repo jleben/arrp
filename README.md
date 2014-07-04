@@ -29,11 +29,25 @@ Currently, the only executable is the compiler frontend tester, built by
 the above procedure at `build/frontend/test`. It may be invoked so:
 
 ```
-test <input-file>
+test <input-file> [function-name [function-argument ...]]
 ```
 
-...where `<input-file>` is a file in the language implemented by this project.
-Example files are provided in the `examples` folder.
+The meaning of arguments:
+- `input-file`: Require name of file with code to be compiled.
+- `function-name`: Name of function to perform semantic analysis on.
+- `function-argument`: One or more arguments to `function-name`.
+  The arguments can be one of the following examplary literary forms:
+  - `"[5, 6, 10]"`: A stream with size in each dimension represented by one
+    of the integers.
+  - `123` An integer number constant.
+  - `123.45` A real number constant.
+
+Example code files are provided in the `examples` folder. For example,
+the matrix-multiply.in can be syntactically and semantically processed
+with the following command:
+```
+build/frontend/test examples/matrix-multiply matrix_multiply "[10,3,5]" "[10,5,8]"
+```
 
 The program will print the following information on standard output:
 
@@ -43,8 +57,10 @@ The program will print the following information on standard output:
 - The abstract syntax tree (AST).
 
 - The symbols (functions and constants) declared at the top level and stored
-  into the symbol table.
+  into the global symbol table.
 
+- The type of result of evaluation of the function and arguments given on
+  command line.
 
 ## Filesystem:
 
@@ -53,8 +69,7 @@ The program will print the following information on standard output:
   - `parser.y` - Input file for parser generator bisonc++
   - `ast.hpp` - Abstract Syntax Tree (AST) representation
   - `ast_printer.hpp` - AST printing
-  - `types.hpp` - Type representation
-  - `symbols.hpp`, `symbols.cpp` - Symbol environment construction
+  - `semantic.hpp`, `semantic.cpp` - Semantic analysis (type-checking, etc.)
   - `test.cpp` - An executable parser which depends on output of flexc++ and bisonc++.
 
 - `examples` - Contains example code in the language implemented by this project.
