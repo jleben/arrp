@@ -33,9 +33,10 @@ test <input-file> [function-name [function-argument ...]]
 ```
 
 The meaning of arguments:
-- `input-file` - Require name of file with code to be compiled.
-- `function-name` - Name of function to perform semantic analysis on.
-- `function-argument` - One or more arguments to `function-name`.
+- `input-file` - (Required) Name of file with code to be compiled.
+- `function-name` - (Optional) Name of function to perform semantic analysis on.
+  If none is given 'main' is assumed.
+- `function-argument` - (Optional) One or more arguments to `function-name`.
   The arguments can be one of the following examplary literal forms:
   - `"[5, 6, 10]"` - A stream with size in each dimension represented by one
     of the integers.
