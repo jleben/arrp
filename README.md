@@ -33,14 +33,14 @@ test <input-file> [function-name [function-argument ...]]
 ```
 
 The meaning of arguments:
-- `input-file`: Require name of file with code to be compiled.
-- `function-name`: Name of function to perform semantic analysis on.
-- `function-argument`: One or more arguments to `function-name`.
-  The arguments can be one of the following examplary literary forms:
-  - `"[5, 6, 10]"`: A stream with size in each dimension represented by one
+- `input-file` - Require name of file with code to be compiled.
+- `function-name` - Name of function to perform semantic analysis on.
+- `function-argument` - One or more arguments to `function-name`.
+  The arguments can be one of the following examplary literal forms:
+  - `"[5, 6, 10]"` - A stream with size in each dimension represented by one
     of the integers.
-  - `123` An integer number constant.
-  - `123.45` A real number constant.
+  - `123` - An integer number constant.
+  - `123.45` - A real number constant.
 
 Example code files are provided in the `examples` folder. For example,
 the matrix-multiply.in can be syntactically and semantically processed
@@ -61,6 +61,8 @@ The program will print the following information on standard output:
 
 - The type of result of evaluation of the function and arguments given on
   command line.
+
+- Any syntactical or semantical errors in processed code.
 
 ## Filesystem:
 
