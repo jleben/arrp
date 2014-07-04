@@ -1,5 +1,5 @@
-#ifndef STREAM_LANG_SYMBOLIC_INCLUDED
-#define STREAM_LANG_SYMBOLIC_INCLUDED
+#ifndef STREAM_LANG_SEMANTIC_INCLUDED
+#define STREAM_LANG_SEMANTIC_INCLUDED
 
 #include "ast.hpp"
 
@@ -280,4 +280,4 @@ private:
 } // namespace semantic
 } // namespace stream
 
-#endif //  STREAM_LANG_SYMBOLIC_INCLUDED
+#endif //  STREAM_LANG_SEMANTIC_INCLUDED

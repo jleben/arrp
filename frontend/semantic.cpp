@@ -1,4 +1,4 @@
-#include "symbols.hpp"
+#include "semantic.hpp"
 
 #include <stdexcept>
 #include <cassert>

@@ -1,6 +1,6 @@
 #include "parser.h"
 #include "ast_printer.hpp"
-#include "symbols.hpp"
+#include "semantic.hpp"
 #include <fstream>
 #include <iostream>
 
