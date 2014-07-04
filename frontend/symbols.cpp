@@ -172,10 +172,8 @@ sp<type> evaluate_expression( environment & env, const sp<ast::node> & root )
     switch(root->type)
     {
     case ast::integer_num:
-        cout << "got int" << endl;
         return sp<type>( new integer_num( root->as_leaf<int>()->value ) );
     case ast::real_num:
-        cout << "got real" << endl;
         return sp<type>( new real_num( root->as_leaf<double>()->value ) );
     case ast::range:
         return evaluate_range(env, root);
@@ -194,6 +192,10 @@ sp<type> evaluate_expression( environment & env, const sp<ast::node> & root )
     case ast::equal:
     case ast::not_equal:
         return evaluate_binop(env, root);
+    case ast::for_expression:
+        return evaluate_iteration(env, root);
+    case ast::reduce_expression:
+        return evaluate_reduction(env, root);
     // TODO...
     default:
         throw semantic_error("Unsupported expression.", root->line);
@@ -202,15 +204,24 @@ sp<type> evaluate_expression( environment & env, const sp<ast::node> & root )
     }
 }
 
+/*
+template<typename RHS>
+type * apply_binop( ast::node_type op, stream * lhs, RHS *rhs );
+
+template<typename LHS>
+type * apply_binop( ast::node_type op, LHS * lhs, stream *rhs );
+
+type * apply_binop( ast::node_type op, stream * lhs, stream *rhs );
+*/
 
 template<typename R, typename LHS, typename RHS>
-type * apply_binop( ast::node_type op, const LHS * lhs, const RHS * rhs )
+R * apply_binop( ast::node_type op, LHS * lhs, RHS * rhs )
 {
+    cout << "binop<LHS,RHS>" << endl;
+
     R *result = new R;
 
     bool constant = (lhs->is_constant() && rhs->is_constant());
-
-    cout << "constant: " << constant << endl;
 
     switch(op)
     {
@@ -237,24 +248,86 @@ type * apply_binop( ast::node_type op, const LHS * lhs, const RHS * rhs )
     return result;
 }
 
-template<typename LHS>
-type * apply_binop( ast::node_type op, const LHS * lhs, type *rhs )
+template<>
+stream * apply_binop<stream,stream,type>( ast::node_type op, stream * lhs, type *rhs )
 {
+    cout << "binop<stream,RHS>" << endl;
+#if 0
+    if ( rhs->get_tag() != type::integer_num &&
+         rhs->get_tag() != type::real_num )
+        throw semantic_error("Right-hand-side operand not a stream or a number.");
+#endif
+    return new stream(lhs->size);
+}
+
+template<>
+stream * apply_binop<stream,type,stream>( ast::node_type op, type * lhs, stream *rhs )
+{
+    cout << "binop<LHS,stream>" << endl;
+#if 0
+    if ( lhs->get_tag() != type::integer_num &&
+         lhs->get_tag() != type::real_num )
+        throw semantic_error("Left-hand-side operand not a stream or a number.");
+#endif
+    return new stream(rhs->size);
+}
+
+template<>
+stream * apply_binop<stream,stream,stream>( ast::node_type op, stream * lhs, stream *rhs )
+{
+    cout << "binop<stream,stream>" << endl;
+    if (lhs->dimensionality() != rhs->dimensionality())
+        throw semantic_error("Operand streams have different number of dimensions.");
+
+    if (lhs->size != rhs->size)
+        throw semantic_error("Operand streams have different sizes.");
+
+    return new stream(lhs->size);
+}
+
+template<typename LHS>
+type * apply_binop( ast::node_type op, LHS * lhs, type *rhs )
+{
+    cout << "binop<LHS,type>" << endl;
+
     switch(rhs->get_tag())
     {
     case type::integer_num:
-        return apply_binop<LHS, LHS, integer_num>
+        return apply_binop
+                <LHS, LHS, integer_num>
                 (op, lhs, static_cast<integer_num*>(rhs));
     case type::real_num:
-        return apply_binop<real_num, LHS, real_num>
+        return apply_binop
+                <real_num, LHS, real_num>
                 (op, lhs, static_cast<real_num*>(rhs));
     default:
-        throw semantic_error("Right-hand-side operand not a number.");
+        throw semantic_error("Right-hand-side operand not a stream or a number.");
     }
 }
 
 type * apply_binop( ast::node_type op, type * lhs, type *rhs )
 {
+    cout << "binop<type,type>" << endl;
+
+    if (lhs->get_tag() == type::stream && rhs->get_tag() == type::stream)
+    {
+        return apply_binop<stream,stream,stream>(op,
+                           static_cast<stream*>(lhs),
+                           static_cast<stream*>(rhs));
+    }
+    else if (lhs->get_tag() == type::stream &&
+             (rhs->get_tag() == type::integer_num ||
+              rhs->get_tag() == type::real_num))
+    {
+        return new stream( static_cast<stream*>(lhs)->size );
+    }
+    else if (rhs->get_tag() == type::stream &&
+             (lhs->get_tag() == type::integer_num ||
+              lhs->get_tag() == type::real_num))
+    {
+        return new stream( static_cast<stream*>(rhs)->size );
+    }
+
     switch(lhs->get_tag())
     {
     case type::integer_num:
@@ -264,7 +337,7 @@ type * apply_binop( ast::node_type op, type * lhs, type *rhs )
         return apply_binop<real_num>
                 (op, static_cast<real_num*>(lhs), rhs);
     default:
-        throw semantic_error("Left-hand-side operand not a number.");
+        throw semantic_error("Left-hand-side operand not a stream or a number.");
     }
 }
 
@@ -401,6 +474,24 @@ stream *transpose( stream * in, const sp<ast::node> & n )
     return new stream( std::move(transposed_size) );
 }
 
+#if 0
+stream *slice( stream * s, int dim, int size )
+{
+    if (dim < 1 || dim > s->dimensionality())
+        throw semantic_error("Dimension out of bounds.");
+
+    int d = dim - 1;
+
+    if (size < 1 || size > s->size[d])
+        throw semantic_error("Size out of bounds.");
+
+    stream *sliced = new stream(s->size);
+    sliced->size[d] = size;
+    sliced->reduce();
+
+    return sliced;
+}
+#endif
 sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
 {
     assert(root->type == ast::call_expression);
@@ -458,6 +549,181 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
     // TODO: Apply stream range selection
 
     return callee;
+}
+
+sp<type> evaluate_iteration( environment & env, const sp<ast::node> & root )
+{
+    assert(root->type == ast::for_expression);
+    ast::list_node *iteration = root->as_list();
+    assert(iteration->elements.size() == 2);
+
+    assert(iteration->elements[0]->type == ast::for_iteration_list);
+    ast::list_node *iterator_list = iteration->elements[0]->as_list();
+
+    vector<iterator> iterators;
+    iterators.reserve(iterator_list->elements.size());
+
+    for( const sp<ast::node> & e : iterator_list->elements )
+    {
+        iterators.emplace_back( evaluate_iterator(env, e) );
+    }
+
+    assert(!iterators.empty());
+
+    int iteration_count = 0;
+
+    for( const iterator & it : iterators )
+    {
+        if (!iteration_count)
+            iteration_count = it.count;
+        else if (it.count != iteration_count)
+            throw semantic_error("Iterations with differing counts.", root->line);
+    }
+
+    env.enter_scope();
+
+    for( const iterator & it : iterators )
+    {
+        assert(it.domain->get_tag() == type::stream);
+        stream *domain_stream = static_cast<stream*>(it.domain.get());
+        stream *operand_stream = new stream(*domain_stream);
+        assert(operand_stream->dimensionality());
+        operand_stream->size[0] = it.size;
+        operand_stream->reduce();
+
+        env.bind(it.id, sp<type>(operand_stream));
+    }
+
+    sp<type> result = evaluate_expr_block(env, iteration->elements[1]);
+
+    env.exit_scope();
+
+    stream *product = new stream({iteration_count});
+
+    switch(result->get_tag())
+    {
+    case type::stream:
+    {
+        stream *result_stream = static_cast<stream*>(result.get());
+        product->size.insert( product->size.end(),
+                              result_stream->size.begin(),
+                              result_stream->size.end() );
+        break;
+    }
+    case type::integer_num:
+    case type::real_num:
+        break;
+    default:
+        throw semantic_error("Unsupported iteration result type.", iteration->elements[1]->line);
+    }
+
+    return sp<type>(product);
+}
+
+iterator evaluate_iterator( environment & env, const sp<ast::node> & root )
+{
+    assert(root->type == ast::for_iteration);
+    ast::list_node *iteration = root->as_list();
+    assert(iteration->elements.size() == 4);
+
+    iterator it;
+
+    if (iteration->elements[0])
+    {
+        assert(iteration->elements[0]->type == ast::identifier);
+        it.id = iteration->elements[0]->as_leaf<string>()->value;
+    }
+
+    if (iteration->elements[1])
+    {
+        sp<type> val = evaluate_expression(env, iteration->elements[1]);
+        if (val->get_tag() != type::integer_num)
+            throw semantic_error("Iteration size not an integer.");
+        integer_num *i = static_cast<integer_num*>(val.get());
+        if (!i->is_constant())
+            throw semantic_error("Iteration size not a constant.");
+        it.size = i->constant_value();
+        if (it.size < 1)
+            throw semantic_error("Invalid iteration size.");
+    }
+
+    if (iteration->elements[2])
+    {
+        sp<type> val = evaluate_expression(env, iteration->elements[2]);
+        if (val->get_tag() != type::integer_num)
+            throw semantic_error("Iteration hop not an integer.");
+        integer_num *i = static_cast<integer_num*>(val.get());
+        if (!i->is_constant())
+            throw semantic_error("Iteration hop not a constant.");
+        it.hop = i->constant_value();
+        if (it.hop < 1)
+            throw semantic_error("Invalid hop size.");
+    }
+
+    it.domain = evaluate_expression(env, iteration->elements[3]);
+
+    if (it.domain->get_tag() == type::stream)
+    {
+        stream *s = static_cast<stream*>(it.domain.get());
+        assert(s->dimensionality());
+        int iterable_size = s->size[0] - it.size;
+        if (iterable_size < 0)
+            throw semantic_error("Iteration size larger than stream size.", iteration->line);
+        if (iterable_size % it.hop != 0)
+            throw semantic_error("Iteration does not cover stream size.", iteration->line);
+        it.count = iterable_size / it.hop + 1;
+    }
+    else
+        throw semantic_error("Unsupported iteration domain type.", iteration->line);
+
+    return it;
+}
+
+sp<type> evaluate_reduction( environment & env, const sp<ast::node> & root )
+{
+    assert(root->type == ast::reduce_expression);
+    ast::list_node *reduction = root->as_list();
+    assert(reduction->elements.size() == 4);
+
+    assert(reduction->elements[0]->type == ast::identifier);
+    assert(reduction->elements[1]->type == ast::identifier);
+    string id1 = reduction->elements[0]->as_leaf<string>()->value;
+    string id2 = reduction->elements[1]->as_leaf<string>()->value;
+
+    sp<type> domain = evaluate_expression(env, reduction->elements[2]);
+    if ( domain->get_tag() != type::stream &&
+         domain->get_tag() != type::range )
+        throw semantic_error("Reduction domain not a stream or a range.", root->line);
+
+    sp<type> val1;
+    sp<type> val2;
+
+    if (domain->get_tag() == type::stream)
+    {
+        stream *domain_stream = static_cast<stream*>(domain.get());
+        stream *operand_stream = new stream(*domain_stream);
+        if (operand_stream->dimensionality() > 0)
+        {
+            operand_stream->size[0] = 1;
+            operand_stream->reduce();
+        }
+        val1 = val2 = sp<type>(operand_stream);
+    }
+    else
+    {
+        throw semantic_error("Range not supported as reduction domain.");
+    }
+
+    env.enter_scope();
+
+    env.bind(id1, val1);
+    env.bind(id2, val2);
+
+    sp<type> reduct = evaluate_expr_block(env, reduction->elements[3]);
+
+    env.exit_scope();
+
+    return reduct;
 }
 
 #if 0

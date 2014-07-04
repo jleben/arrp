@@ -145,7 +145,6 @@ struct stream : public tagged_type<type::stream>
     int dimensionality() const { return size.size(); }
     vector<int> size;
 
-
     virtual void print_on( ostream & s ) const
     {
         s << "<stream: [";
@@ -156,6 +155,12 @@ struct stream : public tagged_type<type::stream>
                 s << ",";
         }
         s << "]>";
+    }
+
+    void reduce()
+    {
+        if (dimensionality() > 1 && size[0] == 1)
+            size = vector<int>(++size.begin(), size.end());
     }
 };
 
@@ -299,6 +304,16 @@ public:
 
 
 
+struct iterator
+{
+    iterator(): hop(1), size(1), count(1) {}
+    string id;
+    int hop;
+    int size;
+    int count;
+    sp<type> domain;
+};
+
 environment top_environment( ast::node * program );
 
 //sp<type> evaluate( environment & env, sp<function> & f, const vector<sp<type>> & a );
@@ -310,6 +325,9 @@ sp<type> evaluate_binop( environment & env, const sp<ast::node> & root );
 sp<type> evaluate_range( environment & env, const sp<ast::node> & root );
 sp<type> evaluate_hash( environment & env, const sp<ast::node> & root );
 sp<type> evaluate_call( environment & env, const sp<ast::node> & root );
+sp<type> evaluate_iteration( environment & env, const sp<ast::node> & root );
+sp<type> evaluate_reduction( environment & env, const sp<ast::node> & root );
+iterator evaluate_iterator( environment & env, const sp<ast::node> & root );
 
 struct semantic_error : public std::runtime_error
 {

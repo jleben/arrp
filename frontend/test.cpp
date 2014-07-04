@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 
   cout << endl;
 
-  cout << "== Constructing evironment ==" << endl;
+  cout << "== Semantic Analysis ==" << endl;
   stream::semantic::environment env = stream::semantic::top_environment( parser.ast().get() );
 
   stream::semantic::environment_item *main = env["main"];
@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
 
   vector<std::shared_ptr<semantic::type>> args;
   args.emplace_back( new semantic::stream({10,20,30}) );
+  //args.emplace_back( new semantic::stream({10,20,30}) );
 
   try {
       sp<semantic::type> value = main->evaluate(env, args);
