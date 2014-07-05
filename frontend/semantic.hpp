@@ -23,6 +23,11 @@ using std::ostream;
 template <typename T> using sp = std::shared_ptr<T>;
 template <typename T> using up = std::unique_ptr<T>;
 
+struct integer_num;
+struct real_num;
+struct stream;
+struct range;
+
 struct type
 {
     enum tag
@@ -42,6 +47,11 @@ struct type
     {
         s << "<tag = " << m_tag << ">";
     }
+
+    bool is(tag t) { return m_tag == t; }
+
+    template<typename T>
+    T * as() { return static_cast<T*>(this); }
 
 private:
     tag m_tag;
@@ -77,8 +87,7 @@ struct scalar
 
     T constant_value() const
     {
-        if (!m_is_constant)
-            throw std::runtime_error("Not a constant");
+        assert(m_is_constant);
         return m_value;
     }
 
@@ -126,6 +135,36 @@ struct range : public tagged_type<type::range>
     sp<type> start;
     sp<type> end;
 
+    bool start_is_constant()
+    {
+        return !start || start->as<semantic::integer_num>()->is_constant();
+    }
+
+    bool end_is_constant()
+    {
+        return !end || end->as<semantic::integer_num>()->is_constant();
+    }
+
+    bool is_constant()
+    {
+        return start_is_constant() && end_is_constant();
+    }
+
+    int const_start()
+    {
+        return start->as<semantic::integer_num>()->constant_value();
+    }
+
+    int const_end()
+    {
+        return end->as<semantic::integer_num>()->constant_value();
+    }
+
+    int const_size()
+    {
+        return std::abs(const_end() - const_start()) + 1;
+    }
+
     virtual void print_on( ostream & s ) const
     {
         s << "[";
@@ -164,6 +203,11 @@ struct stream : public tagged_type<type::stream>
             size.push_back(1);
     }
 };
+
+//semantic::integer_num *as_integer_num() { return static_cast<semantic::integer_num*>(this); }
+//semantic::integer_num *as_real_num() { return static_cast<semantic::real_num*>(this); }
+//semantic::integer_num *as_stream() { return static_cast<semantic::stream*>(this); }
+//semantic::integer_num *as_range() { return static_cast<semantic::range*>(this); }
 
 struct environment;
 
@@ -246,6 +290,7 @@ struct iterator
     int size;
     int count;
     sp<type> domain;
+    sp<type> value;
 };
 
 environment top_environment( ast::node * program );

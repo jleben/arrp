@@ -482,7 +482,51 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
         callee.reset( transposed_stream );
     }
 
-    // TODO: Apply stream range selection
+    if (call->elements[3])
+    {
+        assert(call->elements[3]->type == ast::expression_list);
+        ast::list_node *exprs = call->elements[3]->as_list();
+
+        if (!callee->is(type::stream))
+            throw semantic_error("Slice selector applied to non-stream value.", call->elements[3]->line);
+
+        stream *s = static_cast<stream*>(callee.get());
+
+        int dim = 0;
+        for( const auto & e : exprs->elements )
+        {
+            if (dim >= s->dimensionality())
+                throw semantic_error("Too many slice selectors.", call->elements[3]->line);
+
+            sp<type> selector = evaluate_expression(env, e);
+            switch(selector->get_tag())
+            {
+            case type::integer_num:
+            {
+                s->size[dim] = 1;
+                break;
+            }
+            case type::range:
+            {
+                range *r = selector->as<range>();
+                if (!r->start)
+                    r->start.reset( new integer_num(1) );
+                if (!r->end)
+                    r->end.reset( new integer_num(s->size[dim]) );
+                if (!r->is_constant())
+                    throw semantic_error("Non-constant slice selector not supported.", e->line);
+                int size = r->const_size();
+                if (size < 1)
+                    throw semantic_error("Invalid slice selector: range size < 1.", e->line);
+                s->size[dim] = size;
+                break;
+            }
+            default:
+                    throw semantic_error("Invalid type of slice selector.", e->line);
+            }
+            ++dim;
+        }
+    }
 
     return callee;
 }
@@ -522,16 +566,7 @@ sp<type> evaluate_iteration( environment & env, const sp<ast::node> & root )
 
     for( const iterator & it : iterators )
     {
-        assert(it.domain->get_tag() == type::stream);
-        stream *domain_stream = static_cast<stream*>(it.domain.get());
-        stream *operand_stream = new stream(*domain_stream);
-        assert(operand_stream->dimensionality());
-        operand_stream->size[0] = it.size;
-        operand_stream->reduce();
-
-        env.bind(it.id, sp<type>(operand_stream));
-
-        //cout << "iterator: " << it.id << " = " << *operand_stream << endl;
+        env.bind(it.id, it.value);
     }
 
     sp<type> result = evaluate_expr_block(env, iteration->elements[1]);
@@ -607,19 +642,60 @@ iterator evaluate_iterator( environment & env, const sp<ast::node> & root )
 
     it.domain = evaluate_expression(env, iteration->elements[3]);
 
-    if (it.domain->get_tag() == type::stream)
+    // Get domains size:
+
+    int domain_size;
+
+    switch(it.domain->get_tag())
     {
-        stream *s = static_cast<stream*>(it.domain.get());
-        assert(s->dimensionality());
-        int iterable_size = s->size[0] - it.size;
-        if (iterable_size < 0)
-            throw semantic_error("Iteration size larger than stream size.", iteration->line);
-        if (iterable_size % it.hop != 0)
-            throw semantic_error("Iteration does not cover stream size.", iteration->line);
-        it.count = iterable_size / it.hop + 1;
+    case type::stream:
+    {
+        stream *domain_stream = static_cast<stream*>(it.domain.get());
+        assert(domain_stream->dimensionality());
+        domain_size = domain_stream->size[0];
+
+        stream *operand_stream = new stream(*domain_stream);
+        operand_stream->size[0] = it.size;
+        operand_stream->reduce();
+        it.value.reset(operand_stream);
+
+        break;
     }
-    else
+    case type::range:
+    {
+        range *domain_range = static_cast<range*>(it.domain.get());
+        if (!domain_range->is_constant())
+            throw semantic_error("Non-constant range not supported as iteration domain.");
+        domain_size = domain_range->const_size();
+
+        if (it.size > 1)
+        {
+            range *operand_range = new range;
+            operand_range->start.reset(new integer_num);
+            operand_range->end.reset(new integer_num);
+            it.value.reset(operand_range);
+        }
+        else
+        {
+            it.value.reset( new integer_num );
+        }
+
+        break;
+    }
+    default:
         throw semantic_error("Unsupported iteration domain type.", iteration->line);
+    }
+
+    // Compute iteration count:
+
+    int iterable_size = domain_size - it.size;
+    if (iterable_size < 0)
+        throw semantic_error("Iteration size larger than stream size.", iteration->line);
+    if (iterable_size % it.hop != 0)
+        throw semantic_error("Iteration does not cover stream size.", iteration->line);
+    it.count = iterable_size / it.hop + 1;
+
+    cout << "Iterator: " << it.id << " " << it.count << " x " << it.size << endl;
 
     return it;
 }
@@ -636,9 +712,6 @@ sp<type> evaluate_reduction( environment & env, const sp<ast::node> & root )
     string id2 = reduction->elements[1]->as_leaf<string>()->value;
 
     sp<type> domain = evaluate_expression(env, reduction->elements[2]);
-    if ( domain->get_tag() != type::stream &&
-         domain->get_tag() != type::range )
-        throw semantic_error("Reduction domain not a stream or a range.", root->line);
 
     sp<type> val1;
     sp<type> val2;
@@ -654,9 +727,13 @@ sp<type> evaluate_reduction( environment & env, const sp<ast::node> & root )
         }
         val1 = val2 = sp<type>(operand_stream);
     }
+    else if (domain->get_tag() == type::range)
+    {
+        val1 = val2 = sp<type>( new integer_num );
+    }
     else
     {
-        throw semantic_error("Range not supported as reduction domain.");
+        throw semantic_error("Invalid reduction domain.", root->line);
     }
 
     env.enter_scope();
