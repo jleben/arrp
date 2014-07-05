@@ -72,7 +72,9 @@ The program will print the following information on standard output:
   - `parser.y` - Input file for parser generator bisonc++
   - `ast.hpp` - Abstract Syntax Tree (AST) representation
   - `ast_printer.hpp` - AST printing
-  - `semantic.hpp`, `semantic.cpp` - Semantic analysis (type-checking, etc.)
+  - `types.hpp` - Type representation
+  - `environment.*` - Symbolic environment
+  - `semantic.*` - Semantic analysis (type-checking, etc.)
   - `test.cpp` - An executable parser which depends on output of flexc++ and bisonc++.
 
 - `examples` - Contains example code in the language implemented by this project.
