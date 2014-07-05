@@ -10,6 +10,7 @@
 #include <memory>
 #include <stdexcept>
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 
 namespace stream {
@@ -255,19 +256,25 @@ private:
     sp<ast::node> m_code;
 };
 
+class elemwise_func_symbol : public symbol
+{
+public:
+    elemwise_func_symbol( const string & name ):
+        symbol(name)
+    {}
+    sp<type> evaluate( environment &, const vector<sp<type>> & );
+};
+
 typedef std::unordered_map<string, up<symbol>> symbol_map;
 
 class environment : private deque<symbol_map>
 {
 public:
-    environment()
-    {
-        enter_scope();
-    }
+    environment();
 
-    void bind( const string & name, symbol * sym )
+    void bind( symbol * sym )
     {
-        back().emplace( name, up<symbol>(sym) );
+        back().emplace( sym->name(), up<symbol>(sym) );
     }
 
     void bind( const string & name, const sp<type> & val )
@@ -336,6 +343,38 @@ struct semantic_error : public std::runtime_error
     void report();
 private:
     int m_line;
+};
+
+struct call_error : public semantic_error
+{
+    call_error(const string & name, const string & what):
+        semantic_error( message(name, what) )
+    {}
+private:
+    static string message(const string & name, const string & what)
+    {
+        std::ostringstream msg;
+        msg << "In call to '" << name << "': ";
+        msg << what;
+        return msg.str();
+    }
+};
+
+struct wrong_arg_count : public call_error
+{
+    wrong_arg_count(const string & name, int required, int provided):
+        call_error( name, message(required, provided) )
+    {}
+private:
+    static string message(int required, int provided)
+    {
+        std::ostringstream msg;
+        msg << "Wrong number of arguments ("
+            << required << " required, "
+            << provided << " provided"
+            << ").";
+        return msg.str();
+    }
 };
 
 } // namespace semantic
