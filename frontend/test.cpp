@@ -160,9 +160,9 @@ int main(int argc, char *argv[])
   try {
       sp<semantic::type> value = main->evaluate(env, function_args);
       if (value)
-          cout << "Result = " << *value << endl;
+          cout << "Result type = " << *value << endl;
       else
-          cout << "No result." << endl;
+          cout << "Result type = void" << endl;
   }
   catch (semantic::semantic_error & e)
   {
