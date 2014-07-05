@@ -37,15 +37,15 @@ struct type
 
     tag get_tag() const { return m_tag; }
 
-    virtual void print_on( ostream & s ) const
-    {
-        s << "<tag = " << m_tag << ">";
-    }
-
     bool is(tag t) { return m_tag == t; }
 
     template<typename T>
     T * as() { return static_cast<T*>(this); }
+
+    virtual void print_on( ostream & s ) const
+    {
+        s << "<tag = " << m_tag << ">";
+    }
 
 private:
     tag m_tag;
