@@ -31,5 +31,6 @@ add_executable(test
   lex.cc
   parse.cc
   semantic.cpp
+  environment.cpp
   test.cpp
 )
