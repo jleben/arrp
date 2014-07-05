@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
   cout << "== Semantic Analysis ==" << endl;
   stream::semantic::environment env = stream::semantic::top_environment( parser.ast().get() );
 
-  stream::semantic::environment_item *main = env[function_name];
+  stream::semantic::symbol *main = env[function_name];
   if (!main)
   {
       cerr << "WARNING: no function named '" << function_name << "' available." << endl;

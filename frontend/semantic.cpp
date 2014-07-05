@@ -27,9 +27,9 @@ environment top_environment( ast::node * root )
     {
         try
         {
-            environment_item *item = evaluate_statement(env, stmt);
+            symbol *sym = evaluate_statement(env, stmt);
             cout << "[line " << stmt->line << "] "
-                 << "Added top-level declaration: " << item->name()
+                 << "Added top-level declaration: " << sym->name()
                  << endl;
         }
         catch( semantic_error & e )
@@ -41,37 +41,46 @@ environment top_environment( ast::node * root )
     return std::move(env);
 }
 
-sp<type> environment_item::evaluate( environment & env, const vector<sp<type>> & args )
+sp<type> constant_symbol::evaluate( environment & env, const vector<sp<type>> & args )
 {
-    if (m_value)
-        return m_value;
+    if (!args.empty())
+    {
+        ostringstream msg;
+        msg << "Wrong number of arguments for call to: '" << name() << "'"
+            << " (0 required, "
+            << args.size() << " provided).";
+        throw semantic_error(msg.str());
+    }
 
+    if (!m_value)
+        m_value = evaluate_expr_block(env, m_code);
+
+    return m_value;
+}
+
+sp<type> function_symbol::evaluate( environment & env, const vector<sp<type>> & args )
+{
     if (m_parameters.size() != args.size())
     {
         ostringstream msg;
-        msg << "Wrong number of arguments for call to: '" << m_name << "'";
+        msg << "Wrong number of arguments for call to: '" << name() << "'"
+            << " (" << m_parameters.size() << " required, "
+            << args.size() << " provided).";
         throw semantic_error(msg.str());
     }
 
     sp<type> result;
 
-    if (m_parameters.size())
+    env.enter_scope();
+
+    for (int i = 0; i < m_parameters.size(); ++i)
     {
-        env.enter_scope();
-
-        for (int i = 0; i < m_parameters.size(); ++i)
-        {
-            env.bind(m_parameters[i], args[i]);
-        }
-
-        result = evaluate_expr_block(env, m_code);
-
-        env.exit_scope();
+        env.bind(m_parameters[i], args[i]);
     }
-    else
-    {
-        m_value = result = evaluate_expr_block(env, m_code);
-    }
+
+    result = evaluate_expr_block(env, m_code);
+
+    env.exit_scope();
 
     return result;
 }
@@ -106,7 +115,7 @@ void evaluate_stmt_list( environment & env, const sp<ast::node> & root )
     }
 }
 
-environment_item * evaluate_statement( environment & env, const sp<ast::node> & root )
+symbol * evaluate_statement( environment & env, const sp<ast::node> & root )
 {
     assert(root->type == ast::statement);
     ast::list_node *stmt = root->as_list();
@@ -144,11 +153,17 @@ environment_item * evaluate_statement( environment & env, const sp<ast::node> & 
         }
     }
 
-    environment_item *env_item = new environment_item(id, parameters, stmt->elements[2]);
+    const auto & body = stmt->elements[2];
 
-    env.bind(id, env_item);
+    symbol *sym;
+    if (!parameters.empty())
+        sym = new function_symbol(id, parameters, body);
+    else
+        sym = new constant_symbol(id, body);
 
-    return env_item;
+    env.bind(id, sym);
+
+    return sym;
 }
 
 sp<type> evaluate_expression( environment & env, const sp<ast::node> & root )
@@ -440,8 +455,8 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
 
     assert(call->elements[0]->type == ast::identifier);
     const string & id = call->elements[0]->as_leaf<string>()->value;
-    environment_item *item = env[id];
-    if (!item)
+    symbol *sym = env[id];
+    if (!sym)
     {
         ostringstream msg;
         msg << "Undeclared name: " << id;
@@ -467,7 +482,7 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
     // Evaluate callee
 
     try {
-        callee = item->evaluate(env, args);
+        callee = sym->evaluate(env, args);
     } catch ( semantic_error & e ) {
         throw semantic_error(e.what(), root->line);
     }

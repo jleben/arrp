@@ -211,32 +211,51 @@ struct stream : public tagged_type<type::stream>
 
 struct environment;
 
-class environment_item
+class symbol
 {
 public:
-    environment_item( const string & name, const vector<string> & params,
-                      const sp<ast::node> & code ):
-        m_name(name),
-        m_parameters(params),
-        m_code(code)
-    {}
-
-    environment_item( const sp<type> & val ):
-        m_value(val)
-    {}
-
+    symbol( const string & name ): m_name(name) {}
     const string & name() { return m_name; }
-    const vector<string> & parameters() { return m_parameters; }
-    sp<type> evaluate( environment & envir, const vector<sp<type>> & = vector<sp<type>>() );
-
+    virtual sp<type> evaluate( environment & envir,
+                               const vector<sp<type>> & = vector<sp<type>>() ) = 0;
 private:
     string m_name;
-    vector<string> m_parameters;
+};
+
+class constant_symbol : public symbol
+{
+public:
+    constant_symbol( const string & name, const sp<ast::node> & code ):
+        symbol(name),
+        m_code(code)
+    {}
+    constant_symbol( const string & name, const sp<type> & value ):
+        symbol(name),
+        m_value(value)
+    {}
+    sp<type> evaluate( environment &, const vector<sp<type>> & );
+private:
     sp<ast::node> m_code;
     sp<type> m_value;
 };
 
-typedef std::unordered_map<string, up<environment_item>> symbol_map;
+class function_symbol : public symbol
+{
+public:
+    function_symbol( const string & name,
+                     const vector<string> & params,
+                     const sp<ast::node> & code ):
+        symbol(name),
+        m_parameters(params),
+        m_code(code)
+    {}
+    sp<type> evaluate( environment &, const vector<sp<type>> & );
+private:
+    vector<string> m_parameters;
+    sp<ast::node> m_code;
+};
+
+typedef std::unordered_map<string, up<symbol>> symbol_map;
 
 class environment : private deque<symbol_map>
 {
@@ -246,14 +265,14 @@ public:
         enter_scope();
     }
 
-    void bind( const string & symbol, environment_item * item )
+    void bind( const string & name, symbol * sym )
     {
-        back().emplace( symbol, up<environment_item>(item) );
+        back().emplace( name, up<symbol>(sym) );
     }
 
-    void bind( const string & symbol, const sp<type> & val )
+    void bind( const string & name, const sp<type> & val )
     {
-        back().emplace(symbol, up<environment_item>(new environment_item(val)));
+        back().emplace( name, up<symbol>(new constant_symbol(name, val)) );
     }
 
     void enter_scope()
@@ -266,7 +285,7 @@ public:
         pop_back();
     }
 
-    environment_item * operator[]( const string & key )
+    symbol * operator[]( const string & key )
     {
         reverse_iterator it;
         for (it = rbegin(); it != rend(); ++it)
@@ -297,7 +316,7 @@ environment top_environment( ast::node * program );
 
 sp<type> evaluate_expr_block( environment & env, const sp<ast::node> & root );
 void evaluate_stmt_list( environment & env, const sp<ast::node> & root );
-environment_item * evaluate_statement( environment & env, const sp<ast::node> & root );
+symbol * evaluate_statement( environment & env, const sp<ast::node> & root );
 sp<type> evaluate_expression( environment & env, const sp<ast::node> & root );
 sp<type> evaluate_binop( environment & env, const sp<ast::node> & root );
 sp<type> evaluate_range( environment & env, const sp<ast::node> & root );
