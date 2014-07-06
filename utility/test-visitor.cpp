@@ -8,9 +8,9 @@ struct c1;
 struct c2;
 struct c3;
 
-typedef visit<c1,c2,c3> the_visit;
+typedef visitor<c1,c2,c3> the_visitor;
 
-struct base : public visitable_base<the_visit> {};
+struct base : public visitable_base<the_visitor> {};
 
 template <typename T> using the_visitable = visitable<T, base>;
 
@@ -18,11 +18,13 @@ struct c1 : public the_visitable<c1> {};
 struct c2 : public the_visitable<c2> {};
 struct c3 : public the_visitable<c3> {};
 
-struct some_visitor : public visitor<some_visitor,int,the_visit>
+struct some_visitor : public the_visitor
 {
-    int process(c1 & visitable) { cout << "c1" << endl; return 1; }
-    int process(c2 & visitable) { cout << "c2" << endl; return 2; }
-    int process(c3 & visitable) { cout << "c3" << endl; return 3; }
+    void visit(base & visitable) { visitable.accept(*this); }
+    void visit(c1 & visitable) { cout << "c1" << endl; }
+    void visit(c2 & visitable) { cout << "c2" << endl; }
+    //void invalid() { cout << "Invalid visitable type." << endl; }
+    void visit(c3 & visitable) { cout << "c3" << endl; }
 };
 
 int main()
@@ -34,15 +36,17 @@ int main()
 
     {
         base &t = x;
-        cout << v.visit(t) << endl;
+        v.visit(t);
+        //t.accept(v);
     }
     {
         base &t = y;
-        cout << v.visit(t) << endl;
+        v.visit(t);
+        //t.accept(v);
     }
     {
         base &t = z;
-        cout << v.visit(t) << endl;
+        t.accept(v);
     }
     /*a_visitor & v_ = v;
 

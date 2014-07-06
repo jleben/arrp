@@ -5,63 +5,24 @@
 
 namespace stream {
 
-// abstract visit
+// visitor
 
 template <typename ...Ts>
-struct visit;
+struct visitor;
 
 template <typename T>
-struct visit<T>
+struct visitor<T>
 {
-    virtual void on(T &) { throw std::runtime_error("Unimplemented visit."); }
+    virtual void invalid() { throw std::runtime_error("Unimplemented visit."); }
+    virtual void visit(T &) { invalid(); }
 };
 
 template <typename T, typename ...Ts>
-struct visit<T,Ts...> : public visit<Ts...>
+struct visitor<T,Ts...> : public visitor<Ts...>
 {
-    using visit<Ts...>::on;
-    virtual void on(T &) { throw std::runtime_error("Unimplemented visit."); }
-};
-
-// concrete visit
-
-template <typename A, typename V, typename ...Ts>
-struct visit_impl;
-
-template <typename A, typename V, typename T>
-struct visit_impl <A,V,T>: public V
-{
-    typedef typename A::result_type R;
-
-    visit_impl( A & actor ): m_actor(actor){}
-    A & actor() { return m_actor; }
-    R & result() { return m_result; }
-
-    void on(T & target) { m_result = m_actor.process(target); }
-
-protected:
-    R m_result;
-    A & m_actor;
-};
-
-template <typename A, typename V, typename T, typename ...Ts>
-struct visit_impl <A,V,T,Ts...>: public visit_impl<A,V,Ts...>
-{
-    typedef visit_impl<A,V,Ts...> base;
-    using base::visit_impl;
-    using base::on;
-    using base::result;
-    using base::actor;
-    void on(T & target) { result() = actor().process(target); }
-};
-
-template <typename A, typename V>
-struct concrete_visit;
-
-template <typename A, typename ...Ts>
-struct concrete_visit<A,visit<Ts...>> : public visit_impl<A,visit<Ts...>,Ts...>
-{
-    using visit_impl<A,visit<Ts...>,Ts...>::visit_impl;
+    using visitor<Ts...>::visit;
+    using visitor<Ts...>::invalid;
+    virtual void visit(T &) { invalid(); }
 };
 
 // visitable
@@ -69,35 +30,17 @@ struct concrete_visit<A,visit<Ts...>> : public visit_impl<A,visit<Ts...>,Ts...>
 template<typename V>
 struct visitable_base
 {
-    typedef V visit_type;
-    virtual void accept( V & visit ) = 0;
+    typedef V visitor_type;
+    virtual void accept( V & visitor ) = 0;
 };
 
 template <typename D, typename B>
 struct visitable : public B
 {
-    void accept( typename B::visit_type & visit )
+    void accept( typename B::visitor_type & visitor )
     {
-        visit.on( static_cast<D&>(*this) );
+        visitor.visit( static_cast<D&>(*this) );
     }
-};
-
-// visitor
-
-template <typename D, typename R, typename V>
-struct visitor
-{
-    typedef R result_type;
-    typedef V visit_type;
-
-    R visit(visitable_base<V> & target)
-    {
-        concrete_visit<D,V> v( static_cast<D&>(*this) );
-        target.accept(v);
-        return v.result();
-    }
-
-    //virtual R process(T & target) = 0;
 };
 
 } // namespace stream
