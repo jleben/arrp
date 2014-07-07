@@ -23,7 +23,8 @@ inline int Parser::lex()
 
 inline void Parser::print()         
 {
-    print__();           // displays tokens if --print was specified
+    if (d_print_tokens)
+        print__();           // displays tokens if --print was specified
 }
 
 inline void Parser::exceptionHandler__(std::exception const &exc)         

@@ -20,14 +20,18 @@ class Parser: public ParserBase
     // $insert scannerobject
     Scanner d_scanner;
     ast::semantic_value d_ast;
+    bool d_print_tokens;
 
     public:
         Parser( std::istream & stream ):
-            d_scanner(stream)
+            d_scanner(stream),
+            d_print_tokens(false)
         {}
 
         int parse();
         ast::semantic_value ast() { return d_ast; }
+        void setPrintsTokens(bool on) { d_print_tokens = on; }
+        bool printsTokens() const { return d_print_tokens; }
 
     private:
         void error(char const *msg);    // called on (syntax) errors
