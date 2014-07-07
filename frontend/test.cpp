@@ -16,6 +16,7 @@ void print_help()
 
     cout << "  --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
     cout << "  --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
+    cout << "  --list-symbols or -l : List all top-level declarations." << endl;
     cout << "  --eval or -e <symbol> [<arg>...] :" << endl
          << "  \tEvaluate a top-level declaration of <symbol> and print the result type." << endl
          << "  \tEach following argument <arg> is passed as argument type in function evaluation." << endl
@@ -38,6 +39,7 @@ struct argument_parser
 
     bool print_tokens = false;
     bool print_ast = false;
+    bool print_symbols = false;
     vector<evaluation> evaluations;
 
     argument_parser(int argc, char *argv[]):
@@ -76,6 +78,11 @@ private:
         else if (arg == "--print-ast" || arg == "-s")
         {
             print_ast = true;
+            advance();
+        }
+        else if (arg == "--list-symbols" || arg == "-l")
+        {
+            print_symbols = true;
             advance();
         }
         else if (arg == "--evaluate" || arg == "--eval" || arg == "-e")
@@ -240,43 +247,47 @@ int main(int argc, char *argv[])
         cout << endl;
     }
 
-    if (!args.evaluations.empty())
+    if (args.print_symbols)
     {
         cout << endl;
-        cout << "== Semantic Analysis ==" << endl;
-        stream::semantic::environment env = stream::semantic::top_environment( parser.ast().get() );
+        cout << "== Top-level Symbols ==" << endl;
+    }
 
-        for (const evaluation & eval : args.evaluations)
+    stream::semantic::environment env =
+            stream::semantic::top_environment( parser.ast().get(),
+                                               args.print_symbols );
+
+    for (const evaluation & eval : args.evaluations)
+    {
+        cout << endl;
+        cout << "== Evaluating: " << eval.name;
+        cout << "(";
+        if (eval.args.size())
+            cout << *eval.args.front();
+        for ( int i = 1; i < eval.args.size(); ++i )
         {
-            cout << "-- Evaluating: " << eval.name;
-            cout << "(";
-            if (eval.args.size())
-                cout << *eval.args.front();
-            for ( int i = 1; i < eval.args.size(); ++i )
-            {
-                cout << ", ";
-                cout << *eval.args[i];
-            }
-            cout << ")" << endl;
+            cout << ", ";
+            cout << *eval.args[i];
+        }
+        cout << ")" << endl;
 
-            stream::semantic::symbol *sym = env[eval.name];
-            if (!sym)
-            {
-                cerr << "WARNING: no symbol '" << eval.name << "' available." << endl;
-                continue;
-            }
+        stream::semantic::symbol *sym = env[eval.name];
+        if (!sym)
+        {
+            cerr << "WARNING: no symbol '" << eval.name << "' available." << endl;
+            continue;
+        }
 
-            try {
-                sp<semantic::type> value = sym->evaluate(env, eval.args);
-                if (value)
-                    cout << "Result type = " << *value << endl;
-                else
-                    cout << "Result type = void" << endl;
-            }
-            catch (semantic::semantic_error & e)
-            {
-                e.report();
-            }
+        try {
+            sp<semantic::type> value = sym->evaluate(env, eval.args);
+            if (value)
+                cout << "Result type = " << *value << endl;
+            else
+                cout << "Result type = void" << endl;
+        }
+        catch (semantic::semantic_error & e)
+        {
+            e.report();
         }
     }
 }
