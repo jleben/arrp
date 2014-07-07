@@ -30,7 +30,7 @@ environment::environment()
     bind( new elemwise_func_symbol("abs") );
 }
 
-environment top_environment( ast::node * root )
+environment top_environment( ast::node * root, bool print_symbols )
 {
     using ast::list_node;
     using ast::leaf_node;
@@ -47,9 +47,8 @@ environment top_environment( ast::node * root )
         try
         {
             symbol *sym = evaluate_statement(env, stmt);
-            cout << "[line " << stmt->line << "] "
-                 << "Added top-level declaration: " << sym->name()
-                 << endl;
+            if (print_symbols)
+                cout << "[line " << stmt->line << "] " << *sym << endl;
         }
         catch( semantic_error & e )
         {

@@ -29,8 +29,6 @@ struct iterator
     sp<type> value;
 };
 
-environment top_environment( ast::node * program );
-
 sp<type> evaluate_expr_block( environment & env, const sp<ast::node> & root );
 void evaluate_stmt_list( environment & env, const sp<ast::node> & root );
 symbol * evaluate_statement( environment & env, const sp<ast::node> & root );

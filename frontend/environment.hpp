@@ -8,6 +8,7 @@
 #include <vector>
 #include <deque>
 #include <unordered_map>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <memory>
@@ -28,9 +29,10 @@ class symbol
 {
 public:
     symbol( const string & name ): m_name(name) {}
-    const string & name() { return m_name; }
+    const string & name() const { return m_name; }
     virtual sp<type> evaluate( environment & envir,
                                const vector<sp<type>> & = vector<sp<type>>() ) = 0;
+    virtual void print_on( ostream & s ) const { s << m_name; }
 private:
     string m_name;
 };
@@ -64,6 +66,16 @@ public:
     {}
     sp<type> evaluate( environment &, const vector<sp<type>> & );
 private:
+    void print_on( ostream & s ) const
+    {
+        s << name();
+        s << '(';
+        if (!m_parameters.empty())
+            s << m_parameters.front();
+        for (int i = 1; i < m_parameters.size(); ++i)
+            s << ", " << m_parameters[i];
+        s << ')';
+    }
     vector<string> m_parameters;
     sp<ast::node> m_code;
 };
@@ -76,6 +88,12 @@ public:
     {}
     sp<type> evaluate( environment &, const vector<sp<type>> & );
 };
+
+inline ostream & operator<<(ostream & stream, const symbol & sym)
+{
+    sym.print_on(stream);
+    return stream;
+}
 
 typedef std::unordered_map<string, up<symbol>> symbol_map;
 
@@ -117,6 +135,8 @@ public:
         return nullptr;
     }
 };
+
+environment top_environment( ast::node * program, bool print_symbols );
 
 }
 }
