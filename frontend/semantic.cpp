@@ -157,7 +157,7 @@ R * apply_binop( ast::node_type op, LHS * lhs, RHS * rhs )
             result->set_constant( lhs->constant_value() / rhs->constant_value() );
         break;
     default:
-        throw semantic_error("Unexpected operator.");
+        throw evaluation_error("Unexpected operator.");
     }
 
     return result;
@@ -168,10 +168,10 @@ stream * apply_binop<stream,stream,stream>( ast::node_type op, stream * lhs, str
 {
     //cout << "binop<stream,stream>" << endl;
     if (lhs->dimensionality() != rhs->dimensionality())
-        throw semantic_error("Operand streams have different number of dimensions.");
+        throw evaluation_error("Operand streams have different number of dimensions.");
 
     if (lhs->size != rhs->size)
-        throw semantic_error("Operand streams have different sizes.");
+        throw evaluation_error("Operand streams have different sizes.");
 
     return new stream(lhs->size);
 }
@@ -192,7 +192,7 @@ type * apply_binop( ast::node_type op, LHS * lhs, type *rhs )
                 <real_num, LHS, real_num>
                 (op, lhs, static_cast<real_num*>(rhs));
     default:
-        throw semantic_error("Right-hand-side operand not a stream or a number.");
+        throw evaluation_error("Right-hand-side operand not a stream or a number.");
     }
 }
 
@@ -228,7 +228,7 @@ type * apply_binop( ast::node_type op, type * lhs, type *rhs )
         return apply_binop<real_num>
                 (op, static_cast<real_num*>(lhs), rhs);
     default:
-        throw semantic_error("Left-hand-side operand not a stream or a number.");
+        throw evaluation_error("Left-hand-side operand not a stream or a number.");
     }
 }
 
@@ -256,7 +256,7 @@ sp<type> evaluate_binop( environment & env, const sp<ast::node> & root )
         type * result = apply_binop(expr->type, lhs.get(), rhs.get());
         return sp<type>( result );
     }
-    catch ( semantic_error & e )
+    catch ( evaluation_error & e )
     {
         throw semantic_error(e.what(), expr->line);
     }
@@ -385,7 +385,7 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
     if (!sym)
     {
         ostringstream msg;
-        msg << "Undeclared name: " << id;
+        msg << "Undeclared name: " << id << " @ " << root->line;
         throw semantic_error(msg.str(), root->line);
     }
 
@@ -407,9 +407,12 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
 
     // Evaluate callee
 
-    try {
+    try
+    {
         callee = sym->evaluate(env, args);
-    } catch ( semantic_error & e ) {
+    }
+    catch ( call_error & e )
+    {
         throw semantic_error(e.what(), root->line);
     }
 
@@ -423,6 +426,8 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
         callee.reset( transposed_stream );
     }
 
+    // Apply stream slicing
+
     if (call->elements[3])
     {
         assert(call->elements[3]->type == ast::expression_list);
@@ -433,12 +438,12 @@ sp<type> evaluate_call( environment & env, const sp<ast::node> & root )
 
         stream *s = static_cast<stream*>(callee.get());
 
+        if (exprs->elements.size() > s->dimensionality())
+            throw semantic_error("Too many slice selectors.", call->elements[3]->line);
+
         int dim = 0;
         for( const auto & e : exprs->elements )
         {
-            if (dim >= s->dimensionality())
-                throw semantic_error("Too many slice selectors.", call->elements[3]->line);
-
             sp<type> selector = evaluate_expression(env, e);
             switch(selector->get_tag())
             {
@@ -557,31 +562,34 @@ iterator evaluate_iterator( environment & env, const sp<ast::node> & root )
 
     if (iteration->elements[1])
     {
-        sp<type> val = evaluate_expression(env, iteration->elements[1]);
+        sp<ast::node> & node = iteration->elements[1];
+        sp<type> val = evaluate_expression(env, node);
         if (val->get_tag() != type::integer_num)
-            throw semantic_error("Iteration size not an integer.");
+            throw semantic_error("Iteration size not an integer.", node->line);
         integer_num *i = static_cast<integer_num*>(val.get());
         if (!i->is_constant())
-            throw semantic_error("Iteration size not a constant.");
+            throw semantic_error("Iteration size not a constant.", node->line);
         it.size = i->constant_value();
         if (it.size < 1)
-            throw semantic_error("Invalid iteration size.");
+            throw semantic_error("Invalid iteration size.", node->line);
     }
 
     if (iteration->elements[2])
     {
-        sp<type> val = evaluate_expression(env, iteration->elements[2]);
+        sp<ast::node> & node = iteration->elements[2];
+        sp<type> val = evaluate_expression(env, node);
         if (val->get_tag() != type::integer_num)
-            throw semantic_error("Iteration hop not an integer.");
+            throw semantic_error("Iteration hop not an integer.",node->line);
         integer_num *i = static_cast<integer_num*>(val.get());
         if (!i->is_constant())
-            throw semantic_error("Iteration hop not a constant.");
+            throw semantic_error("Iteration hop not a constant.",node->line);
         it.hop = i->constant_value();
         if (it.hop < 1)
-            throw semantic_error("Invalid hop size.");
+            throw semantic_error("Invalid hop size.",node->line);
     }
 
-    it.domain = evaluate_expression(env, iteration->elements[3]);
+    sp<ast::node> & domain_node = iteration->elements[3];
+    it.domain = evaluate_expression(env, domain_node);
 
     // Get domains size:
 
@@ -606,7 +614,7 @@ iterator evaluate_iterator( environment & env, const sp<ast::node> & root )
     {
         range *domain_range = static_cast<range*>(it.domain.get());
         if (!domain_range->is_constant())
-            throw semantic_error("Non-constant range not supported as iteration domain.");
+            throw semantic_error("Non-constant range not supported as iteration domain.", domain_node->line);
         domain_size = domain_range->const_size();
 
         if (it.size > 1)

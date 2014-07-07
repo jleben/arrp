@@ -43,8 +43,8 @@ iterator evaluate_iterator( environment & env, const sp<ast::node> & root );
 
 struct semantic_error : public std::runtime_error
 {
-    semantic_error(const string & what, int line = 0):
-        runtime_error(what),
+    semantic_error(const string & what, int line):
+        std::runtime_error(what),
         m_line(line)
     {}
     int line() const { return m_line; }
@@ -53,10 +53,15 @@ private:
     int m_line;
 };
 
-struct call_error : public semantic_error
+struct evaluation_error : public std::runtime_error
+{
+    using std::runtime_error::runtime_error;
+};
+
+struct call_error : public evaluation_error
 {
     call_error(const string & name, const string & what):
-        semantic_error( message(name, what) )
+        evaluation_error( message(name, what) )
     {}
 private:
     static string message(const string & name, const string & what)
