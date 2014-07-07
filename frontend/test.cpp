@@ -7,19 +7,22 @@
 using namespace std;
 using namespace stream;
 
-void print_parameters()
+void print_help()
 {
-    cout << "Command-line parameters:" << endl;
+    cout << "Usage:" << endl
+         << "  test <input file> [<parameter>...]" << endl;
 
-    cout << " --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
-    cout << " --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
-    cout << " --eval or -e <symbol> [<arg>...] :"
-         << " Evaluate a top-level declaration of name <symbol> and print the result type." << endl
-         << " \tEach following argument <arg> is passed as argument type in function evaluation." << endl
-         << " \tAn argument can be:" << endl
-         << " \t- a constant integer number (e.g. \"123\")," << endl
-         << " \t- a constant real number (e.g. \"123.45\"), " << endl
-         << " \t- a stream (e.g. \"[10,4,5]\" with each number representing size in one dimension)." << endl
+    cout << "Parameters:" << endl;
+
+    cout << "  --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
+    cout << "  --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
+    cout << "  --eval or -e <symbol> [<arg>...] :" << endl
+         << "  \tEvaluate a top-level declaration of <symbol> and print the result type." << endl
+         << "  \tEach following argument <arg> is passed as argument type in function evaluation." << endl
+         << "  \tAn argument can be:" << endl
+         << "  \t- a constant integer number (e.g. \"123\")," << endl
+         << "  \t- a constant real number (e.g. \"123.45\"), " << endl
+         << "  \t- a stream (e.g. \"[10,4,5]\" with each number representing size in one dimension)." << endl
          ;
 }
 
@@ -62,7 +65,7 @@ private:
 
         if (arg == "--help" || arg == "-h")
         {
-            print_parameters();
+            print_help();
             throw abortion();
         }
         else if (arg == "--print-tokens" || arg == "-t")
