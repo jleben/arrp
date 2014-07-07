@@ -5,7 +5,7 @@ in continuation referred to as *The Language*.
 
 The Language is characterized by the following features:
 - functional
-- typing: strong, statical, implicit
+- typing: strong, static, implicit
 - handy expression structures:
   * iteration (application of expression on consecutive ranges of a sequence of values)
   * reduction (reduction of a sequence of values to a single value by application of expression
