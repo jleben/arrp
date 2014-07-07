@@ -7,6 +7,22 @@
 using namespace std;
 using namespace stream;
 
+void print_parameters()
+{
+    cout << "Command-line parameters:" << endl;
+
+    cout << " --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
+    cout << " --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
+    cout << " --eval or -e <symbol> [<arg>...] :"
+         << " Evaluate a top-level declaration of name <symbol> and print the result type." << endl
+         << " \tEach following argument <arg> is passed as argument type in function evaluation." << endl
+         << " \tAn argument can be:" << endl
+         << " \t- a constant integer number (e.g. \"123\")," << endl
+         << " \t- a constant real number (e.g. \"123.45\"), " << endl
+         << " \t- a stream (e.g. \"[10,4,5]\" with each number representing size in one dimension)." << endl
+         ;
+}
+
 struct evaluation
 {
     string name;
@@ -15,6 +31,8 @@ struct evaluation
 
 struct argument_parser
 {
+    struct abortion {};
+
     bool print_tokens = false;
     bool print_ast = false;
     vector<evaluation> evaluations;
@@ -42,7 +60,12 @@ private:
     {
         string arg( m_args[0] );
 
-        if (arg == "--print-tokens" || arg == "-t")
+        if (arg == "--help" || arg == "-h")
+        {
+            print_parameters();
+            throw abortion();
+        }
+        else if (arg == "--print-tokens" || arg == "-t")
         {
             print_tokens = true;
             advance();
@@ -183,10 +206,14 @@ int main(int argc, char *argv[])
     try {
         args.parse();
     }
+    catch (argument_parser::abortion &)
+    {
+        return 0;
+    }
     catch (exception & e)
     {
         cerr << "ERROR: Command line: " << e.what() << endl;
-        return 0;
+        return 1;
     }
 
     ifstream input_file(input_filename);
