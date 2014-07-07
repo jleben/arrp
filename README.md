@@ -1,3 +1,22 @@
+## Project Description
+
+This projects implements a compiler for a new language for stream processing
+in continuation referred to as *The Language*.
+
+The Language is characterized by the following features:
+- functional
+- typing: strong, statical, implicit
+- handy expression structures:
+  * iteration (application of expression on consecutive ranges of a sequence of values)
+  * reduction (reduction of a sequence of values to a single value by application of expression
+    on original values and results of previous applications)
+
+The Language has the following types:
+- integer number
+- real number
+- range - sequence of integer numbers defined by a pair of start and end numbers
+- stream - sequence of real numbers in multiple dimensions
+
 ## Prerequisits
 
 This project requires flexc++ and bisonc++ lexer and parser generators.
@@ -26,61 +45,58 @@ CMake options:
 ## Usage
 
 Currently, the only executable is the compiler frontend tester, built by
-the above procedure at `build/frontend/test`. It may be invoked so:
-
-```
-test <input-file> [function-name [function-argument ...]]
-```
-
-The meaning of arguments:
-- `input-file` - (Required) Name of file with code to be compiled.
-- `function-name` - (Optional) Name of function to perform semantic analysis on.
-  If none is given 'main' is assumed.
-- `function-argument` - (Optional) One or more arguments to `function-name`.
-  The arguments can be one of the following examplary literal forms:
-  - `"[5, 6, 10]"` - A stream with size in each dimension represented by one
-    of the integers.
-  - `123` - An integer number constant.
-  - `123.45` - A real number constant.
-
-Example code files are provided in the `examples` folder. For example,
-the matrix-multiply.in can be syntactically and semantically processed
-with the following command:
-```
-build/frontend/test examples/matrix-multiply matrix_multiply "[10,3,5]" "[10,5,8]"
-```
-
-The program will print the following information on standard output:
+the above procedure at `build/frontend/test`. Invoking it with the `--help`
+or `-h` option will print information about its usage and all parameters.
+The program performs syntactical and semantical analysis of code and may
+print the following information on standard output:
 
 - Each token produced by the lexical scanner (if the `FRONTEND_PRINT_TOKENS`
   CMake option was enabled)
 
 - The abstract syntax tree (AST).
 
-- The symbols (functions and constants) declared at the top level and stored
-  into the global symbol table.
+- The top-level symbol declarations (functions and constant expressions).
 
-- The type of result of evaluation of the function and arguments given on
-  command line.
+- The type of result of evaluation of an expression or function with arguments.
 
-- Any syntactical or semantical errors in processed code.
+- Any syntactical or semantical errors in input code.
+
+## Examples:
+
+Example code files are provided in the `examples` folder. For example,
+the following command will use the frotend tester to perform syntactical
+processing of the file `matrix-multiply.in` and then semantically analyse
+evaluation of the function `matrix_multiply` defined in that file using two
+streams as arguments:
+```
+build/frontend/test examples/matrix-mult.in -e matrix_multiply "[10,3,5]" "[10,5,8]"
+```
+The function `matrix_multiply` multiplies two sequences of matrices, producing
+a new sequence of matrix products. Hence, the above command will finally print
+`Result type = [10,3,8]`, meaning that evaluation results in a stream of 10
+matrices, each with as many rows as the first matrix and as many columns as the
+second matrix given as argument.
+
+**NOTE:** At present, semantic analysis does not support non-constant
+expressions in stream slicing. For this reason evaluating the `autocorrelation`
+function from `autocorrelation.in` will produce a semantical error.
 
 ## Filesystem:
 
 - `frontend` - Contains code for the frontend (lexer + parser).
-  - `scanner.l` - Input file for lexer generator flexc++
-  - `parser.y` - Input file for parser generator bisonc++
-  - `ast.hpp` - Abstract Syntax Tree (AST) representation
-  - `ast_printer.hpp` - AST printing
-  - `types.hpp` - Type representation
-  - `environment.*` - Symbolic environment
-  - `semantic.*` - Semantic analysis (type-checking, etc.)
+  - `scanner.l` - Input file for lexer generator flexc++.
+  - `parser.y` - Input file for parser generator bisonc++.
+  - `ast.hpp` - Abstract Syntax Tree (AST) representation.
+  - `ast_printer.hpp` - AST printing.
+  - `types.hpp` - Type representation.
+  - `environment.*` - Symbolic environment.
+  - `semantic.*` - Semantic analysis (type-checking, etc.).
   - `test.cpp` - An executable parser which depends on output of flexc++ and bisonc++.
 
-- `examples` - Contains example code in the language implemented by this project.
-  - `matrix-mult.in` - Implements multiplication of two sequences of matrices.
-  - `autocorrelation.in` - Implements autocorrelation of a 1D sequence.
-  - `spectral-flux.in` - Implements "spectral flux", given a sequence of spectrums (results of DFT).
+- `examples` - Contains example code in The Language.
+  - `matrix-mult.in` - Multiplication of two sequences of matrices.
+  - `autocorrelation.in` - Autocorrelation of a 1D sequence.
+  - `spectral-flux.in` - Computes "spectral flux" of a sequence of spectrums (results of DFT).
 
 ## Notes
 
