@@ -61,7 +61,7 @@ print the following information on standard output:
 
 - Any syntactical or semantical errors in input code.
 
-## Examples:
+## Examples
 
 Example code files are provided in the `examples` folder. For example,
 the following command will use the frotend tester to perform syntactical
@@ -81,7 +81,7 @@ second matrix given as argument.
 expressions in stream slicing. For this reason evaluating the `autocorrelation`
 function from `autocorrelation.in` will produce a semantical error.
 
-## Filesystem:
+## Filesystem
 
 - `frontend` - Contains code for the frontend (lexer + parser).
   - `scanner.l` - Input file for lexer generator flexc++.
@@ -109,11 +109,11 @@ first time (if they don't exist) and otherwise not overridden.
 This is the approach intended and suggested by the authors of flexc++ and
 bisonc++.
 
-## Online repository:
+## Online repository
 
 The entire project code is available online at:
 https://github.com/jleben/stream-lang
 
-## Author:
+## Author
 
 Jakob Leben
