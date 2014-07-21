@@ -64,6 +64,8 @@ public:
         case for_iteration_list:
         case reduce_expression:
         case hash_expression:
+        case transpose_expression:
+        case slice_expression:
         case expression_block:
         case statement:
         case id_list:
@@ -114,6 +116,8 @@ private:
         m_type_names[real_num] = "real";
         m_type_names[identifier] = "id";
         m_type_names[range] = "range";
+        m_type_names[transpose_expression] = "transpose";
+        m_type_names[slice_expression] = "slice";
         m_type_names[call_expression] = "call";
         m_type_names[for_expression] = "for";
         m_type_names[for_iteration] = "for-iter";

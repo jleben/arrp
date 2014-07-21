@@ -13,6 +13,8 @@
 %left '+' '-'
 %left '*' '/'
 %left DOTDOT
+%right '#'
+%left '[' '{' '('
 
 %stype ast::semantic_value
 
@@ -194,23 +196,29 @@ expr:
   '(' expr ')'
   { $$ = $2; }
   |
+  call
+  |
   hash
+  |
+  transpose
+  |
+  slice
   |
   range
   |
-  call
+  id
   |
   number
 ;
 
 hash:
-  '#' call // implied dimension 1
+  '#' expr // implied dimension 1
   { $$ = new ast::list_node( ast::hash_expression, $2->line, {$2, nullptr} ); }
   |
-  '#' '(' call ')' // implied dimension 1
+  '#' '(' expr ')' // implied dimension 1
   { $$ = new ast::list_node( ast::hash_expression, $3->line, {$3, nullptr} ); }
   |
-  '#' '(' call ',' expr ')' // second arg = dimension
+  '#' '(' expr ',' expr ')' // second arg = dimension
   { $$ = new ast::list_node( ast::hash_expression, $3->line, {$3, $5} ); }
 ;
 
@@ -244,30 +252,23 @@ range:
 ;
 
 call:
-  id call_args call_dim call_range
+  expr '(' complex_expr_list ')'
   {
-    $$ = new ast::list_node( ast::call_expression, $1->line, {$1, $2, $3, $4} );
+    $$ = new ast::list_node( ast::call_expression, $1->line, {$1, $3} );
   }
 ;
 
-call_args:
-  // empty
+transpose:
+  expr '{' '.' '}'
+  { $$ = new ast::list_node( ast::transpose_expression, $1->line, { $1, nullptr} ); }
   |
-  '(' ')'
-  { $$ = nullptr; }
-  |
-  '(' complex_expr_list ')'
-  { $$ = $2; }
+  expr '{' int_list '}'
+  { $$ = new ast::list_node( ast::transpose_expression, $1->line, { $1, $3 } ); }
 ;
 
-call_dim:
-  // empty
-  |
-  '{' '.' '}'
-  { $$ = new ast::list_node( ast::int_list, d_scanner.lineNr() ); }
-  |
-  '{' int_list '}'
-  { $$ = $2; }
+slice:
+  expr '[' simple_expr_list ']'
+  { $$ = new ast::list_node( ast::slice_expression, $1->line, { $1, $3 } ); }
 ;
 
 int_list:
@@ -279,13 +280,6 @@ int_list:
     $$ = $1;
     $$.as<ast::list_node>()->append( $3 );
   }
-;
-
-call_range:
-  // empty
-  |
-  '[' simple_expr_list ']'
-  { $$ = $2; }
 ;
 
 complex_expr_list:

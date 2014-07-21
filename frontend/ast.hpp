@@ -64,13 +64,16 @@ enum node_type
 
     //binary_op_expression,
     call_expression,
+    transpose_expression,
+    slice_expression,
+    hash_expression,
+
     for_expression,
     for_iteration,
     for_iteration_list,
     reduce_expression,
-    hash_expression,
-    expression_block,
 
+    expression_block,
     statement,
 
     id_list,
