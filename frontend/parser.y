@@ -71,14 +71,21 @@ Perhaps use 'map' and 'reduce' instead of 'for'?
 Well, 'for' with multi-one-single-one function is already a kind of reduction.
 */
 
-program: stmt_list
-{ $$ = $1; $$->type = ast::program; d_ast = $$; }
+program:
+  stmt_list optional_semicolon
+  {
+    $$ = $1; $$->type = ast::program;
+    d_ast = $$;
+  }
+  |
+  // empty
+  {
+    $$ = new ast::list_node(ast::program, 0);
+    d_ast = $$;
+  }
 ;
 
 stmt_list:
-  // empty
-  { $$ = new ast::list_node( ast::statement_list, d_scanner.lineNr() ); }
-  |
   stmt
   {
     $$ = new ast::list_node( ast::statement_list, $1->line, { $1 } );
@@ -89,9 +96,6 @@ stmt_list:
     $$ = $1;
     $$.as<ast::list_node>()->append( $3 );
   }
-  |
-  stmt_list ';'
-  { $$ = $1; }
 ;
 
 stmt:
@@ -126,36 +130,28 @@ expr_block:
     $$ = new ast::list_node( ast::expression_block, $1->line, {nullptr, $1} );
   }
   |
-  '{' complex_expr '}'
+  '{' complex_expr optional_semicolon '}'
   {
     $$ = new ast::list_node( ast::expression_block, $2->line, {nullptr, $2} );
   }
   |
-  '{' let_stmt_list ';' complex_expr '}'
+  '{' let_block_list ';' complex_expr optional_semicolon '}'
   {
     $$ = new ast::list_node( ast::expression_block, $2->line, {$2, $4} );
   }
 ;
 
-let_stmt_list:
-  let_stmt
+let_block_list:
+  let_block
   |
-  let_stmt_list ';' let_stmt
+  let_block_list ';' let_block
   {
     $$ = $1;
-    $$.as<ast::list_node>()->append( $3 );
+    $$.as<ast::list_node>()->append( $3.as<ast::list_node>()->elements );
   }
 ;
 
-let: LET { $$ = new ast::node( ast::kwd_let, d_scanner.lineNr() ); }
-;
-
-let_stmt:
-  // empty
-  {
-    $$ = new ast::list_node( ast::statement_list, d_scanner.lineNr() );
-  }
-  |
+let_block:
   let stmt
   {
     $$ = new ast::list_node( ast::statement_list, $1->line, {$2} );
@@ -166,6 +162,9 @@ let_stmt:
     $$ = $3;
     $$->line = $1->line;
   }
+;
+
+let: LET { $$ = new ast::node( ast::kwd_let, d_scanner.lineNr() ); }
 ;
 
 expr:
@@ -403,4 +402,7 @@ id: ID
 {
   $$ = new ast::leaf_node<string>( ast::identifier, d_scanner.lineNr(), d_scanner.matched() );
 }
+;
+
+optional_semicolon: ';' | // empty
 ;

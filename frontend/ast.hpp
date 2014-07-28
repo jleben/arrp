@@ -126,6 +126,12 @@ struct list_node : public node
     {
         elements.push_back(element);
     }
+
+    void append( const vector<sp<node>> & other_elements )
+    {
+        elements.insert( elements.end(),
+                         other_elements.begin(), other_elements.end() );
+    }
 };
 
 template<typename T>
