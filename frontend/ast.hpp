@@ -17,7 +17,9 @@ namespace ast {
 
 struct node;
 
-struct semantic_value : public std::shared_ptr<node>
+using node_ptr = std::shared_ptr<node>;
+
+struct semantic_value : public node_ptr
 {
     semantic_value & operator=(node * n)
     {

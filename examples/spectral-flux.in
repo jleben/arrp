@@ -6,7 +6,8 @@ A = 1.0;
 K = 1000;
 
 // TODO: Return the larger of arguments. Requires conditional expression.
-max(a, b) = a;
+// For now, 'max' is a built-in function.
+// max(a, b) = ?;
 
 // Standard helper:
 sum( X ) =

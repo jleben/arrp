@@ -30,7 +30,8 @@ add_custom_command(
 add_executable(test
   lex.cc
   parse.cc
-  semantic.cpp
+  #semantic.cpp
   environment.cpp
+  type_checker.cpp
   test.cpp
 )

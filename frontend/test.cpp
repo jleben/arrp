@@ -1,6 +1,6 @@
 #include "parser.h"
 #include "ast_printer.hpp"
-#include "semantic.hpp"
+#include "type_checker.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -238,24 +238,30 @@ int main(int argc, char *argv[])
     if (success != 0)
         return success;
 
+    const ast::node_ptr & ast_root = parser.ast();
+
     if (args.print_ast)
     {
         cout << endl;
         cout << "== Abstract Syntax Tree ==" << endl;
         stream::ast::printer printer;
-        printer.print( parser.ast().get() );
+        printer.print(ast_root.get());
         cout << endl;
     }
+
+    stream::semantic::environment env;
+    stream::semantic::environment_builder env_builder(env);
+    if (!env_builder.process(ast_root))
+        return 1;
 
     if (args.print_symbols)
     {
         cout << endl;
-        cout << "== Top-level Symbols ==" << endl;
+        cout << "== Environment ==" << endl;
+        cout << env;
     }
 
-    stream::semantic::environment env =
-            stream::semantic::top_environment( parser.ast().get(),
-                                               args.print_symbols );
+    semantic::type_checker type_checker(env);
 
     for (const evaluation & eval : args.evaluations)
     {
@@ -271,23 +277,22 @@ int main(int argc, char *argv[])
         }
         cout << ")" << endl;
 
-        stream::semantic::symbol *sym = env[eval.name];
-        if (!sym)
+        const auto & sym_iter = env.find(eval.name);
+        if (sym_iter == env.end())
         {
             cerr << "WARNING: no symbol '" << eval.name << "' available." << endl;
             continue;
         }
 
-        try {
-            sp<semantic::type> value = sym->evaluate(env, eval.args);
-            if (value)
-                cout << "Result type = " << *value << endl;
-            else
-                cout << "Result type = void" << endl;
-        }
-        catch (semantic::semantic_error & e)
-        {
-            e.report();
-        }
+        semantic::type_ptr result_type =
+                type_checker.check(sym_iter->second, eval.args);
+
+        if (type_checker.has_error())
+            continue;
+
+        if (result_type)
+            cout << "Result type = " << *result_type << endl;
+        else
+            cout << "Result type = void" << endl;
     }
 }

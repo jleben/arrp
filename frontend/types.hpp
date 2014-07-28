@@ -1,12 +1,15 @@
 #ifndef STREAM_LANG_TYPES_INCLUDED
 #define STREAM_LANG_TYPES_INCLUDED
 
+#include "ast.hpp"
+
 #include <string>
 #include <vector>
 #include <iostream>
 #include <algorithm>
 #include <memory>
 #include <cassert>
+#include <initializer_list>
 
 namespace stream {
 namespace semantic {
@@ -29,7 +32,10 @@ struct type
         integer_num,
         real_num,
         range,
-        stream
+        stream,
+        function,
+        builtin_unary_func,
+        builtin_binary_func
     };
 
     type(tag t): m_tag(t) {}
@@ -40,7 +46,7 @@ struct type
     bool is(tag t) { return m_tag == t; }
 
     template<typename T>
-    T * as() { return static_cast<T*>(this); }
+    T & as() { return static_cast<T&>(*this); }
 
     virtual void print_on( ostream & s ) const
     {
@@ -50,6 +56,8 @@ struct type
 private:
     tag m_tag;
 };
+
+using type_ptr = std::shared_ptr<type>;
 
 inline ostream & operator<<( ostream & s, const type & t )
 {
@@ -131,12 +139,12 @@ struct range : public tagged_type<type::range>
 
     bool start_is_constant()
     {
-        return !start || start->as<semantic::integer_num>()->is_constant();
+        return !start || start->as<semantic::integer_num>().is_constant();
     }
 
     bool end_is_constant()
     {
-        return !end || end->as<semantic::integer_num>()->is_constant();
+        return !end || end->as<semantic::integer_num>().is_constant();
     }
 
     bool is_constant()
@@ -146,12 +154,12 @@ struct range : public tagged_type<type::range>
 
     int const_start()
     {
-        return start->as<semantic::integer_num>()->constant_value();
+        return start->as<semantic::integer_num>().constant_value();
     }
 
     int const_end()
     {
-        return end->as<semantic::integer_num>()->constant_value();
+        return end->as<semantic::integer_num>().constant_value();
     }
 
     int const_size()
@@ -174,6 +182,7 @@ struct range : public tagged_type<type::range>
 struct stream : public tagged_type<type::stream>
 {
     stream( const vector<int> & s ) : size(s) {}
+    stream( int s ) : size{s} {}
     int dimensionality() const { return size.size(); }
     vector<int> size;
 
@@ -195,6 +204,27 @@ struct stream : public tagged_type<type::stream>
         size.erase( std::remove(size.begin(), size.end(), 1), size.end() );
         if (size.empty())
             size.push_back(1);
+    }
+};
+
+struct function : public tagged_type<type::function>
+{
+    string name;
+    vector<string> parameters;
+    ast::node_ptr expression;
+
+    virtual void print_on( ostream & s ) const
+    {
+        s << name;
+        int p = 0;
+        s << "(";
+        for (const string & param : parameters)
+        {
+            s << param;
+            if (p < parameters.size())
+                s << ", ";
+        }
+        s << ")";
     }
 };
 
