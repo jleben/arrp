@@ -77,8 +77,14 @@ a new sequence of matrix products. Hence, the above command will finally print
 matrices, each with as many rows as the first matrix and as many columns as the
 second matrix given as argument.
 
+**NOTE:** At present, IR generation is only partially implemented, so trying
+to generate code for any part of the examples (using the --generate option)
+will result in errors, crashes or similar. What currently works is:
+statements, functions, binary arithmetic with integer and real number types
+exclusively.
+
 **NOTE:** At present, semantic analysis does not support non-constant
-expressions in stream slicing. For this reason evaluating the `autocorrelation`
+expressions in stream slicing. For this reason, generating the `autocorrelation`
 function from `autocorrelation.in` will produce a semantical error.
 
 ## Filesystem
@@ -89,9 +95,10 @@ function from `autocorrelation.in` will produce a semantical error.
   - `ast.hpp` - Abstract Syntax Tree (AST) representation.
   - `ast_printer.hpp` - AST printing.
   - `types.hpp` - Type representation.
-  - `environment.*` - Symbolic environment.
-  - `semantic.*` - Semantic analysis (type-checking, etc.).
-  - `test.cpp` - An executable parser which depends on output of flexc++ and bisonc++.
+  - `environment.*` - Gloal symbolic environment construction and symbolic checking.
+  - `type_checker.*` - Type checking and other semantical analysis.
+  - `ir-generator.*` - LLVM IR generation.
+  - `frontend.cpp` - Frontend executable.
 
 - `examples` - Contains example code in The Language.
   - `matrix-mult.in` - Multiplication of two sequences of matrices.
