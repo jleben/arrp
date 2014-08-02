@@ -242,6 +242,8 @@ value_ptr generator::process_expression( const ast::node_ptr & root )
     }
     case ast::identifier:;
         return process_identifier(root).first;
+    case ast::call_expression:
+        return process_call(root);
     case ast::add:
     case ast::subtract:
     case ast::multiply:
@@ -262,8 +264,8 @@ value_ptr generator::process_expression( const ast::node_ptr & root )
         return process_transpose(root);
     case ast::slice_expression:
         return process_slice(root);
-    case ast::call_expression:
-        return process_call(root);
+#endif
+#if 0
     case ast::for_expression:
         return process_iteration(root);
     case ast::reduce_expression:
@@ -299,6 +301,50 @@ generator::process_identifier( const ast::node_ptr & root )
     }
     assert(false);
     throw source_error("Name not in scope.", root->line);
+}
+
+value_ptr generator::process_call( const ast::node_ptr & root )
+{
+    assert(root->type == ast::call_expression);
+
+    ast::list_node * call = root->as_list();
+    const auto & func_node = call->elements[0];
+    const auto & args_node = call->elements[1];
+
+    // Get function
+
+    context_item_ptr ctx_item;
+    context::scope_iterator scope;
+
+    string id = func_node->as_leaf<string>()->value;
+    if (context::item ctx_entry = m_ctx.find(id))
+    {
+        ctx_item = ctx_entry.value();
+        scope = ctx_entry.scope();
+    }
+    else
+    {
+        environment::const_iterator it = m_env.find(id);
+        if (it != m_env.end())
+        {
+            ctx_item = item_for_symbol(it->second);
+            scope = m_ctx.root_scope();
+        }
+        assert(false);
+    }
+
+    // Get args
+
+    std::vector<value_ptr> args;
+    ast::list_node * arg_list = args_node->as_list();
+    for (const auto & arg_node : arg_list->elements)
+    {
+        args.push_back( process_expression(arg_node) );
+    }
+
+    // Process function
+
+    return value_for_function(ctx_item->as_function(), args, scope);
 }
 
 value_ptr generator::process_binop( const ast::node_ptr & root )

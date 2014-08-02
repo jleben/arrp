@@ -136,13 +136,13 @@ private:
     value_ptr process_expression( const ast::node_ptr & );
     pair<value_ptr, context::scope_iterator>
     process_identifier( const ast::node_ptr & );
+    value_ptr process_call( const ast::node_ptr & );
     value_ptr process_binop( const ast::node_ptr & );
 #if 0
     value_ptr process_range( const ast::node_ptr & );
     value_ptr process_extent( const ast::node_ptr & );
     value_ptr process_transpose( const ast::node_ptr & );
     value_ptr process_slice( const ast::node_ptr & );
-    value_ptr process_call( const ast::node_ptr & );
     value_ptr process_iteration( const ast::node_ptr & );
     iterator process_iterator( const ast::node_ptr & );
     value_ptr process_reduction( const ast::node_ptr & );
