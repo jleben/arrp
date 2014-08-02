@@ -5,6 +5,7 @@
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/Support/raw_os_ostream.h>
 
 #include <fstream>
 #include <iostream>
@@ -19,6 +20,7 @@ void print_help()
 
     cout << "Parameters:" << endl;
 
+    cout << "  --output or -o : LLVM IR output file name (default: 'out.ll')." << endl;
     cout << "  --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
     cout << "  --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
     cout << "  --list-symbols or -l : List all top-level declarations." << endl;
@@ -45,11 +47,13 @@ struct argument_parser
     bool print_tokens = false;
     bool print_ast = false;
     bool print_symbols = false;
+    string output_filename;
     vector<evaluation> evaluations;
 
     argument_parser(int argc, char *argv[]):
         m_arg_count(argc),
-        m_args(argv)
+        m_args(argv),
+        output_filename("out.ll")
     {}
 
     void parse()
@@ -64,6 +68,11 @@ private:
     {
         --m_arg_count;
         ++m_args;
+    }
+
+    char *current_arg()
+    {
+        return m_args[0];
     }
 
     void parse_next_arg()
@@ -94,6 +103,19 @@ private:
         {
             advance();
             parse_evaluation(arg);
+        }
+        else if (arg == "--output" || arg == "-o")
+        {
+            advance();
+            if (m_arg_count && current_arg()[0] != '-')
+                output_filename = current_arg();
+            else
+            {
+                ostringstream msg;
+                msg << "Missing argument for option " << arg << ".";
+                throw std::runtime_error(msg.str());
+            }
+            advance();
         }
         else
         {
@@ -321,7 +343,20 @@ int main(int argc, char *argv[])
         gen.generate(symbol_iter->second, eval.args);
     }
 #endif
+    if (args.evaluations.empty())
+        return 0;
+
     cout << endl;
     cout << "== LLVM IR:" << endl;
     module->dump();
+
+    ofstream output_file(args.output_filename);
+    if (!output_file.is_open())
+    {
+        cerr << "ERROR: Could not open output file for writing!" << endl;
+        return 1;
+    }
+
+    llvm::raw_os_ostream llvm_ostream(output_file);
+    module->print( llvm_ostream, nullptr );
 }
