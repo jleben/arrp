@@ -146,6 +146,11 @@ public:
         return scope_iterator( &m_stack.front() );
     }
 
+    scope_iterator root_scope()
+    {
+        return scope_iterator( & m_stack.back() );
+    }
+
     item find(const key_type & key)
     {
         if (m_stack.empty())

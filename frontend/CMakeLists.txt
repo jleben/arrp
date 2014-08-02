@@ -1,6 +1,31 @@
 option(FRONTEND_PRINT_TOKENS "Parser: enable printing tokens." OFF)
 option(BISON_VERBOSE "Bison: Output detailed information about parser generation." OFF)
 
+# Discover LLVM dependencies
+
+#if (NOT DEFINED llvm-compile-flags)
+  execute_process(
+    COMMAND llvm-config --cppflags
+    OUTPUT_VARIABLE llvm-compile-flags
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+#endif()
+
+#if (NOT DEFINED llvm-link-flags)
+  execute_process(
+    COMMAND llvm-config --ldflags
+    OUTPUT_VARIABLE llvm-link-flags
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  execute_process(
+    COMMAND llvm-config --libs core
+    OUTPUT_VARIABLE llvm-link-libs
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+#endif()
+
+# Lexer and parser generation
+
 set(bison_opts "")
 
 if(FRONTEND_PRINT_TOKENS)
@@ -27,11 +52,18 @@ add_custom_command(
   COMMENT "Generating parser..."
 )
 
+# Frontend executable
+
 add_executable(test
   lex.cc
   parse.cc
   #semantic.cpp
   environment.cpp
   type_checker.cpp
+  ir-generator.cpp
   test.cpp
 )
+
+set_property( TARGET test APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
+
+target_link_libraries( test ${llvm-link-libs} ${llvm-link-flags}  )

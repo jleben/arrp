@@ -1,6 +1,11 @@
 #include "parser.h"
 #include "ast_printer.hpp"
 #include "type_checker.hpp"
+#include "ir-generator.hpp"
+
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+
 #include <fstream>
 #include <iostream>
 
@@ -263,6 +268,9 @@ int main(int argc, char *argv[])
 
     semantic::type_checker type_checker(env);
 
+    llvm::Module *module = new llvm::Module(input_filename, llvm::getGlobalContext());
+    IR::generator gen(module, env);
+
     for (const evaluation & eval : args.evaluations)
     {
         cout << endl;
@@ -294,5 +302,26 @@ int main(int argc, char *argv[])
             cout << "Result type = " << *result_type << endl;
         else
             cout << "Result type = void" << endl;
+
+        gen.generate(sym_iter->second, result_type, eval.args);
     }
+
+    if (type_checker.has_error())
+        return 1;
+
+#if 0
+    llvm::Module *module = new llvm::Module(input_filename, llvm::getGlobalContext());
+    IR::generator gen(module, env);
+
+    for (const evaluation & eval : args.evaluations)
+    {
+        const auto & symbol_iter = env.find(eval.name);
+        assert(symbol_iter != env.end());
+
+        gen.generate(symbol_iter->second, eval.args);
+    }
+#endif
+    cout << endl;
+    cout << "== LLVM IR:" << endl;
+    module->dump();
 }
