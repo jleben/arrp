@@ -24,9 +24,10 @@ void print_help()
     cout << "  --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
     cout << "  --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
     cout << "  --list-symbols or -l : List all top-level declarations." << endl;
-    cout << "  --eval or -e <symbol> [<arg>...] :" << endl
-         << "  \tEvaluate a top-level declaration of <symbol> and print the result type." << endl
-         << "  \tEach following argument <arg> is passed as argument type in function evaluation." << endl
+    cout << "  --generate or -g <symbol> [<arg>...] :" << endl
+         << "  \tGenerate output for top-level function or expression <symbol> with given argument types." << endl
+         << "  \tEach following argument <arg> is used as the type of a function parameter in "
+         "generic function instantiation." << endl
          << "  \tAn argument can be:" << endl
          << "  \t- a constant integer number (e.g. \"123\")," << endl
          << "  \t- a constant real number (e.g. \"123.45\"), " << endl
