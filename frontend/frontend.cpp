@@ -16,7 +16,7 @@ using namespace stream;
 void print_help()
 {
     cout << "Usage:" << endl
-         << "  test <input file> [<parameter>...]" << endl;
+         << "  frontend <input file> [<parameter>...]" << endl;
 
     cout << "Parameters:" << endl;
 

@@ -54,16 +54,16 @@ add_custom_command(
 
 # Frontend executable
 
-add_executable(test
+add_executable(frontend
   lex.cc
   parse.cc
   #semantic.cpp
   environment.cpp
   type_checker.cpp
   ir-generator.cpp
-  test.cpp
+  frontend.cpp
 )
 
-set_property( TARGET test APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
+set_property( TARGET frontend APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
 
-target_link_libraries( test ${llvm-link-libs} ${llvm-link-flags}  )
+target_link_libraries( frontend ${llvm-link-libs} ${llvm-link-flags}  )
