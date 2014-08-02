@@ -91,7 +91,6 @@ context_item_ptr generator::item_for_symbol( const symbol & sym )
         value_ptr val = process_block(sym.source);
         return make_shared<value_item>(val);
     }
-#if 0
     case symbol::function:
     {
         user_func_item *f = new user_func_item;
@@ -100,6 +99,7 @@ context_item_ptr generator::item_for_symbol( const symbol & sym )
         f->expression = sym.source;
         return context_item_ptr(f);
     }
+#if 0
     case symbol::builtin_unary_math:
         return make_shared<builtin_unary_func_item>();
     case symbol::builtin_binary_math:
@@ -107,6 +107,7 @@ context_item_ptr generator::item_for_symbol( const symbol & sym )
 #endif
     }
     assert(false);
+    throw error("Should not happen.");
 }
 
 value_ptr generator::value_for_function(function_item *func,
@@ -199,8 +200,20 @@ void generator::process_stmt( const ast::node_ptr & root )
 
     if (params_node)
     {
-        // TODO: define function
-        assert(false);
+        vector<string> parameters;
+        ast::list_node *param_list = params_node->as_list();
+        for ( const auto & param : param_list->elements )
+        {
+            string param_name = param->as_leaf<string>()->value;
+            parameters.push_back(param_name);
+        }
+
+        user_func_item *f = new user_func_item;
+        f->name = id;
+        f->parameter_names = parameters;
+        f->expression = expr_node;
+
+        ctx_item = context_item_ptr(f);
     }
     else
     {
@@ -218,7 +231,7 @@ value_ptr generator::process_expression( const ast::node_ptr & root )
     case ast::integer_num:
     {
         int i = root->as_leaf<int>()->value;
-        llvm::Value * v = llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,i));
+        llvm::Value * v = llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,i,true));
         return make_shared<scalar_value>(v);
     }
     case ast::real_num:
@@ -229,7 +242,6 @@ value_ptr generator::process_expression( const ast::node_ptr & root )
     }
     case ast::identifier:;
         return process_identifier(root).first;
-#if 0
     case ast::add:
     case ast::subtract:
     case ast::multiply:
@@ -241,6 +253,7 @@ value_ptr generator::process_expression( const ast::node_ptr & root )
     case ast::equal:
     case ast::not_equal:
         return process_binop(root);
+#if 0
     case ast::range:
         return process_range(root);
     case ast::hash_expression:
@@ -288,6 +301,67 @@ generator::process_identifier( const ast::node_ptr & root )
     throw source_error("Name not in scope.", root->line);
 }
 
+value_ptr generator::process_binop( const ast::node_ptr & root )
+{
+    ast::list_node *expr = root->as_list();
+    value_ptr lhs = process_expression(expr->elements[0]);
+    value_ptr rhs = process_expression(expr->elements[1]);
+
+    llvm::Type *fp_type = llvm::Type::getDoubleTy(llvm_context());
+    llvm::Type *int_type = llvm::Type::getInt32Ty(llvm_context());
+    if ( typeid(*lhs) == typeid(scalar_value) &&
+         typeid(*rhs) == typeid(scalar_value) )
+    {
+        llvm::Value *lhs_ir = static_cast<scalar_value&>(*lhs).get();
+        llvm::Value *rhs_ir = static_cast<scalar_value&>(*rhs).get();
+        llvm::Value *result_ir;
+
+        bool fp_op = lhs_ir->getType() == fp_type || rhs_ir->getType() == fp_type;
+        if (fp_op)
+        {
+            if (lhs_ir->getType() != fp_type)
+                lhs_ir = m_builder.CreateSIToFP(lhs_ir, fp_type);
+            if (rhs_ir->getType() != fp_type)
+                rhs_ir = m_builder.CreateSIToFP(rhs_ir, fp_type);
+            switch(root->type)
+            {
+            case ast::add:
+                result_ir = m_builder.CreateFAdd(lhs_ir, rhs_ir); break;
+            case ast::subtract:
+                result_ir = m_builder.CreateFSub(lhs_ir, rhs_ir); break;
+            case ast::multiply:
+                result_ir = m_builder.CreateFMul(lhs_ir, rhs_ir); break;
+            case ast::divide:
+                result_ir = m_builder.CreateFDiv(lhs_ir, rhs_ir); break;
+            default:
+                assert(false);
+            }
+        }
+        else
+        {
+            switch(root->type)
+            {
+            case ast::add:
+                result_ir = m_builder.CreateAdd(lhs_ir, rhs_ir); break;
+            case ast::subtract:
+                result_ir = m_builder.CreateSub(lhs_ir, rhs_ir); break;
+            case ast::multiply:
+                result_ir = m_builder.CreateMul(lhs_ir, rhs_ir); break;
+            case ast::divide:
+                result_ir = m_builder.CreateSDiv(lhs_ir, rhs_ir); break;
+            default:
+                assert(false);
+            }
+        }
+
+        return make_shared<scalar_value>(result_ir);
+    }
+    else
+    {
+        assert(false);
+        throw error("Should not happen.");
+    }
+}
 
 }
 }
