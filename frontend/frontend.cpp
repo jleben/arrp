@@ -24,7 +24,7 @@ void print_help()
     cout << "  --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
     cout << "  --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
     cout << "  --list-symbols or -l : List all top-level declarations." << endl;
-    cout << "  --generate or -g <symbol> [<arg>...] :" << endl
+    cout << "  --generate or --gen or -g <symbol> [<arg>...] :" << endl
          << "  \tGenerate output for top-level function or expression <symbol> with given argument types." << endl
          << "  \tEach following argument <arg> is used as the type of a function parameter in "
          "generic function instantiation." << endl
@@ -100,7 +100,7 @@ private:
             print_symbols = true;
             advance();
         }
-        else if (arg == "--evaluate" || arg == "--eval" || arg == "-e")
+        else if (arg == "--generate" || arg == "--gen" || arg == "-g")
         {
             advance();
             parse_evaluation(arg);
