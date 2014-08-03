@@ -255,6 +255,12 @@ int main(int argc, char *argv[])
     }
 
     ifstream input_file(input_filename);
+    if (!input_file.is_open())
+    {
+        cerr << "Failed to open input file for reading: '"
+             << input_filename << "'." << endl;
+        return 1;
+    }
 
     stream::Parser parser(input_file);
     parser.setPrintsTokens(args.print_tokens);
