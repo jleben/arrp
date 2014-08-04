@@ -24,8 +24,7 @@ using std::pair;
 
 struct value
 {
-    virtual llvm::Value *get() = 0;
-    virtual llvm::Value *getAt( const vector<int> & index ) = 0;
+    virtual llvm::Value *get( llvm::IRBuilder<> & ) = 0;
 };
 
 using value_ptr = std::shared_ptr<value>;
@@ -33,10 +32,91 @@ using value_ptr = std::shared_ptr<value>;
 struct scalar_value : public value
 {
     scalar_value(llvm::Value *v): v(v) {}
-    virtual llvm::Value *get() { return v; }
-    virtual llvm::Value *getAt( const vector<int> & index ) { assert(false); }
+    virtual llvm::Value *get( llvm::IRBuilder<> & ) { return v; }
     llvm::Value *v;
 };
+
+struct abstract_stream_value : public value
+{
+    virtual int dimensions() = 0;
+    virtual int size( int dimension ) = 0;
+    virtual llvm::Value *get_at( const vector<value_ptr> & index, llvm::IRBuilder<> & ) = 0;
+};
+
+using stream_value_ptr = std::shared_ptr<abstract_stream_value>;
+
+struct stream_value : public abstract_stream_value
+{
+    int dimensions() { return m_size.size(); }
+    int size( int dimension ) { return m_size[dimension]; }
+
+    stream_value( llvm::Value *data, vector<int> size ):
+        m_data(data),
+        m_size(size)
+    {
+        if (size.size() > 1)
+        {
+            m_index_coeffs = vector<int>(size.size() - 1);
+            int coeff = 1;
+            int dim = size.size() - 1;
+            while(dim > 0)
+            {
+                coeff *= size[dim];
+                m_index_coeffs[dim-1] = coeff;
+                --dim;
+            }
+        }
+    }
+
+    virtual llvm::Value *get( llvm::IRBuilder<> & )
+    {
+        return m_data;
+    }
+
+    virtual llvm::Value *get_at( const vector<value_ptr> & index, llvm::IRBuilder<> & builder );
+
+private:
+    vector<int> m_size;
+    vector<int> m_index_coeffs;
+    llvm::Value *m_data;
+};
+
+#if 0
+struct index_value : public value
+{
+    index_value( const stream_value_ptr & stream,
+                 const vector<value_ptr> & index ):
+        stream(stream),
+        index(index)
+    {}
+
+    virtual llvm::Value *get( llvm::IRBuilder<> & builder )
+    {
+        return stream->get_at( index, builder );
+    }
+
+    stream_value_ptr stream;
+    vector<value_ptr> index;
+};
+#endif
+
+#if 0
+struct slice_value
+{
+    slice_value( const stream_value_ptr & stream,
+                 const vector<value_ptr> & offset,
+                 const vector<int> & size )
+    {
+
+    }
+
+    int dimensions() { return size.size(); }
+    int size( int dimension ) { return size[dimension]; }
+
+    vector<value_ptr> offset;
+    vector<int> size;
+};
+#endif
 
 struct value_item;
 struct function_item;
@@ -138,15 +218,13 @@ private:
     process_identifier( const ast::node_ptr & );
     value_ptr process_call( const ast::node_ptr & );
     value_ptr process_binop( const ast::node_ptr & );
-#if 0
-    value_ptr process_range( const ast::node_ptr & );
-    value_ptr process_extent( const ast::node_ptr & );
-    value_ptr process_transpose( const ast::node_ptr & );
+    //value_ptr process_range( const ast::node_ptr & );
+    //value_ptr process_extent( const ast::node_ptr & );
+    //value_ptr process_transpose( const ast::node_ptr & );
     value_ptr process_slice( const ast::node_ptr & );
-    value_ptr process_iteration( const ast::node_ptr & );
-    iterator process_iterator( const ast::node_ptr & );
-    value_ptr process_reduction( const ast::node_ptr & );
-#endif
+    //value_ptr process_iteration( const ast::node_ptr & );
+    //iterator process_iterator( const ast::node_ptr & );
+    //value_ptr process_reduction( const ast::node_ptr & );
 
     llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
 

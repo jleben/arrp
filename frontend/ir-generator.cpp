@@ -48,17 +48,34 @@ void generator::generate( const symbol & sym,
         vector<value_ptr> func_args;
 
         llvm::Function::arg_iterator arg_iter;
-        for (arg_iter = func->arg_begin(); arg_iter != func->arg_end(); ++arg_iter)
-            func_args.emplace_back( new scalar_value(arg_iter) );
+        int arg_idx = 0;
+        for (arg_iter = func->arg_begin(); arg_iter != func->arg_end(); ++arg_iter, ++arg_idx)
+        {
+            switch(arg_types[arg_idx]->get_tag())
+            {
+            case type::integer_num:
+            case type::real_num:
+                func_args.emplace_back( new scalar_value(arg_iter) );
+                break;
+            case type::stream:
+            {
+                stream & s = arg_types[arg_idx]->as<stream>();
+                func_args.emplace_back( new stream_value(arg_iter, s.size) );
+                break;
+            }
+            default:
+                assert(false);
+            }
+        }
 
         function_item *func_item = item->as_function();
         value_ptr result = value_for_function(func_item, func_args, m_ctx.root_scope());
-        m_builder.CreateRet(result->get());
+        m_builder.CreateRet(result->get(m_builder));
     }
     else
     {
         value_item *result_item = item->as_value();
-        m_builder.CreateRet(result_item->get_value()->get());
+        m_builder.CreateRet(result_item->get_value()->get(m_builder));
     }
 }
 
@@ -262,9 +279,9 @@ value_ptr generator::process_expression( const ast::node_ptr & root )
         return process_extent(root);
     case ast::transpose_expression:
         return process_transpose(root);
+#endif
     case ast::slice_expression:
         return process_slice(root);
-#endif
 #if 0
     case ast::for_expression:
         return process_iteration(root);
@@ -358,8 +375,8 @@ value_ptr generator::process_binop( const ast::node_ptr & root )
     if ( typeid(*lhs) == typeid(scalar_value) &&
          typeid(*rhs) == typeid(scalar_value) )
     {
-        llvm::Value *lhs_ir = static_cast<scalar_value&>(*lhs).get();
-        llvm::Value *rhs_ir = static_cast<scalar_value&>(*rhs).get();
+        llvm::Value *lhs_ir = static_cast<scalar_value&>(*lhs).get(m_builder);
+        llvm::Value *rhs_ir = static_cast<scalar_value&>(*rhs).get(m_builder);
         llvm::Value *result_ir;
 
         bool fp_op = lhs_ir->getType() == fp_type || rhs_ir->getType() == fp_type;
@@ -407,6 +424,90 @@ value_ptr generator::process_binop( const ast::node_ptr & root )
         assert(false);
         throw error("Should not happen.");
     }
+}
+
+value_ptr generator::process_slice( const ast::node_ptr & root )
+{
+#if 1
+    assert(root->type == ast::slice_expression);
+    const auto & object_node = root->as_list()->elements[0];
+    const auto & ranges_node = root->as_list()->elements[1];
+
+    value_ptr object = process_expression(object_node);
+
+    stream_value_ptr in_stream = dynamic_pointer_cast<abstract_stream_value>(object);
+    //abstract_stream_value *in_stream = dynamic_cast<abstract_stream_value*>(object.get());
+    assert(in_stream);
+
+    //type_ptr result_type = make_shared<stream>(object_type->as<stream>());
+    //stream & object = result_type->as<stream>();
+
+    ast::list_node *range_list = ranges_node->as_list();
+
+    //if (range_list->elements.size() > object.dimensionality())
+        //throw source_error("Too many slice dimensions.", ranges_node->line);
+
+    vector<value_ptr> selector;
+    selector.reserve(range_list->elements.size());
+
+    int dim = 0;
+    for( const auto & range_node : range_list->elements )
+    {
+        selector.push_back( process_expression(range_node) );
+    }
+
+    bool is_scalar = true;
+    if (selector.size() != in_stream->dimensions())
+        is_scalar = false;
+    else
+    {
+        for(const value_ptr & range : selector)
+        {
+            if (!dynamic_cast<scalar_value*>(range.get()))
+            {
+                is_scalar = false;
+                break;
+            }
+        }
+    }
+
+    if (is_scalar)
+    {
+        return make_shared<scalar_value>( in_stream->get_at(selector, m_builder) );
+    }
+    else
+    {
+        throw error("Non-scalar slices not supported.");
+        assert(false);
+    }
+#endif
+}
+
+llvm::Value *stream_value::get_at( const vector<value_ptr> & index,
+                                   llvm::IRBuilder<> & builder )
+{
+    assert(index.size() == m_index_coeffs.size() + 1);
+
+    llvm::Value * flat_index = index.back()->get(builder);
+
+    int c = m_index_coeffs.size();
+    while(c--)
+    {
+        llvm::Value *idx_val = index[c]->get(builder);
+
+        llvm::Value *coeff_val =
+                llvm::ConstantInt::get(builder.getContext(),
+                                       llvm::APInt(32,m_index_coeffs[c],true));
+
+        llvm::Value *partial_val =
+                builder.CreateMul( idx_val, coeff_val );
+
+        flat_index = builder.CreateAdd(flat_index, partial_val);
+    }
+
+    return llvm::GetElementPtrInst::Create(m_data,
+                                           llvm::ArrayRef<llvm::Value*>(&flat_index,1),
+                                           "", builder.GetInsertBlock());
 }
 
 }
