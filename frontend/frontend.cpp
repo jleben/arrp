@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
     for (const evaluation & eval : args.evaluations)
     {
         cout << endl;
-        cout << "== Evaluating: " << eval.name;
+        cout << "== Generating: " << eval.name;
         cout << "(";
         if (eval.args.size())
             cout << *eval.args.front();
