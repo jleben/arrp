@@ -35,6 +35,30 @@ void print_help()
          ;
 }
 
+struct command_line_error
+{
+public:
+    command_line_error(const string & what):
+        m_what(msg(what))
+    {}
+    command_line_error(const char * what):
+        m_what(msg(what))
+    {}
+    const char * what() const
+    {
+        return m_what.c_str();
+    }
+private:
+    static string msg(const string & what)
+    {
+        ostringstream text;
+        text << "ERROR: Command line: ";
+        text << what;
+        return text.str();
+    }
+    string m_what;
+};
+
 struct evaluation
 {
     string name;
@@ -48,6 +72,7 @@ struct argument_parser
     bool print_tokens = false;
     bool print_ast = false;
     bool print_symbols = false;
+    string input_filename;
     string output_filename;
     vector<evaluation> evaluations;
 
@@ -59,8 +84,14 @@ struct argument_parser
 
     void parse()
     {
+        if (m_arg_count && current_arg()[0] != '-')
+        {
+            input_filename = current_arg();
+            advance();
+        }
+
         while(m_arg_count)
-            parse_next_arg();
+            parse_next_option();
     }
 
 private:
@@ -71,12 +102,14 @@ private:
         ++m_args;
     }
 
+    int arg_count() { return m_arg_count; }
+
     char *current_arg()
     {
         return m_args[0];
     }
 
-    void parse_next_arg()
+    void parse_next_option()
     {
         string arg( m_args[0] );
 
@@ -114,7 +147,7 @@ private:
             {
                 ostringstream msg;
                 msg << "Missing argument for option " << arg << ".";
-                throw std::runtime_error(msg.str());
+                throw command_line_error(msg.str());
             }
             advance();
         }
@@ -122,26 +155,29 @@ private:
         {
             ostringstream msg;
             msg << "Invalid argument: " << arg;
-            throw std::runtime_error(msg.str());
+            throw command_line_error(msg.str());
         }
     }
 
     void parse_evaluation(const string & parameter)
     {
-        evaluations.emplace_back();
-        evaluation &eval = evaluations.back();
+        string name;
 
-        string arg( m_args[0] );
-        if (arg[0] == '-')
+        if (arg_count() && current_arg()[0] != '-')
+        {
+            name = current_arg();
+            advance();
+        }
+        else
         {
             ostringstream msg;
-            msg << "Missing function name after " << parameter << " parameter.";
-            throw std::runtime_error(msg.str());
+            msg << "Missing symbol name after " << parameter << " option.";
+            throw command_line_error(msg.str());
         }
 
-        eval.name = arg;
-
-        advance();
+        evaluations.emplace_back();
+        evaluation &eval = evaluations.back();
+        eval.name = name;
 
         while(m_arg_count && m_args[0][0] != '-')
         {
@@ -169,10 +205,10 @@ private:
     sp<semantic::type> parse_eval_stream_arg(const string & arg)
     {
         if (arg.size() < 3)
-            throw std::runtime_error("Misformatted stream argument.");
+            throw command_line_error("Misformatted stream argument.");
 
         if (arg.front() != '[' || arg.back() != ']')
-            throw std::runtime_error("Misformatted stream argument.");
+            throw command_line_error("Misformatted stream argument.");
 
         string size_list = arg.substr(1, arg.size()-2);
 
@@ -191,7 +227,7 @@ private:
                 }
             } catch (...) {}
 
-            throw std::runtime_error("Misformatted stream argument.");
+            throw command_line_error("Misformatted stream argument.");
         }
 
         return sp<semantic::type>( new semantic::stream(sizes) );
@@ -215,12 +251,12 @@ private:
         }
         catch (...) {}
 
-        throw std::runtime_error("Misformatted scalar argument.");
+        throw command_line_error("Misformatted scalar argument.");
     }
 
     sp<semantic::type> parse_eval_range_arg(const string & arg)
     {
-        throw std::runtime_error("Unsupported range argument.");
+        throw command_line_error("Unsupported range argument.");
     }
 
     int m_arg_count;
@@ -229,17 +265,7 @@ private:
 
 int main(int argc, char *argv[])
 {
-    string input_filename;
-    string function_name;
-
-    if (argc < 2)
-    {
-        cerr << "Missing argument: input filename." << endl;
-        return 1;
-    }
-    input_filename = argv[1];
-
-    argument_parser args(argc-2, argv+2);
+    argument_parser args(argc-1, argv+1);
 
     try {
         args.parse();
@@ -248,17 +274,23 @@ int main(int argc, char *argv[])
     {
         return 0;
     }
-    catch (exception & e)
+    catch (command_line_error & e)
     {
-        cerr << "ERROR: Command line: " << e.what() << endl;
+        cerr << e.what() << endl;
         return 1;
     }
 
-    ifstream input_file(input_filename);
+    if (args.input_filename.empty())
+    {
+        cerr << "ERROR: Command line: Missing argument: input filename." << endl;
+        return 1;
+    }
+
+    ifstream input_file(args.input_filename);
     if (!input_file.is_open())
     {
-        cerr << "Failed to open input file for reading: '"
-             << input_filename << "'." << endl;
+        cerr << "ERROR: Failed to open input file for reading: '"
+             << args.input_filename << "'." << endl;
         return 1;
     }
 
@@ -297,7 +329,7 @@ int main(int argc, char *argv[])
 
     semantic::type_checker type_checker(env);
 
-    llvm::Module *module = new llvm::Module(input_filename, llvm::getGlobalContext());
+    llvm::Module *module = new llvm::Module(args.input_filename, llvm::getGlobalContext());
     IR::generator gen(module, env);
 
     for (const evaluation & eval : args.evaluations)
@@ -339,7 +371,7 @@ int main(int argc, char *argv[])
         return 1;
 
 #if 0
-    llvm::Module *module = new llvm::Module(input_filename, llvm::getGlobalContext());
+    llvm::Module *module = new llvm::Module(args.input_filename, llvm::getGlobalContext());
     IR::generator gen(module, env);
 
     for (const evaluation & eval : args.evaluations)
