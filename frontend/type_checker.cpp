@@ -600,6 +600,11 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
         ++dim;
     }
 
+    object.reduce();
+
+    if(object.dimensionality() == 1 && object.size[0] == 1)
+        result_type = make_shared<real_num>();
+
     return result_type;
 }
 
