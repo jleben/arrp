@@ -6,6 +6,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_os_ostream.h>
+#include <llvm/Analysis/Verifier.h>
 
 #include <fstream>
 #include <iostream>
@@ -385,9 +386,11 @@ int main(int argc, char *argv[])
     if (args.evaluations.empty())
         return 0;
 
+#if 0
     cout << endl;
     cout << "== LLVM IR:" << endl;
     module->dump();
+#endif
 
     ofstream output_file(args.output_filename);
     if (!output_file.is_open())
@@ -398,4 +401,13 @@ int main(int argc, char *argv[])
 
     llvm::raw_os_ostream llvm_ostream(output_file);
     module->print( llvm_ostream, nullptr );
+
+    bool module_has_errors = llvm::verifyModule(*module);
+    if (module_has_errors)
+    {
+        cerr << "ERROR: Bad IR code output." << endl;
+        return 1;
+    }
+
+    return 0;
 }

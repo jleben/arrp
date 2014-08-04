@@ -80,10 +80,10 @@ void generator::generate( const symbol & sym,
         value_item *result_item = item->as_value();
         m_builder.CreateRet(result_item->get_value()->get(m_builder));
     }
-
+/*
     bool errors = llvm::verifyFunction(*func);
     if (errors)
-        throw error("Failed to verify generated function.");
+        throw error("Failed to verify generated function.");*/
 }
 
 llvm::Type *generator::llvm_type( const type_ptr & t )
