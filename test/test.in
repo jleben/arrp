@@ -1,0 +1,2 @@
+
+result(input) = 100 - input;
