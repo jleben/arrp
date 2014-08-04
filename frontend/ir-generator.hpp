@@ -14,6 +14,7 @@
 #include <vector>
 #include <cassert>
 #include <utility>
+#include <functional>
 
 namespace stream {
 namespace IR {
@@ -40,6 +41,7 @@ struct abstract_stream_value : public value
 {
     virtual int dimensions() = 0;
     virtual int size( int dimension ) = 0;
+    virtual vector<int> size() = 0;
     virtual llvm::Value *get_at( const vector<value_ptr> & index, llvm::IRBuilder<> & ) = 0;
 };
 
@@ -49,6 +51,7 @@ struct stream_value : public abstract_stream_value
 {
     int dimensions() { return m_size.size(); }
     int size( int dimension ) { return m_size[dimension]; }
+    vector<int> size() { return m_size; }
 
     stream_value( llvm::Value *data, vector<int> size ):
         m_data(data),
@@ -100,23 +103,51 @@ struct index_value : public value
 };
 #endif
 
-#if 0
-struct slice_value
+struct slice_value : public abstract_stream_value
 {
     slice_value( const stream_value_ptr & stream,
                  const vector<value_ptr> & offset,
-                 const vector<int> & size )
+                 const vector<int> & size ):
+        m_source(stream)
     {
-
+        assert(size.size() <= stream->dimensions());
+        int dim = 0;
+        while(dim < size.size() && size[dim] == 1)
+        {
+            m_preoffset.push_back(offset[dim]);
+            ++dim;
+        }
+        while(dim < size.size())
+        {
+            m_offset.push_back(offset[dim]);
+            m_size.push_back(size.size());
+            ++dim;
+        }
+        while(dim < stream->dimensions())
+        {
+            m_size.push_back(stream->size(dim));
+            ++dim;
+        }
     }
 
-    int dimensions() { return size.size(); }
-    int size( int dimension ) { return size[dimension]; }
+    virtual llvm::Value *get( llvm::IRBuilder<> & builder )
+    {
+        return m_source->get(builder);
+    }
 
-    vector<value_ptr> offset;
-    vector<int> size;
+    virtual llvm::Value *get_at( const vector<value_ptr> & index,
+                                 llvm::IRBuilder<> & builder );
+
+    int dimensions() { return m_size.size(); }
+    int size( int dimension ) { return m_size[dimension]; }
+    vector<int> size() { return m_size; }
+
+private:
+    stream_value_ptr m_source;
+    vector<value_ptr> m_preoffset;
+    vector<value_ptr> m_offset;
+    vector<int> m_size;
 };
-#endif
 
 struct value_item;
 struct function_item;
@@ -226,12 +257,22 @@ private:
     //iterator process_iterator( const ast::node_ptr & );
     //value_ptr process_reduction( const ast::node_ptr & );
 
-    llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
+    void generate_iteration( const value_ptr & from,
+                             const value_ptr & to,
+                             std::function<void(const value_ptr &)> );
+
+    stream_value_ptr allocate_stream( const vector<int> & size );
+
+    llvm::LLVMContext & llvm_context() { return m_module->getContext(); };
 
     llvm::Module *m_module;
     environment & m_env;
     context m_ctx;
     llvm::IRBuilder<> m_builder;
+
+    struct {
+        llvm::BasicBlock *block;
+    } m_allocator;
 };
 
 }
