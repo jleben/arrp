@@ -441,65 +441,89 @@ value_ptr generator::process_binop( const ast::node_ptr & root )
         else
             throw error("Binary operator: Unsupported operand.");
 
-        if (result_stream->dimensions() != 1)
-            throw error("Binary operator: Streams with more than 1 dimension not supported.");
-
-        llvm::Value *lhs_val, *rhs_val;
         if (!lhs_stream)
         {
-            lhs_val = lhs->get(m_builder);
+            llvm::Value *lhs_val = lhs->get(m_builder);
             if (lhs_val->getType() != fp_type)
                 lhs_val = m_builder.CreateSIToFP(lhs_val, fp_type);
+            lhs = make_shared<scalar_value>(lhs_val);
         }
         if (!rhs_stream)
         {
-            rhs_val = rhs->get(m_builder);
+            llvm::Value *rhs_val = rhs->get(m_builder);
             if (rhs_val->getType() != fp_type)
                 rhs_val = m_builder.CreateSIToFP(rhs_val, fp_type);
+            rhs = make_shared<scalar_value>(rhs_val);
         }
 
+        generate_stream_arithmetic(lhs, rhs, root->type, result_stream, vector<value_ptr>());
+
+        return result_stream;
+    }
+}
+
+void generator::generate_stream_arithmetic( const value_ptr & lhs, const value_ptr & rhs,
+                                            ast::node_type op_type,
+                                            const stream_value_ptr & result,
+                                            const vector<value_ptr> & stream_index )
+{
+    if (stream_index.size() < result->dimensions())
+    {
+        int dim = stream_index.size();
+
         llvm::Value *start_index =
-                llvm::ConstantInt::get(llvm_context(), llvm::APInt(64,0));
+                llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,0));
         llvm::Value *max_index =
-                llvm::ConstantInt::get(llvm_context(), llvm::APInt(64, result_stream->size(0)));
+                llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,result->size(dim)));
 
         auto operation = [&](const value_ptr & index)
         {
-            vector<value_ptr> stream_index({index});
-
-            //llvm::Value *lhs_ir, *rhs_ir;
-
-            if (lhs_stream)
-                lhs_val = m_builder.CreateLoad( lhs_stream->get_at(stream_index, m_builder) );
-
-            if (rhs_stream)
-                rhs_val = m_builder.CreateLoad( rhs_stream->get_at(stream_index, m_builder) );
-
-            llvm::Value * result_val;
-
-            switch(root->type)
-            {
-            case ast::add:
-                result_val = m_builder.CreateFAdd(lhs_val, rhs_val); break;
-            case ast::subtract:
-                result_val = m_builder.CreateFSub(lhs_val, rhs_val); break;
-            case ast::multiply:
-                result_val = m_builder.CreateFMul(lhs_val, rhs_val); break;
-            case ast::divide:
-                result_val = m_builder.CreateFDiv(lhs_val, rhs_val); break;
-            default:
-                assert(false);
-            }
-
-            llvm::Value * result_ptr = result_stream->get_at(stream_index, m_builder);
-            m_builder.CreateStore(result_val, result_ptr);
+            vector<value_ptr> next_stream_index = stream_index;
+            next_stream_index.push_back(index);
+            generate_stream_arithmetic(lhs, rhs, op_type, result, next_stream_index);
         };
 
         generate_iteration(make_shared<scalar_value>(start_index),
                            make_shared<scalar_value>(max_index),
                            operation);
+    }
+    else
+    {
+        abstract_stream_value *lhs_stream =
+                dynamic_cast<abstract_stream_value*>(lhs.get());
+        abstract_stream_value *rhs_stream =
+                dynamic_cast<abstract_stream_value*>(rhs.get());
 
-        return result_stream;
+        llvm::Value *lhs_val, *rhs_val;
+
+        if (lhs_stream)
+            lhs_val = m_builder.CreateLoad( lhs_stream->get_at(stream_index, m_builder) );
+        else
+            lhs_val = lhs->get(m_builder);
+
+        if (rhs_stream)
+            rhs_val = m_builder.CreateLoad( rhs_stream->get_at(stream_index, m_builder) );
+        else
+            rhs_val = rhs->get(m_builder);
+
+        llvm::Value * result_val;
+
+        switch(op_type)
+        {
+        case ast::add:
+            result_val = m_builder.CreateFAdd(lhs_val, rhs_val); break;
+        case ast::subtract:
+            result_val = m_builder.CreateFSub(lhs_val, rhs_val); break;
+        case ast::multiply:
+            result_val = m_builder.CreateFMul(lhs_val, rhs_val); break;
+        case ast::divide:
+            result_val = m_builder.CreateFDiv(lhs_val, rhs_val); break;
+        default:
+            assert(false);
+        }
+
+        llvm::Value * result_ptr = result->get_at(stream_index, m_builder);
+        m_builder.CreateStore(result_val, result_ptr);
     }
 }
 

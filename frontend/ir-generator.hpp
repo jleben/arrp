@@ -257,6 +257,11 @@ private:
     //iterator process_iterator( const ast::node_ptr & );
     //value_ptr process_reduction( const ast::node_ptr & );
 
+    void generate_stream_arithmetic( const value_ptr & lhs, const value_ptr & rhs,
+                                     ast::node_type op_type,
+                                     const stream_value_ptr & result,
+                                     const vector<value_ptr> & index );
+
     void generate_iteration( const value_ptr & from,
                              const value_ptr & to,
                              std::function<void(const value_ptr &)> );
