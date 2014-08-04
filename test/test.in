@@ -1,2 +1,2 @@
 
-result(input) = 100 - input;
+result(input) = input - 100.2;
