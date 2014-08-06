@@ -307,10 +307,8 @@ value_ptr generator::process_expression( const ast::node_ptr & root, const value
         break;
     case ast::for_expression:
         return process_iteration(root, result_space);
-#if 0
     case ast::reduce_expression:
-        return process_reduction(root);
-#endif
+        return process_reduction(root, result_space);
     default:
         throw source_error("Unsupported expression.", root->line);
     }
@@ -690,6 +688,74 @@ value_ptr generator::process_iteration( const ast::node_ptr & node,
     generate_iteration(0, result->size(0), body);
 
     return result;
+}
+
+value_ptr generator::process_reduction( const ast::node_ptr & node, const value_ptr & result_space )
+{
+    assert(node->type == ast::reduce_expression);
+    const auto & id1_node = node->as_list()->elements[0];
+    const auto & id2_node = node->as_list()->elements[1];
+    const auto & domain_node = node->as_list()->elements[2];
+    const auto & body_node = node->as_list()->elements[3];
+
+    string id1 = id1_node->as_leaf<string>()->value;
+    string id2 = id2_node->as_leaf<string>()->value;
+
+    type_ptr reduction_type = body_node->semantic_type;
+    value_ptr result = result_space;
+    if (!result)
+    {
+        if (reduction_type->is(type::stream))
+        {
+            throw error("Reduction to stream not supported.");
+            //result = allocate_stream(reduction_type->as<stream>().size());
+        }
+        else
+        {
+            assert(reduction_type->is(type::integer_num) ||
+                   reduction_type->is(type::real_num));
+
+            llvm::Type *scalar_type =
+                    reduction_type->is(type::integer_num) ?
+                        llvm::Type::getInt32Ty(llvm_context()) :
+                        llvm::Type::getDoubleTy(llvm_context());
+
+            llvm::Value *result_ptr = m_builder.CreateAlloca(scalar_type);
+            result = make_shared<scalar_value>(result_ptr);
+        }
+    }
+
+    value_ptr domain_val = process_expression(domain_node);
+    stream_value_ptr domain_stream =
+            dynamic_pointer_cast<abstract_stream_value>(domain_val);
+    if (!domain_stream)
+        throw error("Reduction domain not supported.");
+    assert(domain_stream);
+
+    assert(domain_stream->dimensions() == 1);
+    assert(domain_stream->size(0) >= 1);
+
+    // Copy first item into result space:
+    m_builder.CreateStore( m_builder.CreateLoad(domain_stream->get(m_builder)),
+                           result->get(m_builder) );
+
+    auto body = [&]( const value_ptr & index )
+    {
+        llvm::Value *item1_val =
+                m_builder.CreateLoad( result->get(m_builder) );
+        llvm::Value *item2_val =
+                m_builder.CreateLoad( domain_stream->get_at({index}, m_builder) );
+
+        context::scope_holder iteration_scope(m_ctx);
+        m_ctx.bind(id1, make_shared<value_item>(item1_val));
+        m_ctx.bind(id2, make_shared<value_item>(item2_val));
+
+        process_block(body_node, result);
+    };
+
+    generate_iteration(1, domain_stream->size(0), body);
+
+    return make_shared<scalar_value>( m_builder.CreateLoad(result->get(m_builder)) );
 }
 
 void generator::generate_iteration(const value_ptr & from,

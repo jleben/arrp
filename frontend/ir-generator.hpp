@@ -241,6 +241,7 @@ using context_item_ptr = std::shared_ptr<context_item>;
 struct value_item : public context_item
 {
     value_item() {}
+    value_item( llvm::Value * val ): v(new scalar_value(val)) {}
     value_item( const value_ptr & val ) : v(val) {}
     virtual type_flag type() { return value; }
     virtual value_ptr get_value()
@@ -303,8 +304,7 @@ private:
     value_ptr process_transpose( const ast::node_ptr & );
     value_ptr process_slice( const ast::node_ptr & );
     value_ptr process_iteration( const ast::node_ptr &, const value_ptr & );
-    //iterator process_iterator( const ast::node_ptr & );
-    //value_ptr process_reduction( const ast::node_ptr & );
+    value_ptr process_reduction( const ast::node_ptr &, const value_ptr & );
 
     void generate_iteration( const value_ptr & from,
                              const value_ptr & to,
