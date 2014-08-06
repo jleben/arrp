@@ -621,12 +621,11 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
     if (object_type->get_tag() != type::stream)
         throw source_error("Slice object not a stream.", object_node->line);
 
-    type_ptr result_type = make_shared<stream>(object_type->as<stream>());
-    stream & object = result_type->as<stream>();
+    stream result_type(object_type->as<stream>());
 
     ast::list_node *range_list = ranges_node->as_list();
 
-    if (range_list->elements.size() > object.dimensionality())
+    if (range_list->elements.size() > result_type.dimensionality())
         throw source_error("Too many slice dimensions.", ranges_node->line);
 
     int dim = 0;
@@ -637,7 +636,7 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
         {
         case type::integer_num:
         {
-            object.size[dim] = 1;
+            result_type.size[dim] = 1;
             break;
         }
         case type::range:
@@ -646,13 +645,13 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
             if (!r.start)
                 r.start = make_shared<integer_num>(1);
             if (!r.end)
-                r.end = make_shared<integer_num>(object.size[dim]);
+                r.end = make_shared<integer_num>(result_type.size[dim]);
             if (!r.is_constant())
                 throw source_error("Non-constant slice size not supported.", range_node->line);
             int size = r.const_size();
             if (size < 1)
                 throw source_error("Invalid slice size: less than 1.", range_node->line);
-            object.size[dim] = size;
+            result_type.size[dim] = size;
             break;
         }
         default:
@@ -661,12 +660,7 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
         ++dim;
     }
 
-    object.reduce();
-
-    if(object.dimensionality() == 1 && object.size[0] == 1)
-        result_type = make_shared<real_num>();
-
-    return result_type;
+    return result_type.reduced();
 }
 
 type_ptr type_checker::process_call( const sp<ast::node> & root )
@@ -760,18 +754,16 @@ type_ptr type_checker::process_iteration( const sp<ast::node> & root )
         result_type = process_block(iteration->elements[1]);
     }
 
-    type_ptr product_type = make_shared<stream>(iteration_count);
-    stream & product = product_type->as<stream>();
+    stream product_stream(iteration_count);
 
     switch(result_type->get_tag())
     {
     case type::stream:
     {
         stream &result_stream = result_type->as<stream>();
-        product.size.insert( product.size.end(),
-                             result_stream.size.begin(),
-                             result_stream.size.end() );
-        product.reduce();
+        product_stream.size.insert( product_stream.size.end(),
+                                    result_stream.size.begin(),
+                                    result_stream.size.end() );
         break;
     }
     case type::integer_num:
@@ -785,7 +777,7 @@ type_ptr type_checker::process_iteration( const sp<ast::node> & root )
     //cout << "product: " << *product_type << endl;
     //cout << "--- iteration ---" << endl;
 
-    return product_type;
+    return product_stream.reduced();
 }
 
 type_ptr type_checker::process_iterator( const sp<ast::node> & root )
@@ -850,10 +842,9 @@ type_ptr type_checker::process_iterator( const sp<ast::node> & root )
         assert(domain_stream.dimensionality());
         domain_size = domain_stream.size[0];
 
-        stream *operand_stream = new stream(domain_stream);
-        operand_stream->size[0] = it.size;
-        operand_stream->reduce();
-        it.value_type = type_ptr(operand_stream);
+        stream operand_stream(domain_stream);
+        operand_stream.size[0] = it.size;
+        it.value_type = operand_stream.reduced();
 
         break;
     }
@@ -919,13 +910,13 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
     {
     case type::stream:
     {
-        stream *operand_stream = new stream(domain_type->as<stream>());
-        if (operand_stream->dimensionality() > 0)
+        stream operand_stream(domain_type->as<stream>());
+        // FIXME: a better way to represent reduction over all dimensions
+        if (operand_stream.dimensionality() > 0)
         {
-            operand_stream->size[0] = 1;
-            operand_stream->reduce();
+            operand_stream.size[0] = 1;
         }
-        val1 = val2 = type_ptr(operand_stream);
+        val1 = val2 = operand_stream.reduced();
         break;
     }
     case type::range:
@@ -940,7 +931,40 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
     context_type::scope_holder reduction_scope(m_ctx);
     m_ctx.bind(id1, val1);
     m_ctx.bind(id2, val2);
-    return process_block(body_node);
+
+    type_ptr result_type = process_block(body_node);
+
+    bool types_match;
+    switch (result_type->get_tag())
+    {
+    case type::integer_num:
+        types_match = val1->is(type::integer_num);
+        break;
+    case type::real_num:
+        types_match = val1->is(type::real_num);
+        break;
+    case type::stream:
+        types_match = val1->is(type::stream);
+        if (types_match)
+            types_match = result_type->as<stream>().size == val1->as<stream>().size;
+        break;
+    default:
+    {
+        ostringstream msg;
+        msg << "Invalid reduction result type: " << *result_type;
+        throw source_error(msg.str(), root->line);
+    }
+    }
+
+    if (!types_match)
+    {
+        ostringstream msg;
+        msg << "Reduction result type does not match source type: "
+            << *result_type << " != " << *val1;
+        throw source_error(msg.str(), root->line);
+    }
+
+    return result_type;
 }
 
 }

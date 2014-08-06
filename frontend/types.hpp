@@ -204,11 +204,15 @@ struct stream : public tagged_type<type::stream>
         s << "]";
     }
 
-    void reduce()
+    type_ptr reduced()
     {
-        size.erase( std::remove(size.begin(), size.end(), 1), size.end() );
-        if (size.empty())
-            size.push_back(1);
+        vector<int> new_size = size;
+        new_size.erase( std::remove(new_size.begin(), new_size.end(), 1), new_size.end() );
+
+        if (new_size.empty())
+            return std::make_shared<semantic::real_num>();
+        else
+            return std::make_shared<semantic::stream>(new_size);
     }
 };
 
