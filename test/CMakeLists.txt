@@ -23,8 +23,5 @@ function(compile_stream_func out_file_var source_file options)
   set(${out_file_var} ${object_file} PARENT_SCOPE)
 endfunction()
 
-compile_stream_func(test_kernel ${CMAKE_CURRENT_SOURCE_DIR}/test.in "-g;result;[5,5]")
-
-message("test kernel file: ${test_kernel}")
-
-add_executable(test EXCLUDE_FROM_ALL test.c ${test_kernel})
+compile_stream_func(reduction_kernel ${CMAKE_CURRENT_SOURCE_DIR}/test-reduction.in "-g;f;[10]")
+add_executable(test-reduction EXCLUDE_FROM_ALL test-reduction.cpp ${reduction_kernel})
