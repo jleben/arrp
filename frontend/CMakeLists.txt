@@ -5,7 +5,7 @@ option(BISON_VERBOSE "Bison: Output detailed information about parser generation
 
 #if (NOT DEFINED llvm-compile-flags)
   execute_process(
-    COMMAND llvm-config --cppflags
+    COMMAND llvm-config --cxxflags
     OUTPUT_VARIABLE llvm-compile-flags
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
@@ -59,11 +59,12 @@ add_executable(frontend
   parse.cc
   #semantic.cpp
   environment.cpp
+  types.cpp
   type_checker.cpp
   ir-generator.cpp
   frontend.cpp
 )
 
-set_property( TARGET frontend APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
+#set_property( TARGET frontend APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
 
 target_link_libraries( frontend ${llvm-link-libs} ${llvm-link-flags}  )

@@ -37,6 +37,7 @@ struct type
         real_num,
         range,
         stream,
+        iterator,
         function,
         builtin_unary_func,
         builtin_binary_func
@@ -211,6 +212,17 @@ struct stream : public tagged_type<type::stream>
     }
 };
 
+struct iterator : public tagged_type<type::iterator>
+{
+    iterator(): hop(1), size(1), count(1) {}
+    string id;
+    int hop;
+    int size;
+    int count;
+    ast::node_ptr domain;
+    type_ptr value_type;
+};
+
 struct function : public tagged_type<type::function>
 {
     string name;
@@ -218,19 +230,10 @@ struct function : public tagged_type<type::function>
     ast::node_ptr statement_list;
     ast::node_ptr statement;
 
-    virtual void print_on( ostream & s ) const
-    {
-        s << name;
-        int p = 0;
-        s << "(";
-        for (const string & param : parameters)
-        {
-            s << param;
-            if (p < parameters.size())
-                s << ", ";
-        }
-        s << ")";
-    }
+    ast::node_ptr expression() const;
+    type_ptr result_type() const;
+
+    virtual void print_on( ostream & s ) const;
 };
 
 struct node

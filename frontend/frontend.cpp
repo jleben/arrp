@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
         }
         cout << ")" << endl;
 
-        const auto & sym_iter = env.find(eval.name);
+        auto sym_iter = env.find(eval.name);
         if (sym_iter == env.end())
         {
             cerr << "WARNING: no symbol '" << eval.name << "' available." << endl;
@@ -360,16 +360,39 @@ int main(int argc, char *argv[])
         if (type_checker.has_error())
             continue;
 
-        if (result_type)
-            cout << "Result type = " << *result_type << endl;
-        else
-            cout << "Result type = void" << endl;
+        cout << "Type: " << *result_type << endl;
 
-        gen.generate(sym_iter->second, result_type, eval.args);
+        {
+            if(result_type->get_tag() == semantic::type::function)
+            {
+                string func_name = result_type->as<semantic::function>().name;
+                sym_iter = env.find(func_name);
+                if (sym_iter == env.end())
+                {
+                    throw error("Function just generated not found.");
+                }
+            }
+        }
+
+
+        gen.generate(sym_iter->second, eval.args);
     }
 
     if (type_checker.has_error())
         return 1;
+
+#if 0
+    cout << endl;
+    cout << env;
+    cout << endl;
+    ast::printer printer;
+    for (const auto & sym : env)
+    {
+        cout << "-- " << sym.first << ":" << endl;
+        printer.print(sym.second.source.get());
+        cout << endl;
+    }
+#endif
 
 #if 0
     llvm::Module *module = new llvm::Module(args.input_filename, llvm::getGlobalContext());

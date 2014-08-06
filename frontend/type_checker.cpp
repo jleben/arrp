@@ -94,7 +94,7 @@ type_ptr type_checker::check( const symbol & sym, const vector<type_ptr> & args 
     {
         type_ptr sym_type = symbol_type(sym);
         if (args.size())
-            result_type = process_function(sym_type, args, m_root_scope).first;
+            result_type = process_function(sym_type, args, m_root_scope).second;
         else
             result_type = sym_type;
     }
@@ -727,7 +727,7 @@ type_ptr type_checker::process_iteration( const sp<ast::node> & root )
     assert(iteration->elements[0]->type == ast::for_iteration_list);
     ast::list_node *iterator_list = iteration->elements[0]->as_list();
 
-    vector<iterator> iterators;
+    vector<type_ptr> iterators;
     iterators.reserve(iterator_list->elements.size());
 
     for( const sp<ast::node> & e : iterator_list->elements )
@@ -739,8 +739,9 @@ type_ptr type_checker::process_iteration( const sp<ast::node> & root )
 
     int iteration_count = 0;
 
-    for( const iterator & it : iterators )
+    for( const auto & t : iterators )
     {
+        iterator & it = t->as<iterator>();
         if (!iteration_count)
             iteration_count = it.count;
         else if (it.count != iteration_count)
@@ -750,8 +751,12 @@ type_ptr type_checker::process_iteration( const sp<ast::node> & root )
     type_ptr result_type;
     {
         context_type::scope_holder iteration_scope(m_ctx);
-        for( const iterator & it : iterators )
-            m_ctx.bind(it.id, it.value);
+        for( const auto & t : iterators )
+        {
+            iterator & it = t->as<iterator>();
+            //cout << "iterator " << it.id << ": " << *it.value_type << endl;
+            m_ctx.bind(it.id, it.value_type);
+        }
         result_type = process_block(iteration->elements[1]);
     }
 
@@ -776,20 +781,21 @@ type_ptr type_checker::process_iteration( const sp<ast::node> & root )
         throw source_error("Unsupported iteration result type.", iteration->elements[1]->line);
     }
 
-    //cout << "result: " << *result << endl;
-    //cout << "product: " << *product << endl;
+    //cout << "result: " << *result_type << endl;
+    //cout << "product: " << *product_type << endl;
     //cout << "--- iteration ---" << endl;
 
     return product_type;
 }
 
-type_checker::iterator type_checker::process_iterator( const sp<ast::node> & root )
+type_ptr type_checker::process_iterator( const sp<ast::node> & root )
 {
     assert(root->type == ast::for_iteration);
     ast::list_node *iteration = root->as_list();
     assert(iteration->elements.size() == 4);
 
-    iterator it;
+    type_ptr iter_type = make_shared<iterator>();
+    iterator & it = iter_type->as<iterator>();
 
     if (iteration->elements[0])
     {
@@ -826,44 +832,49 @@ type_checker::iterator type_checker::process_iterator( const sp<ast::node> & roo
     }
 
     sp<ast::node> & domain_node = iteration->elements[3];
-    it.domain = process_expression(domain_node);
+    process_expression(domain_node);
+    it.domain = domain_node;
 
     // Get domains size:
 
+    const type_ptr & domain_type = it.domain->semantic_type;
+    assert(domain_type);
+
     int domain_size;
 
-    switch(it.domain->get_tag())
+    switch(domain_type->get_tag())
     {
     case type::stream:
     {
-        stream *domain_stream = static_cast<stream*>(it.domain.get());
-        assert(domain_stream->dimensionality());
-        domain_size = domain_stream->size[0];
+        stream & domain_stream = domain_type->as<stream>();
+        assert(domain_stream.dimensionality());
+        domain_size = domain_stream.size[0];
 
-        stream *operand_stream = new stream(*domain_stream);
+        stream *operand_stream = new stream(domain_stream);
         operand_stream->size[0] = it.size;
         operand_stream->reduce();
-        it.value.reset(operand_stream);
+        it.value_type = type_ptr(operand_stream);
 
         break;
     }
     case type::range:
     {
-        range *domain_range = static_cast<range*>(it.domain.get());
-        if (!domain_range->is_constant())
-            throw source_error("Non-constant range not supported as iteration domain.", domain_node->line);
-        domain_size = domain_range->const_size();
+        range & domain_range = domain_type->as<range>();
+        if (!domain_range.is_constant())
+            throw source_error("Non-constant range not supported as iteration domain.",
+                               domain_node->line);
+        domain_size = domain_range.const_size();
 
         if (it.size > 1)
         {
             range *operand_range = new range;
             operand_range->start.reset(new integer_num);
             operand_range->end.reset(new integer_num);
-            it.value.reset(operand_range);
+            it.value_type = type_ptr(operand_range);
         }
         else
         {
-            it.value.reset( new integer_num );
+            it.value_type = type_ptr(new integer_num);
         }
 
         break;
@@ -883,7 +894,9 @@ type_checker::iterator type_checker::process_iterator( const sp<ast::node> & roo
 
     //cout << "Iterator: " << it.id << " " << it.count << " x " << it.size << endl;
 
-    return it;
+    root->semantic_type = iter_type;
+
+    return iter_type;
 }
 
 type_ptr type_checker::process_reduction( const sp<ast::node> & root )

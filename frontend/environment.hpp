@@ -40,6 +40,8 @@ struct symbol
     string name;
     vector<string> parameter_names;
     ast::node_ptr source;
+    ast::node_ptr source_expression() const
+    { return source->as_list()->elements[2]; }
 };
 
 struct environment : public unordered_map<string, symbol>

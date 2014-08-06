@@ -40,17 +40,6 @@ private:
 #endif
     using context_type = context<string, type_ptr>;
 
-    struct iterator
-    {
-        iterator(): hop(1), size(1), count(1) {}
-        string id;
-        int hop;
-        int size;
-        int count;
-        type_ptr domain;
-        type_ptr value;
-    };
-
     type_ptr symbol_type( const symbol & sym, const vector<type_ptr> & args );
     type_ptr symbol_type( const symbol & sym );
     type_ptr builtin_unary_func_type(const type_ptr & arg );
@@ -73,7 +62,7 @@ private:
     type_ptr process_slice( const sp<ast::node> & );
     type_ptr process_call( const sp<ast::node> & );
     type_ptr process_iteration( const sp<ast::node> & );
-    iterator process_iterator( const sp<ast::node> & );
+    type_ptr process_iterator( const sp<ast::node> & );
     type_ptr process_reduction( const sp<ast::node> & );
 
     //type_ptr process_context_item( const context_item & item );

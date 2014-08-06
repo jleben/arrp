@@ -12,9 +12,11 @@
 
 #include <memory>
 #include <vector>
+#include <stack>
 #include <cassert>
 #include <utility>
 #include <functional>
+#include <iostream>
 
 namespace stream {
 namespace IR {
@@ -22,6 +24,7 @@ namespace IR {
 using namespace semantic;
 using std::vector;
 using std::pair;
+using std::stack;
 
 struct value
 {
@@ -71,6 +74,8 @@ struct stream_value : public abstract_stream_value
         }
     }
 
+    value_ptr slice( const vector<value_ptr> & index );
+
     virtual llvm::Value *get( llvm::IRBuilder<> & )
     {
         return m_data;
@@ -110,21 +115,26 @@ struct slice_value : public abstract_stream_value
                  const vector<int> & size ):
         m_source(stream)
     {
+        using namespace std;
+        //cout << "slicing..." << endl;
         assert(size.size() <= stream->dimensions());
         int dim = 0;
         while(dim < size.size() && size[dim] == 1)
         {
+            //std::cout << "preoffset." << endl;
             m_preoffset.push_back(offset[dim]);
             ++dim;
         }
         while(dim < size.size())
         {
+            //std::cout << "offset." << endl;
             m_offset.push_back(offset[dim]);
             m_size.push_back(size.size());
             ++dim;
         }
         while(dim < stream->dimensions())
         {
+            //std::cout << "offset." << endl;
             m_size.push_back(stream->size(dim));
             ++dim;
         }
@@ -192,30 +202,19 @@ struct value_item : public context_item
 struct function_item : public context_item
 {
     virtual type_flag type() { return function; }
-    virtual value_ptr get_value_for( const vector<value_ptr> & args ) = 0;
 };
 
 struct builtin_unary_func_item : public function_item
 {
-    //value_ptr get_value_for( const vector<value_ptr> & args );
 };
 
 struct builtin_binary_func_item : public function_item
 {
-    //value_ptr get_value_for( const vector<value_ptr> & args );
 };
 
 struct user_func_item : public function_item
 {
-    value_ptr get_value_for( const vector<value_ptr> & args )
-    {
-        assert(false);
-        return value_ptr();
-    }
-
-    string name;
-    vector<string> parameter_names;
-    ast::node_ptr expression;
+    std::shared_ptr<semantic::function> f;
 };
 
 class generator
@@ -224,7 +223,6 @@ public:
     generator(llvm::Module *, environment &env);
 
     void generate( const symbol & sym,
-                   const type_ptr & result,
                    const vector<type_ptr> & args );
 
 private:
@@ -241,43 +239,83 @@ private:
                                const vector<type_ptr> & args,
                                context::scope_iterator scope );
 #endif
-    value_ptr process_block( const ast::node_ptr & );
+    value_ptr process_block( const ast::node_ptr &, const value_ptr & = value_ptr() );
     void process_stmt_list( const ast::node_ptr & );
     void process_stmt( const ast::node_ptr & );
-    value_ptr process_expression( const ast::node_ptr & );
+    value_ptr process_expression( const ast::node_ptr &, const value_ptr & = value_ptr() );
     pair<value_ptr, context::scope_iterator>
     process_identifier( const ast::node_ptr & );
-    value_ptr process_call( const ast::node_ptr & );
-    value_ptr process_binop( const ast::node_ptr & );
+    value_ptr process_call( const ast::node_ptr &, const value_ptr & );
+    value_ptr process_binop( const ast::node_ptr &, const value_ptr & );
     //value_ptr process_range( const ast::node_ptr & );
     //value_ptr process_extent( const ast::node_ptr & );
     //value_ptr process_transpose( const ast::node_ptr & );
     value_ptr process_slice( const ast::node_ptr & );
-    //value_ptr process_iteration( const ast::node_ptr & );
+    value_ptr process_iteration( const ast::node_ptr &, const value_ptr & );
     //iterator process_iterator( const ast::node_ptr & );
     //value_ptr process_reduction( const ast::node_ptr & );
-
-    void generate_stream_arithmetic( const value_ptr & lhs, const value_ptr & rhs,
-                                     ast::node_type op_type,
-                                     const stream_value_ptr & result,
-                                     const vector<value_ptr> & index );
 
     void generate_iteration( const value_ptr & from,
                              const value_ptr & to,
                              std::function<void(const value_ptr &)> );
 
-    stream_value_ptr allocate_stream( const vector<int> & size );
+    void generate_iteration( int from,
+                             int to,
+                             std::function<void(const value_ptr &)> );
 
-    llvm::LLVMContext & llvm_context() { return m_module->getContext(); };
+    void generate_iteration( const vector<int> range,
+                             std::function<void(const vector<value_ptr> &)>,
+                             const vector<value_ptr> & index = vector<value_ptr>() );
+
+    void generate_store( const value_ptr & dst, const value_ptr & src );
+
+    stream_value_ptr allocate_stream( const vector<int> & size );
+    value_ptr slice_stream( const stream_value_ptr &,
+                            const vector<value_ptr> & offset,
+                            const vector<int> & size = vector<int>() );
+
+    bool has_result_space()
+    {
+        return !m_result_stack.empty() && m_result_stack.top();
+    }
+
+    value_ptr & current_result_space()
+    {
+        return m_result_stack.top();
+    }
+
+    llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
+
+    llvm::Value *get_uint32(unsigned int value)
+    {
+        return llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvm_context()), value);
+    }
+
+    llvm::Value *get_int32(int value)
+    {
+        return llvm::ConstantInt::getSigned(llvm::Type::getInt32Ty(llvm_context()), value);
+    }
 
     llvm::Module *m_module;
     environment & m_env;
     context m_ctx;
-    llvm::IRBuilder<> m_builder;
+    stack<value_ptr> m_result_stack;
+
+    struct result_stacker
+    {
+        stack<value_ptr> & m_stack;
+        result_stacker( stack<value_ptr> & s,
+                        const value_ptr & v ): m_stack(s)
+        { m_stack.push(v); }
+        ~result_stacker()
+        { m_stack.pop(); }
+    };
 
     struct {
         llvm::BasicBlock *block;
     } m_allocator;
+
+    llvm::IRBuilder<> m_builder;
 };
 
 }

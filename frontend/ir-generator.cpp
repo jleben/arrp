@@ -3,7 +3,7 @@
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/Analysis/Verifier.h>
-
+#include <algorithm>
 
 using namespace std;
 
@@ -18,9 +18,10 @@ generator::generator(llvm::Module *module, environment &env):
 }
 
 void generator::generate( const symbol & sym,
-                          const type_ptr & result_type,
                           const vector<type_ptr> & arg_types )
 {
+    const type_ptr & result_type = sym.source_expression()->semantic_type;
+
     m_allocator.block = llvm::BasicBlock::Create(llvm_context(), "allocation");
 
     llvm::Type *func_ret_type = llvm_type(result_type);
@@ -34,10 +35,14 @@ void generator::generate( const symbol & sym,
                                     func_arg_types,
                                     false);
 
+    string func_name = sym.name;
+    std::replace(func_name.begin(), func_name.end(),
+                 ':', '_');
+
     llvm::Function *func =
             llvm::Function::Create(func_type,
                                    llvm::Function::ExternalLinkage,
-                                   sym.name, m_module);
+                                   func_name, m_module);
 
     llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "entry", func);
     m_builder.SetInsertPoint(bb);
@@ -71,6 +76,8 @@ void generator::generate( const symbol & sym,
             }
         }
 
+        if (item->type() != context_item::function)
+            throw error("baaddd");
         function_item *func_item = item->as_function();
         value_ptr result = value_for_function(func_item, func_args, m_ctx.root_scope());
         m_builder.CreateRet(result->get(m_builder));
@@ -112,16 +119,17 @@ context_item_ptr generator::item_for_symbol( const symbol & sym )
     case symbol::expression:
     {
         context::scope_holder(m_ctx, m_ctx.root_scope());
-        value_ptr val = process_block(sym.source);
+        value_ptr val = process_block(sym.source_expression());
         return make_shared<value_item>(val);
     }
     case symbol::function:
     {
-        user_func_item *f = new user_func_item;
-        f->name = sym.name;
-        f->parameter_names = sym.parameter_names;
-        f->expression = sym.source;
-        return context_item_ptr(f);
+        user_func_item *item = new user_func_item;
+        item->f = dynamic_pointer_cast<semantic::function>(sym.source->semantic_type);
+        if (!item->f)
+            throw error("baaad.");
+        assert(item->f);
+        return context_item_ptr(item);
     }
 #if 0
     case symbol::builtin_unary_math:
@@ -140,14 +148,15 @@ value_ptr generator::value_for_function(function_item *func,
 {
     if (user_func_item *user_func = dynamic_cast<user_func_item*>(func))
     {
-        assert(user_func->parameter_names.size() == args.size());
+        function & f = *user_func->f;
+        assert(f.parameters.size() == args.size());
 
         context::scope_holder func_scope(m_ctx, scope);
         for (int i = 0; i < args.size(); ++i)
-            m_ctx.bind(user_func->parameter_names[i],
+            m_ctx.bind(f.parameters[i],
                        make_shared<value_item>(args[i]));
 
-        return process_block(user_func->expression);
+        return process_block(f.expression());
     }
 
     assert(false);
@@ -187,7 +196,8 @@ value_ptr generator::value_for_function(function_item *func,
 #endif
 }
 
-value_ptr generator::process_block( const ast::node_ptr & root )
+value_ptr generator::process_block( const ast::node_ptr & root,
+                                    const value_ptr & result_space )
 {
     assert(root->type == ast::expression_block);
     ast::list_node *expr_block = root->as_list();
@@ -198,7 +208,7 @@ value_ptr generator::process_block( const ast::node_ptr & root )
     if (stmts)
         process_stmt_list( stmts );
 
-    return process_expression( expr );
+    return process_expression( expr, result_space );
 }
 
 void generator::process_stmt_list( const ast::node_ptr & root )
@@ -232,12 +242,9 @@ void generator::process_stmt( const ast::node_ptr & root )
             parameters.push_back(param_name);
         }
 
-        user_func_item *f = new user_func_item;
-        f->name = id;
-        f->parameter_names = parameters;
-        f->expression = expr_node;
-
-        ctx_item = context_item_ptr(f);
+        user_func_item *item = new user_func_item;
+        item->f = dynamic_pointer_cast<function>(root->semantic_type);
+        ctx_item = context_item_ptr(item);
     }
     else
     {
@@ -248,26 +255,34 @@ void generator::process_stmt( const ast::node_ptr & root )
     m_ctx.bind(id, ctx_item);
 }
 
-value_ptr generator::process_expression( const ast::node_ptr & root )
+value_ptr generator::process_expression( const ast::node_ptr & root, const value_ptr & result_space )
 {
+    //result_stacker result_spacer(m_result_stack, result_space);
+
+    value_ptr result;
+
     switch(root->type)
     {
     case ast::integer_num:
     {
         int i = root->as_leaf<int>()->value;
-        llvm::Value * v = llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,i,true));
-        return make_shared<scalar_value>(v);
+        result = make_shared<scalar_value>(get_int32(i));
+        break;
     }
     case ast::real_num:
     {
         double d = root->as_leaf<double>()->value;
         llvm::Value * v = llvm::ConstantFP::get(llvm_context(), llvm::APFloat(d));
-        return make_shared<scalar_value>(v);
+        result = make_shared<scalar_value>(v);
+        break;
     }
     case ast::identifier:;
-        return process_identifier(root).first;
+    {
+        result = process_identifier(root).first;
+        break;
+    }
     case ast::call_expression:
-        return process_call(root);
+        return process_call(root, result_space);
     case ast::add:
     case ast::subtract:
     case ast::multiply:
@@ -278,7 +293,7 @@ value_ptr generator::process_expression( const ast::node_ptr & root )
     case ast::greater_or_equal:
     case ast::equal:
     case ast::not_equal:
-        return process_binop(root);
+        return process_binop(root, result_space);
 #if 0
     case ast::range:
         return process_range(root);
@@ -288,17 +303,23 @@ value_ptr generator::process_expression( const ast::node_ptr & root )
         return process_transpose(root);
 #endif
     case ast::slice_expression:
-        return process_slice(root);
-#if 0
+        result = process_slice(root);
+        break;
     case ast::for_expression:
-        return process_iteration(root);
+        return process_iteration(root, result_space);
+#if 0
     case ast::reduce_expression:
         return process_reduction(root);
+#endif
     default:
         assert(false);
         throw source_error("Unsupported expression.", root->line);
-#endif
     }
+
+    if (result_space)
+        generate_store(result_space, result);
+
+    return result;
 }
 
 pair<value_ptr, generator::context::scope_iterator>
@@ -327,7 +348,7 @@ generator::process_identifier( const ast::node_ptr & root )
     throw source_error("Name not in scope.", root->line);
 }
 
-value_ptr generator::process_call( const ast::node_ptr & root )
+value_ptr generator::process_call( const ast::node_ptr & root, const value_ptr & result_space )
 {
     assert(root->type == ast::call_expression);
 
@@ -371,7 +392,8 @@ value_ptr generator::process_call( const ast::node_ptr & root )
     return value_for_function(ctx_item->as_function(), args, scope);
 }
 
-value_ptr generator::process_binop( const ast::node_ptr & root )
+value_ptr generator::process_binop( const ast::node_ptr & root,
+                                    const value_ptr & result_space  )
 {
     ast::list_node *expr = root->as_list();
     value_ptr lhs = process_expression(expr->elements[0]);
@@ -424,7 +446,10 @@ value_ptr generator::process_binop( const ast::node_ptr & root )
             }
         }
 
-        return make_shared<scalar_value>(result_ir);
+        value_ptr result = make_shared<scalar_value>(result_ir);
+        if (result_space)
+            generate_store(result_space, result);
+        return result;
     }
     else
     {
@@ -433,13 +458,18 @@ value_ptr generator::process_binop( const ast::node_ptr & root )
         abstract_stream_value *rhs_stream =
                 dynamic_cast<abstract_stream_value*>(rhs.get());
 
-        stream_value_ptr result_stream;
-        if(lhs_stream)
-            result_stream = allocate_stream(lhs_stream->size());
-        else if (rhs_stream)
-            result_stream = allocate_stream(rhs_stream->size());
-        else
+        if (!lhs_stream && !rhs_stream)
             throw error("Binary operator: Unsupported operand.");
+
+        stream_value_ptr result_stream =
+                dynamic_pointer_cast<abstract_stream_value>(result_space);
+        if (!result_stream)
+        {
+            if(lhs_stream)
+                result_stream = allocate_stream(lhs_stream->size());
+            else
+                result_stream = allocate_stream(rhs_stream->size());
+        }
 
         if (!lhs_stream)
         {
@@ -456,74 +486,43 @@ value_ptr generator::process_binop( const ast::node_ptr & root )
             rhs = make_shared<scalar_value>(rhs_val);
         }
 
-        generate_stream_arithmetic(lhs, rhs, root->type, result_stream, vector<value_ptr>());
-
-        return result_stream;
-    }
-}
-
-void generator::generate_stream_arithmetic( const value_ptr & lhs, const value_ptr & rhs,
-                                            ast::node_type op_type,
-                                            const stream_value_ptr & result,
-                                            const vector<value_ptr> & stream_index )
-{
-    if (stream_index.size() < result->dimensions())
-    {
-        int dim = stream_index.size();
-
-        llvm::Value *start_index =
-                llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,0));
-        llvm::Value *max_index =
-                llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,result->size(dim)));
-
-        auto operation = [&](const value_ptr & index)
+        auto operation = [&]( const vector<value_ptr> & stream_index )
         {
-            vector<value_ptr> next_stream_index = stream_index;
-            next_stream_index.push_back(index);
-            generate_stream_arithmetic(lhs, rhs, op_type, result, next_stream_index);
+            llvm::Value *lhs_val, *rhs_val;
+
+            if (lhs_stream)
+                lhs_val = m_builder.CreateLoad( lhs_stream->get_at(stream_index, m_builder) );
+            else
+                lhs_val = lhs->get(m_builder);
+
+            if (rhs_stream)
+                rhs_val = m_builder.CreateLoad( rhs_stream->get_at(stream_index, m_builder) );
+            else
+                rhs_val = rhs->get(m_builder);
+
+            llvm::Value * result_val;
+
+            switch(root->type)
+            {
+            case ast::add:
+                result_val = m_builder.CreateFAdd(lhs_val, rhs_val); break;
+            case ast::subtract:
+                result_val = m_builder.CreateFSub(lhs_val, rhs_val); break;
+            case ast::multiply:
+                result_val = m_builder.CreateFMul(lhs_val, rhs_val); break;
+            case ast::divide:
+                result_val = m_builder.CreateFDiv(lhs_val, rhs_val); break;
+            default:
+                assert(false);
+            }
+
+            llvm::Value * result_ptr = result_stream->get_at(stream_index, m_builder);
+            m_builder.CreateStore(result_val, result_ptr);
         };
 
-        generate_iteration(make_shared<scalar_value>(start_index),
-                           make_shared<scalar_value>(max_index),
-                           operation);
-    }
-    else
-    {
-        abstract_stream_value *lhs_stream =
-                dynamic_cast<abstract_stream_value*>(lhs.get());
-        abstract_stream_value *rhs_stream =
-                dynamic_cast<abstract_stream_value*>(rhs.get());
+        generate_iteration(result_stream->size(), operation);
 
-        llvm::Value *lhs_val, *rhs_val;
-
-        if (lhs_stream)
-            lhs_val = m_builder.CreateLoad( lhs_stream->get_at(stream_index, m_builder) );
-        else
-            lhs_val = lhs->get(m_builder);
-
-        if (rhs_stream)
-            rhs_val = m_builder.CreateLoad( rhs_stream->get_at(stream_index, m_builder) );
-        else
-            rhs_val = rhs->get(m_builder);
-
-        llvm::Value * result_val;
-
-        switch(op_type)
-        {
-        case ast::add:
-            result_val = m_builder.CreateFAdd(lhs_val, rhs_val); break;
-        case ast::subtract:
-            result_val = m_builder.CreateFSub(lhs_val, rhs_val); break;
-        case ast::multiply:
-            result_val = m_builder.CreateFMul(lhs_val, rhs_val); break;
-        case ast::divide:
-            result_val = m_builder.CreateFDiv(lhs_val, rhs_val); break;
-        default:
-            assert(false);
-        }
-
-        llvm::Value * result_ptr = result->get_at(stream_index, m_builder);
-        m_builder.CreateStore(result_val, result_ptr);
+        return result_stream;
     }
 }
 
@@ -536,23 +535,18 @@ value_ptr generator::process_slice( const ast::node_ptr & root )
     value_ptr object = process_expression(object_node);
 
     stream_value_ptr src_stream = dynamic_pointer_cast<abstract_stream_value>(object);
-    //abstract_stream_value *in_stream = dynamic_cast<abstract_stream_value*>(object.get());
     assert(src_stream);
 
+#if 0
     cout << "-- slice: source stream size: ";
     for (int i = 0; i < src_stream->dimensions(); ++i)
         cout << src_stream->size(i) << " ";
     cout << endl;
-
-    //type_ptr result_type = make_shared<stream>(object_type->as<stream>());
-    //stream & object = result_type->as<stream>();
+#endif
 
     ast::list_node *range_list = ranges_node->as_list();
 
     int range_count = range_list->elements.size();
-
-    //if (range_list->elements.size() > object.dimensionality())
-        //throw source_error("Too many slice dimensions.", ranges_node->line);
 
     vector<value_ptr> slice_offset;
     vector<int> slice_size;
@@ -587,6 +581,89 @@ value_ptr generator::process_slice( const ast::node_ptr & root )
     }
 }
 
+value_ptr generator::process_iteration( const ast::node_ptr & node,
+                                        const value_ptr & result_space )
+{
+    assert(node->type == ast::for_expression);
+    const auto & iterators_node = node->as_list()->elements[0];
+    const auto & body_node = node->as_list()->elements[1];
+
+    type_ptr iteration_type = body_node->semantic_type;
+
+    stream_value_ptr result;
+    if (result_space)
+    {
+        result =  dynamic_pointer_cast<abstract_stream_value>(result_space);
+        assert(result);
+    }
+    else
+    {
+        vector<int> & result_size = node->semantic_type->as<stream>().size;
+        result = allocate_stream(result_size);
+    }
+
+    vector<stream_value_ptr> domains;
+
+    for (const auto & iterator_node : iterators_node->as_list()->elements)
+    {
+        semantic::iterator & iter =
+                iterator_node->semantic_type->as<semantic::iterator>();
+        value_ptr domain = process_expression(iter.domain);
+        stream_value_ptr stream_domain;
+        if (stream_domain = dynamic_pointer_cast<abstract_stream_value>(domain))
+            domains.push_back(stream_domain);
+        else
+            throw error("Unsupported iteration domain type.");
+    }
+
+    auto body = [&]( const value_ptr & index )
+    {
+        // Set up scope.
+
+        context::scope_holder iteration_scope(m_ctx);
+
+        for (int idx = 0; idx < domains.size(); ++idx)
+        {
+            const auto & iterator_node = iterators_node->as_list()->elements[idx];
+            semantic::iterator & iter =
+                    iterator_node->semantic_type->as<semantic::iterator>();
+
+            if (iter.id.empty())
+                continue;
+
+            value_ptr iterator_index = index;
+            if (iter.hop != 1)
+            {
+                llvm::Value *v =
+                        m_builder.CreateMul( index->get(m_builder),
+                                             get_uint32(iter.hop) );
+                iterator_index = make_shared<scalar_value>(v);
+            }
+
+            value_ptr domain_slice = slice_stream(domains[idx], {iterator_index}, {iter.size});
+            {
+                scalar_value * scalar = dynamic_cast<scalar_value*>(domain_slice.get());
+                if(scalar)
+                {
+                    llvm::Value *v = m_builder.CreateLoad(domain_slice->get(m_builder));
+                    domain_slice = make_shared<scalar_value>(v);
+                }
+            }
+
+            m_ctx.bind(iter.id, make_shared<value_item>(domain_slice));
+        }
+
+        // Generate body
+
+        value_ptr body_result_space = slice_stream(result, {index});
+        process_block( body_node, body_result_space );
+    };
+
+    generate_iteration(0, result->size(0), body);
+
+    return result;
+}
+
 void generator::generate_iteration(const value_ptr & from,
                                     const value_ptr & to,
                                     std::function<void(const value_ptr &)> action )
@@ -614,7 +691,7 @@ void generator::generate_iteration(const value_ptr & from,
     index->addIncoming(start_index, before_block);
 
     // create condition
-    llvm::Value *condition = m_builder.CreateICmpULE(index, max_index);
+    llvm::Value *condition = m_builder.CreateICmpSLT(index, max_index);
     m_builder.CreateCondBr(condition, action_block, after_block);
 
     // ACTION
@@ -639,6 +716,69 @@ void generator::generate_iteration(const value_ptr & from,
     m_builder.SetInsertPoint(after_block);
 }
 
+void generator::generate_iteration( int from, int to,
+                                    std::function<void(const value_ptr &)> action )
+{
+    llvm::Value *start_index =
+            llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,from));
+    llvm::Value *end_index =
+            llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,to));
+
+    generate_iteration(make_shared<scalar_value>(start_index),
+                       make_shared<scalar_value>(end_index),
+                       action);
+}
+
+void generator::generate_iteration( const vector<int> range,
+                                    std::function<void(const vector<value_ptr> &)> final_action,
+                                    const vector<value_ptr> & stream_index )
+{
+    if (stream_index.size() < range.size())
+    {
+        int dim = stream_index.size();
+        llvm::Value *start_index =
+                llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,0));
+        llvm::Value *max_index =
+                llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,range[dim]));
+
+        auto action = [&](const value_ptr & index)
+        {
+            vector<value_ptr> composed_index = stream_index;
+            composed_index.push_back(index);
+            generate_iteration(range, final_action, composed_index);
+        };
+
+        generate_iteration(make_shared<scalar_value>(start_index),
+                           make_shared<scalar_value>(max_index),
+                           action);
+    }
+    else
+    {
+        final_action(stream_index);
+    }
+}
+
+void generator::generate_store( const value_ptr & dst, const value_ptr & src )
+{
+    if (scalar_value *scalar = dynamic_cast<scalar_value*>(src.get()))
+    {
+        m_builder.CreateStore( scalar->get(m_builder), dst->get(m_builder) );
+    }
+    else if(abstract_stream_value *src_stream = dynamic_cast<abstract_stream_value*>(src.get()))
+    {
+        abstract_stream_value *dst_stream = dynamic_cast<abstract_stream_value*>(dst.get());
+
+        auto copy_action = [&]( const vector<value_ptr> & index )
+        {
+            llvm::Value *src_val_ptr = src_stream->get_at(index, m_builder);
+            llvm::Value *dst_val_ptr = dst_stream->get_at(index, m_builder);
+            m_builder.CreateStore( m_builder.CreateLoad(src_val_ptr), dst_val_ptr );
+        };
+
+        generate_iteration(src_stream->size(), copy_action);
+    }
+}
+
 stream_value_ptr generator::allocate_stream( const vector<int> & stream_size )
 {
     int alloc_count = 1;
@@ -648,17 +788,15 @@ stream_value_ptr generator::allocate_stream( const vector<int> & stream_size )
     llvm::BasicBlock *source_block = m_builder.GetInsertBlock();
     //m_builder.SetInsertPoint( m_allocator.block );
 
-    llvm::Type *int_type = llvm::Type::getInt64Ty(llvm_context());
+    llvm::Type *size_type = llvm::Type::getInt64Ty(llvm_context());
     llvm::Type *double_type = llvm::Type::getDoubleTy(llvm_context());
     llvm::Value *double_size_value =
-            llvm::ConstantInt::get(llvm_context(),
-                                   llvm::APInt(64,4,false));
+            llvm::ConstantInt::get(size_type,8);
     llvm::Value *count_value =
-            llvm::ConstantInt::get(llvm_context(),
-                                   llvm::APInt(64,alloc_count,false));
+            llvm::ConstantInt::get(size_type, alloc_count);
 
     llvm::Instruction * result =
-            llvm::CallInst::CreateMalloc(source_block, int_type, double_type,
+            llvm::CallInst::CreateMalloc(source_block, size_type, double_type,
                                          double_size_value, count_value);
 
     source_block->getInstList().push_back(result);
@@ -667,6 +805,33 @@ stream_value_ptr generator::allocate_stream( const vector<int> & stream_size )
     //m_builder.SetInsertPoint(source_block);
 
     return make_shared<stream_value>(result, stream_size);
+}
+
+value_ptr generator::slice_stream( const stream_value_ptr &stream,
+                                   const vector<value_ptr> & offset,
+                                   const vector<int> & size )
+{
+    bool all_sizes_one = true;
+    for(int i : size)
+    {
+        if (i != 1)
+        {
+            all_sizes_one = false;
+            break;
+        }
+    }
+
+    if (offset.size() < stream->dimensions() || !all_sizes_one)
+    {
+        vector<int> slice_size = size;
+        if (slice_size.empty())
+            slice_size = vector<int>(offset.size(), 1);
+        return make_shared<slice_value>(stream, offset, slice_size);
+    }
+    else
+    {
+        return make_shared<scalar_value>(stream->get_at(offset, m_builder));
+    }
 }
 
 llvm::Value *stream_value::get_at( const vector<value_ptr> & index,
@@ -699,19 +864,26 @@ llvm::Value *stream_value::get_at( const vector<value_ptr> & index,
 llvm::Value *slice_value::get_at( const vector<value_ptr> & index,
                                   llvm::IRBuilder<> & builder )
 {
-    assert(index.size() == m_offset.size());
+    assert(index.size() == m_size.size());
     vector<value_ptr> source_index;
-    source_index.reserve(m_preoffset.size() + m_offset.size());
+    source_index.reserve(m_preoffset.size() + m_size.size());
     for(const value_ptr & preoffset : m_preoffset)
     {
         source_index.push_back(preoffset);
     }
-    for(int dim = 0; dim < m_offset.size(); ++dim)
+    int dim = 0;
+    while (dim < m_offset.size())
     {
         llvm::Value *index_val =
                 builder.CreateAdd(index[dim]->get(builder),
                                   m_offset[dim]->get(builder));
         source_index.push_back(make_shared<scalar_value>(index_val));
+        ++dim;
+    }
+    while (dim < m_size.size())
+    {
+        source_index.push_back(index[dim]);
+        ++dim;
     }
     return m_source->get_at( source_index, builder );
 }
