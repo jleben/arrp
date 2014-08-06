@@ -30,9 +30,10 @@ struct symbol
 
     //symbol() {}
 
-    symbol(symbol_type t, string name):
+    symbol(symbol_type t, string name, const ast::node_ptr & src = ast::node_ptr()):
         type(t),
-        name(name)
+        name(name),
+        source(src)
     {}
 
     symbol_type type;

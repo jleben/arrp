@@ -189,9 +189,8 @@ void environment_builder::process_stmt( const sp<ast::node> & root )
     else
     {
         symbol::symbol_type sym_type = parameters.empty() ? symbol::expression : symbol::function;
-        symbol sym(sym_type, id);
+        symbol sym(sym_type, id, root);
         sym.parameter_names = parameters;
-        sym.source = body_node;
         bool success = m_env.emplace(id, sym).second;
         if (!success)
             throw name_already_in_scope_error(id, root->line);

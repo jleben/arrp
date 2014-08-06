@@ -57,6 +57,10 @@ public:
         {
             return scope_iterator(link->parent);
         }
+        bool operator==( const scope_iterator & other )
+        {
+            return link == other.link;
+        }
         operator bool()
         {
             return link != nullptr;

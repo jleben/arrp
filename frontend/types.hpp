@@ -1,8 +1,6 @@
 #ifndef STREAM_LANG_TYPES_INCLUDED
 #define STREAM_LANG_TYPES_INCLUDED
 
-#include "ast.hpp"
-
 #include <string>
 #include <vector>
 #include <iostream>
@@ -12,6 +10,12 @@
 #include <initializer_list>
 
 namespace stream {
+
+namespace ast {
+class node;
+using node_ptr = std::shared_ptr<node>;
+}
+
 namespace semantic {
 
 using std::string;
@@ -211,7 +215,8 @@ struct function : public tagged_type<type::function>
 {
     string name;
     vector<string> parameters;
-    ast::node_ptr expression;
+    ast::node_ptr statement_list;
+    ast::node_ptr statement;
 
     virtual void print_on( ostream & s ) const
     {
@@ -226,6 +231,12 @@ struct function : public tagged_type<type::function>
         }
         s << ")";
     }
+};
+
+struct node
+{
+    ast::node_ptr ast_node;
+    type_ptr type;
 };
 
 } // namespace semantic

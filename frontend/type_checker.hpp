@@ -11,6 +11,7 @@
 #include <string>
 #include <utility>
 #include <exception>
+#include <sstream>
 
 namespace stream {
 namespace semantic {
@@ -55,12 +56,13 @@ private:
     type_ptr builtin_unary_func_type(const type_ptr & arg );
     type_ptr builtin_binary_func_type(const type_ptr & arg1, const type_ptr & arg2 );
 
-    type_ptr process_function( const type_ptr & func,
-                               const vector<type_ptr> & args,
-                               context_type::scope_iterator scope );
+    pair<type_ptr, type_ptr>
+    process_function( const type_ptr & func,
+                      const vector<type_ptr> & args,
+                      context_type::scope_iterator scope );
     type_ptr process_block( const sp<ast::node> & );
     void process_stmt_list( const ast::node_ptr & );
-    void process_stmt( const sp<ast::node> & );
+    void process_stmt( const sp<ast::node> &, const ast::node_ptr & list );
     type_ptr process_expression( const sp<ast::node> & );
     pair<type_ptr, context_type::scope_iterator>
     process_identifier( const sp<ast::node> & );
@@ -76,6 +78,14 @@ private:
 
     //type_ptr process_context_item( const context_item & item );
 
+    string generate_func_name( string name )
+    {
+        std::ostringstream symbol;
+        symbol << name << ":" << m_func_counter;
+        ++m_func_counter;
+        return symbol.str();
+    }
+
     void report( const std::exception & e )
     {
         m_has_error = true;
@@ -86,6 +96,7 @@ private:
     context_type m_ctx;
     context_type::scope_iterator m_root_scope;
 
+    int m_func_counter;
     bool m_has_error;
 };
 

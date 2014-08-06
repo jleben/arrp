@@ -74,6 +74,7 @@ private:
 
 type_checker::type_checker(environment &env):
     m_env(env),
+    m_func_counter(0),
     m_has_error(false)
 {
 
@@ -93,7 +94,7 @@ type_ptr type_checker::check( const symbol & sym, const vector<type_ptr> & args 
     {
         type_ptr sym_type = symbol_type(sym);
         if (args.size())
-            result_type = process_function(sym_type, args, m_root_scope);
+            result_type = process_function(sym_type, args, m_root_scope).first;
         else
             result_type = sym_type;
     }
@@ -137,20 +138,29 @@ type_ptr type_checker::symbol_type( const symbol & sym, const vector<type_ptr> &
 
 type_ptr type_checker::symbol_type( const symbol & sym )
 {
+    if (sym.source && sym.source->semantic_type)
+    {
+        return sym.source->semantic_type;
+    }
+
     switch(sym.type)
     {
     case symbol::expression:
     {
         context_type::scope_holder(m_ctx, m_root_scope);
-        return process_block(sym.source);
+        type_ptr t = process_block(sym.source->as_list()->elements[2]);
+        sym.source->semantic_type = t;
+        return t;
     }
     case symbol::function:
     {
         function *f = new function;
         f->name = sym.name;
         f->parameters = sym.parameter_names;
-        f->expression = sym.source;
-        return type_ptr(f);
+        f->statement = sym.source;
+        type_ptr t(f);
+        sym.source->semantic_type = t;
+        return t;
     }
     case symbol::builtin_unary_math:
         return make_shared<type>( type::builtin_unary_func );
@@ -159,9 +169,10 @@ type_ptr type_checker::symbol_type( const symbol & sym )
     }
 }
 
-type_ptr type_checker::process_function( const type_ptr & func_type,
-                                         const vector<type_ptr> & args,
-                                         context_type::scope_iterator scope )
+pair<type_ptr, type_ptr>
+type_checker::process_function( const type_ptr & func_type,
+                                const vector<type_ptr> & args,
+                                context_type::scope_iterator scope )
 {
     switch (func_type->get_tag())
     {
@@ -169,13 +180,13 @@ type_ptr type_checker::process_function( const type_ptr & func_type,
     {
         if (args.size() != 1)
             throw wrong_arg_count_error(1, args.size());
-        return builtin_unary_func_type(args[0]);
+        return make_pair(builtin_unary_func_type(args[0]), type_ptr());
     }
     case type::builtin_binary_func:
     {
         if (args.size() != 2)
             throw wrong_arg_count_error(2, args.size());
-        return builtin_binary_func_type(args[0], args[1]);
+        return make_pair(builtin_binary_func_type(args[0], args[1]), type_ptr());
     }
     case type::function:
     {
@@ -183,14 +194,43 @@ type_ptr type_checker::process_function( const type_ptr & func_type,
         if (args.size() != f.parameters.size())
             throw wrong_arg_count_error(f.parameters.size(), args.size());
 
+        // Duplicate function in its static scope
+
+        type_ptr f2_type = make_shared<function>();
+        function &f2 = f2_type->as<function>();
+        f2.name = generate_func_name(f.name);
+        f2.parameters = f.parameters;
+        f2.statement = f.statement->clone();
+        f2.statement->semantic_type = f2_type;
+        f2.statement->as_list()->elements[0]->as_leaf<string>()->value = f2.name;
+
+        if (scope == m_ctx.root_scope())
+        {
+            symbol sym(symbol::function, f2.name);
+            sym.parameter_names = f2.parameters;
+            sym.source = f2.statement;
+            m_env.emplace(sym.name, sym);
+        }
+        else
+        {
+            f2.statement_list = f.statement_list;
+            f2.statement_list->as_list()->append( f2.statement );
+            scope->emplace(f2.name, f2_type);
+        }
+
+        // Process the duplicate function
+
         context_type::scope_holder func_scope(m_ctx, scope);
 
         for (int i = 0; i < args.size(); ++i)
         {
-            m_ctx.bind(f.parameters[i], args[i]);
+            m_ctx.bind(f2.parameters[i], args[i]);
         }
 
-        return process_block(f.expression);
+        type_ptr result_type =
+                process_block(f2.statement->as_list()->elements[2]);
+
+        return make_pair(result_type, f2_type);
     }
     default:
         throw type_error("Callee not a function.");
@@ -293,7 +333,9 @@ type_ptr type_checker::process_block( const sp<ast::node> & root )
     if (stmts)
         process_stmt_list( stmts );
 
-    return process_expression( expr );
+    type_ptr t = process_expression( expr );
+    root->semantic_type = t;
+    return t;
 }
 
 void type_checker::process_stmt_list( const ast::node_ptr & root )
@@ -302,11 +344,11 @@ void type_checker::process_stmt_list( const ast::node_ptr & root )
     ast::list_node *stmts = root->as_list();
     for ( const sp<ast::node> & stmt : stmts->elements )
     {
-        process_stmt(stmt);
+        process_stmt(stmt, root);
     }
 }
 
-void type_checker::process_stmt( const sp<ast::node> & root )
+void type_checker::process_stmt( const sp<ast::node> & root, const ast::node_ptr & list )
 {
     ast::list_node *stmt = root->as_list();
     const auto & id_node = stmt->elements[0];
@@ -330,7 +372,8 @@ void type_checker::process_stmt( const sp<ast::node> & root )
         function *f = new function;
         f->name = id;
         f->parameters = parameters;
-        f->expression = expr_node;
+        f->statement_list = list;
+        f->statement = root;
 
         result_type = type_ptr(f);
     }
@@ -339,19 +382,25 @@ void type_checker::process_stmt( const sp<ast::node> & root )
         result_type = process_block(expr_node);
     }
 
+    root->semantic_type = result_type;
+
     m_ctx.bind(id, result_type);
 }
 
 type_ptr type_checker::process_expression( const sp<ast::node> & root )
 {
+    type_ptr expr_type;
     switch(root->type)
     {
     case ast::integer_num:
-        return make_shared<integer_num>(root->as_leaf<int>()->value);
+        expr_type = make_shared<integer_num>(root->as_leaf<int>()->value);
+        break;
     case ast::real_num:
-        return make_shared<real_num>( root->as_leaf<double>()->value );
+        expr_type = make_shared<real_num>( root->as_leaf<double>()->value );
+        break;
     case ast::identifier:
-        return process_identifier(root).first;
+        expr_type =  process_identifier(root).first;
+        break;
     case ast::add:
     case ast::subtract:
     case ast::multiply:
@@ -362,25 +411,37 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::greater_or_equal:
     case ast::equal:
     case ast::not_equal:
-        return process_binop(root);
+        expr_type =  process_binop(root);
+        break;
     case ast::range:
-        return process_range(root);
+        expr_type =  process_range(root);
+        break;
     case ast::hash_expression:
-        return process_extent(root);
+        expr_type =  process_extent(root);
+        break;
     case ast::transpose_expression:
-        return process_transpose(root);
+        expr_type =  process_transpose(root);
+        break;
     case ast::slice_expression:
-        return process_slice(root);
+        expr_type =  process_slice(root);
+        break;
     case ast::call_expression:
-        return process_call(root);
+        expr_type =  process_call(root);
+        break;
     case ast::for_expression:
-        return process_iteration(root);
+        expr_type =  process_iteration(root);
+        break;
     case ast::reduce_expression:
-        return process_reduction(root);
+        expr_type =  process_reduction(root);
+        break;
     default:
         assert(false);
         throw source_error("Unsupported expression.", root->line);
     }
+
+    root->semantic_type = expr_type;
+
+    return expr_type;
 }
 
 pair<type_ptr, type_checker::context_type::scope_iterator>
@@ -636,14 +697,23 @@ type_ptr type_checker::process_call( const sp<ast::node> & root )
 
     // Process function
 
+    pair<type_ptr,type_ptr> result;
     try
     {
-        return process_function(func_type, arg_types, func_scope);
+        result = process_function(func_type, arg_types, func_scope);
     }
     catch (type_error & e)
     {
         throw source_error(e.what(), root->line);
     }
+
+    if (result.second)
+    {
+        function &new_func = result.second->as<function>();
+        func_node->as_leaf<string>()->value = new_func.name;
+    }
+
+    return result.first;
 }
 
 type_ptr type_checker::process_iteration( const sp<ast::node> & root )

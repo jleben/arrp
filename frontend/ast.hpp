@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <cassert>
+#include <iostream>
 
 namespace stream
 {
@@ -12,6 +13,11 @@ namespace stream
 using std::vector;
 using std::string;
 template <typename T> using sp = std::shared_ptr<T>;
+
+namespace semantic {
+class type;
+using type_ptr = std::shared_ptr<type>;
+}
 
 namespace ast {
 
@@ -33,14 +39,6 @@ struct semantic_value : public node_ptr
         return static_cast<T*>( get() );
     }
 };
-
-/*
-struct visitor
-{
-    void visit( node *n );
-    void visit( list_node * n );
-};
-*/
 
 enum node_type
 {
@@ -95,12 +93,25 @@ struct node
 {
     node_type type;
     int line;
+    semantic::type_ptr semantic_type;
+
+    node( const node & other ):
+        type(other.type),
+        line(other.line),
+        semantic_type(other.semantic_type)
+    {}
 
     node( node_type type, int line = 0 ): type(type), line(line) {}
     virtual ~node() {}
 
     virtual bool is_list() { return false; }
     virtual bool is_leaf() { return false; }
+
+    virtual node_ptr clone()
+    {
+        node *n = new node(*this);
+        return node_ptr(n);
+    }
 
     inline list_node *as_list();
 
@@ -122,7 +133,26 @@ struct list_node : public node
         elements(elements)
     {}
 
+    list_node( const list_node & other ):
+        node(other)
+    {
+        elements.reserve(other.elements.size());
+        for(const node_ptr & e : other.elements)
+        {
+            if (e)
+                elements.push_back(e->clone());
+            else
+                elements.push_back(node_ptr());
+        }
+    }
+
     bool is_list() { return true; }
+
+    virtual node_ptr clone()
+    {
+        list_node *n = new list_node(*this);
+        return node_ptr(n);
+    }
 
     void append( const sp<node> & element )
     {
@@ -145,6 +175,17 @@ struct leaf_node : public node
         node(type, line),
         value(v)
     {}
+
+    leaf_node(const leaf_node<T> & other):
+        node(other),
+        value(other.value)
+    {}
+
+    virtual node_ptr clone()
+    {
+        leaf_node<T> *n = new leaf_node<T>(*this);
+        return node_ptr(n);
+    }
 
     bool is_leaf() { return true; }
 };
