@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <vector>
+#include <list>
 #include <stack>
 #include <cassert>
 #include <utility>
@@ -25,6 +26,7 @@ using namespace semantic;
 using std::vector;
 using std::pair;
 using std::stack;
+using std::list;
 
 struct value
 {
@@ -159,6 +161,55 @@ private:
     vector<int> m_size;
 };
 
+struct transpose_value : public abstract_stream_value
+{
+    transpose_value( const stream_value_ptr & source,
+                     const vector<int> map ):
+        m_source(source)
+    {
+        assert(map.size() <= source->dimensions());
+        m_map.reserve(source->dimensions());
+        vector<bool> selection(source->dimensions(), false);
+        for (int dim : map)
+        {
+            dim -= 1;
+            assert(selection[dim] == false);
+            selection[dim] = true;
+            m_map.push_back(dim);
+        }
+        for (int dim = 0; dim < selection.size(); ++dim)
+        {
+            if (selection[dim] == false)
+                m_map.push_back(dim);
+        }
+    }
+
+    int dimensions() { return m_source->dimensions(); }
+    int size( int dimension ) { return m_source->size(m_map[dimension]); }
+    vector<int> size() { return m_source->size(); }
+
+    virtual llvm::Value *get( llvm::IRBuilder<> & builder )
+    {
+        return m_source->get(builder);
+    }
+
+    virtual llvm::Value *get_at( const vector<value_ptr> & index,
+                                 llvm::IRBuilder<> & builder )
+    {
+        assert(index.size() == m_map.size());
+        vector<value_ptr> transposed_index(index.size());
+        for (int dim = 0; dim < index.size(); ++dim)
+        {
+            transposed_index[m_map[dim]] = index[dim];
+        }
+        return m_source->get_at(transposed_index, builder);
+    }
+
+private:
+    stream_value_ptr m_source;
+    vector<int> m_map;
+};
+
 struct value_item;
 struct function_item;
 
@@ -249,7 +300,7 @@ private:
     value_ptr process_binop( const ast::node_ptr &, const value_ptr & );
     //value_ptr process_range( const ast::node_ptr & );
     //value_ptr process_extent( const ast::node_ptr & );
-    //value_ptr process_transpose( const ast::node_ptr & );
+    value_ptr process_transpose( const ast::node_ptr & );
     value_ptr process_slice( const ast::node_ptr & );
     value_ptr process_iteration( const ast::node_ptr &, const value_ptr & );
     //iterator process_iterator( const ast::node_ptr & );

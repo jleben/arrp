@@ -299,9 +299,9 @@ value_ptr generator::process_expression( const ast::node_ptr & root, const value
         return process_range(root);
     case ast::hash_expression:
         return process_extent(root);
+#endif
     case ast::transpose_expression:
         return process_transpose(root);
-#endif
     case ast::slice_expression:
         result = process_slice(root);
         break;
@@ -312,7 +312,6 @@ value_ptr generator::process_expression( const ast::node_ptr & root, const value
         return process_reduction(root);
 #endif
     default:
-        assert(false);
         throw source_error("Unsupported expression.", root->line);
     }
 
@@ -524,6 +523,35 @@ value_ptr generator::process_binop( const ast::node_ptr & root,
 
         return result_stream;
     }
+}
+
+value_ptr generator::process_transpose( const ast::node_ptr & root )
+{
+    assert(root->type == ast::transpose_expression);
+    ast::list_node *root_list = root->as_list();
+    const auto & object_node = root_list->elements[0];
+    const auto & dims_node = root_list->elements[1];
+
+    value_ptr src_object = process_expression(object_node);
+
+    stream_value_ptr src_stream =
+            dynamic_pointer_cast<abstract_stream_value>(src_object);
+    assert(src_stream);
+
+    if (!dims_node)
+    {
+        throw error("{.} transposition not supported.");
+    }
+
+    vector<int> map;
+
+    ast::list_node *dims = dims_node->as_list();
+    for ( const auto & dim_node : dims->elements )
+    {
+        map.push_back( dim_node->as_leaf<int>()->value );
+    }
+
+    return make_shared<transpose_value>(src_stream, map);
 }
 
 value_ptr generator::process_slice( const ast::node_ptr & root )
