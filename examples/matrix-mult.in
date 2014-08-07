@@ -1,9 +1,9 @@
-// Compute matrix multiplication for each pair of matrice from two sequences of
-// matrices
+// Compute matrix multiplication for each pair of matrices
+// from two sequences of matrices
 
-// Standard helper:
+// Sum a 1D stream:
 sum( X ) =
-  // Reduce over all dimensions of X by summation:
+  // Reduce X by summation:
   reduce( a, b in X ) a + b;
 
 // A, B are each a sequence of matrices.
@@ -13,14 +13,15 @@ matrix_multiply(A,B) =
   // removed from data within iteration, hence we obtain individual matrices
   for each ( a in A; b in B )
   {
-    // iterate over first dimension of matrix A (rows)
+    // Iterate over first dimension of matrix A (rows):
     for each ( row in a{1} )
     {
-      // iterate over second dimension of matrix B (columns)
+      // Iterate over second dimension of matrix B (columns):
       for each ( col in b{2} )
       {
-        // built-in multiplication is assumed to operate
-        // element-wise across entire streams
+        // - Built-in multiplication operates
+        // element-wise across entire streams.
+        // - See 'sum' defined above.
         sum( row * col  )
       }
     }
