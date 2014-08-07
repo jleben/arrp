@@ -13,84 +13,129 @@ namespace IR {
 generator::generator(llvm::Module *module, environment &env):
     m_module(module),
     m_env(env),
+    m_buffer_pool(nullptr),
+    m_buffer_pool_size(0),
     m_builder(module->getContext())
-{
-}
+{}
 
 void generator::generate( const symbol & sym,
                           const vector<type_ptr> & arg_types )
 {
     const type_ptr & result_type = sym.source_expression()->semantic_type;
 
-    m_allocator.block = llvm::BasicBlock::Create(llvm_context(), "allocation");
+    // Create function
 
-    llvm::Type *func_ret_type = llvm_type(result_type);
+    llvm::Type *i8_ptr_ptr =
+            llvm::PointerType::get(llvm::Type::getInt8PtrTy(llvm_context()), 0);
 
-    std::vector<llvm::Type*> func_arg_types;
-    for (const auto & arg_type : arg_types)
-        func_arg_types.push_back( llvm_type(arg_type) );
 
     llvm::FunctionType * func_type =
-            llvm::FunctionType::get(func_ret_type,
-                                    func_arg_types,
+            llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
+                                    i8_ptr_ptr,
                                     false);
-
-    string func_name = sym.name;
-    std::replace(func_name.begin(), func_name.end(),
-                 ':', '_');
 
     llvm::Function *func =
             llvm::Function::Create(func_type,
                                    llvm::Function::ExternalLinkage,
-                                   func_name, m_module);
+                                   "process",
+                                   m_module);
+
 
     llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "entry", func);
     m_builder.SetInsertPoint(bb);
 
+    // Extract args
+
+    llvm::Value *args = func->arg_begin();
+
+    vector<value_ptr> inputs;
+    for (int idx = 0; idx < arg_types.size(); ++idx)
+    {
+        inputs.push_back(value_for_argument(args, idx, arg_types[idx], true));
+    }
+
+    // Extract output destination:
+
+    value_ptr output =
+            value_for_argument(args, arg_types.size(), result_type, false);
+
+    // Set up buffer pool:
+
+    llvm::Value *buffer_pool_arg =
+            m_builder.CreateGEP(args, get_int32(arg_types.size() + 1));
+    llvm::Value *buffer_pool_void_ptr =
+            m_builder.CreateLoad(buffer_pool_arg);
+    m_buffer_pool =
+            m_builder.CreateBitCast(buffer_pool_void_ptr,
+                                    llvm::Type::getDoublePtrTy(llvm_context()));
+    m_buffer_pool_size = 0;
+
+    // Generate
+
     context::scope_holder scope(m_ctx);
 
-    context_item_ptr item = item_for_symbol(sym);
+    context_item_ptr item = item_for_symbol(sym, output);
 
-    if (func_arg_types.size())
+    if (inputs.size())
     {
-        vector<value_ptr> func_args;
-
-        llvm::Function::arg_iterator arg_iter;
-        int arg_idx = 0;
-        for (arg_iter = func->arg_begin(); arg_iter != func->arg_end(); ++arg_iter, ++arg_idx)
-        {
-            switch(arg_types[arg_idx]->get_tag())
-            {
-            case type::integer_num:
-            case type::real_num:
-                func_args.emplace_back( new scalar_value(arg_iter) );
-                break;
-            case type::stream:
-            {
-                stream & s = arg_types[arg_idx]->as<stream>();
-                func_args.emplace_back( new stream_value(arg_iter, s.size) );
-                break;
-            }
-            default:
-                assert(false);
-            }
-        }
-
         if (item->type() != context_item::function)
-            throw error("baaddd");
+            throw error("Should not happen.");
         function_item *func_item = item->as_function();
-        value_ptr result = value_for_function(func_item, func_args, m_ctx.root_scope());
-        m_builder.CreateRet(result->get(m_builder));
+        value_ptr result = value_for_function(func_item, inputs, output, m_ctx.root_scope());
     }
-    else
+
+    m_builder.CreateRetVoid();
+
+    cout << "buffer pool size = " << m_buffer_pool_size << endl;
+}
+
+value_ptr generator::value_for_argument( llvm::Value *args, int index,
+                                         const type_ptr & arg_type,
+                                         bool load_scalar )
+{
+    llvm::Value *arg_ptr_ptr =
+            m_builder.CreateGEP(args, get_int32(index));
+    llvm::Value *arg_ptr = m_builder.CreateLoad(arg_ptr_ptr);
+
+    switch(arg_type->get_tag())
     {
-        value_item *result_item = item->as_value();
-        m_builder.CreateRet(result_item->get_value()->get(m_builder));
+    case type::integer_num:
+    {
+        llvm::Value *val_ptr =
+                m_builder.CreateBitCast(arg_ptr, llvm::Type::getInt32PtrTy(llvm_context()));
+        if (load_scalar)
+        {
+            llvm::Value *val =
+                    m_builder.CreateLoad(val_ptr);
+            return make_shared<scalar_value>(val);
+        }
+        else
+            return make_shared<scalar_value>(val_ptr);
     }
-/*
-    bool errors = llvm::verifyFunction(*func);
-    if (errors)
-        throw error("Failed to verify generated function.");*/
+    case type::real_num:
+    {
+        llvm::Value *val_ptr =
+                m_builder.CreateBitCast(arg_ptr, llvm::Type::getDoublePtrTy(llvm_context()));
+        if (load_scalar)
+        {
+            llvm::Value *val =
+                    m_builder.CreateLoad(val_ptr);
+            return make_shared<scalar_value>(val);
+        }
+        else
+            return make_shared<scalar_value>(val_ptr);
+    }
+    case type::stream:
+    {
+        vector<int> & stream_size = arg_type->as<stream>().size;
+        llvm::Value *data_ptr =
+                m_builder.CreateBitCast(arg_ptr, llvm::Type::getDoublePtrTy(llvm_context()));
+        return make_shared<stream_value>(data_ptr, stream_size);
+    }
+    default:
+        assert(false);
+    }
+    return value_ptr();
 }
 
 llvm::Type *generator::llvm_type( const type_ptr & t )
@@ -112,14 +157,15 @@ llvm::Type *generator::llvm_type( const type_ptr & t )
     return nullptr;
 }
 
-context_item_ptr generator::item_for_symbol( const symbol & sym )
+context_item_ptr generator::item_for_symbol( const symbol & sym,
+                                             const value_ptr & result_space )
 {
     switch(sym.type)
     {
     case symbol::expression:
     {
         context::scope_holder(m_ctx, m_ctx.root_scope());
-        value_ptr val = process_block(sym.source_expression());
+        value_ptr val = process_block(sym.source_expression(), result_space);
         return make_shared<value_item>(val);
     }
     case symbol::function:
@@ -143,7 +189,8 @@ context_item_ptr generator::item_for_symbol( const symbol & sym )
 }
 
 value_ptr generator::value_for_function(function_item *func,
-                                        const vector<value_ptr> & args ,
+                                        const vector<value_ptr> & args,
+                                        const value_ptr & result_space,
                                         context::scope_iterator scope)
 {
     if (user_func_item *user_func = dynamic_cast<user_func_item*>(func))
@@ -156,7 +203,7 @@ value_ptr generator::value_for_function(function_item *func,
             m_ctx.bind(f.parameters[i],
                        make_shared<value_item>(args[i]));
 
-        return process_block(f.expression());
+        return process_block(f.expression(), result_space);
     }
 
     assert(false);
@@ -367,12 +414,9 @@ value_ptr generator::process_call( const ast::node_ptr & root, const value_ptr &
     else
     {
         environment::const_iterator it = m_env.find(id);
-        if (it != m_env.end())
-        {
-            ctx_item = item_for_symbol(it->second);
-            scope = m_ctx.root_scope();
-        }
-        assert(false);
+        assert(it != m_env.end());
+        ctx_item = item_for_symbol(it->second);
+        scope = m_ctx.root_scope();
     }
 
     // Get args
@@ -386,7 +430,7 @@ value_ptr generator::process_call( const ast::node_ptr & root, const value_ptr &
 
     // Process function
 
-    return value_for_function(ctx_item->as_function(), args, scope);
+    return value_for_function(ctx_item->as_function(), args, result_space, scope);
 }
 
 value_ptr generator::process_binop( const ast::node_ptr & root,
@@ -873,34 +917,6 @@ void generator::generate_store( const value_ptr & dst, const value_ptr & src )
     }
 }
 
-stream_value_ptr generator::allocate_stream( const vector<int> & stream_size )
-{
-    int alloc_count = 1;
-    for (int s : stream_size)
-        alloc_count *= s;
-
-    llvm::BasicBlock *source_block = m_builder.GetInsertBlock();
-    //m_builder.SetInsertPoint( m_allocator.block );
-
-    llvm::Type *size_type = llvm::Type::getInt64Ty(llvm_context());
-    llvm::Type *double_type = llvm::Type::getDoubleTy(llvm_context());
-    llvm::Value *double_size_value =
-            llvm::ConstantInt::get(size_type,8);
-    llvm::Value *count_value =
-            llvm::ConstantInt::get(size_type, alloc_count);
-
-    llvm::Instruction * result =
-            llvm::CallInst::CreateMalloc(source_block, size_type, double_type,
-                                         double_size_value, count_value);
-
-    source_block->getInstList().push_back(result);
-    //m_allocator.block->getInstList().push_back(result);
-
-    //m_builder.SetInsertPoint(source_block);
-
-    return make_shared<stream_value>(result, stream_size);
-}
-
 value_ptr generator::slice_stream( const stream_value_ptr &stream,
                                    const vector<value_ptr> & offset,
                                    const vector<int> & size )
@@ -926,6 +942,27 @@ value_ptr generator::slice_stream( const stream_value_ptr &stream,
     {
         return make_shared<scalar_value>(stream->get_at(offset, m_builder));
     }
+}
+
+
+stream_value_ptr generator::allocate_stream( const vector<int> & stream_size )
+{
+    int alloc_count = 1;
+    for (int s : stream_size)
+        alloc_count *= s;
+
+    size_t alloc_bytes = alloc_count * 8;
+
+    llvm::Value *offset =
+            llvm::ConstantInt::get(llvm_context(),
+                                   llvm::APInt(sizeof(alloc_bytes),
+                                               m_buffer_pool_size));
+    llvm::Value *buffer =
+            m_builder.CreateGEP(m_buffer_pool, offset);
+
+    m_buffer_pool_size += alloc_bytes;
+
+    return make_shared<stream_value>(buffer, stream_size);
 }
 
 llvm::Value *stream_value::get_at( const vector<value_ptr> & index,

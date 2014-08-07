@@ -27,6 +27,7 @@ using std::vector;
 using std::pair;
 using std::stack;
 using std::list;
+using std::size_t;
 
 struct value
 {
@@ -280,10 +281,16 @@ public:
 private:
     typedef ::stream::context<string, context_item_ptr> context;
 
+    value_ptr value_for_argument( llvm::Value *args, int index,
+                                  const type_ptr &,
+                                  bool load_scalar );
+
     llvm::Type *llvm_type( const type_ptr & type );
-    context_item_ptr item_for_symbol( const symbol & sym );
+    context_item_ptr item_for_symbol( const symbol & sym,
+                                      const value_ptr & = value_ptr() );
     value_ptr value_for_function( function_item *,
                                   const vector<value_ptr> & args,
+                                  const value_ptr & result_space,
                                   context::scope_iterator scope);
 
 #if 0
@@ -320,20 +327,11 @@ private:
 
     void generate_store( const value_ptr & dst, const value_ptr & src );
 
-    stream_value_ptr allocate_stream( const vector<int> & size );
     value_ptr slice_stream( const stream_value_ptr &,
                             const vector<value_ptr> & offset,
                             const vector<int> & size = vector<int>() );
 
-    bool has_result_space()
-    {
-        return !m_result_stack.empty() && m_result_stack.top();
-    }
-
-    value_ptr & current_result_space()
-    {
-        return m_result_stack.top();
-    }
+    stream_value_ptr allocate_stream( const vector<int> & size );
 
     llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
 
@@ -350,21 +348,9 @@ private:
     llvm::Module *m_module;
     environment & m_env;
     context m_ctx;
-    stack<value_ptr> m_result_stack;
 
-    struct result_stacker
-    {
-        stack<value_ptr> & m_stack;
-        result_stacker( stack<value_ptr> & s,
-                        const value_ptr & v ): m_stack(s)
-        { m_stack.push(v); }
-        ~result_stacker()
-        { m_stack.pop(); }
-    };
-
-    struct {
-        llvm::BasicBlock *block;
-    } m_allocator;
+    llvm::Value *m_buffer_pool;
+    size_t m_buffer_pool_size;
 
     llvm::IRBuilder<> m_builder;
 };
