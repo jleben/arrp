@@ -20,14 +20,15 @@ void print_help()
     cout << "  --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
     cout << "  --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
     cout << "  --list-symbols or -l : List all top-level declarations." << endl;
-    cout << "  --generate or --gen or -g <symbol> [<arg>...] :" << endl
+    cout << "  --generate or --gen or -g <symbol> [<type>...] :" << endl
          << "  \tGenerate output for top-level function or expression <symbol> with given argument types." << endl
-         << "  \tEach following argument <arg> is used as the type of a function parameter in "
+         << "  \tEach following argument <type> is used as the type of a function parameter in "
          "generic function instantiation." << endl
-         << "  \tAn argument can be:" << endl
-         << "  \t- a constant integer number (e.g. \"123\")," << endl
-         << "  \t- a constant real number (e.g. \"123.45\"), " << endl
-         << "  \t- a stream (e.g. \"[10,4,5]\" with each number representing size in one dimension)." << endl
+         << "  \tA <type> can be one of the following:" << endl
+         << "  \t- \"int\" - integer number," << endl
+         << "  \t- \"real\" - real number," << endl
+         << "  \t- a stream, e.g. \"[10,4,5]\""
+         << " - each number represents size in one dimension." << endl
          ;
 }
 
@@ -201,10 +202,10 @@ private:
     sp<semantic::type> parse_eval_stream_arg(const string & arg)
     {
         if (arg.size() < 3)
-            throw command_line_error("Misformatted stream argument.");
+            throw command_line_error("Invalid stream argument.");
 
         if (arg.front() != '[' || arg.back() != ']')
-            throw command_line_error("Misformatted stream argument.");
+            throw command_line_error("Invalid stream argument.");
 
         string size_list = arg.substr(1, arg.size()-2);
 
@@ -223,7 +224,7 @@ private:
                 }
             } catch (...) {}
 
-            throw command_line_error("Misformatted stream argument.");
+            throw command_line_error("Invalid stream argument.");
         }
 
         return sp<semantic::type>( new semantic::stream(sizes) );
@@ -231,23 +232,12 @@ private:
 
     sp<semantic::type> parse_eval_scalar_arg(const string & arg)
     {
-        try {
-            size_t pos = 0;
-            int i = stoi(arg, &pos);
-            if (pos == arg.size())
-                return sp<semantic::type>( new semantic::integer_num(i) );
-        }
-        catch (...) {}
-
-        try {
-            size_t pos = 0;
-            double d = stod(arg, &pos);
-            if (pos == arg.size())
-                return sp<semantic::type>( new semantic::real_num(d) );
-        }
-        catch (...) {}
-
-        throw command_line_error("Misformatted scalar argument.");
+        if (arg == "int")
+            return make_shared<semantic::integer_num>();
+        else if (arg == "real")
+            return make_shared<semantic::real_num>();
+        else
+            throw command_line_error("Invalid scalar argument.");
     }
 
     sp<semantic::type> parse_eval_range_arg(const string & arg)
