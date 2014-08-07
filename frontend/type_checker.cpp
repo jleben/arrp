@@ -574,13 +574,6 @@ type_ptr type_checker::process_transpose( const sp<ast::node> & root )
         throw source_error("Transpose object not a stream.", object_node->line);
     stream & object = object_type->as<stream>();
 
-    if (!dims_node)
-    {
-        // Indicating "all dimensions".
-        // FIXME: Find more elegant solution.
-        return make_shared<stream>(1);
-    }
-
     ast::list_node *dims = dims_node->as_list();
 
     if (dims->elements.size() > object.dimensionality())
@@ -910,22 +903,23 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
     {
     case type::stream:
     {
-        stream operand_stream(domain_type->as<stream>());
-        // FIXME: a better way to represent reduction over all dimensions
-        if (operand_stream.dimensionality() > 0)
-        {
-            operand_stream.size[0] = 1;
-        }
-        val1 = val2 = operand_stream.reduced();
+        if (domain_type->as<stream>().dimensionality() > 1)
+            throw source_error("Reduction of streams with more than"
+                               " 1 dimension not supported.",
+                               root->line);
+
+        val1 = val2 = make_shared<real_num>();
         break;
     }
+#if 0
     case type::range:
     {
         val1 = val2 = make_shared<integer_num>();
         break;
     }
+#endif
     default:
-        throw source_error("Invalid reduction domain.", root->line);
+        throw source_error("Invalid reduction domain type.", root->line);
     }
 
     context_type::scope_holder reduction_scope(m_ctx);
@@ -934,37 +928,11 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
 
     type_ptr result_type = process_block(body_node);
 
-    bool types_match;
-    switch (result_type->get_tag())
-    {
-    case type::integer_num:
-        types_match = val1->is(type::integer_num);
-        break;
-    case type::real_num:
-        types_match = val1->is(type::real_num);
-        break;
-    case type::stream:
-        types_match = val1->is(type::stream);
-        if (types_match)
-            types_match = result_type->as<stream>().size == val1->as<stream>().size;
-        break;
-    default:
-    {
-        ostringstream msg;
-        msg << "Invalid reduction result type: " << *result_type;
-        throw source_error(msg.str(), root->line);
-    }
-    }
+    if (!result_type->is(type::real_num))
+        throw source_error("Reduction result type must be a real number.", root->line);
 
-    if (!types_match)
-    {
-        ostringstream msg;
-        msg << "Reduction result type does not match source type: "
-            << *result_type << " != " << *val1;
-        throw source_error(msg.str(), root->line);
-    }
-
-    return result_type;
+    // Whatever the result type, it will be converted to val1 type (real):
+    return val1;
 }
 
 }

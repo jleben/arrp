@@ -11,11 +11,14 @@ K = 1000;
 
 // Standard helper:
 sum( X ) =
-  reduce( a, b in X{.} ) a + b;
+  reduce( a, b in X ) a + b;
 
 // S is an individual specturm. It has only 1 dimension - each bin.
 // Assuming 'log' is a built-in function that computes logarithm of a single value.
-log_spectrum(S, a, k) = for each( bin in S ) { log(a + k * bin) };
+log_spectrum(S, a, k) = for each( bin in S ) {
+  //log(a + k * bin)
+  a + k * bin
+};
 
 // X is same as for 'flux' below
 inter_spectrum_difference(X) =
@@ -29,7 +32,8 @@ inter_spectrum_difference(X) =
       for each( bin_pair in spectrum_pair{2} )
       {
         // Either a positive change or 0:
-        max(0, bin_pair[2] - bin_pair[1])
+        //max(0, bin_pair[2] - bin_pair[1])
+        bin_pair[2] - bin_pair[1]
       };
 
     // Sum all positive changes among corresponding bins of 2 spectrums:

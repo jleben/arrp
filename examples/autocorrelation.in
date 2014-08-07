@@ -3,7 +3,7 @@
 // Standard helper:
 sum( X ) =
   // Reduce over all dimensions of X by summation:
-  reduce( a, b in X{.} ) a + b;
+  reduce( a, b in X ) a + b;
 
 autocorrelation(X) =
   // For each integer from 1 up to the number of elements in

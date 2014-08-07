@@ -258,9 +258,6 @@ call:
 ;
 
 transpose:
-  expr '{' '.' '}'
-  { $$ = new ast::list_node( ast::transpose_expression, $1->line, { $1, nullptr} ); }
-  |
   expr '{' int_list '}'
   { $$ = new ast::list_node( ast::transpose_expression, $1->line, { $1, $3 } ); }
 ;

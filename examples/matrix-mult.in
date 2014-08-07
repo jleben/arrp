@@ -4,7 +4,7 @@
 // Standard helper:
 sum( X ) =
   // Reduce over all dimensions of X by summation:
-  reduce( a, b in X{.} ) a + b;
+  reduce( a, b in X ) a + b;
 
 // A, B are each a sequence of matrices.
 matrix_multiply(A,B) =

@@ -580,11 +580,6 @@ value_ptr generator::process_transpose( const ast::node_ptr & root )
             dynamic_pointer_cast<abstract_stream_value>(src_object);
     assert(src_stream);
 
-    if (!dims_node)
-    {
-        throw error("{.} transposition not supported.");
-    }
-
     vector<int> map;
 
     ast::list_node *dims = dims_node->as_list();
@@ -746,40 +741,23 @@ value_ptr generator::process_reduction( const ast::node_ptr & node, const value_
     string id2 = id2_node->as_leaf<string>()->value;
 
     type_ptr reduction_type = body_node->semantic_type;
+    assert(reduction_type->is(type::real_num));
+
     value_ptr result = result_space;
     if (!result)
     {
-        if (reduction_type->is(type::stream))
-        {
-            throw error("Reduction to stream not supported.");
-            //result = allocate_stream(reduction_type->as<stream>().size());
-        }
-        else
-        {
-            assert(reduction_type->is(type::integer_num) ||
-                   reduction_type->is(type::real_num));
-
-            llvm::Type *scalar_type =
-                    reduction_type->is(type::integer_num) ?
-                        llvm::Type::getInt32Ty(llvm_context()) :
-                        llvm::Type::getDoubleTy(llvm_context());
-
-            llvm::Value *result_ptr = m_builder.CreateAlloca(scalar_type);
-            result = make_shared<scalar_value>(result_ptr);
-        }
+        llvm::Value *result_ptr =
+                m_builder.CreateAlloca(llvm::Type::getDoubleTy(llvm_context()));
+        result = make_shared<scalar_value>(result_ptr);
     }
 
     value_ptr domain_val = process_expression(domain_node);
     stream_value_ptr domain_stream =
             dynamic_pointer_cast<abstract_stream_value>(domain_val);
-    if (!domain_stream)
-        throw error("Reduction domain not supported.");
     assert(domain_stream);
-
     assert(domain_stream->dimensions() == 1);
-    assert(domain_stream->size(0) >= 1);
+    assert(domain_stream->size(0) > 0);
 
-    // Copy first item into result space:
     m_builder.CreateStore( m_builder.CreateLoad(domain_stream->get(m_builder)),
                            result->get(m_builder) );
 
