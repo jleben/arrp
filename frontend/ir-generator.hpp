@@ -173,7 +173,6 @@ struct transpose_value : public abstract_stream_value
         vector<bool> selection(source->dimensions(), false);
         for (int dim : map)
         {
-            dim -= 1;
             assert(selection[dim] == false);
             selection[dim] = true;
             m_map.push_back(dim);

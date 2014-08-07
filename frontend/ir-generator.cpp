@@ -690,7 +690,7 @@ value_ptr generator::process_transpose( const ast::node_ptr & root )
     ast::list_node *dims = dims_node->as_list();
     for ( const auto & dim_node : dims->elements )
     {
-        map.push_back( dim_node->as_leaf<int>()->value );
+        map.push_back( dim_node->as_leaf<int>()->value - 1 );
     }
 
     return make_shared<transpose_value>(src_stream, map);
@@ -729,7 +729,10 @@ value_ptr generator::process_slice( const ast::node_ptr & root )
         value_ptr range = process_expression(range_node);
         if (dynamic_cast<scalar_value*>(range.get()))
         {
-            slice_offset.push_back(range);
+            llvm::Value *normalized_index =
+                    m_builder.CreateSub( range->get(m_builder),
+                                         get_int32(1) );
+            slice_offset.push_back(make_shared<scalar_value>(normalized_index));
             slice_size.push_back(1);
         }
         else
