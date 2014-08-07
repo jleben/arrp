@@ -14,7 +14,7 @@ sum( X ) =
   reduce( a, b in X ) a + b;
 
 // S is an individual specturm. It has only 1 dimension - each bin.
-// Assuming 'log' is a built-in function that computes logarithm of a single value.
+// 'log' is a built-in element-wise unary function computing the natural logarithm.
 log_spectrum(S, a, k) = for each( bin in S ) {
   log(a + k * bin)
 };
