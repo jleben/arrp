@@ -2,9 +2,9 @@
 #include "error.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/GlobalAlias.h>
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/Support/raw_os_ostream.h>
-
 #include <algorithm>
 
 using namespace std;
@@ -13,12 +13,36 @@ namespace stream {
 namespace IR {
 
 generator::generator(const string & module_name, environment &env):
-    m_module(module_name, llvm::getGlobalContext()),
     m_env(env),
+    m_module(module_name, llvm::getGlobalContext()),
+    m_builder(llvm::getGlobalContext()),
     m_buffer_pool(nullptr),
-    m_buffer_pool_size(0),
-    m_builder(llvm::getGlobalContext())
+    m_buffer_pool_size(0)
 {
+    m_ctx.enter_scope();
+
+    vector<string> c_unary_math_names = {
+        "log",
+        "sqrt",
+        "exp",
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
+        "ceil",
+        "floor"
+    };
+
+    for (const string & name : c_unary_math_names)
+    {
+        m_ctx.bind(name, make_shared<builtin_math>(name,false));
+    }
+
+    m_ctx.bind("abs", make_shared<builtin_math>("fabs",false));
+
+    m_ctx.bind("max", make_shared<builtin_math>("fmax",true));
 }
 
 void generator::generate( const symbol & sym,
@@ -180,15 +204,40 @@ context_item_ptr generator::item_for_symbol( const symbol & sym,
         assert(item->f);
         return context_item_ptr(item);
     }
-#if 0
     case symbol::builtin_unary_math:
-        return make_shared<builtin_unary_func_item>();
     case symbol::builtin_binary_math:
-        return make_shared<builtin_binary_func_item>();
-#endif
+    {
+        return m_ctx.find(sym.name).value();
     }
-    assert(false);
-    throw error("Should not happen.");
+    default:
+        assert(false);
+    }
+    return context_item_ptr();
+}
+
+llvm::Value *builtin_math::get(llvm::Module& module)
+{
+    if (m_func)
+        return m_func;
+
+    llvm::Type *double_type = llvm::Type::getDoubleTy(module.getContext());
+    llvm::FunctionType *func_type;
+    if (is_binary)
+    {
+        vector<llvm::Type*> double_types = {double_type, double_type};
+        func_type = llvm::FunctionType::get(double_type, double_types, false);
+    }
+    else
+    {
+        func_type = llvm::FunctionType::get(double_type, double_type, false);
+    }
+
+    m_func = llvm::Function::Create(func_type,
+                                  llvm::Function::ExternalLinkage,
+                                  name,
+                                  &module);
+
+    return m_func;
 }
 
 value_ptr generator::value_for_function(function_item *func,
@@ -208,42 +257,95 @@ value_ptr generator::value_for_function(function_item *func,
 
         return process_block(f.expression(), result_space);
     }
+    else if (builtin_math *math_func = dynamic_cast<builtin_math*>(func))
+    {
+        int param_count = math_func->is_binary ? 2 : 1;
+        assert(args.size() == param_count);
+
+        llvm::Type *double_type = llvm::Type::getDoubleTy(llvm_context());
+        llvm::Type *int_type = llvm::Type::getInt32Ty(llvm_context());
+
+        if (scalar_value *scalar1 = dynamic_cast<scalar_value*>(args[0].get()))
+        {
+            vector<llvm::Value*> arg_values;
+
+            llvm::Value *v1 = scalar1->get(m_builder);
+            if (v1->getType() == int_type)
+                v1 = m_builder.CreateSIToFP(v1, double_type);
+            arg_values.push_back(v1);
+
+            if (math_func->is_binary)
+            {
+                scalar_value *scalar2 = dynamic_cast<scalar_value*>(args[1].get());
+                assert(scalar2);
+                llvm::Value *v2 = scalar2->get(m_builder);
+                if (v2->getType() == int_type)
+                    v2 = m_builder.CreateSIToFP(v2, double_type);
+                arg_values.push_back(v2);
+            }
+
+            llvm::Value *result_val =
+                    m_builder.CreateCall(math_func->get(m_module), arg_values);
+            value_ptr result = make_shared<scalar_value>(result_val);
+            if (result_space)
+                generate_store(result_space, result);
+            return result;
+        }
+        else
+        {
+            stream_value_ptr stream1;
+            stream1 = dynamic_pointer_cast<abstract_stream_value>(args[0]);
+            assert(stream1);
+
+            stream_value_ptr stream2;
+            if (math_func->is_binary)
+            {
+                stream2 = dynamic_pointer_cast<abstract_stream_value>(args[1]);
+                assert(stream2);
+                assert(stream1->size() == stream2->size());
+            }
+
+            stream_value_ptr result_stream;
+            if (result_space)
+            {
+                result_stream = dynamic_pointer_cast<abstract_stream_value>(result_space);
+                assert(result_stream);
+            }
+            else
+            {
+                result_stream = allocate_stream(stream1->size());
+            }
+
+            auto action = [&]( const vector<value_ptr> & stream_idx )
+            {
+                vector<llvm::Value*> arg_values;
+                llvm::Value *v1 =
+                        m_builder.CreateLoad( stream1->get_at(stream_idx, m_builder) );
+                arg_values.push_back(v1);
+
+                if (stream2)
+                {
+                    llvm::Value *v2 =
+                            m_builder.CreateLoad( stream2->get_at(stream_idx, m_builder) );
+                    arg_values.push_back(v2);
+                }
+
+                llvm::Value *result_val =
+                        m_builder.CreateCall(math_func->get(m_module), arg_values);
+
+                m_builder.CreateStore( result_val,
+                                       result_stream->get_at(stream_idx, m_builder) );
+            };
+
+            generate_iteration(result_stream->size(), action);
+
+            return result_stream;
+        }
+    }
 
     assert(false);
-#if 0
-    switch (func_type->get_tag())
-    {
-    case type::builtin_unary_func:
-    {
-        if (args.size() != 1)
-            throw wrong_arg_count_error(1, args.size());
-        return builtin_unary_func_type(args[0]);
-    }
-    case type::builtin_binary_func:
-    {
-        if (args.size() != 2)
-            throw wrong_arg_count_error(2, args.size());
-        return builtin_binary_func_type(args[0], args[1]);
-    }
-    case type::function:
-    {
-        function &f = func_type->as<function>();
-        if (args.size() != f.parameters.size())
-            throw wrong_arg_count_error(f.parameters.size(), args.size());
 
-        context_type::scope_holder func_scope(m_ctx, scope);
-
-        for (int i = 0; i < args.size(); ++i)
-        {
-            m_ctx.bind(f.parameters[i], args[i]);
-        }
-
-        return process_block(f.expression);
-    }
-    default:
-        throw type_error("Callee not a function.");
-    }
-#endif
+    return stream_value_ptr();
 }
 
 value_ptr generator::process_block( const ast::node_ptr & root,

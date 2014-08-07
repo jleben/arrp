@@ -257,12 +257,16 @@ struct function_item : public context_item
     virtual type_flag type() { return function; }
 };
 
-struct builtin_unary_func_item : public function_item
+struct builtin_math : public function_item
 {
-};
-
-struct builtin_binary_func_item : public function_item
-{
+    builtin_math(string name, bool binary):
+        name(name), is_binary(binary), m_func(nullptr)
+    {}
+    string name;
+    bool is_binary;
+    llvm::Value *get(llvm::Module&);
+private:
+    llvm::Value *m_func;
 };
 
 struct user_func_item : public function_item
@@ -349,14 +353,14 @@ private:
         return llvm::ConstantInt::getSigned(llvm::Type::getInt32Ty(llvm_context()), value);
     }
 
-    llvm::Module m_module;
     environment & m_env;
     context m_ctx;
 
+    llvm::Module m_module;
+    llvm::IRBuilder<> m_builder;
+
     llvm::Value *m_buffer_pool;
     size_t m_buffer_pool_size;
-
-    llvm::IRBuilder<> m_builder;
 };
 
 }

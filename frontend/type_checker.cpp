@@ -242,7 +242,6 @@ type_ptr type_checker::builtin_unary_func_type(const type_ptr & arg )
     switch(arg->get_tag())
     {
     case type::integer_num:
-        return make_shared<integer_num>();
     case type::real_num:
         return make_shared<real_num>();
     case type::range:
@@ -264,11 +263,6 @@ type_ptr type_checker::builtin_binary_func_type(const type_ptr & arg1, const typ
     switch(arg1->get_tag())
     {
     case type::integer_num:
-        switch(arg2->get_tag())
-        {
-        case type::integer_num:
-            return make_shared<integer_num>();
-        }
     case type::real_num:
         switch(arg2->get_tag())
         {
