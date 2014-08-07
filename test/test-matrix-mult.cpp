@@ -39,5 +39,27 @@ int main()
         cout << out[x][1][0] << "  " << out[x][1][1] << endl;
         cout << "---" << endl;
     }
+
+    int correct_count = 0;
+    for (int x=0; x<5; ++x)
+    {
+        for (int r = 0; r < 2; ++r)
+        {
+            for (int c = 0; c < 2; ++c)
+            {
+                double sum = 0;
+                for(int i = 0; i < 2; ++i)
+                {
+                    sum += m1[x][r][i] * m2[x][i][c];
+                }
+                if (out[x][r][c] == sum)
+                    ++correct_count;
+            }
+        }
+    }
+
+    cout << ">> " << ((double) correct_count * 100 / (5*2*2)) << "% CORRECT" << endl;
+
+    return 0;
 }
 
