@@ -3,11 +3,6 @@
 #include "type_checker.hpp"
 #include "ir-generator.hpp"
 
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/Support/raw_os_ostream.h>
-#include <llvm/Analysis/Verifier.h>
-
 #include <fstream>
 #include <iostream>
 
@@ -330,8 +325,7 @@ int main(int argc, char *argv[])
 
     semantic::type_checker type_checker(env);
 
-    llvm::Module *module = new llvm::Module(args.input_filename, llvm::getGlobalContext());
-    IR::generator gen(module, env);
+    IR::generator gen(args.input_filename, env);
 
     for (const evaluation & eval : args.evaluations)
     {
@@ -394,26 +388,8 @@ int main(int argc, char *argv[])
     }
 #endif
 
-#if 0
-    llvm::Module *module = new llvm::Module(args.input_filename, llvm::getGlobalContext());
-    IR::generator gen(module, env);
-
-    for (const evaluation & eval : args.evaluations)
-    {
-        const auto & symbol_iter = env.find(eval.name);
-        assert(symbol_iter != env.end());
-
-        gen.generate(symbol_iter->second, eval.args);
-    }
-#endif
     if (args.evaluations.empty())
         return 0;
-
-#if 0
-    cout << endl;
-    cout << "== LLVM IR:" << endl;
-    module->dump();
-#endif
 
     ofstream output_file(args.output_filename);
     if (!output_file.is_open())
@@ -422,11 +398,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    llvm::raw_os_ostream llvm_ostream(output_file);
-    module->print( llvm_ostream, nullptr );
+    gen.output(output_file);
 
-    bool module_has_errors = llvm::verifyModule(*module);
-    if (module_has_errors)
+    bool generator_has_errors = gen.verify();
+    if (generator_has_errors)
     {
         cerr << "ERROR: Bad IR code output." << endl;
         return 1;

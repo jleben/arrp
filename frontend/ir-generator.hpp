@@ -273,10 +273,14 @@ struct user_func_item : public function_item
 class generator
 {
 public:
-    generator(llvm::Module *, environment &env);
+    generator(const string & module_name, environment &env);
 
     void generate( const symbol & sym,
                    const vector<type_ptr> & args );
+
+    bool verify();
+
+    void output( std::ostream & );
 
 private:
     typedef ::stream::context<string, context_item_ptr> context;
@@ -333,7 +337,7 @@ private:
 
     stream_value_ptr allocate_stream( const vector<int> & size );
 
-    llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
+    llvm::LLVMContext & llvm_context() { return m_module.getContext(); }
 
     llvm::Value *get_uint32(unsigned int value)
     {
@@ -345,7 +349,7 @@ private:
         return llvm::ConstantInt::getSigned(llvm::Type::getInt32Ty(llvm_context()), value);
     }
 
-    llvm::Module *m_module;
+    llvm::Module m_module;
     environment & m_env;
     context m_ctx;
 

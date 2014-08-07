@@ -3,6 +3,8 @@
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/Analysis/Verifier.h>
+#include <llvm/Support/raw_os_ostream.h>
+
 #include <algorithm>
 
 using namespace std;
@@ -10,13 +12,14 @@ using namespace std;
 namespace stream {
 namespace IR {
 
-generator::generator(llvm::Module *module, environment &env):
-    m_module(module),
+generator::generator(const string & module_name, environment &env):
+    m_module(module_name, llvm::getGlobalContext()),
     m_env(env),
     m_buffer_pool(nullptr),
     m_buffer_pool_size(0),
-    m_builder(module->getContext())
-{}
+    m_builder(llvm::getGlobalContext())
+{
+}
 
 void generator::generate( const symbol & sym,
                           const vector<type_ptr> & arg_types )
@@ -38,7 +41,7 @@ void generator::generate( const symbol & sym,
             llvm::Function::Create(func_type,
                                    llvm::Function::ExternalLinkage,
                                    "process",
-                                   m_module);
+                                   &m_module);
 
 
     llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "entry", func);
@@ -995,6 +998,17 @@ llvm::Value *slice_value::get_at( const vector<value_ptr> & index,
         ++dim;
     }
     return m_source->get_at( source_index, builder );
+}
+
+bool generator::verify()
+{
+    return llvm::verifyModule(m_module);
+}
+
+void generator::output( std::ostream & out )
+{
+    llvm::raw_os_ostream llvm_ostream(out);
+    m_module.print( llvm_ostream, nullptr );
 }
 
 }
