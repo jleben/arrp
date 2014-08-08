@@ -415,7 +415,7 @@ Example:
 If `<s>` is `stream[10,20,30]`, then `<s>[1..5, 8]` is `stream[5,30]`.
 Note that the size in the first dimension is reduced to 5 because
 the range of indexes 1 to 5 was selected; however, the second dimension is
-omitted because only a single index `8` in that dimension was selected; the
+omitted because only a single index 8 in that dimension was selected; the
 last dimension thus becomes the second dimension, with original size.
 
 #### Extent
