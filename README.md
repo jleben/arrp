@@ -394,7 +394,7 @@ order.
 
 Example:
 
-If `<s>` is `stream[5,10,3]`, then `<s>{2,3}` is `stream[10,3,5]`
+If `<s>` is `stream[10,20,30]`, then `<s>{2,3}` is `stream[20,30,10]`
 
 #### Slice
 
@@ -412,9 +412,11 @@ retained. Any dimension of the resulting stream with size 1 is omitted.
 
 Example:
 
-If `<s>` is `stream[10,10,10]`, then `<s>[1..5, 6]` is `stream[5,10]`.
-Note that the second dimension from the original stream is omitted, because
-only a single index in that dimension was selected.
+If `<s>` is `stream[10,20,30]`, then `<s>[1..5, 8]` is `stream[5,30]`.
+Note that the size in the first dimension is reduced to 5 because
+the range of indexes 1 to 5 was selected; however, the second dimension is
+omitted because only a single index `8` in that dimension was selected; the
+last dimension thus becomes the second dimension, with original size.
 
 #### Extent
 
