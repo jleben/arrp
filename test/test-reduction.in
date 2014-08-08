@@ -1,2 +1,0 @@
- 
-f(x) = reduce(a,b in x) a * b;
