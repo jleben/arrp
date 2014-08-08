@@ -5,24 +5,28 @@
 using namespace std;
 using namespace stream;
 
-extern "C" { void process(void**); }
+extern "C" { void matrix_multiply(void**); }
 
 int main()
 {
-    double m1[5][2][2];
-    double m2[5][2][2];
+    double m1[5][2][3];
+    double m2[5][3][2];
 
     for (int x=0; x<5; ++x)
     {
         m1[x][0][0] = 1 + x;
         m1[x][0][1] = 2 + x;
-        m1[x][1][0] = 3 + x;
-        m1[x][1][1] = 4 + x;
+        m1[x][0][2] = 3 + x;
+        m1[x][1][0] = 4 + x;
+        m1[x][1][1] = 5 + x;
+        m1[x][1][2] = 6 + x;
 
         m2[x][0][0] = 1 + x;
         m2[x][0][1] = 2 + x;
         m2[x][1][0] = 3 + x;
         m2[x][1][1] = 4 + x;
+        m2[x][2][0] = 5 + x;
+        m2[x][2][1] = 6 + x;
     }
 
     double out[5][2][2];
@@ -31,7 +35,7 @@ int main()
 
     void *args[] = {m1, m2, out, buf};
 
-    process(args);
+    matrix_multiply(args);
 
     for (int x=0; x<5; ++x)
     {
@@ -48,7 +52,7 @@ int main()
             for (int c = 0; c < 2; ++c)
             {
                 double sum = 0;
-                for(int i = 0; i < 2; ++i)
+                for(int i = 0; i < 3; ++i)
                 {
                     sum += m1[x][r][i] * m2[x][i][c];
                 }
