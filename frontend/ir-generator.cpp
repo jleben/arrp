@@ -61,10 +61,12 @@ void generator::generate( const symbol & sym,
                                     i8_ptr_ptr,
                                     false);
 
+    string name = sym.name.substr(0, sym.name.find(':'));
+
     llvm::Function *func =
             llvm::Function::Create(func_type,
                                    llvm::Function::ExternalLinkage,
-                                   "process",
+                                   name,
                                    &m_module);
 
 
