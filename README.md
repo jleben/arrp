@@ -140,7 +140,7 @@ the following command will use the compiler to generate code for the
 The function `matrix_multiply` multiplies two sequences of matrices, producing
 a new sequence of matrix products. Hence, the above command will report
 that the result type of the generated function is `[5,2,2]`, meaning that
-the result is a stream of 10 matrices, each with as many rows as the
+the result is a stream of 5 matrices, each with as many rows as the
 first matrix and as many columns as the second matrix given as arguments.
 
 This will produce intermediate code in the file `mm.ll`. This file can further
