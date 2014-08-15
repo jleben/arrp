@@ -271,7 +271,7 @@ value_ptr generator::value_for_function(function_item *func,
         {
             vector<llvm::Value*> arg_values;
 
-            llvm::Value *v1 = scalar1->get(m_builder);
+            llvm::Value *v1 = scalar1->data();
             if (v1->getType() == int_type)
                 v1 = m_builder.CreateSIToFP(v1, double_type);
             arg_values.push_back(v1);
@@ -280,7 +280,7 @@ value_ptr generator::value_for_function(function_item *func,
             {
                 scalar_value *scalar2 = dynamic_cast<scalar_value*>(args[1].get());
                 assert(scalar2);
-                llvm::Value *v2 = scalar2->get(m_builder);
+                llvm::Value *v2 = scalar2->data();
                 if (v2->getType() == int_type)
                     v2 = m_builder.CreateSIToFP(v2, double_type);
                 arg_values.push_back(v2);
@@ -318,17 +318,17 @@ value_ptr generator::value_for_function(function_item *func,
                 result_stream = allocate_stream(stream1->size());
             }
 
-            auto action = [&]( const vector<value_ptr> & stream_idx )
+            auto action = [&]( const vector<scalar_value> & stream_idx )
             {
                 vector<llvm::Value*> arg_values;
                 llvm::Value *v1 =
-                        m_builder.CreateLoad( stream1->get_at(stream_idx, m_builder) );
+                        m_builder.CreateLoad( stream1->at(stream_idx, m_builder) );
                 arg_values.push_back(v1);
 
                 if (stream2)
                 {
                     llvm::Value *v2 =
-                            m_builder.CreateLoad( stream2->get_at(stream_idx, m_builder) );
+                            m_builder.CreateLoad( stream2->at(stream_idx, m_builder) );
                     arg_values.push_back(v2);
                 }
 
@@ -336,7 +336,7 @@ value_ptr generator::value_for_function(function_item *func,
                         m_builder.CreateCall(math_func->get(m_module), arg_values);
 
                 m_builder.CreateStore( result_val,
-                                       result_stream->get_at(stream_idx, m_builder) );
+                                       result_stream->at(stream_idx, m_builder) );
             };
 
             generate_iteration(result_stream->size(), action);
@@ -552,8 +552,8 @@ value_ptr generator::process_binop( const ast::node_ptr & root,
     if ( typeid(*lhs) == typeid(scalar_value) &&
          typeid(*rhs) == typeid(scalar_value) )
     {
-        llvm::Value *lhs_ir = static_cast<scalar_value&>(*lhs).get(m_builder);
-        llvm::Value *rhs_ir = static_cast<scalar_value&>(*rhs).get(m_builder);
+        llvm::Value *lhs_ir = static_cast<scalar_value&>(*lhs).data();
+        llvm::Value *rhs_ir = static_cast<scalar_value&>(*rhs).data();
         llvm::Value *result_ir;
 
         bool fp_op = lhs_ir->getType() == fp_type || rhs_ir->getType() == fp_type;
@@ -619,34 +619,35 @@ value_ptr generator::process_binop( const ast::node_ptr & root,
                 result_stream = allocate_stream(rhs_stream->size());
         }
 
+        llvm::Value *lhs_scalar = nullptr;
+        llvm::Value *rhs_scalar = nullptr;
+
         if (!lhs_stream)
         {
-            llvm::Value *lhs_val = lhs->get(m_builder);
-            if (lhs_val->getType() != fp_type)
-                lhs_val = m_builder.CreateSIToFP(lhs_val, fp_type);
-            lhs = make_shared<scalar_value>(lhs_val);
+            lhs_scalar = static_pointer_cast<scalar_value>(lhs)->data();
+            if (lhs_scalar->getType() != fp_type)
+                lhs_scalar = m_builder.CreateSIToFP(lhs_scalar, fp_type);
         }
         if (!rhs_stream)
         {
-            llvm::Value *rhs_val = rhs->get(m_builder);
-            if (rhs_val->getType() != fp_type)
-                rhs_val = m_builder.CreateSIToFP(rhs_val, fp_type);
-            rhs = make_shared<scalar_value>(rhs_val);
+            rhs_scalar =  static_pointer_cast<scalar_value>(rhs)->data();
+            if (rhs_scalar->getType() != fp_type)
+                rhs_scalar = m_builder.CreateSIToFP(rhs_scalar, fp_type);
         }
 
-        auto operation = [&]( const vector<value_ptr> & stream_index )
+        auto operation = [&]( const vector<scalar_value> & stream_index )
         {
             llvm::Value *lhs_val, *rhs_val;
 
             if (lhs_stream)
-                lhs_val = m_builder.CreateLoad( lhs_stream->get_at(stream_index, m_builder) );
+                lhs_val = m_builder.CreateLoad( lhs_stream->at(stream_index, m_builder) );
             else
-                lhs_val = lhs->get(m_builder);
+                lhs_val = lhs_scalar;
 
             if (rhs_stream)
-                rhs_val = m_builder.CreateLoad( rhs_stream->get_at(stream_index, m_builder) );
+                rhs_val = m_builder.CreateLoad( rhs_stream->at(stream_index, m_builder) );
             else
-                rhs_val = rhs->get(m_builder);
+                rhs_val = rhs_scalar;
 
             llvm::Value * result_val;
 
@@ -664,7 +665,7 @@ value_ptr generator::process_binop( const ast::node_ptr & root,
                 assert(false);
             }
 
-            llvm::Value * result_ptr = result_stream->get_at(stream_index, m_builder);
+            llvm::Value * result_ptr = result_stream->at(stream_index, m_builder);
             m_builder.CreateStore(result_val, result_ptr);
         };
 
@@ -720,7 +721,7 @@ value_ptr generator::process_slice( const ast::node_ptr & root )
 
     int range_count = range_list->elements.size();
 
-    vector<value_ptr> slice_offset;
+    vector<scalar_value> slice_offset;
     vector<int> slice_size;
     slice_offset.reserve(range_count);
     slice_size.reserve(range_count);
@@ -729,12 +730,11 @@ value_ptr generator::process_slice( const ast::node_ptr & root )
     for( const auto & range_node : range_list->elements )
     {
         value_ptr range = process_expression(range_node);
-        if (dynamic_cast<scalar_value*>(range.get()))
+        if (scalar_value *s = dynamic_cast<scalar_value*>(range.get()))
         {
             llvm::Value *normalized_index =
-                    m_builder.CreateSub( range->get(m_builder),
-                                         get_int32(1) );
-            slice_offset.push_back(make_shared<scalar_value>(normalized_index));
+                    m_builder.CreateSub( s->data(), get_int32(1) );
+            slice_offset.emplace_back(normalized_index);
             slice_size.push_back(1);
         }
         else
@@ -746,7 +746,7 @@ value_ptr generator::process_slice( const ast::node_ptr & root )
 
     if (is_scalar)
     {
-        llvm::Value *val_ptr = src_stream->get_at(slice_offset, m_builder);
+        llvm::Value *val_ptr = src_stream->at(slice_offset, m_builder);
         llvm::Value *val = m_builder.CreateLoad(val_ptr);
         return make_shared<scalar_value>( val );
     }
@@ -791,7 +791,7 @@ value_ptr generator::process_iteration( const ast::node_ptr & node,
             throw error("Unsupported iteration domain type.");
     }
 
-    auto body = [&]( const value_ptr & index )
+    auto body = [&]( const scalar_value & index )
     {
         // Set up scope.
 
@@ -806,13 +806,11 @@ value_ptr generator::process_iteration( const ast::node_ptr & node,
             if (iter.id.empty())
                 continue;
 
-            value_ptr iterator_index = index;
+            scalar_value iterator_index = index;
             if (iter.hop != 1)
             {
-                llvm::Value *v =
-                        m_builder.CreateMul( index->get(m_builder),
-                                             get_uint32(iter.hop) );
-                iterator_index = make_shared<scalar_value>(v);
+                iterator_index =
+                        m_builder.CreateMul( iterator_index.data(), get_uint32(iter.hop) );
             }
 
             value_ptr domain_slice = slice_stream(domains[idx], {iterator_index}, {iter.size});
@@ -820,7 +818,7 @@ value_ptr generator::process_iteration( const ast::node_ptr & node,
                 scalar_value * scalar = dynamic_cast<scalar_value*>(domain_slice.get());
                 if(scalar)
                 {
-                    llvm::Value *v = m_builder.CreateLoad(domain_slice->get(m_builder));
+                    llvm::Value *v = m_builder.CreateLoad(scalar->data());
                     domain_slice = make_shared<scalar_value>(v);
                 }
             }
@@ -853,8 +851,13 @@ value_ptr generator::process_reduction( const ast::node_ptr & node, const value_
     type_ptr reduction_type = body_node->semantic_type;
     assert(reduction_type->is(type::real_num));
 
-    value_ptr result = result_space;
-    if (!result)
+    shared_ptr<scalar_value> result;
+    if (result_space)
+    {
+        result = dynamic_pointer_cast<scalar_value>(result_space);
+        assert(result);
+    }
+    else
     {
         llvm::Value *result_ptr =
                 m_builder.CreateAlloca(llvm::Type::getDoubleTy(llvm_context()));
@@ -868,15 +871,15 @@ value_ptr generator::process_reduction( const ast::node_ptr & node, const value_
     assert(domain_stream->dimensions() == 1);
     assert(domain_stream->size(0) > 0);
 
-    m_builder.CreateStore( m_builder.CreateLoad(domain_stream->get(m_builder)),
-                           result->get(m_builder) );
+    m_builder.CreateStore( m_builder.CreateLoad(domain_stream->data()),
+                           result->data() );
 
-    auto body = [&]( const value_ptr & index )
+    auto body = [&]( const scalar_value & index )
     {
         llvm::Value *item1_val =
-                m_builder.CreateLoad( result->get(m_builder) );
+                m_builder.CreateLoad( result->data() );
         llvm::Value *item2_val =
-                m_builder.CreateLoad( domain_stream->get_at({index}, m_builder) );
+                m_builder.CreateLoad( domain_stream->at({index}, m_builder) );
 
         context::scope_holder iteration_scope(m_ctx);
         m_ctx.bind(id1, make_shared<value_item>(item1_val));
@@ -887,12 +890,12 @@ value_ptr generator::process_reduction( const ast::node_ptr & node, const value_
 
     generate_iteration(1, domain_stream->size(0), body);
 
-    return make_shared<scalar_value>( m_builder.CreateLoad(result->get(m_builder)) );
+    return make_shared<scalar_value>( m_builder.CreateLoad(result->data()) );
 }
 
-void generator::generate_iteration(const value_ptr & from,
-                                    const value_ptr & to,
-                                    std::function<void(const value_ptr &)> action )
+void generator::generate_iteration(const scalar_value & from,
+                                    const scalar_value & to,
+                                    std::function<void(const scalar_value &)> action )
 {
     llvm::Function *parent = m_builder.GetInsertBlock()->getParent();
     llvm::BasicBlock *before_block = m_builder.GetInsertBlock();
@@ -900,9 +903,8 @@ void generator::generate_iteration(const value_ptr & from,
     llvm::BasicBlock *action_block = llvm::BasicBlock::Create(llvm_context(), "action", parent);
     llvm::BasicBlock *after_block = llvm::BasicBlock::Create(llvm_context(), "afterloop");
 
-    llvm::Value *start_index = from->get(m_builder);
-    llvm::Value *max_index = to->get(m_builder);
-
+    llvm::Value *start_index = from.data();
+    llvm::Value *end_index = to.data();
 
     // BEFORE:
 
@@ -917,7 +919,7 @@ void generator::generate_iteration(const value_ptr & from,
     index->addIncoming(start_index, before_block);
 
     // create condition
-    llvm::Value *condition = m_builder.CreateICmpSLT(index, max_index);
+    llvm::Value *condition = m_builder.CreateICmpSLT(index, end_index);
     m_builder.CreateCondBr(condition, action_block, after_block);
 
     // ACTION
@@ -925,7 +927,7 @@ void generator::generate_iteration(const value_ptr & from,
     m_builder.SetInsertPoint(action_block);
 
     // invoke action functor
-    action(make_shared<scalar_value>(index));
+    action(index);
 
     // increment index
     llvm::Value *index_increment = llvm::ConstantInt::get(start_index->getType(), 1);
@@ -943,40 +945,36 @@ void generator::generate_iteration(const value_ptr & from,
 }
 
 void generator::generate_iteration( int from, int to,
-                                    std::function<void(const value_ptr &)> action )
+                                    std::function<void(const scalar_value &)> action )
 {
     llvm::Value *start_index =
             llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,from));
     llvm::Value *end_index =
             llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,to));
 
-    generate_iteration(make_shared<scalar_value>(start_index),
-                       make_shared<scalar_value>(end_index),
-                       action);
+    generate_iteration(start_index, end_index, action);
 }
 
 void generator::generate_iteration( const vector<int> range,
-                                    std::function<void(const vector<value_ptr> &)> final_action,
-                                    const vector<value_ptr> & stream_index )
+                                    std::function<void(const vector<scalar_value> &)> final_action,
+                                    const vector<scalar_value> & stream_index )
 {
     if (stream_index.size() < range.size())
     {
         int dim = stream_index.size();
         llvm::Value *start_index =
                 llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,0));
-        llvm::Value *max_index =
+        llvm::Value *end_index =
                 llvm::ConstantInt::get(llvm_context(), llvm::APInt(32,range[dim]));
 
-        auto action = [&](const value_ptr & index)
+        auto action = [&](const scalar_value & index)
         {
-            vector<value_ptr> composed_index = stream_index;
+            vector<scalar_value> composed_index = stream_index;
             composed_index.push_back(index);
             generate_iteration(range, final_action, composed_index);
         };
 
-        generate_iteration(make_shared<scalar_value>(start_index),
-                           make_shared<scalar_value>(max_index),
-                           action);
+        generate_iteration(start_index, end_index, action);
     }
     else
     {
@@ -986,18 +984,20 @@ void generator::generate_iteration( const vector<int> range,
 
 void generator::generate_store( const value_ptr & dst, const value_ptr & src )
 {
-    if (scalar_value *scalar = dynamic_cast<scalar_value*>(src.get()))
+    if (scalar_value *src_scalar = dynamic_cast<scalar_value*>(src.get()))
     {
-        m_builder.CreateStore( scalar->get(m_builder), dst->get(m_builder) );
+        scalar_value *dst_scalar = dynamic_cast<scalar_value*>(dst.get());
+        assert(dst_scalar);
+        m_builder.CreateStore( src_scalar->data(), dst_scalar->data() );
     }
     else if(abstract_stream_value *src_stream = dynamic_cast<abstract_stream_value*>(src.get()))
     {
         abstract_stream_value *dst_stream = dynamic_cast<abstract_stream_value*>(dst.get());
 
-        auto copy_action = [&]( const vector<value_ptr> & index )
+        auto copy_action = [&]( const vector<scalar_value> & index )
         {
-            llvm::Value *src_val_ptr = src_stream->get_at(index, m_builder);
-            llvm::Value *dst_val_ptr = dst_stream->get_at(index, m_builder);
+            llvm::Value *src_val_ptr = src_stream->at(index, m_builder);
+            llvm::Value *dst_val_ptr = dst_stream->at(index, m_builder);
             m_builder.CreateStore( m_builder.CreateLoad(src_val_ptr), dst_val_ptr );
         };
 
@@ -1006,7 +1006,7 @@ void generator::generate_store( const value_ptr & dst, const value_ptr & src )
 }
 
 value_ptr generator::slice_stream( const stream_value_ptr &stream,
-                                   const vector<value_ptr> & offset,
+                                   const vector<scalar_value> & offset,
                                    const vector<int> & size )
 {
     bool all_sizes_one = true;
@@ -1028,7 +1028,7 @@ value_ptr generator::slice_stream( const stream_value_ptr &stream,
     }
     else
     {
-        return make_shared<scalar_value>(stream->get_at(offset, m_builder));
+        return make_shared<scalar_value>(stream->at(offset, m_builder));
     }
 }
 
@@ -1053,17 +1053,17 @@ stream_value_ptr generator::allocate_stream( const vector<int> & stream_size )
     return make_shared<stream_value>(buffer, stream_size);
 }
 
-llvm::Value *stream_value::get_at( const vector<value_ptr> & index,
+llvm::Value *stream_value::at( const vector<scalar_value> & index,
                                    llvm::IRBuilder<> & builder )
 {
     assert(index.size() == m_index_coeffs.size() + 1);
 
-    llvm::Value * flat_index = index.back()->get(builder);
+    llvm::Value * flat_index = index.back().data();
 
     int c = m_index_coeffs.size();
     while(c--)
     {
-        llvm::Value *idx_val = index[c]->get(builder);
+        llvm::Value *idx_val = index[c].data();
 
         llvm::Value *coeff_val =
                 llvm::ConstantInt::get(builder.getContext(),
@@ -1080,13 +1080,13 @@ llvm::Value *stream_value::get_at( const vector<value_ptr> & index,
                                            "", builder.GetInsertBlock());
 }
 
-llvm::Value *slice_value::get_at( const vector<value_ptr> & index,
+llvm::Value *slice_value::at( const vector<scalar_value> & index,
                                   llvm::IRBuilder<> & builder )
 {
     assert(index.size() == m_size.size());
-    vector<value_ptr> source_index;
+    vector<scalar_value> source_index;
     source_index.reserve(m_preoffset.size() + m_size.size());
-    for(const value_ptr & preoffset : m_preoffset)
+    for(const scalar_value & preoffset : m_preoffset)
     {
         source_index.push_back(preoffset);
     }
@@ -1094,9 +1094,9 @@ llvm::Value *slice_value::get_at( const vector<value_ptr> & index,
     while (dim < m_offset.size())
     {
         llvm::Value *index_val =
-                builder.CreateAdd(index[dim]->get(builder),
-                                  m_offset[dim]->get(builder));
-        source_index.push_back(make_shared<scalar_value>(index_val));
+                builder.CreateAdd(index[dim].data(),
+                                  m_offset[dim].data());
+        source_index.emplace_back(index_val);
         ++dim;
     }
     while (dim < m_size.size())
@@ -1104,7 +1104,7 @@ llvm::Value *slice_value::get_at( const vector<value_ptr> & index,
         source_index.push_back(index[dim]);
         ++dim;
     }
-    return m_source->get_at( source_index, builder );
+    return m_source->at( source_index, builder );
 }
 
 bool generator::verify()

@@ -29,18 +29,22 @@ using std::stack;
 using std::list;
 using std::size_t;
 
+struct scalar_value;
+
 struct value
 {
-    virtual llvm::Value *get( llvm::IRBuilder<> & ) = 0;
+    virtual ~value() {}
 };
 
 using value_ptr = std::shared_ptr<value>;
 
 struct scalar_value : public value
 {
-    scalar_value(llvm::Value *v): v(v) {}
-    virtual llvm::Value *get( llvm::IRBuilder<> & ) { return v; }
-    llvm::Value *v;
+    scalar_value(): d(nullptr) {}
+    scalar_value(llvm::Value *d): d(d) {}
+    llvm::Value *data() const { return d; }
+private:
+    llvm::Value *d;
 };
 
 struct abstract_stream_value : public value
@@ -48,7 +52,8 @@ struct abstract_stream_value : public value
     virtual int dimensions() = 0;
     virtual int size( int dimension ) = 0;
     virtual vector<int> size() = 0;
-    virtual llvm::Value *get_at( const vector<value_ptr> & index, llvm::IRBuilder<> & ) = 0;
+    virtual llvm::Value *data() const = 0;
+    virtual llvm::Value *at( const vector<scalar_value> & index, llvm::IRBuilder<> & ) = 0;
 };
 
 using stream_value_ptr = std::shared_ptr<abstract_stream_value>;
@@ -77,14 +82,9 @@ struct stream_value : public abstract_stream_value
         }
     }
 
-    value_ptr slice( const vector<value_ptr> & index );
+    llvm::Value *data() const { return m_data; }
 
-    virtual llvm::Value *get( llvm::IRBuilder<> & )
-    {
-        return m_data;
-    }
-
-    virtual llvm::Value *get_at( const vector<value_ptr> & index, llvm::IRBuilder<> & builder );
+    virtual llvm::Value *at( const vector<scalar_value> & index, llvm::IRBuilder<> & builder );
 
 private:
     vector<int> m_size;
@@ -114,7 +114,7 @@ struct index_value : public value
 struct slice_value : public abstract_stream_value
 {
     slice_value( const stream_value_ptr & stream,
-                 const vector<value_ptr> & offset,
+                 const vector<scalar_value> & offset,
                  const vector<int> & size ):
         m_source(stream)
     {
@@ -143,12 +143,9 @@ struct slice_value : public abstract_stream_value
         }
     }
 
-    virtual llvm::Value *get( llvm::IRBuilder<> & builder )
-    {
-        return m_source->get(builder);
-    }
+    llvm::Value *data() const { return m_source->data(); }
 
-    virtual llvm::Value *get_at( const vector<value_ptr> & index,
+    virtual llvm::Value *at( const vector<scalar_value> & index,
                                  llvm::IRBuilder<> & builder );
 
     int dimensions() { return m_size.size(); }
@@ -157,8 +154,8 @@ struct slice_value : public abstract_stream_value
 
 private:
     stream_value_ptr m_source;
-    vector<value_ptr> m_preoffset;
-    vector<value_ptr> m_offset;
+    vector<scalar_value> m_preoffset;
+    vector<scalar_value> m_offset;
     vector<int> m_size;
 };
 
@@ -188,21 +185,18 @@ struct transpose_value : public abstract_stream_value
     int size( int dimension ) { return m_source->size(m_map[dimension]); }
     vector<int> size() { return m_source->size(); }
 
-    virtual llvm::Value *get( llvm::IRBuilder<> & builder )
-    {
-        return m_source->get(builder);
-    }
+    llvm::Value *data() const { return m_source->data(); }
 
-    virtual llvm::Value *get_at( const vector<value_ptr> & index,
+    virtual llvm::Value *at( const vector<scalar_value> & index,
                                  llvm::IRBuilder<> & builder )
     {
         assert(index.size() == m_map.size());
-        vector<value_ptr> transposed_index(index.size());
+        vector<scalar_value> transposed_index(index.size());
         for (int dim = 0; dim < index.size(); ++dim)
         {
             transposed_index[m_map[dim]] = index[dim];
         }
-        return m_source->get_at(transposed_index, builder);
+        return m_source->at(transposed_index, builder);
     }
 
 private:
@@ -320,22 +314,22 @@ private:
     value_ptr process_iteration( const ast::node_ptr &, const value_ptr & );
     value_ptr process_reduction( const ast::node_ptr &, const value_ptr & );
 
-    void generate_iteration( const value_ptr & from,
-                             const value_ptr & to,
-                             std::function<void(const value_ptr &)> );
+    void generate_iteration( const scalar_value & from,
+                             const scalar_value & to,
+                             std::function<void(const scalar_value &)> );
 
     void generate_iteration( int from,
                              int to,
-                             std::function<void(const value_ptr &)> );
+                             std::function<void(const scalar_value &)> );
 
     void generate_iteration( const vector<int> range,
-                             std::function<void(const vector<value_ptr> &)>,
-                             const vector<value_ptr> & index = vector<value_ptr>() );
+                             std::function<void(const vector<scalar_value> &)>,
+                             const vector<scalar_value> & index = vector<scalar_value>() );
 
     void generate_store( const value_ptr & dst, const value_ptr & src );
 
     value_ptr slice_stream( const stream_value_ptr &,
-                            const vector<value_ptr> & offset,
+                            const vector<scalar_value> & offset,
                             const vector<int> & size = vector<int>() );
 
     stream_value_ptr allocate_stream( const vector<int> & size );
