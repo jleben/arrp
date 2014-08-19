@@ -330,7 +330,17 @@ for_spec_list:
 for_spec:
   for_iterator for_size for_hop IN for_domain
   {
-    $$ = new ast::list_node( ast::for_iteration, $1->line, {$1,$2,$3,$5} );
+    int line;
+    if ($1)
+      line = $1->line;
+    else if ($2)
+      line = $2->line;
+    else if ($3)
+      line = $3->line;
+    else
+      line = $5->line;
+
+    $$ = new ast::list_node( ast::for_iteration, line, {$1,$2,$3,$5} );
   }
 ;
 
