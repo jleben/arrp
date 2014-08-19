@@ -142,14 +142,14 @@ struct slice_value : public abstract_stream_value
         }
         while(dim < size.size())
         {
-            //std::cout << "offset." << endl;
+            //std::cout << "offset: ? / size: " << size[dim] << endl;
             m_offset.push_back(offset[dim]);
-            m_size.push_back(size.size());
+            m_size.push_back(size[dim]);
             ++dim;
         }
         while(dim < stream->dimensions())
         {
-            //std::cout << "offset." << endl;
+            //std::cout << "post-offset" << endl;
             m_size.push_back(stream->size(dim));
             ++dim;
         }

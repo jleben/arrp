@@ -791,35 +791,43 @@ value_ptr generator::process_slice( const ast::node_ptr & root )
     vector<int> slice_size;
     slice_offset.reserve(range_count);
     slice_size.reserve(range_count);
-    bool is_scalar = range_count == src_stream->dimensions();
+
     int dim = 0;
     for( const auto & range_node : range_list->elements )
     {
-        value_ptr range = process_expression(range_node);
-        if (scalar_value *s = dynamic_cast<scalar_value*>(range.get()))
+        const type_ptr & range_type = range_node->semantic_type;
+        switch(range_type->get_tag())
         {
+        case type::integer_num:
+        {
+            value_ptr range = process_expression(range_node);
+            scalar_value *scalar = dynamic_cast<scalar_value*>(range.get());
+            assert(scalar);
             llvm::Value *normalized_index =
-                    m_builder.CreateSub( s->data(), get_int32(1) );
+                    m_builder.CreateSub( scalar->data(), get_int32(1) );
             slice_offset.emplace_back(normalized_index);
             slice_size.push_back(1);
+            break;
         }
-        else
+        case type::range:
         {
-            is_scalar = false;
-            throw error("Range slices not supported.");
+            range & r = range_type->as<range>();
+            assert(r.is_constant());
+            int start = r.const_start();
+            int size = r.const_size();
+            assert(start >= 1);
+            assert(size >= 1);
+            llvm::Value *index = get_int32(start - 1);
+            slice_offset.emplace_back(index);
+            slice_size.push_back(size);
+            break;
+        }
+        default:
+            assert(false);
         }
     }
 
-    if (is_scalar)
-    {
-        llvm::Value *val_ptr = src_stream->at(slice_offset, m_builder);
-        llvm::Value *val = m_builder.CreateLoad(val_ptr);
-        return make_shared<scalar_value>( val );
-    }
-    else
-    {
-        return make_shared<slice_value>( src_stream, slice_offset, slice_size );
-    }
+    return slice_stream(src_stream, slice_offset, slice_size);
 }
 
 value_ptr generator::process_iteration( const ast::node_ptr & node,
