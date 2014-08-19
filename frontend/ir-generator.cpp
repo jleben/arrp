@@ -827,7 +827,13 @@ value_ptr generator::process_slice( const ast::node_ptr & root )
         }
     }
 
-    return slice_stream(src_stream, slice_offset, slice_size);
+    value_ptr slice = slice_stream(src_stream, slice_offset, slice_size);
+    if (scalar_value *scalar = dynamic_cast<scalar_value*>(slice.get()))
+    {
+        llvm::Value *slice_value = m_builder.CreateLoad( scalar->data() );
+        slice = make_shared<scalar_value>(slice_value);
+    }
+    return slice;
 }
 
 value_ptr generator::process_iteration( const ast::node_ptr & node,
