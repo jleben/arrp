@@ -677,7 +677,7 @@ value_ptr generator::process_binop( const ast::node_ptr & root,
                 }
                 else
                 {
-                    stream_value *strm = dynamic_cast<stream_value*>(val.get());
+                    abstract_stream_value *strm = dynamic_cast<abstract_stream_value*>(val.get());
                     assert(strm);
                     operand = m_builder.CreateLoad( strm->at(stream_index, m_builder) );
                 }
@@ -721,7 +721,7 @@ value_ptr generator::process_extent( const ast::node_ptr & node )
     const auto & dim_node = list->elements[1];
 
     value_ptr object = process_expression(object_node);
-    stream_value *object_stream = dynamic_cast<stream_value*>(object.get());
+    abstract_stream_value *object_stream = dynamic_cast<abstract_stream_value*>(object.get());
     assert(object_stream);
 
     int dim = 0;
