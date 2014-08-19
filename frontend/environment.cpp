@@ -304,16 +304,17 @@ void environment_builder::process_expr( const sp<ast::node> & root )
         for (const auto & domain : domain_list->elements )
         {
             ast::list_node *domain_elems = domain->as_list();
-            const string & id = domain_elems->elements[0]->as_leaf<string>()->value;
+            const auto & id = domain_elems->elements[0];
             const auto & size = domain_elems->elements[1];
             const auto & hop = domain_elems->elements[2];
             const auto & source = domain_elems->elements[3];
+            if (id)
+                ids.push_back(id->as_leaf<string>()->value);
             if (size)
                 process_expr(size);
             if (hop)
                 process_expr(hop);
             process_expr(source);
-            ids.push_back(id);
         }
         context_type::scope_holder iteration_scope(m_ctx);
         for (const auto & id : ids )
