@@ -411,8 +411,6 @@ void generator::process_stmt( const ast::node_ptr & root )
 
 value_ptr generator::process_expression( const ast::node_ptr & root, const value_ptr & result_space )
 {
-    //result_stacker result_spacer(m_result_stack, result_space);
-
     value_ptr result;
 
     switch(root->type)

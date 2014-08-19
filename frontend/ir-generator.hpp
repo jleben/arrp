@@ -104,25 +104,6 @@ private:
     llvm::Value *m_data;
 };
 
-#if 0
-struct index_value : public value
-{
-    index_value( const stream_value_ptr & stream,
-                 const vector<value_ptr> & index ):
-        stream(stream),
-        index(index)
-    {}
-
-    virtual llvm::Value *get( llvm::IRBuilder<> & builder )
-    {
-        return stream->get_at( index, builder );
-    }
-
-    stream_value_ptr stream;
-    vector<value_ptr> index;
-};
-#endif
-
 struct slice_value : public abstract_stream_value
 {
     slice_value( const stream_value_ptr & stream,
@@ -306,11 +287,6 @@ private:
                                   const value_ptr & result_space,
                                   context::scope_iterator scope);
 
-#if 0
-    type_ptr process_function( const type_ptr & func,
-                               const vector<type_ptr> & args,
-                               context::scope_iterator scope );
-#endif
     value_ptr process_block( const ast::node_ptr &, const value_ptr & = value_ptr() );
     void process_stmt_list( const ast::node_ptr & );
     void process_stmt( const ast::node_ptr & );
