@@ -320,7 +320,7 @@ private:
     value_ptr process_call( const ast::node_ptr &, const value_ptr & );
     value_ptr process_binop( const ast::node_ptr &, const value_ptr & );
     value_ptr process_range( const ast::node_ptr & );
-    //value_ptr process_extent( const ast::node_ptr & );
+    value_ptr process_extent( const ast::node_ptr & );
     value_ptr process_transpose( const ast::node_ptr & );
     value_ptr process_slice( const ast::node_ptr & );
     value_ptr process_iteration( const ast::node_ptr &, const value_ptr & );

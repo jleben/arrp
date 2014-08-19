@@ -451,12 +451,12 @@ value_ptr generator::process_expression( const ast::node_ptr & root, const value
     case ast::range:
         result = process_range(root);
         break;
-#if 0
     case ast::hash_expression:
-        return process_extent(root);
-#endif
+        result = process_extent(root);
+        break;
     case ast::transpose_expression:
-        return process_transpose(root);
+        result = process_transpose(root);
+        break;
     case ast::slice_expression:
         result = process_slice(root);
         break;
@@ -711,6 +711,34 @@ value_ptr generator::process_binop( const ast::node_ptr & root,
 
         return result_stream;
     }
+}
+
+value_ptr generator::process_extent( const ast::node_ptr & node )
+{
+    assert(node->type == ast::hash_expression);
+    ast::list_node *list = node->as_list();
+    const auto & object_node = list->elements[0];
+    const auto & dim_node = list->elements[1];
+
+    value_ptr object = process_expression(object_node);
+    stream_value *object_stream = dynamic_cast<stream_value*>(object.get());
+    assert(object_stream);
+
+    int dim = 0;
+    if (dim_node)
+    {
+        const type_ptr & dim_type = dim_node->semantic_type;
+        assert(dim_type);
+        assert(dim_type->is(type::integer_num));
+        integer_num & dim_int = dim_type->as<integer_num>();
+        assert(dim_int.is_constant());
+        dim = dim_int.constant_value() - 1;
+    }
+
+    assert(dim >= 0 && dim < object_stream->dimensions());
+    int stream_size = object_stream->size(dim);
+
+    return make_shared<scalar_value>(get_int32(stream_size));
 }
 
 value_ptr generator::process_transpose( const ast::node_ptr & root )
