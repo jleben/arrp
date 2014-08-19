@@ -93,10 +93,16 @@ type_ptr type_checker::check( const symbol & sym, const vector<type_ptr> & args 
     try
     {
         type_ptr sym_type = symbol_type(sym);
-        if (args.size())
+        switch(sym_type->get_tag())
+        {
+        case type::function:
+        case type::builtin_unary_func:
+        case type::builtin_binary_func:
             result_type = process_function(sym_type, args, m_root_scope).second;
-        else
+            break;
+        default:
             result_type = sym_type;
+        }
     }
     catch (type_error & e)
     {
