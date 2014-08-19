@@ -47,6 +47,18 @@ private:
     llvm::Value *d;
 };
 
+struct range_value : public value
+{
+    range_value( llvm::Value *start, llvm::Value *end ):
+        m_start(start), m_end(end)
+    {}
+    llvm::Value *start() const { return m_start; }
+    llvm::Value *end() const { return m_end; }
+private:
+    llvm::Value *m_start;
+    llvm::Value *m_end;
+};
+
 struct abstract_stream_value : public value
 {
     virtual int dimensions() = 0;
@@ -307,7 +319,7 @@ private:
     process_identifier( const ast::node_ptr & );
     value_ptr process_call( const ast::node_ptr &, const value_ptr & );
     value_ptr process_binop( const ast::node_ptr &, const value_ptr & );
-    //value_ptr process_range( const ast::node_ptr & );
+    value_ptr process_range( const ast::node_ptr & );
     //value_ptr process_extent( const ast::node_ptr & );
     value_ptr process_transpose( const ast::node_ptr & );
     value_ptr process_slice( const ast::node_ptr & );
@@ -345,6 +357,10 @@ private:
     {
         return llvm::ConstantInt::getSigned(llvm::Type::getInt32Ty(llvm_context()), value);
     }
+
+    llvm::Value *generate_sign(llvm::Value*);
+
+    llvm::Value *range_at( const range_value &, const scalar_value & index);
 
     environment & m_env;
     context m_ctx;
