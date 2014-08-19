@@ -623,6 +623,7 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
         {
         case type::integer_num:
         {
+            // TODO: Range checking? Required a constant.
             result_type.size[dim] = 1;
             break;
         }
@@ -635,9 +636,13 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
                 r.end = make_shared<integer_num>(result_type.size[dim]);
             if (!r.is_constant())
                 throw source_error("Non-constant slice size not supported.", range_node->line);
-            int size = r.const_size();
+            int start = r.const_start();
+            int end = r.const_end();
+            int size = end - start + 1;
             if (size < 1)
-                throw source_error("Invalid slice size: less than 1.", range_node->line);
+                throw source_error("Invalid slice range: size less than 1.", range_node->line);
+            if (start < 1 || end > result_type.size[dim])
+                throw source_error("Invalid slice range: out of bounds.", range_node->line);
             result_type.size[dim] = size;
             break;
         }
