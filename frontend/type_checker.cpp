@@ -477,16 +477,56 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     ast::list_node *expr = root->as_list();
     type_ptr lhs_type = process_expression(expr->elements[0]);
     type_ptr rhs_type = process_expression(expr->elements[1]);
-    try {
-        return builtin_binary_func_type(lhs_type, rhs_type);
-    }
-    catch (type_error & e)
+
+    vector<int> lhs_size;
+    vector<int> rhs_size;
+
+    auto reduce_type = [&]( const type_ptr & t, vector<int> & size ) -> type_ptr
     {
-        ostringstream msg;
-        msg << "In application of binary operator: "
-            << e.what();
-        throw source_error(msg.str(), root->line);
+        switch(t->get_tag())
+        {
+        case type::range:
+        {
+            range & r = t->as<range>();
+            if (!r.is_constant())
+                throw source_error("Invalid range.", root->line);
+            size = { r.const_size() };
+            return make_shared<integer_num>();
+        }
+        case type::stream:
+        {
+            stream & s = t->as<stream>();
+            size = s.size;
+            return make_shared<real_num>();
+        }
+        default:
+            return t;
+        }
+    };
+
+    lhs_type = reduce_type(lhs_type, lhs_size);
+    rhs_type = reduce_type(rhs_type, rhs_size);
+
+    if (lhs_size.empty() && rhs_size.empty())
+    {
+        if (lhs_type->is(type::integer_num) && rhs_type->is(type::integer_num))
+            return make_shared<integer_num>();
+        else
+            return make_shared<real_num>();
     }
+
+    if (!lhs_size.empty() && !rhs_size.empty() && lhs_size != rhs_size)
+    {
+        ostringstream text;
+        text << "Binary operator (" << root->type << "): "
+             << "Operand size mismatch.";
+        throw source_error(text.str(), root->line);
+    }
+
+    if (!lhs_size.empty())
+        return make_shared<stream>(lhs_size);
+    else
+        return make_shared<stream>(rhs_size);
 }
 
 type_ptr type_checker::process_range( const sp<ast::node> & root )
