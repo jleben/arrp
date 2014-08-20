@@ -144,12 +144,12 @@ struct range : public tagged_type<type::range>
 
     bool start_is_constant()
     {
-        return !start || start->as<semantic::integer_num>().is_constant();
+        return start && start->as<semantic::integer_num>().is_constant();
     }
 
     bool end_is_constant()
     {
-        return !end || end->as<semantic::integer_num>().is_constant();
+        return end && end->as<semantic::integer_num>().is_constant();
     }
 
     bool is_constant()
