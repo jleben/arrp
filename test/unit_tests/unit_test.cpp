@@ -1,5 +1,10 @@
 #include "unit_test.hpp"
 
+#include "../../frontend/parser.h"
+#include "../../frontend/environment.hpp"
+#include "../../frontend/type_checker.hpp"
+#include "../../frontend/ir-generator.hpp"
+
 #include <sstream>
 
 using namespace std;

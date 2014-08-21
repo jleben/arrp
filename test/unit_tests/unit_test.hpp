@@ -1,10 +1,9 @@
 #ifndef STREAM_LANG_UNIT_TEST_INCLUDED
 #define STREAM_LANG_UNIT_TEST_INCLUDED
 
-#include "../../frontend/parser.h"
+#include "../../frontend/types.hpp"
+#include "../../frontend/ast.hpp"
 #include "../../frontend/environment.hpp"
-#include "../../frontend/type_checker.hpp"
-#include "../../frontend/ir-generator.hpp"
 
 namespace stream {
 namespace unit_test {
