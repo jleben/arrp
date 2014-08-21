@@ -6,3 +6,5 @@ compile_stream_func( matrix_mul_kernel
 
 add_executable( test-matrix-mult EXCLUDE_FROM_ALL
   test-matrix-mult.cpp ${matrix_mul_kernel} )
+
+add_subdirectory(unit_tests)

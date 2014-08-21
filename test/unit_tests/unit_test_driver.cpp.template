@@ -1,0 +1,7 @@
+#include "@test_header@"
+
+int main()
+{
+    bool ok = @test_function@();
+    return ok ? 0 : 1;
+}
