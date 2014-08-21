@@ -42,8 +42,6 @@ private:
 
     type_ptr symbol_type( const symbol & sym, const vector<type_ptr> & args );
     type_ptr symbol_type( const symbol & sym );
-    type_ptr builtin_unary_func_type(const type_ptr & arg );
-    type_ptr builtin_binary_func_type(const type_ptr & arg1, const type_ptr & arg2 );
 
     pair<type_ptr, func_type_ptr>
     process_function( const func_type_ptr & func,
