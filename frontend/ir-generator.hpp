@@ -14,6 +14,7 @@
 #include <vector>
 #include <list>
 #include <stack>
+#include <unordered_map>
 #include <cassert>
 #include <utility>
 #include <functional>
@@ -27,6 +28,7 @@ using std::vector;
 using std::pair;
 using std::stack;
 using std::list;
+using std::unordered_map;
 using std::size_t;
 
 struct scalar_value;
@@ -243,16 +245,26 @@ struct function_item : public context_item
     virtual type_flag type() { return function; }
 };
 
-struct builtin_math : public function_item
+struct builtin_func_item : public function_item
 {
-    builtin_math(string name, bool binary):
-        name(name), is_binary(binary), m_func(nullptr)
-    {}
-    string name;
-    bool is_binary;
-    llvm::Value *get(llvm::Module&);
-private:
-    llvm::Value *m_func;
+    struct overload
+    {
+        overload(const string & name, llvm::FunctionType *type):
+            name(name), type(type), func(nullptr) {}
+        string name;
+        llvm::FunctionType *type;
+        llvm::Function *func;
+    };
+
+    builtin_func_item() {}
+
+    void add_overload( const function_signature & signature,
+                       const string & name, llvm::FunctionType *type )
+    {
+        m_overloads.emplace(signature, overload(name, type));
+    }
+
+    unordered_map<function_signature, overload> m_overloads;
 };
 
 struct user_func_item : public function_item
@@ -282,10 +294,6 @@ private:
     llvm::Type *llvm_type( const type_ptr & type );
     context_item_ptr item_for_symbol( const symbol & sym,
                                       const value_ptr & = value_ptr() );
-    value_ptr value_for_function( function_item *,
-                                  const vector<value_ptr> & args,
-                                  const value_ptr & result_space,
-                                  context::scope_iterator scope);
 
     value_ptr process_block( const ast::node_ptr &, const value_ptr & = value_ptr() );
     void process_stmt_list( const ast::node_ptr & );
@@ -301,6 +309,20 @@ private:
     value_ptr process_slice( const ast::node_ptr & );
     value_ptr process_iteration( const ast::node_ptr &, const value_ptr & );
     value_ptr process_reduction( const ast::node_ptr &, const value_ptr & );
+
+    value_ptr generate_call( user_func_item *func,
+                             const vector<value_ptr> & args,
+                             const value_ptr & result_space,
+                             context::scope_iterator scope );
+
+    value_ptr generate_call( llvm::Function *func,
+                             const vector<value_ptr> & args,
+                             const type_ptr & result_type,
+                             const value_ptr & result_space );
+
+    scalar_value generate_call( llvm::Function *func,
+                                const vector<scalar_value> & args,
+                                type::tag result_type );
 
     void generate_iteration( const scalar_value & from,
                              const scalar_value & to,
@@ -337,6 +359,9 @@ private:
     llvm::Value *generate_sign(llvm::Value*);
 
     llvm::Value *range_at( const range_value &, const scalar_value & index);
+
+    llvm::Function *function_for( builtin_func_item *,
+                                  const function_signature & );
 
     environment & m_env;
     context m_ctx;

@@ -39,38 +39,7 @@ private:
 };
 
 environment::environment()
-{
-    vector<string> builtin_unary_math_names = {
-        "log",
-        "sqrt",
-        "exp",
-        "sin",
-        "cos",
-        "tan",
-        "asin",
-        "acos",
-        "atan",
-        "ceil",
-        "floor",
-        "abs"
-    };
-
-    vector<string> builtin_binary_math_names = {
-        "max"
-    };
-
-    for ( const auto & name : builtin_unary_math_names )
-    {
-        symbol sym(symbol::builtin_unary_math, name);
-        emplace(name, sym);
-    }
-
-    for ( const auto & name : builtin_binary_math_names )
-    {
-        symbol sym(symbol::builtin_binary_math, name);
-        emplace(name, sym);
-    }
-}
+{}
 
 std::ostream & operator<<(std::ostream & s, const environment & env)
 {
@@ -93,6 +62,38 @@ std::ostream & operator<<(std::ostream & s, const environment & env)
             s << ")";
         }
         s << std::endl;
+    }
+}
+
+environment_builder::environment_builder(environment &env):
+    m_env(env),
+    m_has_error(false)
+{
+    m_ctx.enter_scope();
+
+    vector<string> builtin_func_names = {
+        "log",
+        "log2",
+        "log10",
+        "exp",
+        "exp2",
+        "pow",
+        "sqrt",
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
+        "ceil",
+        "floor",
+        "abs",
+        "max"
+    };
+
+    for ( const auto & name : builtin_func_names )
+    {
+        m_ctx.bind(name, dummy());
     }
 }
 
@@ -175,7 +176,7 @@ void environment_builder::process_stmt( const sp<ast::node> & root )
 
     m_ctx.exit_scope();
 
-    if (m_ctx.level() > 0)
+    if (m_ctx.level() > 1)
     {
         try
         {

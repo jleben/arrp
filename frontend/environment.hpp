@@ -23,9 +23,7 @@ struct symbol
     enum symbol_type
     {
         expression,
-        function,
-        builtin_unary_math,
-        builtin_binary_math
+        function
     };
 
     //symbol() {}
@@ -54,10 +52,7 @@ std::ostream & operator<<(std::ostream & s, const environment & env);
 class environment_builder
 {
 public:
-    environment_builder(environment &env):
-        m_env(env),
-        m_has_error(false)
-    {}
+    environment_builder(environment &env);
 
     bool process( const ast::node_ptr & source );
 

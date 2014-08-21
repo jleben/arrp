@@ -45,8 +45,8 @@ private:
     type_ptr builtin_unary_func_type(const type_ptr & arg );
     type_ptr builtin_binary_func_type(const type_ptr & arg1, const type_ptr & arg2 );
 
-    pair<type_ptr, type_ptr>
-    process_function( const type_ptr & func,
+    pair<type_ptr, func_type_ptr>
+    process_function( const func_type_ptr & func,
                       const vector<type_ptr> & args,
                       context_type::scope_iterator scope );
     type_ptr process_block( const sp<ast::node> & );
@@ -83,7 +83,6 @@ private:
 
     environment & m_env;
     context_type m_ctx;
-    context_type::scope_iterator m_root_scope;
 
     int m_func_counter;
     bool m_has_error;

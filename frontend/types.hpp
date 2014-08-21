@@ -3,8 +3,10 @@
 
 #include <string>
 #include <vector>
+#include <list>
 #include <iostream>
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <cassert>
 #include <initializer_list>
@@ -20,6 +22,7 @@ namespace semantic {
 
 using std::string;
 using std::vector;
+using std::list;
 using std::ostream;
 template <typename T> using sp = std::shared_ptr<T>;
 template <typename T> using up = std::unique_ptr<T>;
@@ -39,8 +42,8 @@ struct type
         stream,
         iterator,
         function,
-        builtin_unary_func,
-        builtin_binary_func
+        builtin_function,
+        builtin_function_group
     };
 
     type(tag t): m_tag(t) {}
@@ -227,9 +230,19 @@ struct iterator : public tagged_type<type::iterator>
     type_ptr value_type;
 };
 
-struct function : public tagged_type<type::function>
+struct abstract_function : public type
 {
+    abstract_function(type::tag t):
+        type(t)
+    {}
+
     string name;
+};
+
+struct function : public abstract_function
+{
+    function(): abstract_function(type::function) {}
+    //string name;
     vector<string> parameters;
     ast::node_ptr statement_list;
     ast::node_ptr statement;
@@ -240,13 +253,96 @@ struct function : public tagged_type<type::function>
     virtual void print_on( ostream & s ) const;
 };
 
-struct node
+struct function_signature
 {
-    ast::node_ptr ast_node;
-    type_ptr type;
+    function_signature() {}
+    function_signature( const vector<type::tag> & parameters, type::tag result ):
+        result(result), parameters(parameters)
+    {}
+    bool operator==(const function_signature & other) const
+    {
+        return result == other.result && parameters == other.parameters;
+    }
+
+    type::tag result;
+    vector<type::tag> parameters;
 };
+
+struct builtin_function : public abstract_function
+{
+    builtin_function(): abstract_function(type::builtin_function) {}
+    //string name;
+    function_signature signature;
+};
+
+struct builtin_function_group : public abstract_function
+{
+    builtin_function_group(): abstract_function(type::builtin_function_group) {}
+    //string name;
+    vector<function_signature> overloads;
+};
+
+using func_type_ptr = std::shared_ptr<abstract_function>;
+
+#if 0
+    virtual void print_on( ostream & s ) const
+    {
+        s << name;
+        if (overloads.size() == 1)
+        {
+            auto & types = overloads[0];
+            int i = 0;
+            s << "(";
+            for (int i = 0; i < types.size() - 1; ++i)
+            {
+                if (i > 0)
+                    s << ", ";
+                s << *types[i];
+            }
+            s << ")";
+            s << " -> " << *types.back();
+        }
+        else
+        {
+            s << "<overloaded>";
+        }
+    }
+#endif
 
 } // namespace semantic
 } // namespace stream
+
+namespace std {
+
+template<> struct hash<stream::semantic::function_signature>
+{
+    std::size_t operator()( const stream::semantic::function_signature & signature ) const
+    {
+        using namespace stream::semantic;
+        string key;
+        key.reserve(3);
+
+        auto tag_to_key = []( const type::tag &tag, string & key )
+        {
+            switch(tag)
+            {
+            case type::integer_num:
+                key.push_back('i'); break;
+            case type::real_num:
+                key.push_back('r'); break;
+            default:
+                assert(false);
+            }
+        };
+
+        tag_to_key(signature.result, key);
+        for (const auto & tag : signature.parameters)
+            tag_to_key(tag, key);
+
+        return hash<string>()(key);
+    }
+};
+
+}
 
 #endif // STREAM_LANG_TYPES_INCLUDED

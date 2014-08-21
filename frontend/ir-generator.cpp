@@ -21,28 +21,67 @@ generator::generator(const string & module_name, environment &env):
 {
     m_ctx.enter_scope();
 
-    vector<string> c_unary_math_names = {
-        "log",
-        "sqrt",
-        "exp",
-        "sin",
-        "cos",
-        "tan",
-        "asin",
-        "acos",
-        "atan",
-        "ceil",
-        "floor"
-    };
+    llvm::Type *double_type = llvm::Type::getDoubleTy(llvm_context());
+    llvm::Type *int_type = llvm::Type::getInt32Ty(llvm_context());
+    vector<llvm::Type*> double2_type = {double_type, double_type};
 
-    for (const string & name : c_unary_math_names)
+    llvm::FunctionType *dd_type = llvm::FunctionType::get(double_type, double_type, false);
+    llvm::FunctionType *ddd_type = llvm::FunctionType::get(double_type, double2_type, false);
+    llvm::FunctionType *ii_type = llvm::FunctionType::get(int_type, int_type, false);
     {
-        m_ctx.bind(name, make_shared<builtin_math>(name,false));
+        vector<string> names = {
+            "log",
+            "log2",
+            "log10",
+            "exp",
+            "exp2",
+            "sqrt",
+            "sin",
+            "cos",
+            "tan",
+            "asin",
+            "acos",
+            "atan"
+        };
+        for (const string & name : names)
+        {
+            builtin_func_item *item = new builtin_func_item;
+            item->add_overload(function_signature({type::real_num},type::real_num),
+                               name, dd_type);
+            m_ctx.bind(name, context_item_ptr(item));
+        }
     }
-
-    m_ctx.bind("abs", make_shared<builtin_math>("fabs",false));
-
-    m_ctx.bind("max", make_shared<builtin_math>("fmax",true));
+    {
+        builtin_func_item *item = new builtin_func_item;
+        item->add_overload(function_signature({type::real_num,type::real_num},type::real_num),
+                           "pow", ddd_type);
+        item->add_overload(function_signature({type::integer_num,type::integer_num},type::integer_num),
+                           "pow", ddd_type);
+        m_ctx.bind("pow", context_item_ptr(item));
+    }
+    for (const string & name : {"ceil", "floor"})
+    {
+        builtin_func_item *item = new builtin_func_item;
+        item->add_overload(function_signature({type::real_num},type::integer_num),
+                           name, dd_type);
+        m_ctx.bind(name, context_item_ptr(item));
+    }
+    {
+        builtin_func_item *item = new builtin_func_item;
+        item->add_overload(function_signature({type::real_num},type::real_num),
+                           "fabs", dd_type);
+        item->add_overload(function_signature({type::integer_num},type::integer_num),
+                           "abs", ii_type);
+        m_ctx.bind("abs", context_item_ptr(item));
+    }
+    {
+        builtin_func_item *item = new builtin_func_item;
+        item->add_overload(function_signature({type::real_num,type::real_num},type::real_num),
+                           "fmax", ddd_type);
+        item->add_overload(function_signature({type::integer_num,type::integer_num},type::integer_num),
+                           "fmax", ddd_type);
+        m_ctx.bind("max", context_item_ptr(item));
+    }
 }
 
 void generator::generate( const symbol & sym,
@@ -107,10 +146,10 @@ void generator::generate( const symbol & sym,
 
     if (inputs.size())
     {
-        if (item->type() != context_item::function)
-            throw error("Should not happen.");
-        function_item *func_item = item->as_function();
-        value_ptr result = value_for_function(func_item, inputs, output, m_ctx.root_scope());
+        user_func_item *func = dynamic_cast<user_func_item*>(item.get());
+        assert(func);
+        value_ptr result =
+                generate_call(func, inputs, output, m_ctx.root_scope());
     }
 
     m_builder.CreateRetVoid();
@@ -206,148 +245,10 @@ context_item_ptr generator::item_for_symbol( const symbol & sym,
         assert(item->f);
         return context_item_ptr(item);
     }
-    case symbol::builtin_unary_math:
-    case symbol::builtin_binary_math:
-    {
-        return m_ctx.find(sym.name).value();
-    }
     default:
         assert(false);
     }
     return context_item_ptr();
-}
-
-llvm::Value *builtin_math::get(llvm::Module& module)
-{
-    if (m_func)
-        return m_func;
-
-    llvm::Type *double_type = llvm::Type::getDoubleTy(module.getContext());
-    llvm::FunctionType *func_type;
-    if (is_binary)
-    {
-        vector<llvm::Type*> double_types = {double_type, double_type};
-        func_type = llvm::FunctionType::get(double_type, double_types, false);
-    }
-    else
-    {
-        func_type = llvm::FunctionType::get(double_type, double_type, false);
-    }
-
-    m_func = llvm::Function::Create(func_type,
-                                  llvm::Function::ExternalLinkage,
-                                  name,
-                                  &module);
-
-    return m_func;
-}
-
-value_ptr generator::value_for_function(function_item *func,
-                                        const vector<value_ptr> & args,
-                                        const value_ptr & result_space,
-                                        context::scope_iterator scope)
-{
-    if (user_func_item *user_func = dynamic_cast<user_func_item*>(func))
-    {
-        function & f = *user_func->f;
-        assert(f.parameters.size() == args.size());
-
-        context::scope_holder func_scope(m_ctx, scope);
-        for (int i = 0; i < args.size(); ++i)
-            m_ctx.bind(f.parameters[i],
-                       make_shared<value_item>(args[i]));
-
-        return process_block(f.expression(), result_space);
-    }
-    else if (builtin_math *math_func = dynamic_cast<builtin_math*>(func))
-    {
-        int param_count = math_func->is_binary ? 2 : 1;
-        assert(args.size() == param_count);
-
-        llvm::Type *double_type = llvm::Type::getDoubleTy(llvm_context());
-        llvm::Type *int_type = llvm::Type::getInt32Ty(llvm_context());
-
-        if (scalar_value *scalar1 = dynamic_cast<scalar_value*>(args[0].get()))
-        {
-            vector<llvm::Value*> arg_values;
-
-            llvm::Value *v1 = scalar1->data();
-            if (v1->getType() == int_type)
-                v1 = m_builder.CreateSIToFP(v1, double_type);
-            arg_values.push_back(v1);
-
-            if (math_func->is_binary)
-            {
-                scalar_value *scalar2 = dynamic_cast<scalar_value*>(args[1].get());
-                assert(scalar2);
-                llvm::Value *v2 = scalar2->data();
-                if (v2->getType() == int_type)
-                    v2 = m_builder.CreateSIToFP(v2, double_type);
-                arg_values.push_back(v2);
-            }
-
-            llvm::Value *result_val =
-                    m_builder.CreateCall(math_func->get(m_module), arg_values);
-            value_ptr result = make_shared<scalar_value>(result_val);
-            if (result_space)
-                generate_store(result_space, result);
-            return result;
-        }
-        else
-        {
-            stream_value_ptr stream1;
-            stream1 = dynamic_pointer_cast<abstract_stream_value>(args[0]);
-            assert(stream1);
-
-            stream_value_ptr stream2;
-            if (math_func->is_binary)
-            {
-                stream2 = dynamic_pointer_cast<abstract_stream_value>(args[1]);
-                assert(stream2);
-                assert(stream1->size() == stream2->size());
-            }
-
-            stream_value_ptr result_stream;
-            if (result_space)
-            {
-                result_stream = dynamic_pointer_cast<abstract_stream_value>(result_space);
-                assert(result_stream);
-            }
-            else
-            {
-                result_stream = allocate_stream(stream1->size());
-            }
-
-            auto action = [&]( const vector<scalar_value> & stream_idx )
-            {
-                vector<llvm::Value*> arg_values;
-                llvm::Value *v1 =
-                        m_builder.CreateLoad( stream1->at(stream_idx, m_builder) );
-                arg_values.push_back(v1);
-
-                if (stream2)
-                {
-                    llvm::Value *v2 =
-                            m_builder.CreateLoad( stream2->at(stream_idx, m_builder) );
-                    arg_values.push_back(v2);
-                }
-
-                llvm::Value *result_val =
-                        m_builder.CreateCall(math_func->get(m_module), arg_values);
-
-                m_builder.CreateStore( result_val,
-                                       result_stream->at(stream_idx, m_builder) );
-            };
-
-            generate_iteration(result_stream->size(), action);
-
-            return result_stream;
-        }
-    }
-
-    assert(false);
-
-    return stream_value_ptr();
 }
 
 value_ptr generator::process_block( const ast::node_ptr & root,
@@ -536,8 +437,183 @@ value_ptr generator::process_call( const ast::node_ptr & root, const value_ptr &
 
     // Process function
 
-    return value_for_function(ctx_item->as_function(), args, result_space, scope);
+    builtin_func_item *builtin_func = dynamic_cast<builtin_func_item*>(ctx_item.get());
+    if (builtin_func_item *builtin_func = dynamic_cast<builtin_func_item*>(ctx_item.get()))
+    {
+        assert(func_node->semantic_type->is(type::builtin_function));
+        builtin_function *builtin_func_type =
+                static_cast<builtin_function*>(func_node->semantic_type.get());
+        function_signature &func_signature = builtin_func_type->signature;
+
+        llvm::Function *func = function_for(builtin_func, func_signature);
+
+        type_ptr result_type = root->semantic_type;
+
+        return generate_call(func, args, result_type, result_space);
+    }
+    else if (user_func_item *f = dynamic_cast<user_func_item*>(ctx_item.get()))
+    {
+        return generate_call(f, args, result_space, scope);
+    }
+    else
+    {
+        throw std::runtime_error("Unexpected context item type.");
+    }
 }
+
+value_ptr generator::generate_call( user_func_item *user_func,
+                                    const vector<value_ptr> & args,
+                                    const value_ptr & result_space,
+                                    context::scope_iterator scope )
+{
+    function & f = *user_func->f;
+    assert(f.parameters.size() == args.size());
+
+    context::scope_holder func_scope(m_ctx, scope);
+    for (int i = 0; i < args.size(); ++i)
+        m_ctx.bind(f.parameters[i],
+                   make_shared<value_item>(args[i]));
+
+    return process_block(f.expression(), result_space);
+}
+
+value_ptr generator::generate_call( llvm::Function *func,
+                                    const vector<value_ptr> & args,
+                                    const type_ptr & result_type,
+                                    const value_ptr & result_space )
+{
+    if (result_type->is(type::stream))
+    {
+        // Allocate result stream
+
+        stream & result_stream_type = result_type->as<stream>();
+        stream_value_ptr result_stream =
+                dynamic_pointer_cast<abstract_stream_value>(result_space);
+        if (!result_stream)
+        {
+            result_stream = allocate_stream(result_stream_type.size);
+        }
+
+        // Generate iteration
+
+        auto scalar_action = [&]( const vector<scalar_value> & index )
+        {
+            // Reduce args to scalars
+
+            vector<scalar_value> scalar_args;
+
+            for(const value_ptr & arg : args)
+            {
+                if (abstract_stream_value * s =
+                        dynamic_cast<abstract_stream_value*>(arg.get()))
+                {
+                    llvm::Value *arg_address = s->at(index, m_builder);
+                    llvm::Value *arg_value = m_builder.CreateLoad(arg_address);
+                    scalar_args.push_back(arg_value);
+                }
+                else if (range_value * r =
+                         dynamic_cast<range_value*>(arg.get()))
+                {
+                    assert(index.size() == 1);
+                    scalar_args.push_back( range_at(*r, index[0]) );
+                }
+                else
+                {
+                    scalar_value *v =
+                            dynamic_cast<scalar_value*>(arg.get());
+                    assert(v);
+                    scalar_args.push_back( v->data() );
+                }
+            }
+
+            // Call
+
+            scalar_value result_value = generate_call(func, scalar_args,
+                                                      result_type->get_tag());
+
+            // Store result
+
+            llvm::Value * result_dst = result_stream->at(index, m_builder);
+            m_builder.CreateStore(result_value.data(), result_dst);
+        };
+
+        generate_iteration(result_stream_type.size, scalar_action);
+
+        return result_stream;
+    }
+    else
+    {
+        vector<scalar_value> scalar_args;
+        for (const auto & arg : args)
+        {
+            scalar_value *scalar_arg = dynamic_cast<scalar_value*>(arg.get());
+            assert(scalar_arg);
+            scalar_args.push_back(*scalar_arg);
+        }
+        scalar_value result_value = generate_call(func, scalar_args,
+                                                  result_type->get_tag());
+        value_ptr result = make_shared<scalar_value>(result_value);
+        if (result_space)
+        {
+            generate_store(result_space, result);
+            return result_space;
+        }
+        else
+            return result;
+    }
+}
+
+scalar_value generator::generate_call( llvm::Function *func,
+                                       const vector<scalar_value> & args,
+                                       type::tag result_type_tag )
+{
+    llvm::FunctionType *func_type = func->getFunctionType();
+
+    assert(func_type->getNumParams() == args.size());
+    vector<llvm::Value*> arg_values;
+    auto param_it = func_type->param_begin();
+    for (const auto & arg : args)
+    {
+        llvm::Value *arg_value = arg.data();
+        llvm::Type *param_type = *param_it;
+        if (arg_value->getType() != param_type)
+        {
+            arg_value = m_builder.CreateSIToFP(arg_value, param_type);
+        }
+        arg_values.push_back(arg_value);
+        ++param_it;
+    }
+
+    llvm::Value *result_value = m_builder.CreateCall(func, arg_values);
+
+    llvm::Type *result_type = func_type->getReturnType();
+    llvm::Type *int_type = llvm::Type::getInt32Ty(llvm_context());
+    if ( result_type_tag == type::integer_num &&
+         result_type != int_type )
+    {
+        result_value = m_builder.CreateFPToSI(result_value, int_type);
+    }
+
+    return scalar_value(result_value);
+}
+
+llvm::Function *generator::function_for( builtin_func_item *item,
+                                         const function_signature &signature )
+{
+    auto overload_it = item->m_overloads.find(signature);
+    assert(overload_it != item->m_overloads.end());
+    builtin_func_item::overload & overload = overload_it->second;
+    assert(overload.type);
+    if (!overload.func)
+    {
+        overload.func = llvm::Function::Create(overload.type,
+                                               llvm::Function::ExternalLinkage,
+                                               overload.name,
+                                               &m_module);
+    }
+    return overload.func;
+}
+
 
 value_ptr generator::process_range( const ast::node_ptr & node )
 {

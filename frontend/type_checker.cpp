@@ -77,32 +77,84 @@ type_checker::type_checker(environment &env):
     m_func_counter(0),
     m_has_error(false)
 {
+    m_ctx.enter_scope();
 
+    {
+        vector<string> names = {
+            "log",
+            "log2",
+            "log10",
+            "exp",
+            "exp2",
+            "sqrt",
+            "sin",
+            "cos",
+            "tan",
+            "asin",
+            "acos",
+            "atan"
+        };
+        for (const auto & name : names)
+        {
+            builtin_function_group * f = new builtin_function_group;
+            f->name = name;
+            f->overloads.push_back( function_signature({type::real_num}, type::real_num) );
+            m_ctx.bind(name, type_ptr(f));
+        }
+    }
+    {
+        vector<string> names = {
+            "ceil",
+            "floor"
+        };
+        for (const auto & name : names)
+        {
+            builtin_function_group * f = new builtin_function_group;
+            f->name = name;
+            f->overloads.push_back( function_signature({type::real_num}, type::integer_num) );
+            m_ctx.bind(name, type_ptr(f));
+        }
+    }
+    {
+        builtin_function_group * f = new builtin_function_group;
+        f->name = "abs";
+        f->overloads.push_back( function_signature({type::integer_num}, type::integer_num) );
+        f->overloads.push_back( function_signature({type::real_num}, type::real_num) );
+        m_ctx.bind(f->name, type_ptr(f));
+    }
+    {
+        vector<string> names = {
+            "max",
+            "pow"
+        };
+        for (const auto & name : names)
+        {
+            builtin_function_group * f = new builtin_function_group;
+            f->name = name;
+            f->overloads.push_back( function_signature({type::integer_num, type::integer_num},
+                                                       type::integer_num) );
+            f->overloads.push_back( function_signature({type::real_num, type::real_num},
+                                                       type::real_num) );
+            m_ctx.bind(f->name, type_ptr(f));
+        }
+    }
 }
 
 type_ptr type_checker::check( const symbol & sym, const vector<type_ptr> & args )
 {
     m_has_error = false;
 
-    context_type::scope_holder scope(m_ctx);
-
-    m_root_scope = m_ctx.current_scope();
-
     type_ptr result_type;
 
     try
     {
         type_ptr sym_type = symbol_type(sym);
-        switch(sym_type->get_tag())
-        {
-        case type::function:
-        case type::builtin_unary_func:
-        case type::builtin_binary_func:
-            result_type = process_function(sym_type, args, m_root_scope).second;
-            break;
-        default:
+
+        func_type_ptr func_type = dynamic_pointer_cast<abstract_function>(sym_type);
+        if (func_type)
+            result_type = process_function(func_type, args, m_ctx.root_scope()).second;
+        else
             result_type = sym_type;
-        }
     }
     catch (type_error & e)
     {
@@ -115,32 +167,8 @@ type_ptr type_checker::check( const symbol & sym, const vector<type_ptr> & args 
     catch (abort_error & e)
     {}
 
-    m_root_scope.clear();
-
     return result_type;
 }
-
-#if 0
-type_ptr type_checker::symbol_type( const symbol & sym, const vector<type_ptr> & args )
-{
-    switch(sym.type)
-    {
-    case symbol::expression:
-        return process_expression(sym.expression);
-    case symbol::function:
-        return process_function(sym.expression, sym.parameter_names, args,
-                                m_root_scope);
-    case symbol::builtin_unary_math:
-        if (args.size() != 1)
-            throw wrong_arg_count_error(1, arg.size());
-        return builtin_unary_func_type(args[0]);
-    case symbol::builtin_binary_math:
-        if (args.size() != 2)
-            throw wrong_arg_count_error(2, arg.size());
-        return builtin_binary_func_type(args[0], args[1]);
-    }
-}
-#endif
 
 type_ptr type_checker::symbol_type( const symbol & sym )
 {
@@ -153,7 +181,7 @@ type_ptr type_checker::symbol_type( const symbol & sym )
     {
     case symbol::expression:
     {
-        context_type::scope_holder(m_ctx, m_root_scope);
+        context_type::scope_holder(m_ctx, m_ctx.root_scope());
         type_ptr t = process_block(sym.source->as_list()->elements[2]);
         sym.source->semantic_type = t;
         return t;
@@ -168,32 +196,84 @@ type_ptr type_checker::symbol_type( const symbol & sym )
         sym.source->semantic_type = t;
         return t;
     }
-    case symbol::builtin_unary_math:
-        return make_shared<type>( type::builtin_unary_func );
-    case symbol::builtin_binary_math:
-        return make_shared<type>( type::builtin_binary_func );
     }
 }
 
-pair<type_ptr, type_ptr>
-type_checker::process_function( const type_ptr & func_type,
+const function_signature & overload_resolution
+(const vector<function_signature> & overloads, const vector<type::tag> & args)
+{
+    const function_signature * selected_candidate = nullptr;
+
+    for ( const function_signature & candidate : overloads )
+    {
+        if (candidate.parameters.size() != args.size())
+            continue;
+
+        bool ok = true;
+        bool perfect = true;
+        for (int p = 0; p < args.size(); ++p)
+        {
+            type::tag param = candidate.parameters[p];
+            type::tag arg = args[p];
+            if (param == arg)
+                continue;
+            perfect = false;
+            if (arg == type::integer_num && param == type::real_num)
+                continue;
+            ok = false;
+            break;
+        }
+        if (perfect)
+        {
+            selected_candidate = &candidate;
+            break;
+        }
+        else if (ok)
+        {
+            if (selected_candidate)
+                throw type_error("Ambiguous overloaded function call.");
+            else
+                selected_candidate = &candidate;
+        }
+    }
+
+    if (!selected_candidate)
+    {
+        throw type_error("Invalid arguments.");
+    }
+
+    return *selected_candidate;
+}
+
+std::pair<type_ptr, vector<int> > inner_type( const type_ptr & t )
+{
+    switch(t->get_tag())
+    {
+    case type::range:
+    {
+        range & r = t->as<range>();
+        if (!r.is_constant())
+            throw type_error("Invalid range.");
+        vector<int> extent = { r.const_size() };
+        return make_pair( make_shared<integer_num>(), extent );
+    }
+    case type::stream:
+    {
+        stream & s = t->as<stream>();
+        return make_pair( make_shared<real_num>(), s.size );
+    }
+    default:
+        return make_pair( t, vector<int>() );
+    }
+}
+
+pair<type_ptr, func_type_ptr>
+type_checker::process_function( const func_type_ptr & func_type,
                                 const vector<type_ptr> & args,
                                 context_type::scope_iterator scope )
 {
     switch (func_type->get_tag())
     {
-    case type::builtin_unary_func:
-    {
-        if (args.size() != 1)
-            throw wrong_arg_count_error(1, args.size());
-        return make_pair(builtin_unary_func_type(args[0]), type_ptr());
-    }
-    case type::builtin_binary_func:
-    {
-        if (args.size() != 2)
-            throw wrong_arg_count_error(2, args.size());
-        return make_pair(builtin_binary_func_type(args[0], args[1]), type_ptr());
-    }
     case type::function:
     {
         function &f = func_type->as<function>();
@@ -202,7 +282,7 @@ type_checker::process_function( const type_ptr & func_type,
 
         // Duplicate function in its static scope
 
-        type_ptr f2_type = make_shared<function>();
+        func_type_ptr f2_type = make_shared<function>();
         function &f2 = f2_type->as<function>();
         f2.name = generate_func_name(f.name);
         f2.parameters = f.parameters;
@@ -237,6 +317,58 @@ type_checker::process_function( const type_ptr & func_type,
                 process_block(f2.statement->as_list()->elements[2]);
 
         return make_pair(result_type, f2_type);
+    }
+    case type::builtin_function_group:
+    {
+        builtin_function_group &g = func_type->as<builtin_function_group>();
+
+        vector<pair<type_ptr, vector<int>>> reduced_types;
+        for (const auto & arg : args)
+        {
+            reduced_types.push_back( inner_type(arg) );
+        }
+
+        vector<type::tag> reduced_type_tags;
+        for (const auto & rt : reduced_types)
+            reduced_type_tags.push_back( rt.first->get_tag() );
+
+        const function_signature & selected_candidate =
+                overload_resolution(g.overloads, reduced_type_tags);
+
+        builtin_function *f = new builtin_function;
+        f->name = g.name;
+        f->signature = selected_candidate;
+
+        vector<int> result_size;
+        for ( const auto & rt : reduced_types )
+        {
+            const auto & arg_size = rt.second;
+            if (result_size.empty())
+                result_size = arg_size;
+            else if (!arg_size.empty() && result_size != arg_size)
+                throw type_error("Argument size mismatch.");
+        }
+
+        type_ptr result_type;
+
+        if (!result_size.empty())
+            result_type = make_shared<stream>(result_size);
+        else
+        {
+            switch(f->signature.result)
+            {
+            case type::integer_num:
+                result_type = make_shared<integer_num>();
+                break;
+            case type::real_num:
+                result_type = make_shared<real_num>();
+                break;
+            default:
+                assert(false);
+            }
+        }
+
+        return make_pair(result_type, func_type_ptr(f));
     }
     default:
         throw type_error("Callee not a function.");
@@ -459,13 +591,9 @@ type_checker::process_identifier( const sp<ast::node> & root )
         {
             const symbol & sym = it->second;
             type_ptr sym_type = symbol_type(sym);
-            if (sym.type == symbol::expression)
-            {
-                // cache result:
-                auto success = m_root_scope->emplace(id, sym_type);
-                assert(success.second);
-            }
-            return make_pair(sym_type, m_root_scope);
+            auto success = m_ctx.root_scope()->emplace(id, sym_type);
+            assert(success.second);
+            return make_pair(sym_type, m_ctx.root_scope());
         }
     }
     assert(false);
@@ -478,34 +606,24 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     type_ptr lhs_type = process_expression(expr->elements[0]);
     type_ptr rhs_type = process_expression(expr->elements[1]);
 
-    vector<int> lhs_size;
-    vector<int> rhs_size;
+    pair<type_ptr, vector<int>> lhs_inner_type, rhs_inner_type;
+    try {
+         lhs_inner_type = inner_type(lhs_type);
+    } catch (type_error & e) {
+        report( source_error(e.what(), root->line));
+    }
+    try {
+         rhs_inner_type = inner_type(rhs_type);
+    } catch (type_error & e) {
+        report( source_error(e.what(), root->line));
+    }
+    if (has_error())
+        throw abort_error();
 
-    auto reduce_type = [&]( const type_ptr & t, vector<int> & size ) -> type_ptr
-    {
-        switch(t->get_tag())
-        {
-        case type::range:
-        {
-            range & r = t->as<range>();
-            if (!r.is_constant())
-                throw source_error("Invalid range.", root->line);
-            size = { r.const_size() };
-            return make_shared<integer_num>();
-        }
-        case type::stream:
-        {
-            stream & s = t->as<stream>();
-            size = s.size;
-            return make_shared<real_num>();
-        }
-        default:
-            return t;
-        }
-    };
-
-    lhs_type = reduce_type(lhs_type, lhs_size);
-    rhs_type = reduce_type(rhs_type, rhs_size);
+    lhs_type = lhs_inner_type.first;
+    rhs_type = rhs_inner_type.first;
+    vector<int> & lhs_size = lhs_inner_type.second;
+    vector<int> & rhs_size = rhs_inner_type.second;
 
     if (lhs_size.empty() && rhs_size.empty())
     {
@@ -715,7 +833,17 @@ type_ptr type_checker::process_call( const sp<ast::node> & root )
     // Get function
 
     auto func_info = process_identifier(func_node);
-    type_ptr func_type = func_info.first;
+    assert(func_info.first);
+
+    func_type_ptr func_type = dynamic_pointer_cast<abstract_function>(func_info.first);
+    if (!func_type)
+    {
+        ostringstream text;
+        text << "Function call object not a function: "
+             << "'" << func_node->as_leaf<string>()->value << "'";
+        throw source_error(text.str(), root->line);
+    };
+
     auto & func_scope = func_info.second;
 
     // Get args
@@ -729,23 +857,27 @@ type_ptr type_checker::process_call( const sp<ast::node> & root )
 
     // Process function
 
-    pair<type_ptr,type_ptr> result;
+    pair<type_ptr, func_type_ptr> result;
     try
     {
         result = process_function(func_type, arg_types, func_scope);
     }
     catch (type_error & e)
     {
-        throw source_error(e.what(), root->line);
+        ostringstream text;
+        text << "In function call to '" << func_type->name << "': "
+             << e.what();
+        throw source_error(text.str(), root->line);
     }
 
-    if (result.second)
-    {
-        function &new_func = result.second->as<function>();
-        func_node->as_leaf<string>()->value = new_func.name;
-    }
+    const func_type_ptr & func_instance = result.second;
+    const type_ptr & result_type = result.first;
+    assert(func_instance);
 
-    return result.first;
+    func_node->semantic_type = func_instance;
+    func_node->as_leaf<string>()->value = func_instance->name;
+
+    return result_type;
 }
 
 type_ptr type_checker::process_iteration( const sp<ast::node> & root )
