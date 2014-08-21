@@ -9,6 +9,19 @@
 using namespace std;
 using namespace stream;
 
+namespace result {
+enum code
+{
+    ok = 0,
+    command_line_error,
+    io_error,
+    syntactic_error,
+    symbolic_error,
+    semantic_error,
+    generator_error
+};
+}
+
 void print_help()
 {
     cout << "Usage:" << endl
@@ -258,18 +271,18 @@ int main(int argc, char *argv[])
     }
     catch (argument_parser::abortion &)
     {
-        return 0;
+        return result::ok;
     }
     catch (command_line_error & e)
     {
         cerr << e.what() << endl;
-        return 1;
+        return result::command_line_error;
     }
 
     if (args.input_filename.empty())
     {
         cerr << "ERROR: Command line: Missing argument: input filename." << endl;
-        return 1;
+        return result::command_line_error;
     }
 
     ifstream input_file(args.input_filename);
@@ -277,7 +290,7 @@ int main(int argc, char *argv[])
     {
         cerr << "ERROR: Failed to open input file for reading: '"
              << args.input_filename << "'." << endl;
-        return 1;
+        return result::io_error;
     }
 
     stream::Parser parser(input_file);
@@ -288,7 +301,7 @@ int main(int argc, char *argv[])
 
     int success = parser.parse();
     if (success != 0)
-        return success;
+        return result::syntactic_error;
 
     const ast::node_ptr & ast_root = parser.ast();
 
@@ -304,7 +317,7 @@ int main(int argc, char *argv[])
     stream::semantic::environment env;
     stream::semantic::environment_builder env_builder(env);
     if (!env_builder.process(ast_root))
-        return 1;
+        return result::symbolic_error;
 
     if (args.print_symbols)
     {
@@ -312,6 +325,9 @@ int main(int argc, char *argv[])
         cout << "== Environment ==" << endl;
         cout << env;
     }
+
+    if (args.evaluations.empty())
+        return result::ok;
 
     semantic::type_checker type_checker(env);
 
@@ -334,15 +350,15 @@ int main(int argc, char *argv[])
         auto sym_iter = env.find(eval.name);
         if (sym_iter == env.end())
         {
-            cerr << "WARNING: no symbol '" << eval.name << "' available." << endl;
-            continue;
+            cerr << "ERROR: no symbol '" << eval.name << "' available." << endl;
+            return result::command_line_error;
         }
 
         semantic::type_ptr result_type =
                 type_checker.check(sym_iter->second, eval.args);
 
         if (type_checker.has_error())
-            continue;
+            return result::semantic_error;
 
         cout << "Type: " << *result_type << endl;
 
@@ -358,44 +374,22 @@ int main(int argc, char *argv[])
             }
         }
 
-
         gen.generate(sym_iter->second, eval.args);
     }
-
-    if (type_checker.has_error())
-        return 1;
-
-#if 0
-    cout << endl;
-    cout << env;
-    cout << endl;
-    ast::printer printer;
-    for (const auto & sym : env)
-    {
-        cout << "-- " << sym.first << ":" << endl;
-        printer.print(sym.second.source.get());
-        cout << endl;
-    }
-#endif
-
-    if (args.evaluations.empty())
-        return 0;
 
     ofstream output_file(args.output_filename);
     if (!output_file.is_open())
     {
         cerr << "ERROR: Could not open output file for writing!" << endl;
-        return 1;
+        return result::io_error;
     }
 
     gen.output(output_file);
 
-    bool generator_has_errors = gen.verify();
-    if (generator_has_errors)
+    if (!gen.verify())
     {
-        cerr << "ERROR: Bad IR code output." << endl;
-        return 1;
+        return result::generator_error;
     }
 
-    return 0;
+    return result::ok;
 }

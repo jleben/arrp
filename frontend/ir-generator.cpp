@@ -1298,7 +1298,15 @@ llvm::Value *slice_value::at( const vector<scalar_value> & index,
 
 bool generator::verify()
 {
-    return llvm::verifyModule(m_module);
+    string verifier_msg;
+    bool failure = llvm::verifyModule(m_module, llvm::ReturnStatusAction,
+                                      &verifier_msg);
+    if (failure)
+    {
+        cerr << "ERROR: Failed to verify generated IR code:" << endl;
+        cerr << verifier_msg;
+    }
+    return !failure;
 }
 
 void generator::output( std::ostream & out )
