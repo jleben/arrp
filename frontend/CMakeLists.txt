@@ -52,19 +52,21 @@ add_custom_command(
   COMMENT "Generating parser..."
 )
 
-# Frontend executable
+# Frontend library
 
-add_executable(frontend
+add_library(frontend_lib SHARED
   lex.cc
   parse.cc
-  #semantic.cpp
   environment.cpp
   types.cpp
   type_checker.cpp
   ir-generator.cpp
-  frontend.cpp
 )
 
-#set_property( TARGET frontend APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
+#set_property( TARGET frontend_lib APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
+target_link_libraries( frontend_lib ${llvm-link-libs} ${llvm-link-flags}  )
 
-target_link_libraries( frontend ${llvm-link-libs} ${llvm-link-flags}  )
+# Frontend executable
+
+add_executable(frontend frontend.cpp)
+target_link_libraries(frontend frontend_lib)
