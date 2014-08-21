@@ -52,27 +52,22 @@ bool ii() { return test_expression("1 + 2", semantic::integer_num()); }
 bool ir() { return test_expression("1 + 2.3", semantic::real_num()); }
 bool ri() { return test_expression("2.3 + 1", semantic::real_num()); }
 bool rr() { return test_expression("2.3 + 3.4", semantic::real_num()); }
-
+bool iR() { return test_expression("1 + 1..10", semantic::stream(10)); }
+bool rR() { return test_expression("2.3 + 1..10", semantic::stream(10)); }
+bool Ri() { return test_expression("1..10 + 1", semantic::stream(10)); }
+bool Rr() { return test_expression("1..10 + 2.3", semantic::stream(10)); }
+bool RR() { return test_expression("1..10 + 11..20", semantic::stream(10)); }
+bool iS() { return test_expression("1 + 1..10 * 6", semantic::stream(10)); }
+bool rS() { return test_expression("2.3 + 1..10 * 6", semantic::stream(10)); }
+bool Si() { return test_expression("1..10 * 6 + 1", semantic::stream(10)); }
+bool Sr() { return test_expression("1..10 * 6 + 2.3", semantic::stream(10)); }
+bool SS() { return test_expression("1..10 * 6 + 11..20 * 7", semantic::stream(10)); }
+//bool __() { return test_expression("__", semantic::stream(10)); }
 }
 
 
 
 /*
-ii = 1 + 1;
-ir = 1 + 2.3;
-ri = 2.3 + 1;
-rr = 2.3 + 3.4;
-iR = 1 + 10..20;
-rR = 2.3 + 10..20;
-Ri = 10..20 + 1;
-Rr = 10..20 + 2.3;
-RR = 10..20 + 30..40;
-iS(S) = 1 + S;
-rS(S) = 2.3 + S;
-Si(S) = S + 1;
-Sr(S) = S + 2.3;
-SS(S) = S + S;
-
 // Incorrect:
 
 f1 = 1 + 2.. ;
