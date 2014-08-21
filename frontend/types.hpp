@@ -51,10 +51,13 @@ struct type
 
     tag get_tag() const { return m_tag; }
 
-    bool is(tag t) { return m_tag == t; }
+    bool is(tag t) const { return m_tag == t; }
 
     template<typename T>
     T & as() { return static_cast<T&>(*this); }
+
+    template<typename T>
+    const T & as() const { return static_cast<const T&>(*this); }
 
     virtual void print_on( ostream & s ) const
     {
