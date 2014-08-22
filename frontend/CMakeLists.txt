@@ -1,4 +1,5 @@
-option(FRONTEND_PRINT_TOKENS "Parser: enable printing tokens." OFF)
+option(PARSER_REGENERATE "Parser: enable regeneration using flexc++ bisonc++" OFF)
+option(PARSER_PRINT_TOKENS "Parser: enable printing tokens." OFF)
 option(BISON_VERBOSE "Bison: Output detailed information about parser generation." OFF)
 
 # Discover LLVM dependencies
@@ -26,9 +27,11 @@ option(BISON_VERBOSE "Bison: Output detailed information about parser generation
 
 # Lexer and parser generation
 
+if(PARSER_REGENERATE)
+
 set(bison_opts "")
 
-if(FRONTEND_PRINT_TOKENS)
+if(PARSER_PRINT_TOKENS)
   list(APPEND bison_opts "--print")
 endif()
 
@@ -51,6 +54,8 @@ add_custom_command(
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   COMMENT "Generating parser..."
 )
+
+endif(PARSER_REGENERATE)
 
 # Frontend library
 

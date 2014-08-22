@@ -66,7 +66,8 @@ compiler for instructions.
 
 The CMake build system provides the following options:
 
-- `FRONTEND_PRINT_TOKENS` - Compile frontend so as to enabled the option to print all parsed tokens.
+- `PARSER_REGENERATE` - Regenerate parser using flexc++ and bisonc++.
+- `PARSER_PRINT_TOKENS` - Compile parser so as to enabled the option to print all parsed tokens.
 - `BISON_VERBOSE` - Let bisonc++ produce detailed parser information in the file `frontend/parser.y.output`.
 
 ## Usage
@@ -80,7 +81,7 @@ selection of functions. Additional information about the translation process
 is printed on standard output, some of it optionally:
 
 - Any syntactical or semantical errors in input code.
-- Each token produced by the lexical scanner (if the `FRONTEND_PRINT_TOKENS`
+- Each token produced by the lexical scanner (if the `PARSER_PRINT_TOKENS`
   CMake option was enabled)
 - The abstract syntax tree (AST).
 - A list of the top-level symbol declarations (functions and constant expressions).
