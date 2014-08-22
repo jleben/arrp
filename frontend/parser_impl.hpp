@@ -5,6 +5,11 @@
 // $insert class.h
 #include "parser.h"
 
+// Include header to support the 'not' operator used in parse.cc
+#ifdef _MSC_VER
+# include <iso646.h>
+#endif
+
 // $insert namespace-open
 namespace stream
 {
