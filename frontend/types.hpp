@@ -14,7 +14,7 @@
 namespace stream {
 
 namespace ast {
-class node;
+struct node;
 using node_ptr = std::shared_ptr<node>;
 }
 
