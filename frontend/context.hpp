@@ -6,16 +6,18 @@
 #include <list>
 #include <stdexcept>
 #include <cassert>
+#include <string>
 
 namespace stream {
 
 using std::unordered_map;
 using std::deque;
 using std::list;
+using std::string;
 
 struct context_error : public std::runtime_error
 {
-    using std::runtime_error::runtime_error;
+    context_error(const string & what): std::runtime_error(what) {}
 };
 
 template <typename K, typename V, typename S = unordered_map<K,V> >

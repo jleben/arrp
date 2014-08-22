@@ -11,7 +11,7 @@ namespace semantic {
 
 struct type_error : public error
 {
-    using error::error;
+    type_error(const string & msg): error(msg) {}
 };
 
 class wrong_arg_count_error : public type_error
