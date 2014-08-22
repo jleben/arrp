@@ -5,6 +5,13 @@
 #include <sstream>
 #include <string>
 
+// FIXME: Enable on later versions of MS compiler:
+#ifdef _MSC_VER
+#define NOEXCEPT
+#else
+#define NOEXCEPT noexcept
+#endif
+
 namespace stream {
 
 using std::string;
@@ -18,7 +25,7 @@ public:
         m_msg(what)
     {}
 
-    virtual const char *what() const noexcept
+    virtual const char *what() const NOEXCEPT
     {
         return m_msg.c_str();
     }
