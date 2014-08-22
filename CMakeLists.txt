@@ -12,4 +12,6 @@ endif()
 
 add_subdirectory(frontend)
 add_subdirectory(utility)
-add_subdirectory(test)
+if(BUILD_TESTING)
+  add_subdirectory(test)
+endif()
