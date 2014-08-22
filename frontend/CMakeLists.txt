@@ -4,6 +4,14 @@ option(BISON_VERBOSE "Bison: Output detailed information about parser generation
 
 # Discover LLVM dependencies
 
+if(WIN32)
+
+  find_package(llvm REQUIRED)
+  include_directories(${LLVM_INCLUDE_DIRS})
+  link_directories(${LLVM_LIBRARY_DIRS})
+
+else()
+
 #if (NOT DEFINED llvm-compile-flags)
   execute_process(
     COMMAND llvm-config --cxxflags
@@ -24,6 +32,8 @@ option(BISON_VERBOSE "Bison: Output detailed information about parser generation
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 #endif()
+
+endif()
 
 # Lexer and parser generation
 
@@ -58,8 +68,13 @@ add_custom_command(
 endif(PARSER_REGENERATE)
 
 # Frontend library
+if(WIN32)
+  set(lib_mode STATIC)
+else()
+  set(lib_mode SHARED)
+endif()
 
-add_library(frontend_lib SHARED
+add_library(frontend_lib ${lib_mode}
   lex.cc
   parse.cc
   environment.cpp
@@ -69,7 +84,12 @@ add_library(frontend_lib SHARED
 )
 
 #set_property( TARGET frontend_lib APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
-target_link_libraries( frontend_lib ${llvm-link-libs} ${llvm-link-flags}  )
+
+if(WIN32)
+  llvm_config(frontend_lib core)
+else()
+  target_link_libraries( frontend_lib ${llvm-link-libs} ${llvm-link-flags}  )
+endif()
 
 # Frontend executable
 
