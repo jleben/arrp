@@ -63,6 +63,7 @@ std::ostream & operator<<(std::ostream & s, const environment & env)
         }
         s << std::endl;
     }
+    return s;
 }
 
 environment_builder::environment_builder(environment &env):
