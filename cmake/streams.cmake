@@ -17,7 +17,5 @@ function(compile_stream_func out_file_var source_file options)
     DEPENDS ${llvm_file}
   )
 
-  message("object file: ${object_file}")
-
   set(${out_file_var} ${object_file} PARENT_SCOPE)
 endfunction()
