@@ -15,17 +15,13 @@ using unit_test::success_msg;
 type_ptr int_type() { return make_shared<integer_num>(); }
 type_ptr real_type() { return make_shared<real_num>(); }
 type_ptr range_type() { return make_shared<range>(); }
-type_ptr stream_type( const vector<int> & size)
-{ return make_shared<semantic::stream>(size); }
+
 type_ptr stream_type( int size)
 { return make_shared<semantic::stream>(size); }
 
-//template <typename ...T>
-//type_ptr stream_type(const T & size...)
-//{ return make_shared<semantic::stream>( {size...} ); }
-
-//type_ptr stream_type(const vector<int> & size)
-//{ return make_shared<semantic::stream>(size); }
+template <typename ...T>
+type_ptr stream_type(const T & ...size)
+{ return make_shared<semantic::stream>( vector<int>({size...}) ); }
 
 bool type_matches(const type & actual, const type & expected)
 {
@@ -141,31 +137,31 @@ result stream1_by_range ()
 result stream3_by_int ()
 {
     string func("(S) = S[1]");
-    return is_func_type(func, {stream_type({9,7,3})}, stream_type({7,3}));
+    return is_func_type(func, {stream_type(9,7,3)}, stream_type(7,3));
 }
 
 result stream3_by_range ()
 {
     string func("(S) = S[1..4]");
-    return is_func_type(func, {stream_type({9,7,3})}, stream_type({4,7,3}));
+    return is_func_type(func, {stream_type(9,7,3)}, stream_type(4,7,3));
 }
 
 result stream3_by_int2 ()
 {
     string func("(S) = S[1,2]");
-    return is_func_type(func, {stream_type({9,7,3})}, stream_type({3}));
+    return is_func_type(func, {stream_type(9,7,3)}, stream_type(3));
 }
 
 result stream3_by_range2 ()
 {
     string func("(S) = S[1..4, 1..5]");
-    return is_func_type(func, {stream_type({9,7,3})}, stream_type({4,5,3}));
+    return is_func_type(func, {stream_type(9,7,3)}, stream_type(4,5,3));
 }
 
 result stream3_by_range_int_range ()
 {
     string func("(S) = S[1..4, 2, 1..5]");
-    return is_func_type(func, {stream_type({9,7,11})}, stream_type({4,5}));
+    return is_func_type(func, {stream_type(9,7,11)}, stream_type(4,5));
 }
 
 }
@@ -175,13 +171,13 @@ namespace transposition {
 result stream3_to_2()
 {
     string func("(S) = S{2}");
-    return is_func_type(func, {stream_type({3,5,7})}, stream_type({5,3,7}));
+    return is_func_type(func, {stream_type(3,5,7)}, stream_type(5,3,7));
 }
 
 result stream4_to_3_2()
 {
     string func("(S) = S{3,2}");
-    return is_func_type(func, {stream_type({3,5,7,9})}, stream_type({7,5,3,9}));
+    return is_func_type(func, {stream_type(3,5,7,9)}, stream_type(7,5,3,9));
 }
 
 }
@@ -230,32 +226,32 @@ result stream1_to_int()
 result stream1_to_stream2()
 {
     string func("(S,X) = for each( in S ) X");
-    return is_func_type(func, {stream_type(9), stream_type({5,2})},
-                        stream_type({9,5,2}));
+    return is_func_type(func, {stream_type(9), stream_type(5,2)},
+                        stream_type(9,5,2));
 }
 
 result stream1_take_n()
 {
     string func("(S) = for each( x takes 3 in S ) x");
-    return is_func_type(func, {stream_type(9)}, stream_type({7,3}));
+    return is_func_type(func, {stream_type(9)}, stream_type(7,3));
 }
 
 result stream1_take_n_every_n()
 {
     string func("(S) = for each( x takes 3 every 3 in S ) x");
-    return is_func_type(func, {stream_type(9)}, stream_type({3,3}));
+    return is_func_type(func, {stream_type(9)}, stream_type(3,3));
 }
 
 result stream3()
 {
     string func("(S) = for each( x in S ) x");
-    return is_func_type(func, {stream_type({9,5,2})}, stream_type({9,5,2}));
+    return is_func_type(func, {stream_type(9,5,2)}, stream_type(9,5,2));
 }
 
 result stream3_take_n()
 {
     string func("(S) = for each( x takes 3 in S ) x");
-    return is_func_type(func, {stream_type({9,5,2})}, stream_type({7,3,5,2}));
+    return is_func_type(func, {stream_type(9,5,2)}, stream_type(7,3,5,2));
 }
 
 result range()
@@ -267,13 +263,13 @@ result range()
 result range_take_n()
 {
     string expr("for each( x takes 3 in 1..9 ) 111");
-    return is_expr_type(expr, stream_type({7}));
+    return is_expr_type(expr, stream_type(7));
 }
 
 result range_take_n_every_n()
 {
     string expr("for each( x takes 3 every 3 in 1..9 ) 111");
-    return is_expr_type(expr, stream_type({3}));
+    return is_expr_type(expr, stream_type(3));
 }
 
 }
