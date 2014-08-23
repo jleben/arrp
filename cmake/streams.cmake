@@ -12,7 +12,7 @@ function(compile_stream_func out_file_var source_file options)
   set(object_file ${source_file_base}.o)
 
   add_custom_command(OUTPUT ${object_file}
-    COMMAND llc
+    COMMAND ${llc_program}
     ARGS -filetype=obj -o ${object_file} ${llvm_file}
     DEPENDS ${llvm_file}
   )

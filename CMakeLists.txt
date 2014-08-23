@@ -4,6 +4,12 @@ project(stream-lang)
 
 enable_testing()
 
+# Options
+
+option(BUILD_TESTING "Build tests" ON)
+
+# CMake setup
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
@@ -46,6 +52,10 @@ else()
 #endif()
 
 endif()
+
+find_program(llc_program llc HINTS ${LLVM_TOOLS_BINARY_DIR})
+
+# Subdirs
 
 add_subdirectory(frontend)
 add_subdirectory(utility)
