@@ -11,9 +11,13 @@ function(compile_stream_func out_file_var source_file options)
 
   set(object_file ${source_file_base}.o)
 
+  if(CMAKE_CL_64)
+    set(arch -march=x86-64)
+  endif()
+
   add_custom_command(OUTPUT ${object_file}
     COMMAND ${llc_program}
-    ARGS -filetype=obj -o ${object_file} ${llvm_file}
+    ARGS ${arch} -filetype=obj -o ${object_file} ${llvm_file}
     DEPENDS ${llvm_file}
   )
 
