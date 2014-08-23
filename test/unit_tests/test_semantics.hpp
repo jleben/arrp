@@ -20,6 +20,13 @@ type_ptr stream_type( const vector<int> & size)
 type_ptr stream_type( int size)
 { return make_shared<semantic::stream>(size); }
 
+//template <typename ...T>
+//type_ptr stream_type(const T & size...)
+//{ return make_shared<semantic::stream>( {size...} ); }
+
+//type_ptr stream_type(const vector<int> & size)
+//{ return make_shared<semantic::stream>(size); }
+
 bool type_matches(const type & actual, const type & expected)
 {
     switch(actual.get_tag())
@@ -114,6 +121,68 @@ result rS() { return is_expr_type("2.3 + 1..10 * 6", stream_type(10)); }
 result Si() { return is_expr_type("1..10 * 6 + 1", stream_type(10)); }
 result Sr() { return is_expr_type("1..10 * 6 + 2.3", stream_type(10)); }
 result SS() { return is_expr_type("1..10 * 6 + 11..20 * 7", stream_type(10)); }
+
+}
+
+namespace slicing {
+
+result stream1_by_int ()
+{
+    string func("(S) = S[1]");
+    return is_func_type(func, {stream_type(9)}, real_type());
+}
+
+result stream1_by_range ()
+{
+    string func("(S) = S[1..3]");
+    return is_func_type(func, {stream_type(9)}, stream_type(3));
+}
+
+result stream3_by_int ()
+{
+    string func("(S) = S[1]");
+    return is_func_type(func, {stream_type({9,7,3})}, stream_type({7,3}));
+}
+
+result stream3_by_range ()
+{
+    string func("(S) = S[1..4]");
+    return is_func_type(func, {stream_type({9,7,3})}, stream_type({4,7,3}));
+}
+
+result stream3_by_int2 ()
+{
+    string func("(S) = S[1,2]");
+    return is_func_type(func, {stream_type({9,7,3})}, stream_type({3}));
+}
+
+result stream3_by_range2 ()
+{
+    string func("(S) = S[1..4, 1..5]");
+    return is_func_type(func, {stream_type({9,7,3})}, stream_type({4,5,3}));
+}
+
+result stream3_by_range_int_range ()
+{
+    string func("(S) = S[1..4, 2, 1..5]");
+    return is_func_type(func, {stream_type({9,7,11})}, stream_type({4,5}));
+}
+
+}
+
+namespace transposition {
+
+result stream3_to_2()
+{
+    string func("(S) = S{2}");
+    return is_func_type(func, {stream_type({3,5,7})}, stream_type({5,3,7}));
+}
+
+result stream4_to_3_2()
+{
+    string func("(S) = S{3,2}");
+    return is_func_type(func, {stream_type({3,5,7,9})}, stream_type({7,5,3,9}));
+}
 
 }
 
