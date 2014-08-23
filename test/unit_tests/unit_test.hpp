@@ -5,6 +5,8 @@
 #include "../../frontend/ast.hpp"
 #include "../../frontend/environment.hpp"
 
+#include <iostream>
+
 namespace stream {
 namespace unit_test {
 
@@ -22,6 +24,20 @@ enum result {
     success = 0,
     failure
 };
+
+inline result failure_msg(const string & msg)
+{
+    using namespace std;
+    cerr << "FAILED: " << msg << endl;
+    return failure;
+}
+
+inline result success_msg()
+{
+    using namespace std;
+    cerr << "OK." << endl;
+    return success;
+}
 
 }
 }

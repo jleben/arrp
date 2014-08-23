@@ -45,6 +45,7 @@ set(semantic_test_funcs
 "binop::Si"
 "binop::Sr"
 "binop::SS"
+"reduction::stream_1d"
 )
 
 add_unit_tests(semantics test_semantics.hpp ${semantic_test_funcs})
