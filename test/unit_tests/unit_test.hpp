@@ -18,6 +18,11 @@ semantic::type_ptr semantic_analysis
  const string & symbol,
  vector<semantic::type_ptr> arguments = vector<semantic::type_ptr>());
 
+enum result {
+    success = 0,
+    failure
+};
+
 }
 }
 

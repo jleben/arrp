@@ -6,16 +6,18 @@ using namespace stream;
 using namespace stream::semantic;
 using namespace std;
 
+using unit_test::result;
+
 namespace binop {
 
-bool test_expression(const char *expr, const type & expected_result_type)
+result test_expression(const char *expr, const type & expected_result_type)
 {
     ostringstream code;
     code << "result = " << expr;
     type_ptr result_type =
             unit_test::semantic_analysis(code.str(), "result");
     if (!result_type)
-        return false;
+        return unit_test::failure;
 
     bool ok;
 
@@ -39,30 +41,30 @@ bool test_expression(const char *expr, const type & expected_result_type)
     }
 
     if (ok)
-        cerr << "OK.";
+        cerr << "OK." << endl;
     else
         cerr << "FAIL: Result type mismatch:"
              << " expected = " << expected_result_type
              << " / actual = " << *result_type;
 
-    return ok;
+    return ok ? unit_test::success : unit_test::failure;
 }
 
-bool ii() { return test_expression("1 + 2", semantic::integer_num()); }
-bool ir() { return test_expression("1 + 2.3", semantic::real_num()); }
-bool ri() { return test_expression("2.3 + 1", semantic::real_num()); }
-bool rr() { return test_expression("2.3 + 3.4", semantic::real_num()); }
-bool iR() { return test_expression("1 + 1..10", semantic::stream(10)); }
-bool rR() { return test_expression("2.3 + 1..10", semantic::stream(10)); }
-bool Ri() { return test_expression("1..10 + 1", semantic::stream(10)); }
-bool Rr() { return test_expression("1..10 + 2.3", semantic::stream(10)); }
-bool RR() { return test_expression("1..10 + 11..20", semantic::stream(10)); }
-bool iS() { return test_expression("1 + 1..10 * 6", semantic::stream(10)); }
-bool rS() { return test_expression("2.3 + 1..10 * 6", semantic::stream(10)); }
-bool Si() { return test_expression("1..10 * 6 + 1", semantic::stream(10)); }
-bool Sr() { return test_expression("1..10 * 6 + 2.3", semantic::stream(10)); }
-bool SS() { return test_expression("1..10 * 6 + 11..20 * 7", semantic::stream(10)); }
-//bool __() { return test_expression("__", semantic::stream(10)); }
+result ii() { return test_expression("1 + 2", semantic::integer_num()); }
+result ir() { return test_expression("1 + 2.3", semantic::real_num()); }
+result ri() { return test_expression("2.3 + 1", semantic::real_num()); }
+result rr() { return test_expression("2.3 + 3.4", semantic::real_num()); }
+result iR() { return test_expression("1 + 1..10", semantic::stream(10)); }
+result rR() { return test_expression("2.3 + 1..10", semantic::stream(10)); }
+result Ri() { return test_expression("1..10 + 1", semantic::stream(10)); }
+result Rr() { return test_expression("1..10 + 2.3", semantic::stream(10)); }
+result RR() { return test_expression("1..10 + 11..20", semantic::stream(10)); }
+result iS() { return test_expression("1 + 1..10 * 6", semantic::stream(10)); }
+result rS() { return test_expression("2.3 + 1..10 * 6", semantic::stream(10)); }
+result Si() { return test_expression("1..10 * 6 + 1", semantic::stream(10)); }
+result Sr() { return test_expression("1..10 * 6 + 2.3", semantic::stream(10)); }
+result SS() { return test_expression("1..10 * 6 + 11..20 * 7", semantic::stream(10)); }
+//result __() { return test_expression("__", semantic::stream(10)); }
 }
 
 

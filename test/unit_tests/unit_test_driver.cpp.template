@@ -1,7 +1,20 @@
 #include "@test_header@"
+#include "unit_test.hpp"
 
-int main()
+#include <string>
+using std::string;
+
+int main(int argc, char *argv[])
 {
-    bool ok = @test_function@();
-    return ok ? 0 : 1;
+    if (argc < 2)
+    {
+        cerr << "ERROR: Command line: missing argument: test name." << endl;
+        return 1;
+    }
+
+    string test_name = argv[1];
+
+@test_function_call_code@
+
+    return stream::unit_test::failure;
 }
