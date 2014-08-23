@@ -164,7 +164,7 @@ type_ptr type_checker::check( const symbol & sym, const vector<type_ptr> & args 
     {
         report(e);
     }
-    catch (abort_error & e)
+    catch (abort_error &)
     {}
 
     return result_type;
@@ -197,6 +197,7 @@ type_ptr type_checker::symbol_type( const symbol & sym )
         return t;
     }
     }
+    throw error("Unexpected symbol type.");
 }
 
 const function_signature & overload_resolution

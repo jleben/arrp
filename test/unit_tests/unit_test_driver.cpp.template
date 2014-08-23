@@ -18,5 +18,5 @@ int main(int argc, char *argv[])
 
     cerr << "ERROR: No such test: '" << test_name << "'" << endl;
 
-    return stream::unit_test::failure;
+    return ::stream::unit_test::failure;
 }

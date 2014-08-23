@@ -192,8 +192,8 @@ struct range : public tagged_type<type::range>
 
 struct stream : public tagged_type<type::stream>
 {
-    stream( const vector<int> & s ) : size(s) {}
-    stream( int s ) : size{s} {}
+    explicit stream( const vector<int> & s ) : size(s) {}
+    explicit stream( int s ) : size({s}) {}
     int dimensionality() const { return size.size(); }
     vector<int> size;
 

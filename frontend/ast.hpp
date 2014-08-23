@@ -15,7 +15,7 @@ using std::string;
 template <typename T> using sp = std::shared_ptr<T>;
 
 namespace semantic {
-class type;
+struct type;
 using type_ptr = std::shared_ptr<type>;
 }
 

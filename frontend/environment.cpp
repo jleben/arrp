@@ -158,7 +158,7 @@ void environment_builder::process_stmt( const sp<ast::node> & root )
             {
                 m_ctx.bind(param_name, dummy());
             }
-            catch (context_error & e)
+            catch (context_error &)
             {
                 report( name_already_in_scope_error(param_name, param->line) );
                 param_name_error = true;
