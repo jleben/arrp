@@ -340,6 +340,7 @@ value_ptr generator::process_expression( const ast::node_ptr & root, const value
     case ast::subtract:
     case ast::multiply:
     case ast::divide:
+    case ast::raise:
     case ast::lesser:
     case ast::greater:
     case ast::lesser_or_equal:
@@ -640,6 +641,27 @@ value_ptr generator::process_binop( const ast::node_ptr & root,
     const ast::node_ptr & rhs_node = expr->elements[1];
     value_ptr lhs = process_expression(expr->elements[0]);
     value_ptr rhs = process_expression(expr->elements[1]);
+
+    if (root->type == ast::raise)
+    {
+        type::tag l = lhs_node->semantic_type->get_tag();
+        type::tag r = rhs_node->semantic_type->get_tag();
+        function_signature signature;
+        if( (l == type::integer_num && r == type::integer_num) ||
+            (l == type::range && r == type::range) )
+            signature = function_signature({type::integer_num, type::integer_num},
+                                           type::integer_num);
+        else
+            signature = function_signature({type::real_num, type::real_num},
+                                           type::real_num);
+
+        builtin_func_item *ctx_item =
+                static_cast<builtin_func_item*>(m_ctx.root_scope()->at("pow").get());
+        assert(ctx_item);
+        llvm::Function *f = function_for(ctx_item, signature);
+        assert(f);
+        return generate_call(f, {lhs,rhs}, root->semantic_type, result_space);
+    }
 
     llvm::Type *fp_type = llvm::Type::getDoubleTy(llvm_context());
     llvm::Type *int_type = llvm::Type::getInt32Ty(llvm_context());

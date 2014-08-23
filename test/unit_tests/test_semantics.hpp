@@ -117,7 +117,11 @@ result rS() { return is_expr_type("2.3 + 1..10 * 6", stream_type(10)); }
 result Si() { return is_expr_type("1..10 * 6 + 1", stream_type(10)); }
 result Sr() { return is_expr_type("1..10 * 6 + 2.3", stream_type(10)); }
 result SS() { return is_expr_type("1..10 * 6 + 11..20 * 7", stream_type(10)); }
-
+result raise_int_int() { return is_expr_type("2 ^ 4", int_type()); }
+result raise_real_real() { return is_expr_type("2.2 ^ 4.4", real_type()); }
+result raise_int_real() { return is_expr_type("2 ^ 4.4", real_type()); }
+result raise_real_int() { return is_expr_type("2.2 ^ 4", real_type()); }
+result raise_stream_int() { return is_expr_type("(1..9 * 2) ^ 4", stream_type(9)); }
 }
 
 namespace slicing {

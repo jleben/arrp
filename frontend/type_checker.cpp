@@ -138,6 +138,8 @@ type_checker::type_checker(environment &env):
             m_ctx.bind(f->name, type_ptr(f));
         }
     }
+
+    m_pow_func = static_pointer_cast<builtin_function_group>(m_ctx.find("pow").value());
 }
 
 type_ptr type_checker::check( const symbol & sym, const vector<type_ptr> & args )
@@ -459,6 +461,7 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::subtract:
     case ast::multiply:
     case ast::divide:
+    case ast::raise:
     case ast::lesser:
     case ast::greater:
     case ast::lesser_or_equal:
@@ -527,6 +530,12 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     ast::list_node *expr = root->as_list();
     type_ptr lhs_type = process_expression(expr->elements[0]);
     type_ptr rhs_type = process_expression(expr->elements[1]);
+
+    if (root->type == ast::raise)
+    {
+        return process_function(m_pow_func, {lhs_type, rhs_type},
+                                m_ctx.root_scope()).first;
+    }
 
     pair<type_ptr, vector<int>> lhs_inner_type, rhs_inner_type;
     try {
