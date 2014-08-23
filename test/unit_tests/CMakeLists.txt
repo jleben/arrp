@@ -46,6 +46,19 @@ set(semantic_test_funcs
 "binop::Sr"
 "binop::SS"
 "reduction::stream_1d"
+#"reduction::stream_1d_to_int"
+#"reduction::stream_1d_to_stream_1d"
+"mapping::stream1"
+"mapping::stream1_to_real"
+"mapping::stream1_to_int"
+"mapping::stream1_to_stream2"
+"mapping::stream1_take_n"
+"mapping::stream1_take_n_every_n"
+"mapping::stream3"
+"mapping::stream3_take_n"
+"mapping::range"
+"mapping::range_take_n"
+"mapping::range_take_n_every_n"
 )
 
 add_unit_tests(semantics test_semantics.hpp ${semantic_test_funcs})

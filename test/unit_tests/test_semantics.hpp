@@ -41,7 +41,7 @@ bool type_matches(const type & actual, const type & expected)
     }
 }
 
-result is_expr_type(const char *expr, const type & expected_type)
+result is_expr_type(const string & expr, const type_ptr & expected_type)
 {
     ostringstream code;
     code << "result = " << expr;
@@ -50,7 +50,7 @@ result is_expr_type(const char *expr, const type & expected_type)
     if (!result_type)
         return unit_test::failure;
 
-    bool ok = type_matches(*result_type, expected_type);
+    bool ok = type_matches(*result_type, *expected_type);
 
     if (ok)
         return unit_test::success_msg();
@@ -58,7 +58,7 @@ result is_expr_type(const char *expr, const type & expected_type)
     {
         ostringstream msg;
         msg << "Wrong result type:"
-            << " expected = " << expected_type
+            << " expected = " << *expected_type
             << " / actual = " << *result_type;
         return failure_msg(msg.str());
     }
@@ -66,7 +66,7 @@ result is_expr_type(const char *expr, const type & expected_type)
 
 result is_func_type(const string &func,
                     const vector<type_ptr> & arg_types,
-                    const type & expected_type)
+                    const type_ptr & expected_type)
 {
     ostringstream code;
     code << "function" << func;
@@ -86,11 +86,11 @@ result is_func_type(const string &func,
     if (!result_type)
         return failure_msg("No function result type.");
 
-    if (!type_matches(*result_type, expected_type))
+    if (!type_matches(*result_type, *expected_type))
     {
         ostringstream msg;
         msg << "Wrong result type:"
-            << " expected = " << expected_type
+            << " expected = " << *expected_type
             << " / actual = " << *result_type;
         return failure_msg(msg.str());
     }
@@ -100,40 +100,111 @@ result is_func_type(const string &func,
 
 namespace binop {
 
-result ii() { return is_expr_type("1 + 2", semantic::integer_num()); }
-result ir() { return is_expr_type("1 + 2.3", semantic::real_num()); }
-result ri() { return is_expr_type("2.3 + 1", semantic::real_num()); }
-result rr() { return is_expr_type("2.3 + 3.4", semantic::real_num()); }
-result iR() { return is_expr_type("1 + 1..10", semantic::stream(10)); }
-result rR() { return is_expr_type("2.3 + 1..10", semantic::stream(10)); }
-result Ri() { return is_expr_type("1..10 + 1", semantic::stream(10)); }
-result Rr() { return is_expr_type("1..10 + 2.3", semantic::stream(10)); }
-result RR() { return is_expr_type("1..10 + 11..20", semantic::stream(10)); }
-result iS() { return is_expr_type("1 + 1..10 * 6", semantic::stream(10)); }
-result rS() { return is_expr_type("2.3 + 1..10 * 6", semantic::stream(10)); }
-result Si() { return is_expr_type("1..10 * 6 + 1", semantic::stream(10)); }
-result Sr() { return is_expr_type("1..10 * 6 + 2.3", semantic::stream(10)); }
-result SS() { return is_expr_type("1..10 * 6 + 11..20 * 7", semantic::stream(10)); }
+result ii() { return is_expr_type("1 + 2", int_type()); }
+result ir() { return is_expr_type("1 + 2.3", real_type()); }
+result ri() { return is_expr_type("2.3 + 1", real_type()); }
+result rr() { return is_expr_type("2.3 + 3.4", real_type()); }
+result iR() { return is_expr_type("1 + 1..10", stream_type(10)); }
+result rR() { return is_expr_type("2.3 + 1..10", stream_type(10)); }
+result Ri() { return is_expr_type("1..10 + 1", stream_type(10)); }
+result Rr() { return is_expr_type("1..10 + 2.3", stream_type(10)); }
+result RR() { return is_expr_type("1..10 + 11..20", stream_type(10)); }
+result iS() { return is_expr_type("1 + 1..10 * 6", stream_type(10)); }
+result rS() { return is_expr_type("2.3 + 1..10 * 6", stream_type(10)); }
+result Si() { return is_expr_type("1..10 * 6 + 1", stream_type(10)); }
+result Sr() { return is_expr_type("1..10 * 6 + 2.3", stream_type(10)); }
+result SS() { return is_expr_type("1..10 * 6 + 11..20 * 7", stream_type(10)); }
 
 }
 
 namespace reduction {
 
+string func("(S) = reduce(a,b in S) a + b");
+
 result stream_1d()
 {
-    string func("(S) = reduce(a,b in S) a + b");
-    return is_func_type(func, {stream_type(10)}, real_num());
-    //return is_expr_type("reduce(a,b in 1..10 * 2) a + b", real_num());
+    return is_func_type(func, {stream_type(10)}, real_type());
 }
-/*
-result stream_to_int_const()
+result stream_1d_to_int()
 {
-    return is_expr_type("reduce(a,b in 1..10 * 2) 999", real_num());
-}*/
+    string func("(S) = reduce(a,b in S) 999");
+    return is_func_type(func, {stream_type(10)}, real_type());
+}
+result stream_1d_to_stream_1d()
+{
+    string func("(S,X) = reduce(a,b in S) X");
+    return is_func_type(func, {stream_type(10), stream_type(5)}, stream_type(5));
+}
 
 }
 
 namespace mapping {
 
+result stream1()
+{
+    string func("(S) = for each( x in S ) x");
+    return is_func_type(func, {stream_type(9)}, stream_type(9));
 }
 
+result stream1_to_real()
+{
+    string func("(S) = for each( in S ) 1.234");
+    return is_func_type(func, {stream_type(9)}, stream_type(9));
+}
+
+result stream1_to_int()
+{
+    string func("(S) = for each( in S ) 1");
+    return is_func_type(func, {stream_type(9)}, stream_type(9));
+}
+
+result stream1_to_stream2()
+{
+    string func("(S,X) = for each( in S ) X");
+    return is_func_type(func, {stream_type(9), stream_type({5,2})},
+                        stream_type({9,5,2}));
+}
+
+result stream1_take_n()
+{
+    string func("(S) = for each( x takes 3 in S ) x");
+    return is_func_type(func, {stream_type(9)}, stream_type({7,3}));
+}
+
+result stream1_take_n_every_n()
+{
+    string func("(S) = for each( x takes 3 every 3 in S ) x");
+    return is_func_type(func, {stream_type(9)}, stream_type({3,3}));
+}
+
+result stream3()
+{
+    string func("(S) = for each( x in S ) x");
+    return is_func_type(func, {stream_type({9,5,2})}, stream_type({9,5,2}));
+}
+
+result stream3_take_n()
+{
+    string func("(S) = for each( x takes 3 in S ) x");
+    return is_func_type(func, {stream_type({9,5,2})}, stream_type({7,3,5,2}));
+}
+
+result range()
+{
+    string expr("for each( x in 1..9 ) x");
+    return is_expr_type(expr, stream_type(9));
+}
+
+result range_take_n()
+{
+    string expr("for each( x takes 3 in 1..9 ) 111");
+    return is_expr_type(expr, stream_type({7}));
+}
+
+result range_take_n_every_n()
+{
+    string expr("for each( x takes 3 every 3 in 1..9 ) 111");
+    return is_expr_type(expr, stream_type({3}));
+}
+
+}
