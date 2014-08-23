@@ -253,7 +253,7 @@ std::pair<type_ptr, vector<int> > inner_type( const type_ptr & t )
     {
         range & r = t->as<range>();
         if (!r.is_constant())
-            throw type_error("Invalid range.");
+            throw type_error("Non-constant range used where constant range required.");
         vector<int> extent = { r.const_size() };
         return make_pair( make_shared<integer_num>(), extent );
     }
