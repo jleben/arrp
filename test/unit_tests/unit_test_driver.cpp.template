@@ -16,5 +16,7 @@ int main(int argc, char *argv[])
 
 @test_function_call_code@
 
+    cerr << "ERROR: No such test: '" << test_name << "'" << endl;
+
     return stream::unit_test::failure;
 }
