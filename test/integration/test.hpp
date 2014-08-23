@@ -3,11 +3,13 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
 
 namespace stream {
 namespace testing {
 
 using std::vector;
+using std::string;
 
 void print( double *d,
             const vector<int> & size,
