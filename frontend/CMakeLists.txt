@@ -2,39 +2,6 @@ option(PARSER_REGENERATE "Parser: enable regeneration using flexc++ bisonc++" OF
 option(PARSER_PRINT_TOKENS "Parser: enable printing tokens." OFF)
 option(BISON_VERBOSE "Bison: Output detailed information about parser generation." OFF)
 
-# Discover LLVM dependencies
-
-if(WIN32)
-
-  find_package(llvm REQUIRED)
-  include_directories(${LLVM_INCLUDE_DIRS})
-  link_directories(${LLVM_LIBRARY_DIRS})
-
-else()
-
-#if (NOT DEFINED llvm-compile-flags)
-  execute_process(
-    COMMAND llvm-config --cxxflags
-    OUTPUT_VARIABLE llvm-compile-flags
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-#endif()
-
-#if (NOT DEFINED llvm-link-flags)
-  execute_process(
-    COMMAND llvm-config --ldflags
-    OUTPUT_VARIABLE llvm-link-flags
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-  execute_process(
-    COMMAND llvm-config --libs core
-    OUTPUT_VARIABLE llvm-link-libs
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-#endif()
-
-endif()
-
 # Lexer and parser generation
 
 if(PARSER_REGENERATE)
