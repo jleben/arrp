@@ -53,9 +53,9 @@
 "in" { return Parser::IN; }
 ".." { return Parser::DOTDOT; }
 
-(\+|\-)?[0-9]+\.[0-9]+ { return Parser::REAL; }
+[0-9]+\.[0-9]+ { return Parser::REAL; }
 
-(\+|\-)?[0-9]+ { return Parser::INT; }
+[0-9]+ { return Parser::INT; }
 
 [[:alpha:]_]+[[:alpha:][:digit:]_]* { return Parser::ID; }
 

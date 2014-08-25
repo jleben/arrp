@@ -302,6 +302,7 @@ private:
     pair<value_ptr, context::scope_iterator>
     process_identifier( const ast::node_ptr & );
     value_ptr process_call( const ast::node_ptr &, const value_ptr & );
+    value_ptr process_negate( const ast::node_ptr &, const value_ptr & );
     value_ptr process_binop( const ast::node_ptr &, const value_ptr & );
     value_ptr process_range( const ast::node_ptr & );
     value_ptr process_extent( const ast::node_ptr & );
@@ -354,6 +355,11 @@ private:
     llvm::Value *get_int32(int value)
     {
         return llvm::ConstantInt::getSigned(llvm::Type::getInt32Ty(llvm_context()), value);
+    }
+
+    llvm::Value *int_to_real(llvm::Value* value)
+    {
+        return m_builder.CreateSIToFP(value, llvm::Type::getDoubleTy(llvm_context()));
     }
 
     llvm::Value *generate_sign(llvm::Value*);

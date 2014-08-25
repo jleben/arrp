@@ -47,6 +47,7 @@ public:
         case identifier:
             cout << ": \"" << static_cast<leaf_node<string>*>(n)->value << "\"";
             break;
+        case negate:
         case add:
         case subtract:
         case multiply:
@@ -102,6 +103,7 @@ private:
         m_type_names[kwd_let] = "'let'";
         m_type_names[kwd_for] = "'for'";
         m_type_names[kwd_reduce] = "'reduce'";
+        m_type_names[negate] = "-";
         m_type_names[add] = "+";
         m_type_names[subtract] = "-";
         m_type_names[multiply] = "*";

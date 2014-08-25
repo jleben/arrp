@@ -14,7 +14,7 @@
 %left '*' '/'
 %left '^'
 %left DOTDOT
-%right '#'
+%right UMINUS '#'
 %left '[' '{' '('
 
 %stype ast::semantic_value
@@ -186,6 +186,9 @@ expr:
   |
   expr '-' expr
   { $$ = new ast::binary_op_expression( $1, ast::subtract, $3 ); }
+  |
+  '-' expr %prec UMINUS
+  { $$ = new ast::list_node( ast::negate, $2->line, {$2} ); }
   |
   expr '*' expr
   { $$ = new ast::binary_op_expression( $1, ast::multiply, $3 ); }

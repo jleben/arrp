@@ -232,6 +232,12 @@ void environment_builder::process_expr( const sp<ast::node> & root )
         }
         return;
     }
+    case ast::negate:
+    {
+        ast::list_node * list = root->as_list();
+        process_expr(list->elements[0]);
+        return;
+    }
     case ast::add:
     case ast::subtract:
     case ast::multiply:

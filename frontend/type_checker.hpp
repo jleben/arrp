@@ -53,6 +53,7 @@ private:
     type_ptr process_expression( const sp<ast::node> & );
     pair<type_ptr, context_type::scope_iterator>
     process_identifier( const sp<ast::node> & );
+    type_ptr process_negate( const sp<ast::node> & );
     type_ptr process_binop( const sp<ast::node> & );
     type_ptr process_range( const sp<ast::node> & );
     type_ptr process_extent( const sp<ast::node> & );

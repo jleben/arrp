@@ -46,6 +46,7 @@ enum node_type
     kwd_for,
     kwd_reduce,
 
+    negate,
     add,
     subtract,
     multiply,

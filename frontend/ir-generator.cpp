@@ -336,6 +336,8 @@ value_ptr generator::process_expression( const ast::node_ptr & root, const value
     }
     case ast::call_expression:
         return process_call(root, result_space);
+    case ast::negate:
+        return process_negate(root, result_space);
     case ast::add:
     case ast::subtract:
     case ast::multiply:
@@ -516,7 +518,8 @@ value_ptr generator::generate_call( llvm::Function *func,
                          dynamic_cast<range_value*>(arg.get()))
                 {
                     assert(index.size() == 1);
-                    scalar_args.push_back( range_at(*r, index[0]) );
+                    llvm::Value *v = range_at(*r, index[0]);
+                    scalar_args.push_back(v);
                 }
                 else
                 {
@@ -631,6 +634,73 @@ value_ptr generator::process_range( const ast::node_ptr & node )
     assert(scalar_end);
 
     return make_shared<range_value>(scalar_start->data(), scalar_end->data());
+}
+
+value_ptr generator::process_negate( const ast::node_ptr & root,
+                                     const value_ptr & result_space )
+{
+    value_ptr val = process_expression( root->as_list()->elements[0] );
+
+    if (scalar_value *scalar = dynamic_cast<scalar_value*>(val.get()))
+    {
+        llvm::Value *operand = scalar->data();
+        llvm::Value *negated;
+        if (operand->getType() == llvm::Type::getDoubleTy(llvm_context()))
+            negated = m_builder.CreateFNeg(operand);
+        else
+            negated = m_builder.CreateNeg(operand);
+        value_ptr result = make_shared<scalar_value>(negated);
+        if (result_space)
+            generate_store(result_space, result);
+        return make_shared<scalar_value>(negated);
+    }
+
+    // Get result size
+
+    vector<int> result_stream_size;
+    {
+        const type_ptr & result_type = root->semantic_type;
+        assert(result_type->is(type::stream));
+        stream & result_stream_type = result_type->as<stream>();
+        result_stream_size = result_stream_type.size;
+    }
+
+    // Allocate result stream
+
+    stream_value_ptr result_stream =
+            dynamic_pointer_cast<abstract_stream_value>(result_space);
+    if (!result_stream)
+    {
+        result_stream = allocate_stream(result_stream_size);
+    }
+
+    // Iterate and perform operation:
+
+    auto operation = [&]( const vector<scalar_value> & stream_index )
+    {
+        llvm::Value *operand;
+
+        if (range_value *range = dynamic_cast<range_value*>(val.get()))
+        {
+            assert(stream_index.size() == 1);
+            operand = int_to_real( range_at(*range, stream_index[0]) );
+        }
+        else
+        {
+            abstract_stream_value *strm = dynamic_cast<abstract_stream_value*>(val.get());
+            assert(strm);
+            operand = m_builder.CreateLoad( strm->at(stream_index, m_builder) );
+        }
+
+        llvm::Value * result_val = m_builder.CreateFNeg(operand);
+
+        llvm::Value * result_ptr = result_stream->at(stream_index, m_builder);
+        m_builder.CreateStore(result_val, result_ptr);
+    };
+
+    generate_iteration(result_stream->size(), operation);
+
+    return result_stream;
 }
 
 value_ptr generator::process_binop( const ast::node_ptr & root,
@@ -769,7 +839,7 @@ value_ptr generator::process_binop( const ast::node_ptr & root,
                 else if (range_value *range = dynamic_cast<range_value*>(val.get()))
                 {
                     assert(stream_index.size() == 1);
-                    operand = range_at(*range, stream_index[0]);
+                    operand = int_to_real( range_at(*range, stream_index[0]) );
                 }
                 else
                 {
@@ -1183,7 +1253,7 @@ void generator::generate_store( const value_ptr & dst, const value_ptr & src )
         auto action = [&]( const scalar_value & index )
         {
             llvm::Value *dst = dst_stream->at({index}, m_builder);
-            llvm::Value *val = range_at(*src_range, index);
+            llvm::Value *val = int_to_real( range_at(*src_range, index) );
             m_builder.CreateStore( val, dst );
         };
 
@@ -1224,6 +1294,13 @@ stream_value_ptr generator::allocate_stream( const vector<int> & stream_size )
     for (int s : stream_size)
         alloc_count *= s;
 
+    llvm::Value *buffer =
+            m_builder.CreateAlloca( llvm::Type::getDoubleTy(llvm_context()),
+                                    get_int32(alloc_count) );
+
+    return make_shared<stream_value>(buffer, stream_size);
+
+#if 0
     size_t alloc_bytes = alloc_count * 8;
 
     llvm::Value *offset =
@@ -1236,6 +1313,7 @@ stream_value_ptr generator::allocate_stream( const vector<int> & stream_size )
     m_buffer_pool_size += alloc_bytes;
 
     return make_shared<stream_value>(buffer, stream_size);
+#endif
 }
 
 llvm::Value *generator::generate_sign(llvm::Value * val)
@@ -1260,8 +1338,8 @@ llvm::Value *generator::range_at(const range_value &r, const scalar_value & inde
 {
     llvm::Value *sign = generate_sign( m_builder.CreateSub(r.end(), r.start()) );
     llvm::Value *progress = m_builder.CreateMul( sign, index.data() );
-    llvm::Value *ioperand = m_builder.CreateAdd( r.start(), progress );
-    return m_builder.CreateSIToFP(ioperand, llvm::Type::getDoubleTy(llvm_context()));
+    llvm::Value *value = m_builder.CreateAdd( r.start(), progress );
+    return value;
 }
 
 llvm::Value *stream_value::at( const vector<scalar_value> & index,

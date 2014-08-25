@@ -457,6 +457,11 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::identifier:
         expr_type =  process_identifier(root).first;
         break;
+    case ast::negate:
+    {
+        expr_type = process_negate(root);
+        break;
+    }
     case ast::add:
     case ast::subtract:
     case ast::multiply:
@@ -523,6 +528,43 @@ type_checker::process_identifier( const sp<ast::node> & root )
     }
     assert(false);
     throw source_error("Name not in scope.", root->line);
+}
+
+type_ptr type_checker::process_negate( const sp<ast::node> & root )
+{
+    type_ptr operand_type = process_expression(root->as_list()->elements[0]);
+    switch(operand_type->get_tag())
+    {
+    case type::integer_num:
+    {
+        auto result = make_shared<integer_num>();
+        integer_num &int_op = operand_type->as<integer_num>();
+        if (int_op.is_constant())
+            result->set_constant(- int_op.constant_value());
+        return result;
+    }
+    case type::real_num:
+    {
+        auto result = make_shared<real_num>();
+        real_num &real_op = operand_type->as<real_num>();
+        if (real_op.is_constant())
+            result->set_constant(- real_op.constant_value());
+        return result;
+    }
+    case type::range:
+    {
+        range & r = operand_type->as<range>();
+        if (!r.is_constant())
+            throw source_error("Non-constant range used where constant range required.",
+                               root->line);
+        return make_shared<stream>(r.const_size());
+    }
+    case type::stream:
+        return operand_type;
+        break;
+    default:
+        throw source_error("Unexpected expression type.", root->line);
+    }
 }
 
 type_ptr type_checker::process_binop( const sp<ast::node> & root )
