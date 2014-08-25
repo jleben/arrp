@@ -158,7 +158,7 @@ let_block:
     $$ = new ast::list_node( ast::statement_list, $1->line, {$2} );
   }
   |
-  let '{' stmt_list '}'
+  let '{' stmt_list optional_semicolon '}'
   {
     $$ = $3;
     $$->line = $1->line;
