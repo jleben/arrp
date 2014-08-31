@@ -227,15 +227,23 @@ private:
         string elem;
         while(std::getline(size_stream, elem, ','))
         {
-            try {
-                size_t pos = 0;
-                int size = stoi(elem, &pos);
-                if (pos == elem.size())
-                {
-                    sizes.push_back(size);
-                    continue;
-                }
-            } catch (...) {}
+            if (elem == "inf")
+            {
+                sizes.push_back(semantic::stream::infinite);
+                continue;
+            }
+            else
+            {
+                try {
+                    size_t pos = 0;
+                    int size = stoi(elem, &pos);
+                    if (pos == elem.size())
+                    {
+                        sizes.push_back(size);
+                        continue;
+                    }
+                } catch (...) {}
+            }
 
             throw command_line_error("Invalid stream argument.");
         }
@@ -361,7 +369,7 @@ int main(int argc, char *argv[])
             return result::semantic_error;
 
         cout << "Type: " << *result_type << endl;
-
+#if 0
         {
             if(result_type->get_tag() == semantic::type::function)
             {
@@ -375,8 +383,10 @@ int main(int argc, char *argv[])
         }
 
         gen.generate(sym_iter->second, eval.args);
+#endif
     }
 
+#if 0
     ofstream output_file(args.output_filename);
     if (!output_file.is_open())
     {
@@ -390,6 +400,6 @@ int main(int argc, char *argv[])
     {
         return result::generator_error;
     }
-
+#endif
     return result::ok;
 }
