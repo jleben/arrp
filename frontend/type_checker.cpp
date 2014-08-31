@@ -693,7 +693,7 @@ type_ptr type_checker::process_extent( const sp<ast::node> & root )
 
     if (size == stream::infinite)
     {
-        throw source_error("Extent in request dimension is infinite.", root->line);
+        throw source_error("Extent in requested dimension is infinite.", root->line);
     }
 
     return make_shared<integer_num>(size);
