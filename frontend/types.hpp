@@ -192,6 +192,11 @@ struct range : public tagged_type<type::range>
 
 struct stream : public tagged_type<type::stream>
 {
+    enum
+    {
+        infinite = -1
+    };
+
     explicit stream( const vector<int> & s ) : size(s) {}
     explicit stream( int s ) : size({s}) {}
     int dimensionality() const { return size.size(); }
@@ -200,12 +205,15 @@ struct stream : public tagged_type<type::stream>
     virtual void print_on( ostream & s ) const
     {
         s << "[";
-        if (size.size())
-            s << size.front();
-        for (int i = 1; i < size.size(); ++i)
+        for (int i = 0; i < size.size(); ++i)
         {
-            s << ',';
-            s << size[i];
+            int sz = size[i];
+            if (i > 0)
+                s << ',';
+            if (sz == infinite)
+                s << "inf";
+            else
+                s << sz;
         }
         s << "]";
     }

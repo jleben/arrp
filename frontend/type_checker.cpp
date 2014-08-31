@@ -342,6 +342,7 @@ type_checker::process_function( const func_type_ptr & func_type,
         f->name = g.name;
         f->signature = selected_candidate;
 
+        // Find result size, check that all args have the same size.
         vector<int> result_size;
         for ( const auto & rt : reduced_types )
         {
@@ -690,6 +691,11 @@ type_ptr type_checker::process_extent( const sp<ast::node> & root )
 
     int size = s.size[dim-1];
 
+    if (size == stream::infinite)
+    {
+        throw source_error("Extent in request dimension is infinite.", root->line);
+    }
+
     return make_shared<integer_num>(size);
 }
 
@@ -745,23 +751,29 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
     if (object_type->get_tag() != type::stream)
         throw source_error("Slice object not a stream.", object_node->line);
 
-    stream result_type(object_type->as<stream>());
+    const stream & source_stream = object_type->as<stream>();
 
     ast::list_node *range_list = ranges_node->as_list();
 
-    if (range_list->elements.size() > result_type.dimensionality())
+    if (range_list->elements.size() > source_stream.dimensionality())
         throw source_error("Too many slice dimensions.", ranges_node->line);
 
+    stream result_stream(source_stream);
     int dim = 0;
     for( const auto & range_node : range_list->elements )
     {
+        if (source_stream.size[dim] == stream::infinite)
+        {
+            throw source_error("Can not slice an infinite dimension.", range_node->line);
+        }
+
         sp<type> selector = process_expression(range_node);
         switch(selector->get_tag())
         {
         case type::integer_num:
         {
             // TODO: Range checking? Required a constant.
-            result_type.size[dim] = 1;
+            result_stream.size[dim] = 1;
             break;
         }
         case type::range:
@@ -770,7 +782,7 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
             if (!r.start)
                 r.start = make_shared<integer_num>(1);
             if (!r.end)
-                r.end = make_shared<integer_num>(result_type.size[dim]);
+                r.end = make_shared<integer_num>(source_stream.size[dim]);
             if (!r.is_constant())
                 throw source_error("Non-constant slice size not supported.", range_node->line);
             int start = r.const_start();
@@ -778,9 +790,9 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
             int size = end - start + 1;
             if (size < 1)
                 throw source_error("Invalid slice range: size less than 1.", range_node->line);
-            if (start < 1 || end > result_type.size[dim])
+            if (start < 1 || end > source_stream.size[dim])
                 throw source_error("Invalid slice range: out of bounds.", range_node->line);
-            result_type.size[dim] = size;
+            result_stream.size[dim] = size;
             break;
         }
         default:
@@ -789,7 +801,7 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
         ++dim;
     }
 
-    return result_type.reduced();
+    return result_stream.reduced();
 }
 
 type_ptr type_checker::process_call( const sp<ast::node> & root )
@@ -1019,12 +1031,19 @@ type_ptr type_checker::process_iterator( const sp<ast::node> & root )
 
     // Compute iteration count:
 
-    int iterable_size = domain_size - it.size;
-    if (iterable_size < 0)
-        throw source_error("Iteration size larger than stream size.", iteration->line);
-    if (iterable_size % it.hop != 0)
-        throw source_error("Iteration does not cover stream size.", iteration->line);
-    it.count = iterable_size / it.hop + 1;
+    if (domain_size == stream::infinite)
+    {
+        it.count = stream::infinite;
+    }
+    else
+    {
+        int iterable_size = domain_size - it.size;
+        if (iterable_size < 0)
+            throw source_error("Iteration size larger than stream size.", iteration->line);
+        if (iterable_size % it.hop != 0)
+            throw source_error("Iteration does not cover stream size.", iteration->line);
+        it.count = iterable_size / it.hop + 1;
+    }
 
     //cout << "Iterator: " << it.id << " " << it.count << " x " << it.size << endl;
 
