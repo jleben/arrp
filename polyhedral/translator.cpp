@@ -172,7 +172,10 @@ expression * translator::do_expression(const ast::node_ptr &node)
     {
         return do_transpose(node);
     }
-    //case ast::slice_expression:
+    case ast::slice_expression:
+    {
+        return do_slicing(node);
+    }
     //case ast::hash_expression:
 
     //case ast::for_expression:
@@ -309,7 +312,6 @@ expression * translator::do_transpose(const ast::node_ptr &node)
     const auto & object_node = node->as_list()->elements[0];
     const auto & dims_node = node->as_list()->elements[1];
 
-    expression *object = do_expression(object_node);
     semantic::stream & stream_type =
             node->semantic_type->as<semantic::stream>();
 
@@ -337,7 +339,70 @@ expression * translator::do_transpose(const ast::node_ptr &node)
     mapping transposition = mapping::identity(dimension, dimension);
     transposition.coefficients = transposition.coefficients.reordered( order );
 
+    expression *object = do_expression(object_node);
+
     update_accesses(object, transposition);
+
+    return object;
+}
+
+expression * translator::do_slicing(const  ast::node_ptr &node)
+{
+    using namespace semantic;
+
+    const auto & object_node = node->as_list()->elements[0];
+    const auto & ranges_node = node->as_list()->elements[1];
+
+    semantic::stream & stream_type =
+            node->semantic_type->as<semantic::stream>();
+
+    int dimension = current_dimension() + stream_type.dimensionality();
+
+    mapping slicing = mapping::identity(dimension, dimension);
+
+    int dim = 0;
+    for( const auto & range_node : ranges_node->as_list()->elements )
+    {
+        int offset;
+
+        // TODO: detect affine expressions of loop indeces and parameters
+        // auto selector = do_expression(range_node);
+
+        type_ptr selector_type = range_node->semantic_type;
+        switch(selector_type->get_tag())
+        {
+        case type::integer_num:
+        {
+            integer_num &int_type = selector_type->as<integer_num>();
+            if (!int_type.is_constant())
+                throw runtime_error("Non-constant slicing not supported.");
+            offset = int_type.constant_value() - 1;
+            break;
+        }
+        case type::range:
+        {
+            range &r = selector_type->as<range>();
+            if (!r.start)
+                offset = 0;
+            else
+            {
+                assert(r.start_is_constant());
+                offset = r.const_start() - 1;
+            }
+            break;
+        }
+        default:
+            throw runtime_error("Unexpected slice selector type.");
+        }
+
+        slicing.constants[current_dimension() + dim] = offset;
+
+        ++dim;
+    }
+
+    expression *object = do_expression(object_node);
+
+    update_accesses(object, slicing);
 
     return object;
 }
