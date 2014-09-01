@@ -316,24 +316,24 @@ expression * translator::do_transpose(const ast::node_ptr &node)
             node->semantic_type->as<semantic::stream>();
     int dimension = current_dimension() + stream_type.dimensionality();
 
-    vector<int> order;
-    order.reserve(dimension);
+    vector<int> order(dimension,-1);
 
-    vector<bool> done(stream_type.dimensionality(), false);
-
-    for (int d = 0; d < current_dimension(); ++d)
-        order.push_back(d);
-
+    int dim = 0;
     for ( const auto & dim_node : dims_node->as_list()->elements )
     {
-        int d = dim_node->as_leaf<int>()->value - 1;
-        done[d] = true;
-        order.push_back( d + current_dimension() );
+        int pos = current_dimension() + dim_node->as_leaf<int>()->value - 1;
+        order[pos] = dim;
+        ++dim;
     }
-
-    for (int d = 0; d < done.size(); ++d)
-        if (!done[d])
-            order.push_back( d + current_dimension() );
+    for (int pos = 0; pos < dimension; ++pos)
+    {
+        if (order[pos] < 0)
+        {
+            order[pos] = dim;
+            ++dim;
+        }
+    }
+    assert(dim == dimension);
 
     matrix<int> transposition =
             matrix<int>::identity(dimension, dimension).reordered( order );
