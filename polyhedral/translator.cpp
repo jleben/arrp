@@ -32,9 +32,7 @@ expression * translator::translate_type(const semantic::type_ptr & type)
 
         auto expr = new stream_view;
         expr->target = generator;
-        //expr->index_range = generator->domain;
-        expr->map = matrix<int>::identity(dimension, dimension);
-        expr->offset = vector<int>(dimension, 0);
+        expr->pattern = mapping::identity(dimension, dimension);
         expr->current_iteration = 0;
         return expr;
     }
@@ -314,6 +312,7 @@ expression * translator::do_transpose(const ast::node_ptr &node)
     expression *object = do_expression(object_node);
     semantic::stream & stream_type =
             node->semantic_type->as<semantic::stream>();
+
     int dimension = current_dimension() + stream_type.dimensionality();
 
     vector<int> order(dimension,-1);
@@ -335,54 +334,54 @@ expression * translator::do_transpose(const ast::node_ptr &node)
     }
     assert(dim == dimension);
 
-    matrix<int> transposition =
-            matrix<int>::identity(dimension, dimension).reordered( order );
+    mapping transposition = mapping::identity(dimension, dimension);
+    transposition.coefficients = transposition.coefficients.reordered( order );
 
-    vector<int> zero_offset(dimension, 0);
-
-    update_accesses(object, transposition, zero_offset);
+    update_accesses(object, transposition);
 
     return object;
 }
 
-matrix<int> translator::access(stream_view *source)
+mapping translator::access(stream_view *source)
 {
     if (source->current_iteration == current_dimension())
     {
-        return source->map;
+        return source->pattern;
     }
 
     int distance = current_dimension() - source->current_iteration;
     assert(distance > 0);
 
-    matrix<int> map = source->map.resized(source->map.rows(),
-                                          source->map.columns() + distance);
-    int col = map.columns() - 1;
+    int out_dim = source->pattern.output_dimension();
+    int in_dim = source->pattern.input_dimension() + distance;
+    mapping pattern;
+    pattern.coefficients =
+            source->pattern.coefficients.resized(out_dim, in_dim);
+    pattern.constants = source->pattern.constants;
+
+    auto & coef = pattern.coefficients;
+
+    int col = coef.columns() - 1;
     for (; col >= current_dimension(); --col)
     {
-        for (int r = 0; r < map.rows(); ++r)
-            map(r, col) = map(r, col - distance);
+        for (int r = 0; r < coef.rows(); ++r)
+            coef(r, col) = coef(r, col - distance);
     }
     for (; col >= source->current_iteration; --col)
     {
-        for (int r = 0; r < map.rows(); ++r)
-            map(r, col) = 0;
+        for (int r = 0; r < coef.rows(); ++r)
+            coef(r, col) = 0;
     }
 
-    source->current_iteration = current_dimension();
-
-    return map;
+    return pattern;
 }
 
 
 stream_access * translator::complete_access( stream_view * view )
 {
-    matrix<int> map = this->access(view);
-
     auto access = new stream_access;
     access->target = view->target;
-    access->map = map;
-    access->offset = view->offset;
+    access->pattern = this->access(view);
 
     return access;
 #if 0
@@ -424,45 +423,33 @@ translator::make_statement( expression * expr,
 
     auto view = new stream_view;
     view->target = stmt;
-    view->map = matrix<int>::identity(domain.size(), domain.size());
-    view->offset = vector<int>(domain.size(), 0);
+    view->pattern = mapping(domain.size(), domain.size());
     view->current_iteration = m_domain.size();
-    //view->iteration_map = matrix<int>::identity(m_domain.size(), m_domain.size());
 
     return view;
 }
 
-void translator::update_accesses(expression *expr,
-                                 const matrix<int> & map,
-                                 const vector<int> & offset)
+void translator::update_accesses(expression *expr, const mapping & map )
 {
-    if (auto const_int = dynamic_cast<constant<int>*>(expr))
-        return;
-    if (auto const_real = dynamic_cast<constant<double>*>(expr))
-        return;
     if (auto operation = dynamic_cast<intrinsic*>(expr))
     {
         for (auto sub_expr : operation->operands)
-            update_accesses(sub_expr, map, offset);
+            update_accesses(sub_expr, map);
         return;
     }
     if (auto dependency = dynamic_cast<stream_access*>(expr))
     {
-        auto pattern =
-                utility::compose(dependency->map, dependency->offset,
-                                 map, offset);
-
-        dependency->map = pattern.first;
-        dependency->offset = pattern.second;
+        //cout << "before: " << endl << dependency->pattern.coefficients;
+        dependency->pattern = dependency->pattern * map;
+        //cout << "after: " << endl  << dependency->pattern.coefficients;
+        return;
     }
     if (auto view = dynamic_cast<stream_view*>(expr))
     {
-        auto pattern =
-                utility::compose(view->map, view->offset,
-                                 map, offset);
-
-        view->map = pattern.first;
-        view->offset = pattern.second;
+        //cout << "before: " << endl << view->pattern.coefficients;
+        view->pattern = view->pattern * map;
+        //cout << "after: " << endl  << view->pattern.coefficients;
+        return;
     }
 }
 

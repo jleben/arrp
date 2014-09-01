@@ -32,6 +32,48 @@ public:
     int stride;
 };
 
+class mapping
+{
+public:
+    mapping() {}
+
+    mapping(const matrix<int> & coef, const vector<int> & cst):
+        coefficients(coef), constants(cst)
+    {
+        assert(coefficients.rows() == constants.size());
+    }
+
+    mapping(int input_dimension, int output_dimension):
+        coefficients(output_dimension, input_dimension, 0),
+        constants(output_dimension, 0)
+    {
+    }
+
+    static mapping identity(int in, int out)
+    {
+        mapping m;
+        m.coefficients = matrix<int>::identity(out,in);
+        m.constants.resize(out, 0);
+        return m;
+    }
+
+    int input_dimension() const { return coefficients.columns(); }
+    int output_dimension() const { return coefficients.rows(); }
+
+    matrix<int> coefficients;
+    vector<int> constants;
+};
+
+inline mapping operator*(const mapping & m1, const mapping & m2)
+{
+    using namespace ::stream::utility;
+
+    mapping dst;
+    dst.coefficients = m1.coefficients * m2.coefficients;
+    dst.constants = m1.coefficients * m2.constants + m1.constants;
+    return dst;
+}
+
 class expression
 {
     // TODO: provide easy access to all dependencies,
@@ -74,9 +116,7 @@ class stream_access : public expression
 public:
     stream_access(): target(nullptr) {}
     statement * target;
-    matrix<int> map;
-    vector<int> offset;
-    //vector<access_pattern> pattern;
+    mapping pattern;
 };
 
 class statement

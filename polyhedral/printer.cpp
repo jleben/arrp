@@ -60,14 +60,14 @@ void printer::print(expression *expr, ostream &s)
     {
         s << "access: " << access->target << " [" << endl;
         indent();
-        for (int row = 0; row < access->map.rows(); ++row)
+        for (int row = 0; row < access->pattern.output_dimension(); ++row)
         {
             s << indentation();
-            for (int col = 0; col < access->map.columns(); ++col)
+            for (int col = 0; col < access->pattern.input_dimension(); ++col)
             {
-                s << std::setw(4) << access->map(row,col);
+                s << std::setw(4) << access->pattern.coefficients(row,col);
             }
-            s << " | " << access->offset[row];
+            s << " | " << access->pattern.constants[row];
             s << endl;
         }
         unindent();

@@ -8,11 +8,13 @@
 #include "../utility/matrix.hpp"
 
 #include <deque>
+#include <stack>
 
 namespace stream {
 namespace polyhedral {
 
 using std::deque;
+using std::stack;
 using utility::matrix;
 
 class translator
@@ -43,11 +45,8 @@ private:
     {
     public:
         statement *target;
-        matrix<int> map;
-        vector<int> offset;
+        mapping pattern;
         int current_iteration;
-        //vector<int> index_range;
-        //matrix<int> iteration_map;
     };
 
     typedef stream::context<string,symbol> context;
@@ -55,6 +54,7 @@ private:
     context m_context;
     deque<int> m_domain;
     vector<statement*> m_statements;
+
 
     void do_statement_list(const ast::node_ptr &node);
     void do_statement(const ast::node_ptr &node);
@@ -72,14 +72,12 @@ private:
 
     expression * translate_type(const semantic::type_ptr & type);
 
-    matrix<int> access(stream_view *source);
+    mapping access(stream_view *source);
 
     stream_access * complete_access( stream_view * );
     stream_view * make_statement( expression *, const vector<int> & domain );
 
-    void update_accesses(expression *,
-                         const matrix<int> & map,
-                         const vector<int> & offset);
+    void update_accesses(expression *, const mapping & map);
 
 
     //expression *complete_access( partial_stream_access * );

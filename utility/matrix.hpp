@@ -206,17 +206,6 @@ vector<T> operator+( const vector<T> & v1, const vector<T> & v2 )
 }
 
 template <typename T>
-pair< matrix<T>, vector<T> >
-compose( const matrix<int> & map1, const vector<T> & offset1,
-         const matrix<int> & map2, const vector<T> & offset2 )
-{
-    pair< matrix<T>, vector<T> > dst;
-    dst.first = map1 * map2;
-    dst.second = map1 * offset2 + offset1;
-    return dst;
-}
-
-template <typename T>
 inline std::ostream & operator<< ( std::ostream & stream, const matrix<T> & m )
 {
     for (int r = 0; r < m.rows(); ++r)
