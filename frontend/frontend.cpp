@@ -2,6 +2,8 @@
 #include "ast_printer.hpp"
 #include "type_checker.hpp"
 #include "ir-generator.hpp"
+#include "../polyhedral/translator.hpp"
+#include "../polyhedral/printer.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -339,7 +341,10 @@ int main(int argc, char *argv[])
 
     semantic::type_checker type_checker(env);
 
-    IR::generator gen(args.input_filename, env);
+    //IR::generator gen(args.input_filename, env);
+
+    polyhedral::translator poly;
+    polyhedral::printer poly_printer;
 
     for (const evaluation & eval : args.evaluations)
     {
@@ -369,21 +374,31 @@ int main(int argc, char *argv[])
             return result::semantic_error;
 
         cout << "Type: " << *result_type << endl;
-#if 0
+
         {
             if(result_type->get_tag() == semantic::type::function)
             {
+                semantic::function &f = result_type->as<semantic::function>();
+                poly.translate( f, eval.args );
+                for( polyhedral::statement * stmt : poly.statements() )
+                {
+                    cout << "Statement:" << endl;
+                    poly_printer.print(stmt, cout);
+                }
+
+                #if 0
                 string func_name = result_type->as<semantic::function>().name;
                 sym_iter = env.find(func_name);
                 if (sym_iter == env.end())
                 {
                     throw error("Function just generated not found.");
                 }
+                #endif
             }
         }
 
-        gen.generate(sym_iter->second, eval.args);
-#endif
+        //gen.generate(sym_iter->second, eval.args);
+
     }
 
 #if 0

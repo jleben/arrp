@@ -48,6 +48,8 @@ add_library(frontend_lib ${lib_mode}
   types.cpp
   type_checker.cpp
   ir-generator.cpp
+  ../polyhedral/translator.cpp
+  ../polyhedral/printer.cpp
 )
 
 #set_property( TARGET frontend_lib APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
