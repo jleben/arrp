@@ -459,6 +459,7 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
             throw runtime_error("Unsupported mapping source.");
 
         semantic::stream source_type = iter.domain->semantic_type->as<semantic::stream>();
+
         expression *source_expr = do_expression(iter.domain);
 
         stream_view *source_stream;
@@ -477,12 +478,38 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
             source_stream = make_statement(source_expr, domain);
         }
 
+        // Expand
+
+        if (iter.size > 1)
+        {
+            const mapping &src = source_stream->pattern;
+            mapping dst(src.input_dimension() + 1, src.input_dimension());
+            for (int dim = 0; dim <= current_dimension(); ++dim)
+            {
+                dst.coefficients(dim, dim) = 1;
+            }
+            for (int dim = current_dimension(); dim < dst.output_dimension(); ++dim)
+            {
+                dst.coefficients(dim, dim + 1) = 1;
+            }
+            source_stream->pattern = source_stream->pattern * dst;
+        }
+
+        // Apply stride
+
+        mapping stride =
+                mapping::identity(source_stream->pattern.input_dimension(),
+                                  source_stream->pattern.input_dimension());
+        stride.coefficients(current_dimension(), current_dimension()) = iter.hop;
+        source_stream->pattern = source_stream->pattern * stride;
+
         source_stream->current_iteration = current_dimension() + 1;
 
         sources.push_back(source_stream);
     }
 
     context::scope_holder mapping_scope(m_context);
+
     for(int i = 0; i < sources.size(); ++i)
     {
         semantic::iterator & iter =
