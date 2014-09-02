@@ -364,14 +364,25 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
     const auto & object_node = node->as_list()->elements[0];
     const auto & ranges_node = node->as_list()->elements[1];
 
-    semantic::stream & stream_type =
-            node->semantic_type->as<semantic::stream>();
+    const auto & object_type =
+            object_node->semantic_type->as<semantic::stream>();
+    const auto & result_type = node->semantic_type;
 
-    int dimension = current_dimension() + stream_type.dimensionality();
+    int object_dimension, slice_dimension;
 
-    mapping slicing = mapping::identity(dimension, dimension);
+    object_dimension = object_type.dimensionality();
 
-    int dim = 0;
+    if (result_type->is(semantic::type::stream))
+        slice_dimension = result_type->as<semantic::stream>().dimensionality();
+    else
+        slice_dimension = 1;
+
+    mapping slicing =
+            mapping(current_dimension() + slice_dimension,
+                    current_dimension() + object_dimension);
+
+    int in_dim = 0;
+    int out_dim = 0;
     for( const auto & range_node : ranges_node->as_list()->elements )
     {
         int offset;
@@ -392,6 +403,7 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
         }
         case type::range:
         {
+            // FIXME: do not assume range size > 1 !
             range &r = selector_type->as<range>();
             if (!r.start)
                 offset = 0;
@@ -400,15 +412,24 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
                 assert(r.start_is_constant());
                 offset = r.const_start() - 1;
             }
+
+            slicing.coefficients(out_dim, in_dim) = 1;
+            ++in_dim;
+
             break;
         }
         default:
             throw runtime_error("Unexpected slice selector type.");
         }
 
-        slicing.constants[current_dimension() + dim] = offset;
+        slicing.constants[current_dimension() + out_dim] = offset;
 
-        ++dim;
+        ++out_dim;
+    }
+
+    for (; in_dim < slice_dimension; ++in_dim, ++out_dim)
+    {
+        slicing.coefficients(out_dim, in_dim) = 1;
     }
 
     expression *object = do_expression(object_node);
