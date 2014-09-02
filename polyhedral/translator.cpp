@@ -113,11 +113,15 @@ void translator::do_statement(const ast::node_ptr &node)
         case type::real_num:
             break;
         case type::stream:
+        {
             vector<int> expr_domain =
                     node->semantic_type->as<stream>().size;
             domain.insert(domain.end(),
                           expr_domain.begin(), expr_domain.end());
             break;
+        }
+        default:
+            throw runtime_error("Unexpected type.");
         };
         expr = make_statement(expr, domain);
     }
@@ -556,7 +560,7 @@ translator::make_statement( expression * expr,
 
     auto view = new stream_view;
     view->target = stmt;
-    view->pattern = mapping(domain.size(), domain.size());
+    view->pattern = mapping::identity(domain.size(), domain.size());
     view->current_iteration = current_dimension();
 
     return view;
