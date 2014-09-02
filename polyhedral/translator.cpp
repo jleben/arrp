@@ -178,7 +178,10 @@ expression * translator::do_expression(const ast::node_ptr &node)
     }
     //case ast::hash_expression:
 
-    //case ast::for_expression:
+    case ast::for_expression:
+    {
+        return do_mapping(node);
+    }
     //case ast::reduce_expression:
 
     default:
@@ -320,13 +323,17 @@ expression * translator::do_transpose(const ast::node_ptr &node)
     vector<int> order(dimension,-1);
 
     int dim = 0;
+    for(; dim < current_dimension(); ++dim)
+    {
+        order[dim] = dim;
+    }
     for ( const auto & dim_node : dims_node->as_list()->elements )
     {
         int pos = current_dimension() + dim_node->as_leaf<int>()->value - 1;
         order[pos] = dim;
         ++dim;
     }
-    for (int pos = 0; pos < dimension; ++pos)
+    for (int pos = current_dimension(); pos < dimension; ++pos)
     {
         if (order[pos] < 0)
         {
@@ -405,6 +412,67 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
     update_accesses(object, slicing);
 
     return object;
+}
+
+expression * translator::do_mapping(const  ast::node_ptr &node)
+{
+    const auto & iterators_node = node->as_list()->elements[0];
+    const auto & body_node = node->as_list()->elements[1];
+
+    auto result_type = node->semantic_type->as<semantic::stream>();
+
+    vector<expression*> sources;
+
+    for (const auto & iterator_node : iterators_node->as_list()->elements)
+    {
+        semantic::iterator & iter =
+                iterator_node->semantic_type->as<semantic::iterator>();
+
+        // TODO: range as source
+
+        if (!iter.domain->semantic_type->is(semantic::type::stream))
+            throw runtime_error("Unsupported mapping source.");
+
+        semantic::stream source_type = iter.domain->semantic_type->as<semantic::stream>();
+        expression *source_expr = do_expression(iter.domain);
+
+        stream_view *source_stream;
+        if (source_stream = dynamic_cast<stream_view*>(source_expr))
+        {
+            stream_view *copy = new stream_view;
+            copy->target = source_stream->target;
+            copy->pattern = access(source_stream);
+            source_stream = copy;
+        }
+        else
+        {
+            vector<int> domain;
+            domain.insert(domain.end(), m_domain.begin(), m_domain.end());
+            domain.insert(domain.end(), source_type.size.begin(), source_type.size.end());
+            source_stream = make_statement(source_expr, domain);
+        }
+
+        source_stream->current_iteration = current_dimension() + 1;
+
+        sources.push_back(source_stream);
+    }
+
+    context::scope_holder mapping_scope(m_context);
+    for(int i = 0; i < sources.size(); ++i)
+    {
+        semantic::iterator & iter =
+                iterators_node->as_list()->elements[i]
+                ->semantic_type->as<semantic::iterator>();
+        m_context.bind(iter.id, sources[i]);
+    }
+
+    m_domain.push_back( result_type.size[0] );
+
+    expression *result = do_block(body_node);
+
+    m_domain.pop_back();
+
+    return result;
 }
 
 mapping translator::access(stream_view *source)
@@ -489,7 +557,7 @@ translator::make_statement( expression * expr,
     auto view = new stream_view;
     view->target = stmt;
     view->pattern = mapping(domain.size(), domain.size());
-    view->current_iteration = m_domain.size();
+    view->current_iteration = current_dimension();
 
     return view;
 }
