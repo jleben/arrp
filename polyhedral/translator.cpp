@@ -227,24 +227,6 @@ expression * translator::do_unary_op(const ast::node_ptr &node)
     }
 
     return operation_result;
-#if 0
-    // create and return result
-
-    if (source_stream)
-    {
-        vector<int> domain = m_domain;
-        std::copy(source_stream->index_range.begin(),
-                  source_stream->index_range.end(),
-                  std::back_inserter(domain));
-        auto result_stream = make_statement(operation_result, domain);
-        delete source_stream;
-        return result_stream;
-    }
-    else
-    {
-        return operation_result;
-    }
-#endif
 }
 
 expression * translator::do_binary_op(const ast::node_ptr &node)
@@ -291,27 +273,6 @@ expression * translator::do_binary_op(const ast::node_ptr &node)
     }
 
     return operation_result;
-#if 0
-    // create and return result
-
-    assert( !(source_stream1 && source_stream2) ||
-            source_stream1->size == source_stream2->size );
-
-    if (source_stream1 || source_stream2)
-    {
-        auto additional_domain = source_stream1 ? source_stream1->size : source_stream2->size;
-        auto result_stream = partial_access(operation_result, additional_domain);
-
-        delete source_stream1;
-        delete source_stream2;
-
-        return result_stream;
-    }
-    else
-    {
-        return operation_result;
-    }
-#endif
 }
 
 expression * translator::do_transpose(const ast::node_ptr &node)
@@ -569,28 +530,6 @@ stream_access * translator::complete_access( stream_view * view )
     access->pattern = this->access(view);
 
     return access;
-#if 0
-    int dims = view->target->domain.size();
-    int extra_dims = dims - view->iteration_map.rows();
-    int iters = view->iteration_map.columns() + extra_dims;
-
-    if (view->current_iteration != current_dimension())
-
-    matrix<int> iter_map = view->iteration_map.resized(dims, iters);
-    for (int i = 0; i < extra_dims; ++i)
-    {
-        int dim = view->iteration_map.rows() + i;
-        int iter = view->iteration_map.columns() + i;
-        iter_map(dim, iter) = 1;
-    }
-
-    auto access = new stream_access;
-    access->target = view->target;
-    access->map = view->index_map * iter_map;
-    access->offset = view->index_offset;
-
-    return access;
-#endif
 }
 
 translator::stream_view *

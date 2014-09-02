@@ -17,21 +17,6 @@ enum
 
 class statement;
 
-class access_pattern
-{
-public:
-    access_pattern(int from, int to, int at, int by):
-        source_dimension(from),
-        target_dimension(to),
-        offset(at),
-        stride(by)
-    {}
-    int source_dimension;
-    int target_dimension;
-    int offset;
-    int stride;
-};
-
 class mapping
 {
 public:
