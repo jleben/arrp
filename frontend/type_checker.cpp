@@ -1037,7 +1037,7 @@ type_ptr type_checker::process_iterator( const sp<ast::node> & root )
     }
     else
     {
-        int iterable_size = domain_size - it.size;
+        int iterable_size = domain_size - std::max(it.size, it.hop);
         if (iterable_size < 0)
             throw source_error("Iteration size larger than stream size.", iteration->line);
         if (iterable_size % it.hop != 0)
