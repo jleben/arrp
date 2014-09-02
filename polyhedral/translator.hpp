@@ -35,12 +35,6 @@ private:
         expression * source;
     };
 
-    // TODO: Should this actually be an expression?
-
-    // TODO:
-    // How to treat slicing and transposition of
-    // partial accesses?
-
     class stream_view : public expression
     {
     public:
