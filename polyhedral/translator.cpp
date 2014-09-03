@@ -575,6 +575,12 @@ void translator::update_accesses(expression *expr, const mapping & map )
         //cout << "after: " << endl  << view->pattern.coefficients;
         return;
     }
+    if ( dynamic_cast<constant<int>*>(expr) ||
+         dynamic_cast<constant<double>*>(expr) )
+    {
+        return;
+    }
+    throw std::runtime_error("Unexpected expression type.");
 }
 
 }
