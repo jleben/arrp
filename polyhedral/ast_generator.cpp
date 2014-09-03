@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
+#include <unordered_set>
+#include <cmath>
+#include <cstdlib>
 
 using namespace std;
 
@@ -34,9 +37,11 @@ isl_ast_node *ast_generator::generate( const vector<statement*> & statements )
 
     isl_union_map *sched = schedule(isl_repr);
 
-    cout << "Schedule:" << endl;
+    cout << endl << "Schedule:" << endl;
     m_printer.print(sched);
     cout << endl;
+
+    dataflow_iteration_domains(isl_repr.first);
 
     return nullptr;
 }
@@ -130,7 +135,7 @@ isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info
 
     vector<stream_access*> deps;
 
-    add_dependencies(source->expr, deps);
+    find_dependencies(source->expr, deps);
 
     isl_union_map *united_map = nullptr;
 
@@ -238,13 +243,163 @@ isl_union_map *ast_generator::schedule
     return schedule;
 }
 
-void ast_generator::add_dependencies( expression *expr,
+pair<isl_union_set*, isl_union_set*>
+ast_generator::dataflow_iteration_domains(isl_union_set* domains)
+{
+    vector<string> finite_statements;
+    vector<string> infinite_statements;
+    vector<string> invalid_statements;
+
+    for(auto info : m_statements)
+    {
+        const string & stmt_name = info.first;
+        statement *stmt = info.second;
+        vector<int> infinite_dims = infinite_dimensions(stmt);
+        if (infinite_dims.empty())
+            finite_statements.push_back(stmt_name);
+        else if (infinite_dims.size() == 1)
+            infinite_statements.push_back(stmt_name);
+        else
+            invalid_statements.push_back(stmt_name);
+    }
+
+    cout << endl << "Statement types:" << endl;
+    cout << "- finite: " << finite_statements.size() << endl;
+    cout << "- infinite: " << infinite_statements.size() << endl;
+    cout << "- invalid: " << invalid_statements.size() << endl;
+
+    if (!invalid_statements.empty())
+    {
+        ostringstream msg;
+        msg << "The following statements are infinite"
+            << " in more than 1 dimension: " << endl;
+        for (const auto & name: invalid_statements)
+        {
+            msg << "- " << name << endl;
+        }
+        throw error(msg.str());
+    }
+
+    vector<dataflow_dependency> deps;
+
+    for(const string & name : infinite_statements)
+    {
+        find_dataflow_dependencies(*m_statements.find(name), deps);
+    }
+
+    vector<pair<string,int>> counts;
+    dataflow_iteration_counts(deps, counts);
+
+    return pair<isl_union_set*, isl_union_set*>();
+}
+
+void ast_generator::dataflow_iteration_counts
+( const vector<dataflow_dependency> &deps, vector<pair<string, int>> & counts )
+{
+    unordered_set<string> involved_stmts;
+
+    for (const auto & dep: deps)
+    {
+        involved_stmts.insert(dep.source);
+        involved_stmts.insert(dep.sink);
+    }
+
+    int rows = deps.size();
+    int cols = involved_stmts.size() + 1; // 1 dummy for constants
+    isl_mat * flow_matrix =
+            isl_mat_alloc(m_ctx, rows, cols);
+
+    for (int r = 0; r < rows; ++r)
+        for(int c = 0; c < cols; ++c)
+            isl_mat_set_element_si(flow_matrix, r, c, 0);
+
+    int row = 0;
+    for (const auto & dep: deps)
+    {
+        auto source_loc = involved_stmts.find(dep.source);
+        int source_index = std::distance(involved_stmts.begin(), source_loc);
+        auto sink_loc = involved_stmts.find(dep.sink);
+        int sink_index = std::distance(involved_stmts.begin(), sink_loc);
+
+        cout << "source: " << dep.source << "@" << source_index << endl;
+        cout << "sink: " << dep.sink << "@" << sink_index << endl;
+        isl_mat_set_element_si(flow_matrix, row, source_index, dep.push);
+        isl_mat_set_element_si(flow_matrix, row, sink_index, dep.pop);
+        ++row;
+    }
+
+    isl_mat *dummy_inequalities_matrix = isl_mat_alloc(m_ctx, 0, cols);
+    isl_space *space = isl_space_set_alloc(m_ctx, 0, involved_stmts.size());
+    isl_basic_set *flow_nullspace =
+            isl_basic_set_from_constraint_matrices
+            (space, flow_matrix, dummy_inequalities_matrix,
+             isl_dim_set, isl_dim_cst, isl_dim_param, isl_dim_div);
+
+    assert(flow_nullspace);
+    cout << "Nullspace:" << endl;
+    m_printer.print(flow_nullspace); cout << endl;
+
+    isl_basic_set * flow_nullspace_coeff =
+            isl_basic_set_coefficients(flow_nullspace);
+
+    assert(flow_nullspace_coeff);
+    cout << "Nullspace coefficients:" << endl;
+    m_printer.print(flow_nullspace_coeff); cout << endl;
+
+    isl_mat *flow_nullspace_coeff_matrix =
+            isl_basic_set_equalities_matrix
+            (flow_nullspace_coeff,
+             isl_dim_set,
+             isl_dim_cst,
+             isl_dim_param,
+             isl_dim_div
+             );
+
+#if 0
+    cout << endl << "Nullspace coefficient matrix:" << endl;
+    {
+        isl_mat * m = flow_nullspace_coeff_matrix;
+        int r, c;
+        for (r = 0; r < isl_mat_rows(m); ++r)
+        {
+            for (c = 0; c < isl_mat_cols(m); ++c)
+            {
+                double val = isl_val_get_d( isl_mat_get_element_val(m, r, c) );
+                cout << val << " ";
+            }
+            cout << endl;
+        }
+    }
+#endif
+    if ( isl_mat_rows(flow_nullspace_coeff_matrix) != 1 ||
+         isl_mat_cols(flow_nullspace_coeff_matrix) != involved_stmts.size() + 2)
+    {
+        throw error("Inconsistent dataflow.");
+    }
+
+    cout << endl << "Iteration counts:" << endl;
+    auto stmt_loc = involved_stmts.begin();
+    for (int i = 0; i < involved_stmts.size(); ++i)
+    {
+        //int count = isl_mat_get_element_si(flow_nullspace_coeff_matrix, 0, i+1);
+        isl_val *count_val =
+                isl_mat_get_element_val(flow_nullspace_coeff_matrix, 0, i+1);
+        assert( isl_val_is_int(count_val) );
+        int count = std::abs( isl_val_get_d(count_val) );
+        cout << "- " << *stmt_loc << ": " << count << endl;
+        counts.emplace_back(*stmt_loc, count);
+        isl_val_free(count_val);
+        ++stmt_loc;
+    }
+}
+
+void ast_generator::find_dependencies( expression *expr,
                                       vector<stream_access*> & deps )
 {
     if (auto operation = dynamic_cast<intrinsic*>(expr))
     {
         for (auto sub_expr : operation->operands)
-            add_dependencies(sub_expr, deps);
+            find_dependencies(sub_expr, deps);
         return;
     }
     if (auto dependency = dynamic_cast<stream_access*>(expr))
@@ -258,6 +413,92 @@ void ast_generator::add_dependencies( expression *expr,
         return;
     }
     throw std::runtime_error("Unexpected expression type.");
+}
+
+void ast_generator::find_dataflow_dependencies
+( const statement_info &info, vector<dataflow_dependency> & all_deps )
+{
+    const string &sink_name = info.first;
+    statement *sink = info.second;
+
+    if (!sink->expr)
+        return;
+
+    vector<int> infinite_dims = infinite_dimensions(sink);
+    assert(infinite_dims.size() == 1);
+
+    int sink_flow_dim = infinite_dims.front();
+
+    cout << "-- sink flow dim = " << sink_flow_dim << endl;
+
+    vector<stream_access*> sources;
+
+    find_dependencies(sink->expr, sources);
+    if (sources.empty())
+        return;
+
+    for(stream_access *source : sources)
+    {
+        int source_flow_dim = -1;
+        for (int out_dim = 0;
+             out_dim < source->pattern.output_dimension();
+             ++out_dim)
+        {
+            cout << "-- coef: " << source->pattern.coefficients(out_dim, sink_flow_dim) << endl;
+            if (source->pattern.coefficients(out_dim, sink_flow_dim) != 0)
+            {
+                source_flow_dim = out_dim;
+                break;
+            }
+        }
+
+        if (source_flow_dim < 0)
+            throw std::runtime_error("Sink flow dimension does not map"
+                                     " to any source dimension.");
+
+        int flow_pop = source->pattern.coefficients(source_flow_dim, sink_flow_dim);
+
+        vector<int> sink_index = sink->domain;
+        sink_index[sink_flow_dim] = 0;
+        vector<int> source_index = source->pattern * sink_index;
+        int flow_peek = source_index[source_flow_dim];
+
+        string source_name;
+        {
+            auto is_source = [&]( const statement_info &info )
+            { return info.second == source->target; };
+            auto it = std::find_if(m_statements.begin(), m_statements.end(), is_source);
+            assert(it != m_statements.end());
+            source_name = it->first;
+        }
+
+        dataflow_dependency dep;
+        dep.source = source_name;
+        dep.sink = sink_name;
+        dep.source_dim = source_flow_dim;
+        dep.sink_dim = sink_flow_dim;
+        dep.push = 1;
+        dep.peek = flow_peek;
+        dep.pop = flow_pop;
+
+        all_deps.push_back(dep);
+
+        cout << endl << "Dependency:" << endl;
+        cout << dep.source << "@" << dep.source_dim << " " << dep.push << " -> "
+             << dep.peek << "/" << dep.pop << " " << dep.sink << "@" << dep.sink_dim
+             << endl;
+    }
+}
+
+vector<int> ast_generator::infinite_dimensions( statement *stmt )
+{
+    vector<int> infinite_dimensions;
+
+    for (int dim = 0; dim < stmt->domain.size(); ++dim)
+        if (stmt->domain[dim] == infinite)
+            infinite_dimensions.push_back(dim);
+
+    return std::move(infinite_dimensions);
 }
 
 }

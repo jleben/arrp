@@ -59,6 +59,13 @@ inline mapping operator*(const mapping & m1, const mapping & m2)
     return dst;
 }
 
+inline vector<int> operator*(const mapping & m, const vector<int> & v)
+{
+    using namespace ::stream::utility;
+
+    return m.coefficients * v + m.constants;
+}
+
 class expression
 {
     // TODO: provide easy access to all dependencies,
