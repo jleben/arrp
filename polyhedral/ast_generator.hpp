@@ -73,12 +73,13 @@ private:
     isl_mat *isl_constraint_matrix( const mapping & );
 
     // General helpers:
-    void find_dependencies( expression *, vector<stream_access*> & );
-    void find_dataflow_dependencies( const statement_info &,
+    void dependencies( expression *, vector<stream_access*> & );
+    void dataflow_dependencies( const statement_info &,
                                      vector<dataflow_dependency> & );
     void dataflow_iteration_counts( const vector<dataflow_dependency> &,
                                     vector<pair<string, int>> & );
-
+    isl_union_set *repetition_domains(isl_union_set *domains,
+                                      const vector<pair<string, int>> & counts);
     vector<int> infinite_dimensions( statement *stmt );
 
     statement_store m_statements;

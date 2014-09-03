@@ -41,7 +41,48 @@ isl_ast_node *ast_generator::generate( const vector<statement*> & statements )
     m_printer.print(sched);
     cout << endl;
 
-    dataflow_iteration_domains(isl_repr.first);
+    auto dataflow_domains = dataflow_iteration_domains(isl_repr.first);
+
+    auto init_domain = dataflow_domains.first;
+    auto rep_domain = dataflow_domains.second;
+
+    rep_domain = isl_union_set_apply(rep_domain, isl_union_map_copy(sched));
+
+    //printf("# Schedule ranges:\n");
+    //isl_printer_print_union_set(printer, schedule_ranges);
+    //printf("\n");
+
+    auto rep_schedule =
+            isl_union_map_intersect_range(isl_union_map_copy(sched), rep_domain);
+
+    cout << endl << "# Repetition schedule:" << endl;
+    m_printer.print(rep_schedule);
+    cout << endl;
+
+    // Generate AST
+
+    //isl_space *context_space = isl_space_params_alloc(m_ctx, 0);
+    //isl_set *context_set = isl_set_empty(context_space);
+    isl_set *context_set = isl_set_read_from_str(m_ctx, "{:}");
+    isl_ast_build * build = isl_ast_build_from_context(context_set);
+    assert(build);
+
+    isl_ast_node * ast = isl_ast_build_ast_from_schedule(build, rep_schedule);
+    assert(ast);
+
+    printf("# AST:\n");
+    m_printer.print(ast);
+    printf("\n");
+
+
+
+
+    isl_union_set_free(isl_repr.first);
+    isl_union_map_free(isl_repr.second);
+    isl_union_map_free(rep_schedule);
+    isl_union_map_free(sched);
+
+    // TODO:...
 
     return nullptr;
 }
@@ -135,7 +176,7 @@ isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info
 
     vector<stream_access*> deps;
 
-    find_dependencies(source->expr, deps);
+    dependencies(source->expr, deps);
 
     isl_union_map *united_map = nullptr;
 
@@ -284,13 +325,18 @@ ast_generator::dataflow_iteration_domains(isl_union_set* domains)
 
     for(const string & name : infinite_statements)
     {
-        find_dataflow_dependencies(*m_statements.find(name), deps);
+        dataflow_dependencies(*m_statements.find(name), deps);
     }
 
     vector<pair<string,int>> counts;
     dataflow_iteration_counts(deps, counts);
 
-    return pair<isl_union_set*, isl_union_set*>();
+    isl_union_set *rep_domains = repetition_domains(domains, counts);
+
+    // TODO: initialization domains
+    // - each stmt must get its "peek" amount of elems available
+
+    return make_pair((isl_union_set*) nullptr, rep_domains);
 }
 
 void ast_generator::dataflow_iteration_counts
@@ -393,13 +439,69 @@ void ast_generator::dataflow_iteration_counts
     }
 }
 
-void ast_generator::find_dependencies( expression *expr,
-                                      vector<stream_access*> & deps )
+isl_union_set*
+ast_generator::repetition_domains
+(isl_union_set *domains, const vector<pair<string, int>> & counts)
+{
+    isl_union_set *repetition_domains = nullptr;
+
+    for (auto item : counts)
+    {
+        const string & stmt_name = item.first;
+        int stmt_count = item.second;
+        statement *stmt = m_statements[stmt_name];
+        assert(stmt);
+
+        vector<int> infinite_dims = infinite_dimensions(stmt);
+        assert(infinite_dims.size() == 1);
+        int constrained_dim = infinite_dims.front();
+
+        isl_space *space = isl_space_set_alloc(m_ctx, 0, stmt->domain.size());
+        space = isl_space_set_tuple_name(space, isl_dim_set, stmt_name.c_str());
+
+        isl_basic_set *constrained_domain = isl_basic_set_universe(isl_space_copy(space));
+        isl_local_space *constraint_space = isl_local_space_from_space(space);
+
+        isl_constraint *constraint;
+        constraint = isl_inequality_alloc(constraint_space);
+        constraint = isl_constraint_set_coefficient_si(constraint, isl_dim_set,
+                                                       constrained_dim, -1);
+        constraint = isl_constraint_set_constant_si(constraint, stmt_count-1);
+        constrained_domain =
+                isl_basic_set_add_constraint(constrained_domain, constraint);
+
+        cout << endl << endl << "Constrained domain:" << endl;
+        m_printer.print(constrained_domain);
+        cout << endl;
+
+        isl_union_set *to_intersect
+                = isl_union_set_from_basic_set(constrained_domain);
+
+        isl_union_set *repetition_domain =
+                isl_union_set_intersect(isl_union_set_copy(domains),
+                                        to_intersect);
+
+        if (repetition_domains)
+            repetition_domains =
+                    isl_union_set_union(repetition_domains, repetition_domain);
+        else
+            repetition_domains = repetition_domain;
+    }
+
+    cout << endl << "Repetition domains:" << endl;
+    m_printer.print(repetition_domains);
+    cout << endl;
+
+    return repetition_domains;
+}
+
+void ast_generator::dependencies( expression *expr,
+                                  vector<stream_access*> & deps )
 {
     if (auto operation = dynamic_cast<intrinsic*>(expr))
     {
         for (auto sub_expr : operation->operands)
-            find_dependencies(sub_expr, deps);
+            dependencies(sub_expr, deps);
         return;
     }
     if (auto dependency = dynamic_cast<stream_access*>(expr))
@@ -415,7 +517,7 @@ void ast_generator::find_dependencies( expression *expr,
     throw std::runtime_error("Unexpected expression type.");
 }
 
-void ast_generator::find_dataflow_dependencies
+void ast_generator::dataflow_dependencies
 ( const statement_info &info, vector<dataflow_dependency> & all_deps )
 {
     const string &sink_name = info.first;
@@ -433,7 +535,7 @@ void ast_generator::find_dataflow_dependencies
 
     vector<stream_access*> sources;
 
-    find_dependencies(sink->expr, sources);
+    dependencies(sink->expr, sources);
     if (sources.empty())
         return;
 

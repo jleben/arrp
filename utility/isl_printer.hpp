@@ -6,6 +6,7 @@
 #include <isl/union_set.h>
 #include <isl/map.h>
 #include <isl/union_map.h>
+#include <isl/ast_build.h>
 
 #include <cstdio>
 
@@ -44,6 +45,11 @@ public:
     void print( isl_union_map *map )
     {
         p = isl_printer_print_union_map(p, map);
+    }
+
+    void print( isl_ast_node *tree )
+    {
+        p = isl_printer_print_ast_node(p, tree);
     }
 
 private:
