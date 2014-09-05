@@ -1,5 +1,8 @@
 #include "llvm_ir_generator.hpp"
 
+#include <llvm/Analysis/Verifier.h>
+#include <llvm/Support/raw_os_ostream.h>
+
 #include <iostream>
 
 using namespace std;
@@ -22,6 +25,20 @@ void llvm_ir_generator::generate
 {
     m_statements = &source;
 
+    llvm::FunctionType * func_type =
+            llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
+                                    false);
+
+
+    llvm::Function *func =
+            llvm::Function::Create(func_type,
+                                   llvm::Function::ExternalLinkage,
+                                   "process",
+                                   &m_module);
+
+    llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "", func);
+    m_builder.SetInsertPoint(bb);
+
     try
     {
         process_node(ast);
@@ -30,7 +47,10 @@ void llvm_ir_generator::generate
     {
         m_statements = nullptr;
         cout << "ERROR: " << e.what() << endl;
+        return;
     }
+
+    m_builder.CreateRetVoid();
 }
 
 void llvm_ir_generator::process_node(isl_ast_node * node)
@@ -96,6 +116,8 @@ void llvm_ir_generator::process_if(isl_ast_node* node)
         process_node(else_node);
         m_builder.CreateBr(after_block);
     }
+
+    m_builder.SetInsertPoint(after_block);
 }
 
 void llvm_ir_generator::process_for(isl_ast_node* node)
@@ -119,26 +141,37 @@ void llvm_ir_generator::process_for(isl_ast_node* node)
 
     auto init_val = process_expression( init_expr );
 
-    context::scope_holder for_scope(m_ctx);
+    context::scope_holder for_init_scope(m_ctx);
     m_ctx.bind(iter_name, init_val);
 
     m_builder.CreateBr(cond_block);
+
+    // Condition
 
     m_builder.SetInsertPoint(cond_block);
 
     auto iter_val = m_builder.CreatePHI(int32_type(), 2);
     iter_val->addIncoming(init_val, before_block);
 
+    context::scope_holder for_body_scope(m_ctx);
+    m_ctx.bind(iter_name, iter_val);
+
     process_conditional(cond_expr, body_block, end_block);
+
+    // Body
 
     m_builder.SetInsertPoint(body_block);
 
     process_node(body_node);
 
     auto iter_val_incremented = process_expression(inc_expr);
-    iter_val->addIncoming(iter_val_incremented, body_block);
+    iter_val->addIncoming(iter_val_incremented, m_builder.GetInsertBlock());
 
     m_builder.CreateBr(cond_block);
+
+    // End
+
+    m_builder.SetInsertPoint(end_block);
 }
 
 value_type llvm_ir_generator::process_expression(isl_ast_expr* expr)
@@ -162,6 +195,8 @@ value_type llvm_ir_generator::process_expression(isl_ast_expr* expr)
     {
         return process_op(expr);
     }
+    default:
+        throw std::runtime_error("Unexpected expression type.");
     }
 }
 
@@ -187,10 +222,12 @@ value_type llvm_ir_generator::process_op(isl_ast_expr* expr)
 
         m_builder.SetInsertPoint(true_block);
         auto true_val = process_expression(true_expr);
+        true_block = m_builder.GetInsertBlock();
         m_builder.CreateBr(after_block);
 
         m_builder.SetInsertPoint(false_block);
         auto false_val = process_expression(false_expr);
+        false_block = m_builder.GetInsertBlock();
         m_builder.CreateBr(after_block);
 
         m_builder.SetInsertPoint(after_block);
@@ -218,9 +255,11 @@ value_type llvm_ir_generator::process_op(isl_ast_expr* expr)
             m_builder.CreateCondBr(lhs, rhs_block, after_block);
         else
             m_builder.CreateCondBr(lhs, after_block, rhs_block);
+        before_block = m_builder.GetInsertBlock();
 
         m_builder.SetInsertPoint(rhs_block);
         auto rhs = process_expression(rhs_expr);
+        rhs_block = m_builder.GetInsertBlock();
         m_builder.CreateBr(after_block);
 
         m_builder.SetInsertPoint(after_block);
@@ -379,6 +418,26 @@ void llvm_ir_generator::process_statement(isl_ast_node* node)
 
     m_builder.CreateAlloca(double_type(), nullptr, stmt_info->first);
 }
+
+bool llvm_ir_generator::verify()
+{
+    string verifier_msg;
+    bool failure = llvm::verifyModule(m_module, llvm::ReturnStatusAction,
+                                      &verifier_msg);
+    if (failure)
+    {
+        cerr << "ERROR: Failed to verify generated IR code:" << endl;
+        cerr << verifier_msg;
+    }
+    return !failure;
+}
+
+void llvm_ir_generator::output( std::ostream & out )
+{
+    llvm::raw_os_ostream llvm_ostream(out);
+    m_module.print( llvm_ostream, nullptr );
+}
+
 
 }
 }

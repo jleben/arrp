@@ -31,6 +31,10 @@ public:
     void generate( isl_ast_node *ast,
                    const unordered_map<string, statement*> & source );
 
+    bool verify();
+
+    void output( std::ostream & );
+
 private:
     using value_type = llvm::Value*;
     using type_type = llvm::Type*;
