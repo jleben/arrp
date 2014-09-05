@@ -1,5 +1,9 @@
 #include "llvm_ir_generator.hpp"
 
+#include <iostream>
+
+using namespace std;
+
 namespace stream {
 namespace polyhedral {
 
@@ -16,7 +20,17 @@ llvm_ir_generator::llvm_ir_generator(const string & module_name):
 void llvm_ir_generator::generate
 ( isl_ast_node *ast, const unordered_map<string, statement*> & source )
 {
-    process_node(ast);
+    m_statements = &source;
+
+    try
+    {
+        process_node(ast);
+    }
+    catch (std::exception & e)
+    {
+        m_statements = nullptr;
+        cout << "ERROR: " << e.what() << endl;
+    }
 }
 
 void llvm_ir_generator::process_node(isl_ast_node * node)
@@ -52,7 +66,8 @@ int llvm_ir_generator::process_block_element(isl_ast_node * node, void * data)
 void llvm_ir_generator::process_block(isl_ast_node* node)
 {
     isl_ast_node_list *children = isl_ast_node_block_get_children(node);
-    isl_ast_node_list_foreach(children, &llvm_ir_generator::process_node, this);
+    isl_ast_node_list_foreach(children,
+                              &llvm_ir_generator::process_block_element, this);
 }
 
 void llvm_ir_generator::process_if(isl_ast_node* node)
@@ -87,15 +102,15 @@ void llvm_ir_generator::process_for(isl_ast_node* node)
 {
     //isl_ast_node_for_is_degenerate
 
-    auto iterator = isl_ast_node_for_get_iterator;
-    auto init_expr = isl_ast_node_for_get_init;
+    auto iterator = isl_ast_node_for_get_iterator(node);
+    auto init_expr = isl_ast_node_for_get_init(node);
     auto cond_expr = isl_ast_node_for_get_cond(node);
     auto inc_expr = isl_ast_node_for_get_inc(node);
     auto body_node = isl_ast_node_for_get_body(node);
 
     assert(isl_ast_expr_get_type(iterator) == isl_ast_expr_id);
-    isl_id *iter_id = isl_ast_expr_get_id(expr);
-    const char *iter_name = isl_id_get_name(id);
+    isl_id *iter_id = isl_ast_expr_get_id(iterator);
+    const char *iter_name = isl_id_get_name(iter_id);
 
     auto before_block = m_builder.GetInsertBlock();
     auto cond_block = add_block("for.cond");
@@ -121,7 +136,7 @@ void llvm_ir_generator::process_for(isl_ast_node* node)
     process_node(body_node);
 
     auto iter_val_incremented = process_expression(inc_expr);
-    iter_val->addIncoming(iter_val_incremented, body_node);
+    iter_val->addIncoming(iter_val_incremented, body_block);
 
     m_builder.CreateBr(cond_block);
 }
@@ -331,6 +346,38 @@ void llvm_ir_generator::process_conditional
         auto cond = process_expression(expr);
         m_builder.CreateCondBr(cond, true_block, false_block);
     }
+}
+
+void llvm_ir_generator::process_statement(isl_ast_node* node)
+{
+    auto expr = isl_ast_node_user_get_expr(node);
+    assert(isl_ast_expr_get_type(expr) == isl_ast_expr_op);
+    assert(isl_ast_expr_get_op_type(expr) == isl_ast_op_call);
+
+    int arg_count = isl_ast_expr_get_op_n_arg(expr);
+    assert(arg_count >= 1);
+
+    auto stmt_id_expr = isl_ast_expr_get_op_arg(expr, 0);
+    assert(isl_ast_expr_get_type(stmt_id_expr) == isl_ast_expr_id);
+    isl_id *stmt_id = isl_ast_expr_get_id(stmt_id_expr);
+    const char *stmt_name = isl_id_get_name(stmt_id);
+
+    vector<value_type> index;
+    if (arg_count > 1)
+    {
+        index.reserve(arg_count - 1);
+        for (int arg_idx = 1; arg_idx < arg_count; ++arg_idx)
+        {
+            auto arg_expr = isl_ast_expr_get_op_arg(expr, arg_idx);
+            value_type index_val = process_expression(arg_expr);
+            index.push_back(index_val);
+        }
+    }
+
+    auto stmt_info = m_statements->find(stmt_name);
+    assert(stmt_info != m_statements->end());
+
+    m_builder.CreateAlloca(double_type(), nullptr, stmt_info->first);
 }
 
 }

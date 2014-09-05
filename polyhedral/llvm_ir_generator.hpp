@@ -42,12 +42,12 @@ private:
     static int process_block_element(isl_ast_node * node, void * data);
     void process_if(isl_ast_node*);
     void process_for(isl_ast_node*);
-    void process_statement(isl_ast_node*);
     value_type process_expression(isl_ast_expr*);
     value_type process_op(isl_ast_expr*);
     void process_conditional(isl_ast_expr*,
                              block_type true_block,
                              block_type false_block );
+    void process_statement(isl_ast_node*);
     type_type bool_type()
     {
         return llvm::Type::getInt1Ty(llvm_context());
@@ -84,6 +84,7 @@ private:
     llvm::Module m_module;
     llvm::IRBuilder<> m_builder;
     context m_ctx;
+    const unordered_map<string, statement*> * m_statements;
 };
 
 }
