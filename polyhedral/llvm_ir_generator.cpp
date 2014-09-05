@@ -154,16 +154,15 @@ value_type llvm_ir_generator::process_op(isl_ast_expr* expr)
 {
     isl_ast_op_type op_type = isl_ast_expr_get_op_type(expr);
     int arg_count = isl_ast_expr_get_op_n_arg(expr);
-    auto parent_func = m_builder.GetInsertBlock()->getParent();
 
     switch(op_type)
     {
     case isl_ast_op_cond:
     {
         assert(arg_count == 3);
-        auto true_block = llvm::BasicBlock::Create(llvm_context(), "cond.true", parent_func);
-        auto false_block = llvm::BasicBlock::Create(llvm_context(), "cond.false", parent_func);
-        auto after_block = llvm::BasicBlock::Create(llvm_context(), "cond.after", parent_func);
+        auto true_block = add_block("cond.true");
+        auto false_block = add_block("cond.false");
+        auto after_block = add_block("cond.after");
 
         auto cond_expr = isl_ast_expr_get_op_arg(expr, 0);
         auto true_expr = isl_ast_expr_get_op_arg(expr, 1);
@@ -193,8 +192,8 @@ value_type llvm_ir_generator::process_op(isl_ast_expr* expr)
     {
         assert(arg_count == 2);
         auto before_block = m_builder.GetInsertBlock();
-        auto rhs_block = llvm::BasicBlock::Create(llvm_context(), "cond.other", parent_func);
-        auto after_block = llvm::BasicBlock::Create(llvm_context(), "cond.after", parent_func);
+        auto rhs_block = add_block("boolean_op.other");
+        auto after_block = add_block("boolean_op.after");
 
         auto lhs_expr = isl_ast_expr_get_op_arg(expr,0);
         auto rhs_expr = isl_ast_expr_get_op_arg(expr,1);
@@ -302,15 +301,13 @@ void llvm_ir_generator::process_conditional
     int arg_count = isl_ast_expr_get_op_n_arg(expr);
     assert(arg_count == 2);
 
-    auto parent_func = m_builder.GetInsertBlock()->getParent();
-
     switch(op_type)
     {
     case isl_ast_op_and:
     case isl_ast_op_and_then:
     {
         assert(arg_count == 2);
-        auto rhs_block = llvm::BasicBlock::Create(llvm_context(), "and", parent_func);
+        auto rhs_block = add_block("and.other");
         auto lhs_expr = isl_ast_expr_get_op_arg(expr,0);
         auto rhs_expr = isl_ast_expr_get_op_arg(expr,1);
         process_conditional(lhs_expr, rhs_block, false_block);
@@ -322,7 +319,7 @@ void llvm_ir_generator::process_conditional
     case isl_ast_op_or_else:
     {
         assert(arg_count == 2);
-        auto rhs_block = llvm::BasicBlock::Create(llvm_context(), "or", parent_func);
+        auto rhs_block = add_block("or.other");
         auto lhs_expr = isl_ast_expr_get_op_arg(expr,0);
         auto rhs_expr = isl_ast_expr_get_op_arg(expr,1);
         process_conditional(lhs_expr, true_block, rhs_block);
