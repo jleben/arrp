@@ -16,7 +16,114 @@ llvm_ir_generator::llvm_ir_generator(const string & module_name):
 void llvm_ir_generator::generate
 ( isl_ast_node *ast, const unordered_map<string, statement*> & source )
 {
+    process_node(ast);
+}
 
+void llvm_ir_generator::process_node(isl_ast_node * node)
+{
+    isl_ast_node_type node_type = isl_ast_node_get_type(node);
+
+    switch(node_type)
+    {
+    case isl_ast_node_block:
+        process_block(node);
+        break;
+    case isl_ast_node_if:
+        process_if(node);
+        break;
+    case isl_ast_node_for:
+        process_for(node);
+        break;
+    case isl_ast_node_user:
+        process_statement(node);
+        break;
+    default:
+        assert(false);
+    }
+}
+
+int llvm_ir_generator::process_block_element(isl_ast_node * node, void * data)
+{
+    llvm_ir_generator *generator = (llvm_ir_generator*) data;
+    generator->process_node(node);
+    return 0;
+}
+
+void llvm_ir_generator::process_block(isl_ast_node* node)
+{
+    isl_ast_node_list *children = isl_ast_node_block_get_children(node);
+    isl_ast_node_list_foreach(children, &llvm_ir_generator::process_node, this);
+}
+
+void llvm_ir_generator::process_if(isl_ast_node* node)
+{
+    bool has_else = isl_ast_node_if_has_else(node);
+    auto cond_expr = isl_ast_node_if_get_cond(node);
+
+    block_type true_block = add_block("if.true");
+    block_type false_block = has_else ? add_block("if.false") : nullptr;
+    block_type after_block = add_block("if.after");
+
+    if (false_block)
+        process_conditional(cond_expr, true_block, false_block);
+    else
+        process_conditional(cond_expr, true_block, after_block);
+
+    m_builder.SetInsertPoint(true_block);
+    auto then_node = isl_ast_node_if_get_then(node);
+    process_node(then_node);
+    m_builder.CreateBr(after_block);
+
+    if (false_block)
+    {
+        m_builder.SetInsertPoint(false_block);
+        auto else_node = isl_ast_node_if_get_else(node);
+        process_node(else_node);
+        m_builder.CreateBr(after_block);
+    }
+}
+
+void llvm_ir_generator::process_for(isl_ast_node* node)
+{
+    //isl_ast_node_for_is_degenerate
+
+    auto iterator = isl_ast_node_for_get_iterator;
+    auto init_expr = isl_ast_node_for_get_init;
+    auto cond_expr = isl_ast_node_for_get_cond(node);
+    auto inc_expr = isl_ast_node_for_get_inc(node);
+    auto body_node = isl_ast_node_for_get_body(node);
+
+    assert(isl_ast_expr_get_type(iterator) == isl_ast_expr_id);
+    isl_id *iter_id = isl_ast_expr_get_id(expr);
+    const char *iter_name = isl_id_get_name(id);
+
+    auto before_block = m_builder.GetInsertBlock();
+    auto cond_block = add_block("for.cond");
+    auto body_block = add_block("for.body");
+    auto end_block = add_block("for.end");
+
+    auto init_val = process_expression( init_expr );
+
+    context::scope_holder for_scope(m_ctx);
+    m_ctx.bind(iter_name, init_val);
+
+    m_builder.CreateBr(cond_block);
+
+    m_builder.SetInsertPoint(cond_block);
+
+    auto iter_val = m_builder.CreatePHI(int32_type(), 2);
+    iter_val->addIncoming(init_val, before_block);
+
+    process_conditional(cond_expr, body_block, end_block);
+
+    m_builder.SetInsertPoint(body_block);
+
+    process_node(body_node);
+
+    auto iter_val_incremented = process_expression(inc_expr);
+    iter_val->addIncoming(iter_val_incremented, body_node);
+
+    m_builder.CreateBr(cond_block);
 }
 
 value_type llvm_ir_generator::process_expression(isl_ast_expr* expr)

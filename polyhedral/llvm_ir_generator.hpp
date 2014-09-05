@@ -37,7 +37,9 @@ private:
     using block_type = llvm::BasicBlock*;
     using context = stream::context<string, value_type>;
 
+    void process_node(isl_ast_node*);
     void process_block(isl_ast_node*);
+    static int process_block_element(isl_ast_node * node, void * data);
     void process_if(isl_ast_node*);
     void process_for(isl_ast_node*);
     void process_statement(isl_ast_node*);
@@ -70,6 +72,12 @@ private:
     {
         return llvm::ConstantFP::get(double_type(), value);
     }
+    block_type add_block( const string & name )
+    {
+        auto parent = m_builder.GetInsertBlock()->getParent();
+        llvm::BasicBlock::Create(llvm_context(), name, parent);
+    }
+
 
     llvm::LLVMContext & llvm_context() { return m_module.getContext(); }
 
