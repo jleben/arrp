@@ -19,17 +19,24 @@ ast_generator::ast_generator():
     m_ctx(isl_ctx_alloc()),
     m_printer(m_ctx)
 {
+    //isl_space *context_space = isl_space_params_alloc(m_ctx, 0);
+    //isl_set *context_set = isl_set_empty(context_space);
+    isl_set *context_set = isl_set_read_from_str(m_ctx, "{:}");
+    m_ast_builder = isl_ast_build_from_context(context_set);
+    assert(m_ast_builder);
 }
 
 ast_generator::~ast_generator()
 {
     // TODO: free all other data...
-
     // hmm, defer deleting context until printer is deleted?
+
+    isl_ast_build_free(m_ast_builder);
     isl_ctx_free(m_ctx);
 }
 
-isl_ast_node *ast_generator::generate( const vector<statement*> & statements )
+pair<isl_ast_node*,isl_ast_node*>
+ast_generator::generate( const vector<statement*> & statements )
 {
     store_statements(statements);
 
@@ -42,49 +49,20 @@ isl_ast_node *ast_generator::generate( const vector<statement*> & statements )
     cout << endl;
 
     auto dataflow_domains = dataflow_iteration_domains(isl_repr.first);
-
     auto init_domain = dataflow_domains.first;
     auto rep_domain = dataflow_domains.second;
 
-    rep_domain = isl_union_set_apply(rep_domain, isl_union_map_copy(sched));
+    auto rep_ast = generate_ast(sched, rep_domain);
 
-    //printf("# Schedule ranges:\n");
-    //isl_printer_print_union_set(printer, schedule_ranges);
-    //printf("\n");
-
-    auto rep_schedule =
-            isl_union_map_intersect_range(isl_union_map_copy(sched), rep_domain);
-
-    cout << endl << "# Repetition schedule:" << endl;
-    m_printer.print(rep_schedule);
-    cout << endl;
-
-    // Generate AST
-
-    //isl_space *context_space = isl_space_params_alloc(m_ctx, 0);
-    //isl_set *context_set = isl_set_empty(context_space);
-    isl_set *context_set = isl_set_read_from_str(m_ctx, "{:}");
-    isl_ast_build * build = isl_ast_build_from_context(context_set);
-    assert(build);
-
-    isl_ast_node * ast = isl_ast_build_ast_from_schedule(build, rep_schedule);
-    assert(ast);
-
-    printf("# AST:\n");
-    m_printer.print(ast);
+    printf("# Repetition AST:\n");
+    m_printer.print(rep_ast);
     printf("\n");
-
-
-
 
     isl_union_set_free(isl_repr.first);
     isl_union_map_free(isl_repr.second);
-    isl_union_map_free(rep_schedule);
     isl_union_map_free(sched);
 
-    // TODO:...
-
-    return nullptr;
+    return make_pair(nullptr, rep_ast);
 }
 
 void ast_generator::store_statements( const vector<statement*> & statements )
@@ -601,6 +579,31 @@ vector<int> ast_generator::infinite_dimensions( statement *stmt )
             infinite_dimensions.push_back(dim);
 
     return std::move(infinite_dimensions);
+}
+
+isl_ast_node*
+ast_generator::generate_ast
+(isl_union_map *schedule, isl_union_set *domain)
+{
+    auto schedule_domain =
+            isl_union_set_apply(domain, isl_union_map_copy(schedule));
+
+    //printf("# Schedule domain:\n");
+    //isl_printer_print_union_set(printer, schedule_ranges);
+    //printf("\n");
+
+    auto bounded_schedule =
+            isl_union_map_intersect_range(isl_union_map_copy(schedule),
+                                          schedule_domain);
+
+    //printf("# Bounded schedule:\n");
+    //isl_printer_print_union_map(printer, bounded_schedule);
+    //printf("\n");
+
+    isl_ast_node * ast = isl_ast_build_ast_from_schedule(m_ast_builder, bounded_schedule);
+    assert(ast);
+
+    return ast;
 }
 
 }

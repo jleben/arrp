@@ -28,6 +28,9 @@ using std::pair;
 class ast_generator
 {
 public:
+    typedef std::unordered_map<string, statement*> statement_store;
+    typedef statement_store::value_type statement_info;
+
     class error : public std::runtime_error
     {
     public:
@@ -38,11 +41,16 @@ public:
 
     ast_generator();
     ~ast_generator();
-    isl_ast_node *generate( const vector<statement*> & statements );
+
+    pair<isl_ast_node*,isl_ast_node*>
+    generate( const vector<statement*> & statements );
+
+    const statement_store &statements()
+    {
+        return m_statements;
+    }
 
 private:
-    typedef std::unordered_map<string, statement*> statement_store;
-    typedef statement_store::value_type statement_info;
 
     struct dataflow_dependency
     {
@@ -67,6 +75,9 @@ private:
     pair<isl_union_set*, isl_union_set*>
     dataflow_iteration_domains(isl_union_set* domains);
 
+    isl_ast_node *generate_ast(isl_union_map *schedule, isl_union_set *domain);
+
+
     // Helpers for translation to ISL representation:
     isl_basic_set *isl_iteration_domain( const statement_info & );
     isl_union_map *isl_dependencies( const statement_info & );
@@ -84,6 +95,7 @@ private:
 
     statement_store m_statements;
     isl_ctx *m_ctx;
+    isl_ast_build *m_ast_builder;
     utility::isl::printer m_printer;
 };
 
