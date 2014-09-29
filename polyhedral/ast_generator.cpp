@@ -541,7 +541,7 @@ void ast_generator::dataflow_dependencies
         vector<int> sink_index = sink->domain;
         sink_index[sink_flow_dim] = 0;
         vector<int> source_index = source->pattern * sink_index;
-        int flow_peek = source_index[source_flow_dim];
+        int flow_peek = source_index[source_flow_dim] + 1;
 
         string source_name;
         {
