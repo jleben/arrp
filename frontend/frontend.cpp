@@ -4,6 +4,8 @@
 #include "ir-generator.hpp"
 #include "../polyhedral/translator.hpp"
 #include "../polyhedral/printer.hpp"
+#include "../polyhedral/ast_generator.hpp"
+#include "../polyhedral/llvm_ir_generator.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -345,6 +347,8 @@ int main(int argc, char *argv[])
 
     polyhedral::translator poly;
     polyhedral::printer poly_printer;
+    polyhedral::ast_generator poly_ast_gen;
+    polyhedral::llvm_ir_generator poly_llvm_gen(args.input_filename);
 
     for (const evaluation & eval : args.evaluations)
     {
@@ -386,6 +390,12 @@ int main(int argc, char *argv[])
                     poly_printer.print(stmt, cout);
                 }
 
+                cout << "### AST Generation ###" << endl << endl;
+
+                auto ast = poly_ast_gen.generate( poly.statements() );
+
+                poly_llvm_gen.generate( ast.second, poly_ast_gen.statements() );
+
                 #if 0
                 string func_name = result_type->as<semantic::function>().name;
                 sym_iter = env.find(func_name);
@@ -401,7 +411,6 @@ int main(int argc, char *argv[])
 
     }
 
-#if 0
     ofstream output_file(args.output_filename);
     if (!output_file.is_open())
     {
@@ -409,6 +418,11 @@ int main(int argc, char *argv[])
         return result::io_error;
     }
 
+    poly_llvm_gen.output(output_file);
+
+    poly_llvm_gen.verify();
+
+    #if 0
     gen.output(output_file);
 
     if (!gen.verify())
