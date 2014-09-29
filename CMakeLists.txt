@@ -51,9 +51,25 @@ else()
   )
 #endif()
 
-endif()
+endif() # Windowz
 
 find_program(llc_program llc HINTS ${LLVM_TOOLS_BINARY_DIR})
+
+
+# Discover Pluto
+
+set(pluto_dir "~/code/pluto-0.11.0")
+
+include_directories(
+  "${pluto_dir}/include"
+  "${pluto_dir}/isl/include"
+  "${pluto_dir}/openscop/include"
+)
+link_directories(
+  "${pluto_dir}/src/.libs"
+  "${pluto_dir}/isl/.libs"
+)
+
 
 # Subdirs
 
