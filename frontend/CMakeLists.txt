@@ -50,6 +50,8 @@ add_library(frontend_lib ${lib_mode}
   ir-generator.cpp
   ../polyhedral/translator.cpp
   ../polyhedral/printer.cpp
+  ../polyhedral/ast_generator.cpp
+  ../polyhedral/llvm_ir_generator.cpp
 )
 
 #set_property( TARGET frontend_lib APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
@@ -59,6 +61,8 @@ if(WIN32)
 else()
   target_link_libraries( frontend_lib ${llvm-link-libs} ${llvm-link-flags}  )
 endif()
+
+target_link_libraries( frontend_lib pluto isl )
 
 # Frontend executable
 
