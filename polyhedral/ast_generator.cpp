@@ -149,6 +149,10 @@ isl_basic_set *ast_generator::isl_iteration_domain( const statement_info & stmt_
 
 isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info )
 {
+    // We assume that a statement only writes one scalar value at a time.
+    // Therefore, a dependency between two statements is exactly
+    // the polyhedral::stream_access::pattern in the model.
+
     const string & source_name = stmt_info.first;
     statement *source = stmt_info.second;
 
@@ -160,14 +164,15 @@ isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info
 
     for (auto dep : deps)
     {
-        auto dep_info_criteria = [&]( const statement_info & info )
+        auto stmt_is_dep_target = [&dep]( const statement_info & stmt_info )
         {
-            return info.second == dep->target;
+            return stmt_info.second == dep->target;
         };
 
-        const auto & dep_info =
+        const auto & target_info =
                 * std::find_if(m_statements.begin(), m_statements.end(),
-                               dep_info_criteria);
+                               stmt_is_dep_target);
+        const string & target_name = target_info.first;
 
         // NOTE: "input" and "output" are swapped in the ISL model.
         // "input" = dependee
@@ -177,15 +182,15 @@ isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info
                                            dep->target->domain.size(),
                                            source->domain.size());
 
-        space = isl_space_set_tuple_name(space, isl_dim_in, dep_info.first.c_str());
+        space = isl_space_set_tuple_name(space, isl_dim_in, target_name.c_str());
         space = isl_space_set_tuple_name(space, isl_dim_out, source_name.c_str());
 
-        isl_mat *dep_matrix = isl_constraint_matrix(dep->pattern);
-        isl_mat *dummy_matrix = isl_mat_alloc(m_ctx, 0, isl_mat_cols(dep_matrix));
+        isl_mat *eq_matrix = isl_constraint_matrix(dep->pattern);
+        isl_mat *ineq_matrix_dummy = isl_mat_alloc(m_ctx, 0, isl_mat_cols(eq_matrix));
         isl_basic_map *map =
                 isl_basic_map_from_constraint_matrices(space,
-                                                       dep_matrix,
-                                                       dummy_matrix,
+                                                       eq_matrix,
+                                                       ineq_matrix_dummy,
                                                        isl_dim_in,
                                                        isl_dim_out,
                                                        isl_dim_cst,
@@ -320,6 +325,8 @@ ast_generator::dataflow_iteration_domains(isl_union_set* domains)
 void ast_generator::dataflow_iteration_counts
 ( const vector<dataflow_dependency> &deps, vector<pair<string, int>> & counts )
 {
+    // FIXME: Multiple dependencies between same pair of statements
+
     unordered_set<string> involved_stmts;
 
     for (const auto & dep: deps)
