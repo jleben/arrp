@@ -92,12 +92,12 @@ ast_generator::isl_representation()
     }
 
     isl_union_map *all_dep = nullptr;
-    for (const auto & entry : m_statements)
+    for (const auto & stmt_info : m_statements)
     {
-        if (!entry.second->expr)
+        if (!stmt_info.second->expr)
             continue;
 
-        isl_union_map *stmt_dep = isl_dependencies(entry);
+        isl_union_map *stmt_dep = isl_dependencies(stmt_info);
         if (all_dep)
             all_dep = isl_union_map_union(all_dep, stmt_dep);
         else
