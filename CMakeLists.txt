@@ -64,10 +64,12 @@ include_directories(
   "${pluto_dir}/include"
   "${pluto_dir}/isl/include"
   "${pluto_dir}/openscop/include"
+  "${pluto_dir}/cloog-isl/include"
 )
 link_directories(
   "${pluto_dir}/src/.libs"
   "${pluto_dir}/isl/.libs"
+  "${pluto_dir}/cloog-isl/.libs"
 )
 
 

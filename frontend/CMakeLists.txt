@@ -48,6 +48,7 @@ add_library(frontend_lib ${lib_mode}
   types.cpp
   type_checker.cpp
   ir-generator.cpp
+  ../polyhedral/model.cpp
   ../polyhedral/translator.cpp
   ../polyhedral/printer.cpp
   ../polyhedral/ast_generator.cpp
@@ -62,7 +63,7 @@ else()
   target_link_libraries( frontend_lib ${llvm-link-libs} ${llvm-link-flags}  )
 endif()
 
-target_link_libraries( frontend_lib pluto isl )
+target_link_libraries( frontend_lib pluto isl cloog-isl)
 
 # Frontend executable
 

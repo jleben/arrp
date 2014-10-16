@@ -313,7 +313,7 @@ expression * translator::do_transpose(const ast::node_ptr &node)
 
     expression *object = do_expression(object_node);
 
-    update_accesses(object, transposition);
+    object = update_accesses(object, transposition);
 
     return object;
 }
@@ -336,7 +336,7 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
     if (result_type->is(semantic::type::stream))
         slice_dimension = result_type->as<semantic::stream>().dimensionality();
     else
-        slice_dimension = 1;
+        slice_dimension = 0;
 
     mapping slicing =
             mapping(current_dimension() + slice_dimension,
@@ -344,6 +344,12 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
 
     int in_dim = 0;
     int out_dim = 0;
+
+    for (; in_dim < current_dimension(); ++in_dim, ++out_dim)
+    {
+        slicing.coefficients(out_dim, in_dim) = 1;
+    }
+
     for( const auto & range_node : ranges_node->as_list()->elements )
     {
         int offset;
@@ -383,7 +389,7 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
             throw runtime_error("Unexpected slice selector type.");
         }
 
-        slicing.constants[current_dimension() + out_dim] = offset;
+        slicing.constants[out_dim] += offset;
 
         ++out_dim;
     }
@@ -395,7 +401,7 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
 
     expression *object = do_expression(object_node);
 
-    update_accesses(object, slicing);
+    object = update_accesses(object, slicing);
 
     return object;
 }
@@ -553,32 +559,41 @@ translator::make_statement( expression * expr,
     return view;
 }
 
-void translator::update_accesses(expression *expr, const mapping & map )
+expression * translator::update_accesses(expression *expr, const mapping & map )
 {
     if (auto operation = dynamic_cast<intrinsic*>(expr))
     {
-        for (auto sub_expr : operation->operands)
-            update_accesses(sub_expr, map);
-        return;
+        for (auto & sub_expr : operation->operands)
+        {
+            sub_expr = update_accesses(sub_expr, map);
+        }
+        return expr;
     }
     if (auto dependency = dynamic_cast<stream_access*>(expr))
     {
-        //cout << "before: " << endl << dependency->pattern.coefficients;
+        // FIXME: duplicate, for the sake of consistency with stream_view below.
+
+        //cout << "before: " << endl << dependency->pattern;
         dependency->pattern = dependency->pattern * map;
-        //cout << "after: " << endl  << dependency->pattern.coefficients;
-        return;
+        //cout << "after: " << endl  << dependency->pattern;
+        return expr;
     }
     if (auto view = dynamic_cast<stream_view*>(expr))
     {
-        //cout << "before: " << endl << view->pattern.coefficients;
-        view->pattern = view->pattern * map;
-        //cout << "after: " << endl  << view->pattern.coefficients;
-        return;
+        // FIXME: Only duplicate if shared. Avoid memory leak.
+
+        //cout << "before: " << endl << view->pattern;
+        auto new_view = new stream_view;
+        new_view->target = view->target;
+        new_view->pattern = view->pattern * map;
+        new_view->current_iteration = view->current_iteration;
+        //cout << "after: " << endl  << new_view->pattern;
+        return new_view;
     }
     if ( dynamic_cast<constant<int>*>(expr) ||
          dynamic_cast<constant<double>*>(expr) )
     {
-        return;
+        return expr;
     }
     throw std::runtime_error("Unexpected expression type.");
 }

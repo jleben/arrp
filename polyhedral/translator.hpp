@@ -73,7 +73,7 @@ private:
     stream_access * complete_access( stream_view * );
     stream_view * make_statement( expression *, const vector<int> & domain );
 
-    void update_accesses(expression *, const mapping & map);
+    expression * update_accesses(expression *, const mapping & map);
 };
 
 }

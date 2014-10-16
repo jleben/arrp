@@ -2,6 +2,7 @@
 #define STREAM_POLYHEDRAL_MODEL_INCLUDED
 
 #include <vector>
+#include <iostream>
 #include "../utility/matrix.hpp"
 
 namespace stream {
@@ -65,6 +66,8 @@ inline vector<int> operator*(const mapping & m, const vector<int> & v)
 
     return m.coefficients * v + m.constants;
 }
+
+std::ostream & operator<<(std::ostream &, const mapping & m);
 
 class expression
 {
