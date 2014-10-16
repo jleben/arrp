@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
 
                 auto ast = poly_ast_gen.generate( poly.statements() );
 
-                poly_llvm_gen.generate( ast.second, poly_ast_gen.statements() );
+                //poly_llvm_gen.generate( ast.second, poly_ast_gen.statements() );
 
                 #if 0
                 string func_name = result_type->as<semantic::function>().name;
@@ -410,7 +410,7 @@ int main(int argc, char *argv[])
         //gen.generate(sym_iter->second, eval.args);
 
     }
-
+#if 0
     ofstream output_file(args.output_filename);
     if (!output_file.is_open())
     {
@@ -421,7 +421,7 @@ int main(int argc, char *argv[])
     poly_llvm_gen.output(output_file);
 
     poly_llvm_gen.verify();
-
+#endif
     #if 0
     gen.output(output_file);
 

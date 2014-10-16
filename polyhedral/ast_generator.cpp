@@ -2,6 +2,7 @@
 
 #include <osl/osl.h>
 #include <pluto/libpluto.h>
+#include <cloog/isl/cloog.h>
 
 #include <algorithm>
 #include <iostream>
@@ -48,6 +49,40 @@ ast_generator::generate( const vector<statement*> & statements )
     m_printer.print(sched);
     cout << endl;
 
+    auto schedule_domain =
+            isl_union_set_apply(isl_repr.first, isl_union_map_copy(sched));
+
+    auto bounded_schedule =
+            isl_union_map_intersect_range(isl_union_map_copy(sched),
+                                          schedule_domain);
+
+    {
+        CloogState *state = cloog_state_malloc();
+        CloogOptions *options = cloog_options_malloc(state);
+        CloogUnionDomain *schedule = cloog_union_domain_from_isl_union_map(bounded_schedule);
+        //CloogMatrix *dummy_matrix = cloog_matrix_alloc(0,0);
+
+        isl_set * empty_set = isl_set_read_from_str(isl_union_map_get_ctx(sched), "{[]}");
+        CloogDomain *context_domain =
+                cloog_domain_from_isl_set(empty_set);
+                //cloog_domain_from_cloog_matrix(state, dummy_matrix, 0);
+        CloogInput *input =  cloog_input_alloc(context_domain, schedule);
+
+        cout << "--- Cloog input:" << endl;
+        cloog_input_dump_cloog(stdout, input, options);
+        cout << "--- End Cloog input ---" << endl;
+
+        if (!input)
+            cout << "Hmm no Cloog input..." << endl;
+
+        struct clast_stmt *ast = cloog_clast_create_from_input(input, options);
+
+        cout << endl << "--- Cloog AST:" << endl;
+        clast_pprint(stdout, ast, 0, options);
+    }
+
+    return pair<isl_ast_node*,isl_ast_node*>();
+#if 0
     auto dataflow_domains = dataflow_iteration_domains(isl_repr.first);
     auto init_domain = dataflow_domains.first;
     auto rep_domain = dataflow_domains.second;
@@ -63,6 +98,7 @@ ast_generator::generate( const vector<statement*> & statements )
     isl_union_map_free(sched);
 
     return make_pair(nullptr, rep_ast);
+#endif
 }
 
 void ast_generator::store_statements( const vector<statement*> & statements )
