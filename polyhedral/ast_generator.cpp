@@ -68,9 +68,9 @@ ast_generator::generate( const vector<statement*> & statements )
                 //cloog_domain_from_cloog_matrix(state, dummy_matrix, 0);
         CloogInput *input =  cloog_input_alloc(context_domain, schedule);
 
-        cout << "--- Cloog input:" << endl;
-        cloog_input_dump_cloog(stdout, input, options);
-        cout << "--- End Cloog input ---" << endl;
+        //cout << "--- Cloog input:" << endl;
+        //cloog_input_dump_cloog(stdout, input, options);
+        //cout << "--- End Cloog input ---" << endl;
 
         if (!input)
             cout << "Hmm no Cloog input..." << endl;
@@ -284,7 +284,10 @@ isl_union_map *ast_generator::schedule
 {
 
     PlutoOptions *options = pluto_options_alloc();
-    //options->debug = 1;
+    options->silent = 1;
+    options->quiet = 1;
+    options->debug = 0;
+    options->moredebug = 0;
     //options->islsolve = 1;
     //options->fuse = MAXIMAL_FUSE;
     //options->unroll = 1;
