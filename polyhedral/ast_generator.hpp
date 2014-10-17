@@ -11,6 +11,8 @@
 #include <isl/ast_build.h>
 #include <isl/printer.h>
 
+#include <cloog/cloog.h>
+
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -42,7 +44,9 @@ public:
     ast_generator();
     ~ast_generator();
 
-    pair<isl_ast_node*,isl_ast_node*>
+    //pair<isl_ast_node*,isl_ast_node*>
+
+    clast_stmt *
     generate( const vector<statement*> & statements );
 
     const statement_store &statements()

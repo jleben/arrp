@@ -41,6 +41,8 @@ else()
   set(lib_mode SHARED)
 endif()
 
+add_definitions(-DCLOOG_INT_GMP)
+
 add_library(frontend_lib ${lib_mode}
   lex.cc
   parse.cc
@@ -53,6 +55,7 @@ add_library(frontend_lib ${lib_mode}
   ../polyhedral/printer.cpp
   ../polyhedral/ast_generator.cpp
   ../polyhedral/llvm_ir_generator.cpp
+  ../polyhedral/llvm_ir_from_cloog.cpp
 )
 
 #set_property( TARGET frontend_lib APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )

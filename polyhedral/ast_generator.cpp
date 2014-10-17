@@ -36,7 +36,8 @@ ast_generator::~ast_generator()
     isl_ctx_free(m_ctx);
 }
 
-pair<isl_ast_node*,isl_ast_node*>
+//pair<isl_ast_node*,isl_ast_node*>
+clast_stmt *
 ast_generator::generate( const vector<statement*> & statements )
 {
     store_statements(statements);
@@ -79,9 +80,10 @@ ast_generator::generate( const vector<statement*> & statements )
 
         cout << endl << "--- Cloog AST:" << endl;
         clast_pprint(stdout, ast, 0, options);
+
+        return ast;
     }
 
-    return pair<isl_ast_node*,isl_ast_node*>();
 #if 0
     auto dataflow_domains = dataflow_iteration_domains(isl_repr.first);
     auto init_domain = dataflow_domains.first;
