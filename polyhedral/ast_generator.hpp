@@ -30,7 +30,7 @@ using std::pair;
 class ast_generator
 {
 public:
-    typedef std::unordered_map<string, statement*> statement_store;
+    typedef std::unordered_map<string, statement_data> statement_store;
     typedef statement_store::value_type statement_info;
 
     class error : public std::runtime_error

@@ -122,6 +122,12 @@ public:
     expression * expr;
 };
 
+struct statement_data
+{
+    statement *stmt = nullptr;
+    int buffer_size = 0;
+};
+
 }
 }
 

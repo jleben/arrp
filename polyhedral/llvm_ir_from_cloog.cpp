@@ -18,7 +18,7 @@ llvm_from_cloog::llvm_from_cloog(const string & module_name):
 }
 
 void llvm_from_cloog::generate
-( clast_stmt *root, const unordered_map<string, statement*> & source )
+( clast_stmt *root, const unordered_map<string, statement_data> & source )
 {
     m_statements = &source;
 

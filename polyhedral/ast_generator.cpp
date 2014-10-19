@@ -110,7 +110,8 @@ void ast_generator::store_statements( const vector<statement*> & statements )
     {
         ostringstream name;
         name << "S_" << idx;
-        m_statements[name.str()] = stmt;
+        statement_data &data = m_statements[name.str()];
+        data.stmt = stmt;
         ++idx;
     }
 }
@@ -132,7 +133,7 @@ ast_generator::isl_representation()
     isl_union_map *all_dep = nullptr;
     for (const auto & stmt_info : m_statements)
     {
-        if (!stmt_info.second->expr)
+        if (!stmt_info.second.stmt->expr)
             continue;
 
         isl_union_map *stmt_dep = isl_dependencies(stmt_info);
@@ -148,7 +149,7 @@ ast_generator::isl_representation()
 isl_basic_set *ast_generator::isl_iteration_domain( const statement_info & stmt_info )
 {
     const string & name = stmt_info.first;
-    statement *stmt = stmt_info.second;
+    statement *stmt = stmt_info.second.stmt;
 
     isl_space *space = isl_space_set_alloc(m_ctx, 0, stmt->domain.size());
     space = isl_space_set_tuple_name(space, isl_dim_set, name.c_str());
@@ -192,7 +193,7 @@ isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info
     // the polyhedral::stream_access::pattern in the model.
 
     const string & source_name = stmt_info.first;
-    statement *source = stmt_info.second;
+    statement *source = stmt_info.second.stmt;
 
     vector<stream_access*> deps;
 
@@ -204,7 +205,7 @@ isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info
     {
         auto stmt_is_dep_target = [&dep]( const statement_info & stmt_info )
         {
-            return stmt_info.second == dep->target;
+            return stmt_info.second.stmt == dep->target;
         };
 
         const auto & target_info =
@@ -318,7 +319,7 @@ ast_generator::dataflow_iteration_domains(isl_union_set* domains)
     for(auto info : m_statements)
     {
         const string & stmt_name = info.first;
-        statement *stmt = info.second;
+        statement *stmt = info.second.stmt;
         vector<int> infinite_dims = infinite_dimensions(stmt);
         if (infinite_dims.empty())
             finite_statements.push_back(stmt_name);
@@ -475,7 +476,7 @@ ast_generator::repetition_domains
     {
         const string & stmt_name = item.first;
         int stmt_count = item.second;
-        statement *stmt = m_statements[stmt_name];
+        statement *stmt = m_statements[stmt_name].stmt;
         assert(stmt);
 
         vector<int> infinite_dims = infinite_dimensions(stmt);
@@ -547,7 +548,7 @@ void ast_generator::dataflow_dependencies
 ( const statement_info &info, vector<dataflow_dependency> & all_deps )
 {
     const string &sink_name = info.first;
-    statement *sink = info.second;
+    statement *sink = info.second.stmt;
 
     if (!sink->expr)
         return;
@@ -594,7 +595,7 @@ void ast_generator::dataflow_dependencies
         string source_name;
         {
             auto is_source = [&]( const statement_info &info )
-            { return info.second == source->target; };
+            { return info.second.stmt == source->target; };
             auto it = std::find_if(m_statements.begin(), m_statements.end(), is_source);
             assert(it != m_statements.end());
             source_name = it->first;

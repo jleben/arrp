@@ -25,7 +25,7 @@ public:
     llvm_from_cloog(const string & module_name);
 
     void generate( clast_stmt *root,
-                   const unordered_map<string, statement*> & source );
+                   const unordered_map<string, statement_data> & source );
 
     bool verify();
 
@@ -122,7 +122,7 @@ private:
     llvm::Module m_module;
     llvm::IRBuilder<> m_builder;
     context m_ctx;
-    const unordered_map<string, statement*> * m_statements;
+    const unordered_map<string, statement_data> * m_statements;
 };
 
 }
