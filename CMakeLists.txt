@@ -59,6 +59,7 @@ find_program(llc_program llc HINTS ${LLVM_TOOLS_BINARY_DIR})
 # Discover Pluto
 
 set(pluto_dir "~/code/pluto-0.11.0")
+#set(pluto_dir "~/code/pluto")
 
 include_directories(
   "${pluto_dir}/include"
@@ -72,9 +73,13 @@ link_directories(
   "${pluto_dir}/cloog-isl/.libs"
 )
 
+# In-source dependencies
+
+include_directories(extra)
 
 # Subdirs
 
+add_subdirectory(extra/isl-cpp)
 add_subdirectory(frontend)
 add_subdirectory(utility)
 if(BUILD_TESTING)

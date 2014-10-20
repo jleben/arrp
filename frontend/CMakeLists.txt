@@ -71,4 +71,4 @@ target_link_libraries( frontend_lib pluto isl cloog-isl)
 # Frontend executable
 
 add_executable(frontend frontend.cpp)
-target_link_libraries(frontend frontend_lib)
+target_link_libraries(frontend frontend_lib isl-cpp)
