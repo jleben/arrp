@@ -4,6 +4,12 @@
 #include <pluto/libpluto.h>
 #include <cloog/isl/cloog.h>
 
+#include <isl-cpp/set.hpp>
+#include <isl-cpp/map.hpp>
+#include <isl-cpp/expression.hpp>
+#include <isl-cpp/utility.hpp>
+#include <isl-cpp/printer.hpp>
+
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -17,26 +23,14 @@ namespace stream {
 namespace polyhedral {
 
 ast_generator::ast_generator():
-    m_ctx(isl_ctx_alloc()),
-    m_printer(m_ctx)
+    m_printer(m_ctx.get())
 {
-    //isl_space *context_space = isl_space_params_alloc(m_ctx, 0);
-    //isl_set *context_set = isl_set_empty(context_space);
-    isl_set *context_set = isl_set_read_from_str(m_ctx, "{:}");
-    m_ast_builder = isl_ast_build_from_context(context_set);
-    assert(m_ast_builder);
 }
 
 ast_generator::~ast_generator()
 {
-    // TODO: free all other data...
-    // hmm, defer deleting context until printer is deleted?
-
-    isl_ast_build_free(m_ast_builder);
-    isl_ctx_free(m_ctx);
 }
 
-//pair<isl_ast_node*,isl_ast_node*>
 clast_stmt *
 ast_generator::generate( const vector<statement*> & statements )
 {
@@ -44,28 +38,28 @@ ast_generator::generate( const vector<statement*> & statements )
 
     pair<isl_union_set*, isl_union_map*> isl_repr = isl_representation();
 
-    isl_union_map *sched = schedule(isl_repr);
+    isl::union_set domains(isl_repr.first);
+    isl::union_map dependencies(isl_repr.second);
+    isl::union_map sched = schedule(isl_repr);
+    isl::printer printer(m_ctx);
+
+    auto bounded_schedule = sched.in_domain( domains );
 
     cout << endl << "Schedule:" << endl;
-    m_printer.print(sched);
+    printer.print(bounded_schedule);
     cout << endl;
 
-    auto schedule_domain =
-            isl_union_set_apply(isl_repr.first, isl_union_map_copy(sched));
-
-    auto bounded_schedule =
-            isl_union_map_intersect_range(isl_union_map_copy(sched),
-                                          schedule_domain);
+    compute_buffer_sizes(bounded_schedule, isl_repr.second);
 
     {
         CloogState *state = cloog_state_malloc();
         CloogOptions *options = cloog_options_malloc(state);
-        CloogUnionDomain *schedule = cloog_union_domain_from_isl_union_map(bounded_schedule);
+        CloogUnionDomain *schedule =
+                cloog_union_domain_from_isl_union_map(bounded_schedule.copy());
         //CloogMatrix *dummy_matrix = cloog_matrix_alloc(0,0);
 
-        isl_set * empty_set = isl_set_read_from_str(isl_union_map_get_ctx(sched), "{[]}");
         CloogDomain *context_domain =
-                cloog_domain_from_isl_set(empty_set);
+                cloog_domain_from_isl_set(isl_set_universe(bounded_schedule.get_space().copy()));
                 //cloog_domain_from_cloog_matrix(state, dummy_matrix, 0);
         CloogInput *input =  cloog_input_alloc(context_domain, schedule);
 
@@ -151,7 +145,7 @@ isl_basic_set *ast_generator::isl_iteration_domain( const statement_info & stmt_
     const string & name = stmt_info.first;
     statement *stmt = stmt_info.second.stmt;
 
-    isl_space *space = isl_space_set_alloc(m_ctx, 0, stmt->domain.size());
+    isl_space *space = isl_space_set_alloc(m_ctx.get(), 0, stmt->domain.size());
     space = isl_space_set_tuple_name(space, isl_dim_set, name.c_str());
 
     isl_basic_set *domain = isl_basic_set_universe(isl_space_copy(space));
@@ -217,7 +211,7 @@ isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info
         // "input" = dependee
         // "output" = depender
 
-        isl_space *space = isl_space_alloc(m_ctx, 0,
+        isl_space *space = isl_space_alloc(m_ctx.get(), 0,
                                            dep->target->domain.size(),
                                            source->domain.size());
 
@@ -225,7 +219,7 @@ isl_union_map *ast_generator::isl_dependencies( const statement_info & stmt_info
         space = isl_space_set_tuple_name(space, isl_dim_out, source_name.c_str());
 
         isl_mat *eq_matrix = isl_constraint_matrix(dep->pattern);
-        isl_mat *ineq_matrix_dummy = isl_mat_alloc(m_ctx, 0, isl_mat_cols(eq_matrix));
+        isl_mat *ineq_matrix_dummy = isl_mat_alloc(m_ctx.get(), 0, isl_mat_cols(eq_matrix));
         isl_basic_map *map =
                 isl_basic_map_from_constraint_matrices(space,
                                                        eq_matrix,
@@ -257,7 +251,7 @@ isl_mat *ast_generator::isl_constraint_matrix( const mapping & map )
     // output dim + input dim + a constant
     int cols = map.output_dimension() + map.input_dimension() + 1;
 
-    isl_mat *matrix = isl_mat_alloc(m_ctx, rows, cols);
+    isl_mat *matrix = isl_mat_alloc(m_ctx.get(), rows, cols);
 
     for (int r = 0; r < rows; ++r)
         for (int c = 0; c < cols; ++c)
@@ -299,14 +293,130 @@ isl_union_map *ast_generator::schedule
     //options->tile = 1;
     //options->parallel = 1;
 
-    isl_union_set *stmts = representation.first;
-    isl_union_map *dependencies = representation.second;
+    isl_union_set *stmts = isl_union_set_copy(representation.first);
+    isl_union_map *dependencies = isl_union_map_copy(representation.second);
 
     isl_union_map *schedule = pluto_schedule(stmts, dependencies, options);
 
     pluto_options_free(options);
 
     return schedule;
+}
+
+struct time_space_data
+{
+    isl_space *space;
+};
+
+int get_time_space(isl_map *schedule, void *d)
+{
+    auto data = (time_space_data*) d;
+    if (!data->space)
+    {
+        isl_set *schedule_range = isl_map_range(schedule);
+        data->space = isl_set_get_space(schedule_range);
+        isl_set_free(schedule_range);
+    }
+    else
+        isl_map_free(schedule);
+    return -1;
+}
+
+struct buffer_size_data
+{
+    ast_generator *generator;
+    isl::union_map schedule;
+    isl::space time_space;
+};
+
+int compute_buffer_size_helper(isl_map *dependence, void *d)
+{
+    auto data = reinterpret_cast<buffer_size_data*>(d);
+    data->generator->compute_buffer_size(data->schedule,
+                                         isl::map(dependence),
+                                         data->time_space);
+    return 0;
+}
+
+void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
+                                          const isl::union_map & dependencies )
+{
+    using namespace isl;
+    using isl::tuple;
+
+    cout << endl;
+
+    time_space_data t;
+    t.space = nullptr;
+
+    isl_union_map_foreach_map(schedule.get(), &get_time_space, &t);
+    assert(t.space);
+
+    buffer_size_data d
+    { this, schedule, isl::space(t.space) };
+
+    cout << "Each dependence:" << endl;
+
+    isl_union_map_foreach_map(dependencies.get(), &compute_buffer_size_helper, &d);
+
+    cout << endl;
+}
+
+void ast_generator::compute_buffer_size( const isl::union_map & schedule,
+                                         const isl::map & dependence,
+                                         const isl::space & time_space )
+{
+    using namespace isl;
+    using isl::tuple;
+    using isl::expression;
+
+    context ctx(dependence.ctx());
+    printer p(ctx);
+
+    space src_space = dependence.domain().get_space();
+    space sink_space = dependence.range().get_space();
+    space src_sched_space = space::from(src_space, time_space);
+    space sink_sched_space = space::from(sink_space, time_space);
+
+    map src_sched = schedule.map_for(src_sched_space);
+    map sink_sched = schedule.map_for(sink_sched_space);
+    p.print(dependence); cout << endl;
+    //p.print(src_sched); cout << endl;
+    //p.print(sink_sched); cout << endl;
+
+    map not_later = order_greater_than_or_equal(time_space);
+    map not_earlier = order_less_than_or_equal(time_space);
+
+    map src_not_later = src_sched.inverse()( not_later );
+    map sink_not_earlier = sink_sched.inverse()( not_earlier );
+    map src_consumed_not_earlier = dependence.inverse()( sink_not_earlier );
+
+    p.print(src_not_later); cout << endl;
+    p.print(sink_not_earlier); cout << endl;
+    p.print(src_consumed_not_earlier); cout << endl;
+
+
+    auto distance_func = [&p]( const space & s ) -> map
+    {
+        int dimensions = s.dimension(space::variable);
+        local_space distance_space = local_space(range_product(s,s));
+        auto a = isl::expression::variable(distance_space, space::variable, 0);
+        auto b = isl::expression::variable(distance_space, space::variable, dimensions);
+        return map(a - b);
+    };
+
+    map distance = distance_func(src_space);
+    map delta = distance(src_not_later * src_consumed_not_earlier);
+    cout << "delta := "; p.print(delta); cout << endl;
+
+    set range = delta.range();
+    cout << "range := "; p.print(range); cout << endl;
+
+    set max_delta = range.lex_maximum();
+    max_delta.coalesce();
+    cout << "max delta := ";
+    p.print(max_delta);
+    cout << endl;
 }
 
 pair<isl_union_set*, isl_union_set*>
@@ -380,7 +490,7 @@ void ast_generator::dataflow_iteration_counts
     int rows = deps.size();
     int cols = involved_stmts.size() + 1; // 1 dummy for constants
     isl_mat * flow_matrix =
-            isl_mat_alloc(m_ctx, rows, cols);
+            isl_mat_alloc(m_ctx.get(), rows, cols);
 
     for (int r = 0; r < rows; ++r)
         for(int c = 0; c < cols; ++c)
@@ -401,8 +511,8 @@ void ast_generator::dataflow_iteration_counts
         ++row;
     }
 
-    isl_mat *dummy_inequalities_matrix = isl_mat_alloc(m_ctx, 0, cols);
-    isl_space *space = isl_space_set_alloc(m_ctx, 0, involved_stmts.size());
+    isl_mat *dummy_inequalities_matrix = isl_mat_alloc(m_ctx.get(), 0, cols);
+    isl_space *space = isl_space_set_alloc(m_ctx.get(), 0, involved_stmts.size());
     isl_basic_set *flow_nullspace =
             isl_basic_set_from_constraint_matrices
             (space, flow_matrix, dummy_inequalities_matrix,
@@ -483,7 +593,7 @@ ast_generator::repetition_domains
         assert(infinite_dims.size() == 1);
         int constrained_dim = infinite_dims.front();
 
-        isl_space *space = isl_space_set_alloc(m_ctx, 0, stmt->domain.size());
+        isl_space *space = isl_space_set_alloc(m_ctx.get(), 0, stmt->domain.size());
         space = isl_space_set_tuple_name(space, isl_dim_set, stmt_name.c_str());
 
         isl_basic_set *constrained_domain = isl_basic_set_universe(isl_space_copy(space));
@@ -628,31 +738,6 @@ vector<int> ast_generator::infinite_dimensions( statement *stmt )
             infinite_dimensions.push_back(dim);
 
     return std::move(infinite_dimensions);
-}
-
-isl_ast_node*
-ast_generator::generate_ast
-(isl_union_map *schedule, isl_union_set *domain)
-{
-    auto schedule_domain =
-            isl_union_set_apply(domain, isl_union_map_copy(schedule));
-
-    //printf("# Schedule domain:\n");
-    //isl_printer_print_union_set(printer, schedule_ranges);
-    //printf("\n");
-
-    auto bounded_schedule =
-            isl_union_map_intersect_range(isl_union_map_copy(schedule),
-                                          schedule_domain);
-
-    //printf("# Bounded schedule:\n");
-    //isl_printer_print_union_map(printer, bounded_schedule);
-    //printf("\n");
-
-    isl_ast_node * ast = isl_ast_build_ast_from_schedule(m_ast_builder, bounded_schedule);
-    assert(ast);
-
-    return ast;
 }
 
 }

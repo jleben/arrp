@@ -11,6 +11,10 @@
 #include <isl/ast_build.h>
 #include <isl/printer.h>
 
+//#include <isl-cpp/set.hpp>
+//#include <isl-cpp/map.hpp>
+#include <isl-cpp/context.hpp>
+
 #include <cloog/cloog.h>
 
 #include <string>
@@ -18,6 +22,14 @@
 #include <unordered_map>
 #include <utility>
 #include <stdexcept>
+
+namespace isl {
+class space;
+class set;
+class union_set;
+class map;
+class union_map;
+}
 
 namespace stream {
 namespace polyhedral {
@@ -44,8 +56,6 @@ public:
     ast_generator();
     ~ast_generator();
 
-    //pair<isl_ast_node*,isl_ast_node*>
-
     clast_stmt *
     generate( const vector<statement*> & statements );
 
@@ -69,9 +79,30 @@ private:
 
     void store_statements( const vector<statement*> & );
 
+    // Translation to ISL representation:
+
     pair<isl_union_set*,isl_union_map*> isl_representation();
 
+    isl_basic_set *isl_iteration_domain( const statement_info & );
+    isl_union_map *isl_dependencies( const statement_info & );
+    isl_mat *isl_constraint_matrix( const mapping & );
+
+    // Scheduling
+
     isl_union_map *schedule(const pair<isl_union_set*,isl_union_map*> &);
+
+    // Buffer size computation
+
+    void compute_buffer_sizes( const isl::union_map & schedule,
+                               const isl::union_map & dependencies );
+
+    void compute_buffer_size( const isl::union_map & schedule,
+                              const isl::map & dependence,
+                              const isl::space & time_space );
+
+    friend int compute_buffer_size_helper(isl_map *dependence, void *d);
+
+    // Dataflow
 
     // returns two domains:
     // 1. initialization
@@ -79,27 +110,23 @@ private:
     pair<isl_union_set*, isl_union_set*>
     dataflow_iteration_domains(isl_union_set* domains);
 
-    isl_ast_node *generate_ast(isl_union_map *schedule, isl_union_set *domain);
-
-
-    // Helpers for translation to ISL representation:
-    isl_basic_set *isl_iteration_domain( const statement_info & );
-    isl_union_map *isl_dependencies( const statement_info & );
-    isl_mat *isl_constraint_matrix( const mapping & );
-
-    // General helpers:
-    void dependencies( expression *, vector<stream_access*> & );
     void dataflow_dependencies( const statement_info &,
-                                     vector<dataflow_dependency> & );
+                                vector<dataflow_dependency> & );
+
     void dataflow_iteration_counts( const vector<dataflow_dependency> &,
                                     vector<pair<string, int>> & );
+
     isl_union_set *repetition_domains(isl_union_set *domains,
                                       const vector<pair<string, int>> & counts);
+
+    // General helpers:
+
+    void dependencies( expression *, vector<stream_access*> & );
     vector<int> infinite_dimensions( statement *stmt );
 
+
     statement_store m_statements;
-    isl_ctx *m_ctx;
-    isl_ast_build *m_ast_builder;
+    isl::context m_ctx;
     utility::isl::printer m_printer;
 };
 
