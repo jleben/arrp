@@ -11,11 +11,13 @@
 #include <isl/ast_build.h>
 #include <isl/printer.h>
 
+#include <cloog/cloog.h>
+
+//Including these crashes pluto_schedule. Why??
 //#include <isl-cpp/set.hpp>
 //#include <isl-cpp/map.hpp>
 #include <isl-cpp/context.hpp>
-
-#include <cloog/cloog.h>
+#include <isl-cpp/printer.hpp>
 
 #include <string>
 #include <vector>
@@ -25,8 +27,10 @@
 
 namespace isl {
 class space;
+class basic_set;
 class set;
 class union_set;
+class basic_map;
 class map;
 class union_map;
 }
@@ -81,15 +85,17 @@ private:
 
     // Translation to ISL representation:
 
-    pair<isl_union_set*,isl_union_map*> isl_representation();
+    void make_isl_representation(isl::union_set & domains,
+                                 isl::union_map & dependencies);
 
-    isl_basic_set *isl_iteration_domain( const statement_info & );
-    isl_union_map *isl_dependencies( const statement_info & );
-    isl_mat *isl_constraint_matrix( const mapping & );
+    isl::basic_set isl_iteration_domain( const statement_info & );
+    isl::union_map isl_dependencies( const statement_info & );
+    isl::matrix isl_constraint_matrix( const mapping & );
 
     // Scheduling
 
-    isl_union_map *schedule(const pair<isl_union_set*,isl_union_map*> &);
+    isl::union_map make_schedule(isl::union_set & domains,
+                                 isl::union_map & dependencies);
 
     // Buffer size computation
 
@@ -127,7 +133,7 @@ private:
 
     statement_store m_statements;
     isl::context m_ctx;
-    utility::isl::printer m_printer;
+    isl::printer m_printer;
 };
 
 }
