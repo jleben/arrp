@@ -7,6 +7,7 @@
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
 #include <isl-cpp/expression.hpp>
+#include <isl-cpp/matrix.hpp>
 #include <isl-cpp/utility.hpp>
 #include <isl-cpp/printer.hpp>
 
@@ -528,13 +529,13 @@ void ast_generator::compute_dataflow_counts
     }
 
     int rows = deps.size();
-    int cols = involved_stmts.size() + 1; // 1 dummy for constants
-    isl_mat * flow_matrix =
-            isl_mat_alloc(m_ctx.get(), rows, cols);
+    int cols = involved_stmts.size();
+
+    isl::matrix flow_matrix(m_ctx, rows, cols);
 
     for (int r = 0; r < rows; ++r)
         for(int c = 0; c < cols; ++c)
-            isl_mat_set_element_si(flow_matrix, r, c, 0);
+            flow_matrix(r,c) = 0;
 
     int row = 0;
     for (const auto & dep: deps)
@@ -546,77 +547,26 @@ void ast_generator::compute_dataflow_counts
 
         cout << "source: " << dep.source << "@" << source_index << endl;
         cout << "sink: " << dep.sink << "@" << sink_index << endl;
-        isl_mat_set_element_si(flow_matrix, row, source_index, dep.push);
-        isl_mat_set_element_si(flow_matrix, row, sink_index, dep.pop);
+        flow_matrix(row, source_index) = dep.push;
+        flow_matrix(row, sink_index) = - dep.pop;
         ++row;
     }
 
-    isl_mat *dummy_inequalities_matrix = isl_mat_alloc(m_ctx.get(), 0, cols);
-    isl_space *space = isl_space_set_alloc(m_ctx.get(), 0, involved_stmts.size());
-    isl_basic_set *flow_nullspace =
-            isl_basic_set_from_constraint_matrices
-            (space, flow_matrix, dummy_inequalities_matrix,
-             isl_dim_set, isl_dim_cst, isl_dim_param, isl_dim_div);
+    cout << "Flow:" << endl;
+    isl::print(flow_matrix);
 
-    assert(flow_nullspace);
+    isl::matrix nullspace = flow_matrix.nullspace();
+
     cout << "Nullspace:" << endl;
-    // FIXME:
-    //m_printer.print(flow_nullspace); cout << endl;
+    isl::print(nullspace);
 
-    isl_basic_set * flow_nullspace_coeff =
-            isl_basic_set_coefficients(flow_nullspace);
-
-    assert(flow_nullspace_coeff);
-    cout << "Nullspace coefficients:" << endl;
-    // FIXME:
-    //m_printer.print(flow_nullspace_coeff); cout << endl;
-
-    isl_mat *flow_nullspace_coeff_matrix =
-            isl_basic_set_equalities_matrix
-            (flow_nullspace_coeff,
-             isl_dim_set,
-             isl_dim_cst,
-             isl_dim_param,
-             isl_dim_div
-             );
-
-#if 0
-    cout << endl << "Nullspace coefficient matrix:" << endl;
+    assert(nullspace.column_count() == 1);
+    assert(nullspace.row_count() == involved_stmts.size());
+    auto stmt_name_ref = involved_stmts.begin();
+    for (int row = 0; row < nullspace.row_count(); ++row, ++stmt_name_ref)
     {
-        isl_mat * m = flow_nullspace_coeff_matrix;
-        int r, c;
-        for (r = 0; r < isl_mat_rows(m); ++r)
-        {
-            for (c = 0; c < isl_mat_cols(m); ++c)
-            {
-                double val = isl_val_get_d( isl_mat_get_element_val(m, r, c) );
-                cout << val << " ";
-            }
-            cout << endl;
-        }
-    }
-#endif
-    if ( isl_mat_rows(flow_nullspace_coeff_matrix) != 1 ||
-         isl_mat_cols(flow_nullspace_coeff_matrix) != involved_stmts.size() + 2)
-    {
-        throw error("Inconsistent dataflow.");
-    }
-
-    cout << endl << "Iteration counts:" << endl;
-    auto stmt_loc = involved_stmts.begin();
-    for (int i = 0; i < involved_stmts.size(); ++i)
-    {
-        //int count = isl_mat_get_element_si(flow_nullspace_coeff_matrix, 0, i+1);
-        isl_val *count_val =
-                isl_mat_get_element_val(flow_nullspace_coeff_matrix, 0, i+1);
-        assert( isl_val_is_int(count_val) );
-        int count = std::abs( isl_val_get_d(count_val) );
-        cout << "- " << *stmt_loc << ": " << count << endl;
-
-        result.emplace(*stmt_loc, count);
-
-        isl_val_free(count_val);
-        ++stmt_loc;
+        int count = nullspace(row,0).value().numerator();
+        result.emplace(*stmt_name_ref, count);
     }
 }
 
