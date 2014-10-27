@@ -110,20 +110,25 @@ private:
 
     // Dataflow
 
+    void compute_dataflow_dependencies( vector<dataflow_dependency> & result );
+
+    void compute_dataflow_dependencies( const statement_info &info,
+                                        vector<dataflow_dependency> & result );
+
+    void compute_dataflow_counts ( const vector<dataflow_dependency> &,
+                                   unordered_map<string,int> & result );
+
+#if 0
     // returns two domains:
     // 1. initialization
     // 2. repetition
     pair<isl_union_set*, isl_union_set*>
     dataflow_iteration_domains(isl_union_set* domains);
 
-    void dataflow_dependencies( const statement_info &,
-                                vector<dataflow_dependency> & );
-
-    void dataflow_iteration_counts( const vector<dataflow_dependency> &,
-                                    vector<pair<string, int>> & );
-
     isl_union_set *repetition_domains(isl_union_set *domains,
                                       const vector<pair<string, int>> & counts);
+#endif
+
 
     // General helpers:
 

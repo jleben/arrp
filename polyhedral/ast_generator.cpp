@@ -37,6 +37,15 @@ ast_generator::generate( const vector<statement*> & statements )
 {
     store_statements(statements);
 
+    vector<dataflow_dependency> dataflow_deps;
+    compute_dataflow_dependencies(dataflow_deps);
+
+    if (!dataflow_deps.empty())
+    {
+        unordered_map<string,int> dataflow_counts;
+        compute_dataflow_counts(dataflow_deps, dataflow_counts);
+    }
+
     isl::union_set domains(m_ctx);
     isl::union_map dependencies(m_ctx);
     make_isl_representation(domains, dependencies);
@@ -386,8 +395,8 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     cout << endl;
 }
 
-pair<isl_union_set*, isl_union_set*>
-ast_generator::dataflow_iteration_domains(isl_union_set* domains)
+void ast_generator::compute_dataflow_dependencies
+( vector<dataflow_dependency> & result )
 {
     vector<string> finite_statements;
     vector<string> infinite_statements;
@@ -423,26 +432,90 @@ ast_generator::dataflow_iteration_domains(isl_union_set* domains)
         throw error(msg.str());
     }
 
-    vector<dataflow_dependency> deps;
-
     for(const string & name : infinite_statements)
     {
-        dataflow_dependencies(*m_statements.find(name), deps);
+        compute_dataflow_dependencies(*m_statements.find(name), result);
     }
-
-    vector<pair<string,int>> counts;
-    dataflow_iteration_counts(deps, counts);
-
-    isl_union_set *rep_domains = repetition_domains(domains, counts);
-
-    // TODO: initialization domains
-    // - each stmt must get its "peek" amount of elems available
-
-    return make_pair((isl_union_set*) nullptr, rep_domains);
 }
 
-void ast_generator::dataflow_iteration_counts
-( const vector<dataflow_dependency> &deps, vector<pair<string, int>> & counts )
+
+void ast_generator::compute_dataflow_dependencies
+( const statement_info &info, vector<dataflow_dependency> & all_deps )
+{
+    const string &sink_name = info.first;
+    statement *sink = info.second.stmt;
+
+    if (!sink->expr)
+        return;
+
+    vector<int> infinite_dims = infinite_dimensions(sink);
+    assert(infinite_dims.size() == 1);
+
+    int sink_flow_dim = infinite_dims.front();
+
+    cout << "-- sink flow dim = " << sink_flow_dim << endl;
+
+    vector<stream_access*> sources;
+
+    dependencies(sink->expr, sources);
+    if (sources.empty())
+        return;
+
+    for(stream_access *source : sources)
+    {
+        int source_flow_dim = -1;
+        for (int out_dim = 0;
+             out_dim < source->pattern.output_dimension();
+             ++out_dim)
+        {
+            cout << "-- coef: " << source->pattern.coefficients(out_dim, sink_flow_dim) << endl;
+            if (source->pattern.coefficients(out_dim, sink_flow_dim) != 0)
+            {
+                source_flow_dim = out_dim;
+                break;
+            }
+        }
+
+        if (source_flow_dim < 0)
+            throw std::runtime_error("Sink flow dimension does not map"
+                                     " to any source dimension.");
+
+        int flow_pop = source->pattern.coefficients(source_flow_dim, sink_flow_dim);
+
+        vector<int> sink_index = sink->domain;
+        sink_index[sink_flow_dim] = 0;
+        vector<int> source_index = source->pattern * sink_index;
+        int flow_peek = source_index[source_flow_dim] + 1;
+
+        string source_name;
+        {
+            auto is_source = [&]( const statement_info &info )
+            { return info.second.stmt == source->target; };
+            auto it = std::find_if(m_statements.begin(), m_statements.end(), is_source);
+            assert(it != m_statements.end());
+            source_name = it->first;
+        }
+
+        dataflow_dependency dep;
+        dep.source = source_name;
+        dep.sink = sink_name;
+        dep.source_dim = source_flow_dim;
+        dep.sink_dim = sink_flow_dim;
+        dep.push = 1;
+        dep.peek = flow_peek;
+        dep.pop = flow_pop;
+
+        all_deps.push_back(dep);
+
+        cout << endl << "Dependency:" << endl;
+        cout << dep.source << "@" << dep.source_dim << " " << dep.push << " -> "
+             << dep.peek << "/" << dep.pop << " " << dep.sink << "@" << dep.sink_dim
+             << endl;
+    }
+}
+
+void ast_generator::compute_dataflow_counts
+( const vector<dataflow_dependency> & deps, std::unordered_map<string, int> & result )
 {
     // FIXME: Multiple dependencies between same pair of statements
 
@@ -539,10 +612,24 @@ void ast_generator::dataflow_iteration_counts
         assert( isl_val_is_int(count_val) );
         int count = std::abs( isl_val_get_d(count_val) );
         cout << "- " << *stmt_loc << ": " << count << endl;
-        counts.emplace_back(*stmt_loc, count);
+
+        result.emplace(*stmt_loc, count);
+
         isl_val_free(count_val);
         ++stmt_loc;
     }
+}
+
+#if 0
+pair<isl_union_set*, isl_union_set*>
+ast_generator::dataflow_iteration_domains(isl_union_set* domains)
+{
+    isl_union_set *rep_domains = repetition_domains(domains, counts);
+
+    // TODO: initialization domains
+    // - each stmt must get its "peek" amount of elems available
+
+    return make_pair((isl_union_set*) nullptr, rep_domains);
 }
 
 isl_union_set*
@@ -600,6 +687,7 @@ ast_generator::repetition_domains
 
     return repetition_domains;
 }
+#endif
 
 void ast_generator::dependencies( expression *expr,
                                   vector<stream_access*> & deps )
@@ -621,81 +709,6 @@ void ast_generator::dependencies( expression *expr,
         return;
     }
     throw std::runtime_error("Unexpected expression type.");
-}
-
-void ast_generator::dataflow_dependencies
-( const statement_info &info, vector<dataflow_dependency> & all_deps )
-{
-    const string &sink_name = info.first;
-    statement *sink = info.second.stmt;
-
-    if (!sink->expr)
-        return;
-
-    vector<int> infinite_dims = infinite_dimensions(sink);
-    assert(infinite_dims.size() == 1);
-
-    int sink_flow_dim = infinite_dims.front();
-
-    cout << "-- sink flow dim = " << sink_flow_dim << endl;
-
-    vector<stream_access*> sources;
-
-    dependencies(sink->expr, sources);
-    if (sources.empty())
-        return;
-
-    for(stream_access *source : sources)
-    {
-        int source_flow_dim = -1;
-        for (int out_dim = 0;
-             out_dim < source->pattern.output_dimension();
-             ++out_dim)
-        {
-            cout << "-- coef: " << source->pattern.coefficients(out_dim, sink_flow_dim) << endl;
-            if (source->pattern.coefficients(out_dim, sink_flow_dim) != 0)
-            {
-                source_flow_dim = out_dim;
-                break;
-            }
-        }
-
-        if (source_flow_dim < 0)
-            throw std::runtime_error("Sink flow dimension does not map"
-                                     " to any source dimension.");
-
-        int flow_pop = source->pattern.coefficients(source_flow_dim, sink_flow_dim);
-
-        vector<int> sink_index = sink->domain;
-        sink_index[sink_flow_dim] = 0;
-        vector<int> source_index = source->pattern * sink_index;
-        int flow_peek = source_index[source_flow_dim] + 1;
-
-        string source_name;
-        {
-            auto is_source = [&]( const statement_info &info )
-            { return info.second.stmt == source->target; };
-            auto it = std::find_if(m_statements.begin(), m_statements.end(), is_source);
-            assert(it != m_statements.end());
-            source_name = it->first;
-        }
-
-        dataflow_dependency dep;
-        dep.source = source_name;
-        dep.sink = sink_name;
-        dep.source_dim = source_flow_dim;
-        dep.sink_dim = sink_flow_dim;
-        dep.push = 1;
-        dep.peek = flow_peek;
-        dep.pop = flow_pop;
-
-        all_deps.push_back(dep);
-
-        cout << endl << "Dependency:" << endl;
-        cout << dep.source << "@" << dep.source_dim << " " << dep.push << " -> "
-             << dep.peek << "/" << dep.pop << " " << dep.sink << "@" << dep.sink_dim
-             << endl;
-    }
 }
 
 vector<int> ast_generator::infinite_dimensions( statement *stmt )
