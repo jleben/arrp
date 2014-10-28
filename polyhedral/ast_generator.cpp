@@ -48,16 +48,23 @@ ast_generator::generate( const vector<statement*> & statements )
     }
 
     /*
-    Offset = the earliest not consumed in previous period.
+      Compute schedule with domains
+      offset by init counts and
+      spanning steady counts.
+
+      For the purpose of buffer calculation,
+      Construct a larger infinite schedule involving
+      entire execution (init phase and all steady periods).
+      Should be able to use original dependencies, cuz iteration
+      indexes (domains) don't change.
+
+      For buffer access index, use index in schedule minus init count.
     */
 
     isl::union_set domains(m_ctx);
     isl::union_map dependencies(m_ctx);
     make_isl_representation(domains, dependencies);
 
-    return nullptr;
-
-#if 0
     auto schedule = make_schedule(domains, dependencies);
     auto bounded_schedule = schedule.in_domain( domains );
 
@@ -67,6 +74,9 @@ ast_generator::generate( const vector<statement*> & statements )
 
     compute_buffer_sizes(bounded_schedule, dependencies);
 
+    return nullptr;
+
+#if 0
     {
         CloogState *state = cloog_state_malloc();
         CloogOptions *options = cloog_options_malloc(state);
@@ -293,41 +303,6 @@ isl::union_map ast_generator::make_schedule
     return isl::union_map(schedule);
 }
 
-struct time_space_data
-{
-    isl_space *space = nullptr;
-};
-
-int get_time_space(isl_map *schedule, void *d)
-{
-    auto data = (time_space_data*) d;
-    if (!data->space)
-    {
-        isl_set *schedule_range = isl_map_range(schedule);
-        data->space = isl_set_get_space(schedule_range);
-        isl_set_free(schedule_range);
-    }
-    else
-        isl_map_free(schedule);
-    return -1;
-}
-
-struct buffer_size_data
-{
-    ast_generator *generator;
-    isl::union_map schedule;
-    isl::space time_space;
-};
-
-int compute_buffer_size_helper(isl_map *dependence, void *d)
-{
-    auto data = reinterpret_cast<buffer_size_data*>(d);
-    data->generator->compute_buffer_size(data->schedule,
-                                         isl::map(dependence),
-                                         data->time_space);
-    return 0;
-}
-
 void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
                                           const isl::union_map & dependencies )
 {
@@ -336,18 +311,20 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
 
     cout << endl;
 
-    time_space_data t;
+    isl::space *time_space = nullptr;
 
-    isl_union_map_foreach_map(schedule.get(), &get_time_space, &t);
-    assert(t.space);
+    schedule.for_each([&time_space]( const map & m )
+    {
+        time_space = new space( m.range().get_space() );
+        return false;
+    });
 
-    buffer_size_data d
-    { this, schedule, isl::space(t.space) };
-
-    cout << "Each dependence:" << endl;
-
-    isl_union_map_foreach_map(dependencies.get(), &compute_buffer_size_helper, &d);
-
+    cout << "Each dependency:" << endl;
+    dependencies.for_each([&]( const map & dependency )
+    {
+        compute_buffer_size(schedule, dependency, *time_space);
+        return true;
+    });
     cout << endl;
 }
 
