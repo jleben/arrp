@@ -11,8 +11,6 @@
 #include <isl/ast_build.h>
 #include <isl/printer.h>
 
-#include <cloog/cloog.h>
-
 //Including these crashes pluto_schedule. Why??
 //#include <isl-cpp/set.hpp>
 //#include <isl-cpp/map.hpp>
@@ -60,7 +58,7 @@ public:
     ast_generator();
     ~ast_generator();
 
-    clast_stmt *
+    struct clast_stmt *
     generate( const vector<statement*> & statements );
 
     const statement_store &statements()
