@@ -81,6 +81,12 @@ private:
         int pop;
     };
 
+    struct dataflow_count
+    {
+        int init;
+        int steady;
+    };
+
     void store_statements( const vector<statement*> & );
 
     // Translation to ISL representation:
@@ -116,7 +122,7 @@ private:
                                         vector<dataflow_dependency> & result );
 
     void compute_dataflow_counts ( const vector<dataflow_dependency> &,
-                                   unordered_map<string,int> & result );
+                                   unordered_map<string,dataflow_count> & result );
 
 #if 0
     // returns two domains:

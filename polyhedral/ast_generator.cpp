@@ -43,14 +43,21 @@ ast_generator::generate( const vector<statement*> & statements )
 
     if (!dataflow_deps.empty())
     {
-        unordered_map<string,int> dataflow_counts;
-        compute_dataflow_counts(dataflow_deps, dataflow_counts);
+        unordered_map<string,dataflow_count> counts;
+        compute_dataflow_counts(dataflow_deps, counts);
     }
+
+    /*
+    Offset = the earliest not consumed in previous period.
+    */
 
     isl::union_set domains(m_ctx);
     isl::union_map dependencies(m_ctx);
     make_isl_representation(domains, dependencies);
 
+    return nullptr;
+
+#if 0
     auto schedule = make_schedule(domains, dependencies);
     auto bounded_schedule = schedule.in_domain( domains );
 
@@ -86,6 +93,7 @@ ast_generator::generate( const vector<statement*> & statements )
 
         return ast;
     }
+#endif
 
 #if 0
     auto dataflow_domains = dataflow_iteration_domains(isl_repr.first);
@@ -486,7 +494,7 @@ void ast_generator::compute_dataflow_dependencies
         vector<int> sink_index = sink->domain;
         sink_index[sink_flow_dim] = 0;
         vector<int> source_index = source->pattern * sink_index;
-        int flow_peek = source_index[source_flow_dim] + 1;
+        int flow_peek = std::max(1, source_index[source_flow_dim]);
 
         string source_name;
         {
@@ -516,8 +524,11 @@ void ast_generator::compute_dataflow_dependencies
 }
 
 void ast_generator::compute_dataflow_counts
-( const vector<dataflow_dependency> & deps, std::unordered_map<string, int> & result )
+( const vector<dataflow_dependency> & deps,
+  std::unordered_map<string,dataflow_count> & result )
 {
+    using namespace isl;
+
     // FIXME: Multiple dependencies between same pair of statements
 
     unordered_set<string> involved_stmts;
@@ -555,18 +566,73 @@ void ast_generator::compute_dataflow_counts
     cout << "Flow:" << endl;
     isl::print(flow_matrix);
 
-    isl::matrix nullspace = flow_matrix.nullspace();
+    isl::matrix steady_counts = flow_matrix.nullspace();
 
-    cout << "Nullspace:" << endl;
-    isl::print(nullspace);
+    cout << "Steady Counts:" << endl;
+    isl::print(steady_counts);
 
-    assert(nullspace.column_count() == 1);
-    assert(nullspace.row_count() == involved_stmts.size());
-    auto stmt_name_ref = involved_stmts.begin();
-    for (int row = 0; row < nullspace.row_count(); ++row, ++stmt_name_ref)
+    // Initialization counts:
+
+    isl::space statement_space(m_ctx, isl::tuple(), isl::tuple("",involved_stmts.size()));
+    auto init_counts = isl::set::universe(statement_space);
+    auto init_cost = isl::expression::value(statement_space, 0);
+    cout << "Init count cost expr:" << endl;
+    m_printer.print(init_cost); cout << endl;
+    for (int i = 0; i < involved_stmts.size(); ++i)
     {
-        int count = nullspace(row,0).value().numerator();
-        result.emplace(*stmt_name_ref, count);
+        auto stmt = isl::expression::variable(statement_space, space::variable, i);
+        init_counts.add_constraint( stmt >= 0 );
+        init_cost = stmt + init_cost;
+        cout << "Init count cost expr:" << endl;
+        m_printer.print(init_cost); cout << endl;
+    }
+    for (const auto & dep: deps)
+    {
+        auto source_ref = involved_stmts.find(dep.source);
+        int source_index = std::distance(involved_stmts.begin(), source_ref);
+        auto sink_ref = involved_stmts.find(dep.sink);
+        int sink_index = std::distance(involved_stmts.begin(), sink_ref);
+
+        auto source = isl::expression::variable(statement_space,
+                                                space::variable,
+                                                source_index);
+        auto sink = isl::expression::variable(statement_space,
+                                              space::variable,
+                                              sink_index);
+        int source_steady = steady_counts(source_index,0).value().numerator();
+        int sink_steady = steady_counts(sink_index,0).value().numerator();
+
+        // p(a)*i(a) - o(b)*i(b) + [p(a)*s(a) - o(b)*s(b) - e(b) + o(b)] >= 0
+
+        auto constraint =
+                dep.push * source - dep.pop * sink
+                + (dep.push * source_steady - dep.pop * sink_steady - dep.peek + dep.pop)
+                >= 0;
+
+        init_counts.add_constraint(constraint);
+    }
+
+    cout << "Viable initialization counts:" << endl;
+    m_printer.print(init_counts); cout << endl;
+
+    auto init_optimum = init_counts.minimum(init_cost);
+    init_counts.add_constraint( init_cost == init_optimum );
+    auto init_optimum_point = init_counts.single_point();
+
+    cout << "Initialization Counts:" << endl;
+    m_printer.print(init_optimum_point); cout << endl;
+
+    assert(steady_counts.column_count() == 1);
+    assert(steady_counts.row_count() == involved_stmts.size());
+    auto stmt_name_ref = involved_stmts.begin();
+    for (int stmt_idx = 0; stmt_idx < involved_stmts.size(); ++stmt_idx, ++stmt_name_ref)
+    {
+        dataflow_count counts =
+        {
+            (int) init_optimum_point(isl::space::variable, stmt_idx).numerator(),
+            (int) steady_counts(stmt_idx,0).value().numerator()
+        };
+        result.emplace(*stmt_name_ref, counts);
     }
 }
 
