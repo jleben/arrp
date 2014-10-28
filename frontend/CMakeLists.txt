@@ -66,9 +66,9 @@ else()
   target_link_libraries( frontend_lib ${llvm-link-libs} ${llvm-link-flags}  )
 endif()
 
-target_link_libraries( frontend_lib pluto isl cloog-isl)
+target_link_libraries( frontend_lib pluto isl isl-cpp cloog-isl gmp)
 
 # Frontend executable
 
 add_executable(frontend frontend.cpp)
-target_link_libraries(frontend frontend_lib isl-cpp)
+target_link_libraries(frontend frontend_lib)
