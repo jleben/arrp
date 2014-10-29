@@ -364,7 +364,8 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
 
     map src_not_later = src_sched.inverse()( not_later );
     map sink_not_earlier = sink_sched.inverse()( not_earlier );
-    map src_consumed_not_earlier = dependence.inverse()( sink_not_earlier );
+    map src_consumed_not_earlier =
+            dependence.inverse()( sink_not_earlier ).in_range(src_sched.domain());
 
     m_printer.print(src_not_later); cout << endl;
     m_printer.print(sink_not_earlier); cout << endl;
