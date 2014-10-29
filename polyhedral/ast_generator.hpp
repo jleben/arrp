@@ -145,6 +145,7 @@ private:
     // General helpers:
 
     void dependencies( expression *, vector<stream_access*> & );
+    int first_infinite_dimension( statement *stmt );
     vector<int> infinite_dimensions( statement *stmt );
 
 

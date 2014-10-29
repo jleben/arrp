@@ -73,13 +73,18 @@ ast_generator::generate( const vector<statement*> & statements )
     m_printer.print(steady_period); cout << endl;
 
     auto schedule = make_schedule(steady_period, dependencies);
+
+    cout << endl << "Unbounded Schedule:" << endl;
+    m_printer.print(schedule);
+    cout << endl;
+
     auto bounded_schedule = schedule.in_domain( steady_period );
 
     cout << endl << "Schedule:" << endl;
     m_printer.print(bounded_schedule);
     cout << endl;
 
-    compute_buffer_sizes(bounded_schedule, dependencies);
+    //compute_buffer_sizes(schedule, dependencies);
 
     //return nullptr;
 
@@ -633,7 +638,8 @@ isl::union_set ast_generator::steady_period
         const string & name = elem.first;
         const dataflow_count & count = elem.second;
         statement *stmt = m_statements[name].stmt;
-        int dim = infinite_dimensions(stmt)[0];
+        int dim = first_infinite_dimension(stmt);
+        assert(dim >= 0);
 
         isl::space space(m_ctx, isl::tuple(), isl::tuple(name,stmt->domain.size()));
         auto domain = domains.set_for(space);
@@ -750,6 +756,14 @@ vector<int> ast_generator::infinite_dimensions( statement *stmt )
             infinite_dimensions.push_back(dim);
 
     return std::move(infinite_dimensions);
+}
+
+int ast_generator::first_infinite_dimension( statement *stmt )
+{
+    for (int dim = 0; dim < stmt->domain.size(); ++dim)
+        if (stmt->domain[dim] == infinite)
+            return dim;
+    return -1;
 }
 
 }
