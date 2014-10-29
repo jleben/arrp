@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
     polyhedral::printer poly_printer;
     polyhedral::ast_generator poly_ast_gen;
     //polyhedral::llvm_ir_generator poly_llvm_gen(args.input_filename);
-    polyhedral::llvm_from_cloog poly_llvm_gen(args.input_filename);
+    //polyhedral::llvm_from_cloog poly_llvm_gen(args.input_filename);
 
     for (const evaluation & eval : args.evaluations)
     {

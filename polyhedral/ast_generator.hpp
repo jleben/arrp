@@ -11,7 +11,11 @@
 #include <isl/ast_build.h>
 #include <isl/printer.h>
 
-//Including these crashes pluto_schedule. Why??
+// Including these crashes pluto_schedule because
+// pluto is linked both to libpiplibMP (needed by ISL)
+// and libpiplib64, and it should use 64 code version,
+// but including these ISL headers makes it call into MP version instead.
+
 //#include <isl-cpp/set.hpp>
 //#include <isl-cpp/map.hpp>
 #include <isl-cpp/context.hpp>

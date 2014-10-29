@@ -41,8 +41,6 @@ else()
   set(lib_mode SHARED)
 endif()
 
-add_definitions(-DCLOOG_INT_GMP)
-
 add_library(frontend_lib ${lib_mode}
   lex.cc
   parse.cc
@@ -66,7 +64,7 @@ else()
   target_link_libraries( frontend_lib ${llvm-link-libs} ${llvm-link-flags}  )
 endif()
 
-target_link_libraries( frontend_lib pluto isl isl-cpp cloog-isl gmp)
+target_link_libraries( frontend_lib pluto gmp isl isl-cpp cloog-isl )
 
 # Frontend executable
 

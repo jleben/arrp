@@ -77,6 +77,10 @@ link_directories(
 
 include_directories(extra)
 
+# Global compile options
+
+add_definitions(-DCLOOG_INT_GMP)
+
 # Subdirs
 
 add_subdirectory(extra/isl-cpp)
