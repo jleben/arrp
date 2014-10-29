@@ -67,6 +67,14 @@ ast_generator::generate( const vector<statement*> & statements )
     isl::union_map dependencies(m_ctx);
     make_isl_representation(domains, dependencies);
 
+    isl::union_set dataflow_domains(m_ctx);
+    isl::union_map dataflow_dependencies(m_ctx);
+    dataflow_model(domains, dependencies, counts,
+                   dataflow_domains, dataflow_dependencies);
+
+    return nullptr;
+
+#if 0
     auto steady_period = this->steady_period(domains, counts);
 
     cout << "Steady period:" << endl;
@@ -87,8 +95,9 @@ ast_generator::generate( const vector<statement*> & statements )
     //compute_buffer_sizes(schedule, dependencies);
 
     //return nullptr;
+#endif
 
-#if 1
+#if 0
     {
         CloogState *state = cloog_state_malloc();
         CloogOptions *options = cloog_options_malloc(state);
@@ -624,6 +633,94 @@ void ast_generator::compute_dataflow_counts
         };
         result.emplace(*stmt_name_ref, counts);
     }
+}
+
+void ast_generator::dataflow_model
+( const isl::union_set & domains,
+  const isl::union_map & dependencies,
+  const unordered_map<string,dataflow_count> & counts,
+  isl::union_set & dataflow_domains,
+  isl::union_map & dataflow_dependencies)
+{
+    isl::union_map domain_maps(m_ctx);
+
+    domains.for_each( [&](const isl::set & d)
+    {
+        string stmt_name = d.name();
+        statement *stmt = m_statements.at(stmt_name).stmt;
+        int inf_dim = first_infinite_dimension(stmt);
+        const auto & count = counts.at(stmt_name);
+
+        auto d_space = d.get_space();
+
+        // Compute output domain
+
+        auto dd = isl::set::universe(d_space);
+        dd.insert_dimensions(0,1);
+        dd.set_name( stmt_name + '\'' );
+        auto dd_space = dd.get_space();
+        {
+            auto v = dd_space(isl::space::variable, inf_dim + 1);
+            dd.add_constraint(v >= 0);
+            dd.add_constraint(v < count.steady);
+        }
+
+        // Compute input->output mapping
+
+        int d_dims = d.dimensions();
+        int dd_dims = d_dims + 1;
+        int column_count = d_dims + dd_dims + 1;
+
+        isl::matrix eq_mtx(m_ctx, d_dims, column_count, 0 );
+
+        // Compute relation between period and intra-period (iteration) domains
+        // in = (out_period * steady) + out + init
+        eq_mtx(inf_dim, inf_dim) = -1; // input iteration
+        eq_mtx(inf_dim, d_dims) = count.steady; // output period
+        eq_mtx(inf_dim, d_dims + inf_dim + 1) = 1; // output iteration
+        eq_mtx(inf_dim, d_dims + dd_dims) = count.init; // constant
+
+        // Make all other dimensions equal
+        for (int dim = 0; dim < d_dims; ++dim)
+        {
+            if (dim == inf_dim)
+                continue;
+            eq_mtx(dim, dim) = -1;
+            eq_mtx(dim, d_dims + dim + 1) = 1;
+        }
+
+        isl::matrix ineq_mtx(m_ctx, 0, column_count);
+
+        isl::map map = isl::basic_map(isl::space::from(d_space, dd_space), eq_mtx, ineq_mtx );
+
+        // Store results
+
+        dataflow_domains = dataflow_domains | dd;
+        domain_maps = domain_maps | map;
+
+        return true;
+    });
+
+    cout << endl;
+
+    cout << "Dataflow domains:" << endl;
+    m_printer.print(dataflow_domains); cout << endl;
+
+    cout << "Domain mappings:" << endl;
+    m_printer.print(domain_maps); cout << endl;
+
+    dataflow_dependencies = dependencies;
+    dataflow_dependencies.map_domain_through(domain_maps);
+    dataflow_dependencies.map_range_through(domain_maps);
+
+    cout << "Dataflow dependencies:" << endl;
+    m_printer.print(dataflow_dependencies); cout << endl;
+
+    cout << "Bounded dataflow dependencies:" << endl;
+    m_printer.print( dataflow_dependencies
+                     .in_domain(dataflow_domains)
+                     .in_range(dataflow_domains) );
+    cout << endl;
 }
 
 isl::union_set ast_generator::steady_period

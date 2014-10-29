@@ -128,6 +128,12 @@ private:
     void compute_dataflow_counts ( const vector<dataflow_dependency> &,
                                    unordered_map<string,dataflow_count> & result );
 
+    void dataflow_model( const isl::union_set & domains,
+                         const isl::union_map & dependencies,
+                         const unordered_map<string,dataflow_count> & counts,
+                         isl::union_set & result_domains,
+                         isl::union_map & result_dependencies);
+
     isl::union_set steady_period( const isl::union_set & domains,
                                   const unordered_map<string,dataflow_count> & counts );
 #if 0
