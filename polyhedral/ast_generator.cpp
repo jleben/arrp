@@ -3,8 +3,8 @@
 #include <osl/osl.h>
 #include <pluto/libpluto.h>
 
-//#include <cloog/cloog.h>
-//#include <cloog/isl/cloog.h>
+#include <cloog/cloog.h>
+#include <cloog/isl/cloog.h>
 
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
@@ -43,9 +43,9 @@ ast_generator::generate( const vector<statement*> & statements )
     vector<dataflow_dependency> dataflow_deps;
     compute_dataflow_dependencies(dataflow_deps);
 
+    unordered_map<string,dataflow_count> counts;
     if (!dataflow_deps.empty())
     {
-        unordered_map<string,dataflow_count> counts;
         compute_dataflow_counts(dataflow_deps, counts);
     }
 
@@ -67,8 +67,13 @@ ast_generator::generate( const vector<statement*> & statements )
     isl::union_map dependencies(m_ctx);
     make_isl_representation(domains, dependencies);
 
-    auto schedule = make_schedule(domains, dependencies);
-    auto bounded_schedule = schedule.in_domain( domains );
+    auto steady_period = this->steady_period(domains, counts);
+
+    cout << "Steady period:" << endl;
+    m_printer.print(steady_period); cout << endl;
+
+    auto schedule = make_schedule(steady_period, dependencies);
+    auto bounded_schedule = schedule.in_domain( steady_period );
 
     cout << endl << "Schedule:" << endl;
     m_printer.print(bounded_schedule);
@@ -76,9 +81,9 @@ ast_generator::generate( const vector<statement*> & statements )
 
     compute_buffer_sizes(bounded_schedule, dependencies);
 
-    return nullptr;
+    //return nullptr;
 
-#if 0
+#if 1
     {
         CloogState *state = cloog_state_malloc();
         CloogOptions *options = cloog_options_malloc(state);
@@ -613,6 +618,36 @@ void ast_generator::compute_dataflow_counts
         };
         result.emplace(*stmt_name_ref, counts);
     }
+}
+
+isl::union_set ast_generator::steady_period
+( const isl::union_set & domains,
+  const unordered_map<string,dataflow_count> & counts )
+{
+    isl::union_set period(m_ctx);
+
+    //cout << "All steady periods: "; m_printer.print(periods); cout << endl;
+
+    for( const auto & elem : counts )
+    {
+        const string & name = elem.first;
+        const dataflow_count & count = elem.second;
+        statement *stmt = m_statements[name].stmt;
+        int dim = infinite_dimensions(stmt)[0];
+
+        isl::space space(m_ctx, isl::tuple(), isl::tuple(name,stmt->domain.size()));
+        auto domain = domains.set_for(space);
+        //auto period = isl::set::universe(space);
+        auto iter = space(isl::space::variable, dim);
+        domain.add_constraint( iter >= count.init );
+        domain.add_constraint( iter < (count.init + count.steady) );
+
+        //cout << "Steady domain: "; m_printer.print(domain); cout << endl;
+
+        period = period | domain;
+    }
+
+    return period;
 }
 
 #if 0

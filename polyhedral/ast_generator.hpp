@@ -27,6 +27,8 @@
 #include <utility>
 #include <stdexcept>
 
+struct clast_stmt;
+
 namespace isl {
 class space;
 class basic_set;
@@ -126,6 +128,8 @@ private:
     void compute_dataflow_counts ( const vector<dataflow_dependency> &,
                                    unordered_map<string,dataflow_count> & result );
 
+    isl::union_set steady_period( const isl::union_set & domains,
+                                  const unordered_map<string,dataflow_count> & counts );
 #if 0
     // returns two domains:
     // 1. initialization
