@@ -102,6 +102,22 @@ private:
     isl::union_map isl_dependencies( const statement_info & );
     isl::matrix isl_constraint_matrix( const mapping & );
 
+    // Dataflow
+
+    void compute_dataflow_dependencies( vector<dataflow_dependency> & result );
+
+    void compute_dataflow_dependencies( const statement_info &info,
+                                        vector<dataflow_dependency> & result );
+
+    void compute_dataflow_counts ( const vector<dataflow_dependency> &,
+                                   unordered_map<string,dataflow_count> & result );
+
+    void dataflow_model( const isl::union_set & domains,
+                         const isl::union_map & dependencies,
+                         const unordered_map<string,dataflow_count> & counts,
+                         isl::union_set & result_domains,
+                         isl::union_map & result_dependencies);
+
     // Scheduling
 
     isl::union_map make_schedule(isl::union_set & domains,
@@ -120,36 +136,6 @@ private:
                               const isl::space & time_space );
 
     friend int compute_buffer_size_helper(isl_map *dependence, void *d);
-
-    // Dataflow
-
-    void compute_dataflow_dependencies( vector<dataflow_dependency> & result );
-
-    void compute_dataflow_dependencies( const statement_info &info,
-                                        vector<dataflow_dependency> & result );
-
-    void compute_dataflow_counts ( const vector<dataflow_dependency> &,
-                                   unordered_map<string,dataflow_count> & result );
-
-    void dataflow_model( const isl::union_set & domains,
-                         const isl::union_map & dependencies,
-                         const unordered_map<string,dataflow_count> & counts,
-                         isl::union_set & result_domains,
-                         isl::union_map & result_dependencies);
-
-    isl::union_set steady_period( const isl::union_set & domains,
-                                  const unordered_map<string,dataflow_count> & counts );
-#if 0
-    // returns two domains:
-    // 1. initialization
-    // 2. repetition
-    pair<isl_union_set*, isl_union_set*>
-    dataflow_iteration_domains(isl_union_set* domains);
-
-    isl_union_set *repetition_domains(isl_union_set *domains,
-                                      const vector<pair<string, int>> & counts);
-#endif
-
 
     // General helpers:
 
