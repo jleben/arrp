@@ -320,7 +320,7 @@ isl::union_map ast_generator::make_schedule
     options->debug = 0;
     options->moredebug = 0;
     //options->islsolve = 1;
-    //options->fuse = MAXIMAL_FUSE;
+    options->fuse = MAXIMAL_FUSE;
     //options->unroll = 1;
     //options->polyunroll = 1;
     //options->ufactor = 2;
@@ -417,23 +417,34 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     map src_consumed_not_earlier =
             dependency.inverse()( sink_not_earlier ).in_range(src_sched.domain());
 
-    //m_printer.print(src_not_later); cout << endl;
+    src_not_later.coalesce();
+    src_consumed_not_earlier.coalesce();
+
+    cout << "--produced:" << endl;
+    m_printer.print(src_not_later); cout << endl;
     //m_printer.print(sink_not_earlier); cout << endl;
-    //m_printer.print(src_consumed_not_earlier); cout << endl;
+    cout << "--consumed:" << endl;
+    m_printer.print(src_consumed_not_earlier); cout << endl;
 
     auto combined = (src_not_later * src_consumed_not_earlier).range();
 
     //cout << "Combined:" << endl;
     //m_printer.print(combined); cout << endl;
 
-    isl::local_space optimization_space(combined.get_space());
-    auto x1 = expression::variable(optimization_space, isl::space::variable, 0);
-    auto x2 = expression::variable(optimization_space, isl::space::variable, 1);
-    auto y1 = expression::variable(optimization_space, isl::space::variable, 2);
-    auto y2 = expression::variable(optimization_space, isl::space::variable, 3);
+    string source_name = src_space.name(isl::space::variable);
+    statement *source_stmt = m_statements.at(source_name).stmt;
+    int dim_count = src_space.dimension(isl::space::variable);
+    int dim = first_infinite_dimension(source_stmt) + 1;
+    assert(dim >= 0);
+
+    isl::local_space opt_space(combined.get_space());
+    auto x0 = expression::variable(opt_space, isl::space::variable, 0);
+    auto x1 = expression::variable(opt_space, isl::space::variable, dim);
+    auto y0 = expression::variable(opt_space, isl::space::variable, dim_count);
+    auto y1 = expression::variable(opt_space, isl::space::variable, dim_count+dim);
     auto cost =
-            (x1 * src_count.steady + x2) -
-            (y1 * src_count.steady + y2);
+            (x0 * src_count.steady + x1) -
+            (y0 * src_count.steady + y1);
 
     auto maximum = combined.maximum(cost);
 
