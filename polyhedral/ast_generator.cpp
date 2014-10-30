@@ -723,6 +723,8 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     using isl::tuple;
     using isl::expression;
 
+    // Get info
+
     space src_space = dependency.domain().get_space();
     space sink_space = dependency.range().get_space();
 
@@ -735,6 +737,11 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     map src_sched = schedule.map_for(src_sched_space);
     map sink_sched = schedule.map_for(sink_sched_space);
 
+    string source_name = src_space.name(isl::space::variable);
+    auto & source_stmt_info = m_statements.at(source_name);
+
+    // Do the work
+
     map not_later = order_greater_than_or_equal(time_space);
     map not_earlier = order_less_than_or_equal(time_space);
 
@@ -743,8 +750,8 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     map src_consumed_not_earlier =
             dependency.inverse()( sink_not_earlier ).in_range(src_sched.domain());
 
-    src_not_later.coalesce();
-    src_consumed_not_earlier.coalesce();
+    //src_not_later.coalesce();
+    //src_consumed_not_earlier.coalesce();
 
     //cout << "--produced:" << endl;
     //m_printer.print(src_not_later); cout << endl;
@@ -757,10 +764,8 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     //cout << "Combined:" << endl;
     //m_printer.print(combined); cout << endl;
 
-    string source_name = src_space.name(isl::space::variable);
-    statement *source_stmt = m_statements.at(source_name).stmt;
     int dim_count = src_space.dimension(isl::space::variable);
-    int dim = first_infinite_dimension(source_stmt) + 1;
+    int dim = first_infinite_dimension(source_stmt_info.stmt) + 1;
     assert(dim >= 0);
 
     isl::local_space opt_space(combined.get_space());
@@ -775,6 +780,13 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     auto maximum = combined.maximum(cost);
 
     cout << "Maximum = "; m_printer.print(maximum); cout << endl;
+
+    // Store result
+
+    assert(maximum.denominator() == 1);
+    int buf_size = maximum.numerator();
+    if (source_stmt_info.buffer_size < buf_size)
+        source_stmt_info.buffer_size = buf_size;
 }
 
 void ast_generator::dependencies( expression *expr,
