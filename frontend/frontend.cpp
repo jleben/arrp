@@ -5,8 +5,8 @@
 #include "../polyhedral/translator.hpp"
 #include "../polyhedral/printer.hpp"
 #include "../polyhedral/ast_generator.hpp"
-#include "../polyhedral/llvm_ir_generator.hpp"
-#include "../polyhedral/llvm_ir_from_cloog.hpp"
+//#include "../polyhedral/llvm_ir_generator.hpp"
+//#include "../polyhedral/llvm_ir_from_cloog.hpp"
 
 #include <fstream>
 #include <iostream>

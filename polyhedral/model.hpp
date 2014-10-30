@@ -2,6 +2,7 @@
 #define STREAM_POLYHEDRAL_MODEL_INCLUDED
 
 #include <vector>
+#include <string>
 #include <iostream>
 #include "../utility/matrix.hpp"
 
@@ -9,6 +10,7 @@ namespace stream {
 namespace polyhedral {
 
 using std::vector;
+using std::string;
 using utility::matrix;
 
 enum
@@ -120,12 +122,20 @@ public:
     statement(): expr(nullptr) {}
     vector<int> domain;
     expression * expr;
+    string name;
+    int dimension = -1;
+    int init_count = -1;
+    int steady_count = -1;
+    int buffer_size = -1;
 };
 
-struct statement_data
+struct dataflow_dependency
 {
-    statement *stmt = nullptr;
-    int buffer_size = 0;
+    statement *source;
+    statement *sink;
+    int push;
+    int peek;
+    int pop;
 };
 
 }

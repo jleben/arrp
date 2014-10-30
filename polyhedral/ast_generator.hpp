@@ -50,8 +50,6 @@ using std::pair;
 class ast_generator
 {
 public:
-    typedef std::unordered_map<string, statement_data> statement_store;
-    typedef statement_store::value_type statement_info;
 
     class error : public std::runtime_error
     {
@@ -67,54 +65,30 @@ public:
     struct clast_stmt *
     generate( const vector<statement*> & statements );
 
-    const statement_store &statements()
-    {
-        return m_statements;
-    }
-
 private:
-
-    struct dataflow_dependency
-    {
-        string source;
-        string sink;
-        int source_dim;
-        int sink_dim;
-        int push;
-        int peek;
-        int pop;
-    };
-
-    struct dataflow_count
-    {
-        int init;
-        int steady;
-    };
 
     void store_statements( const vector<statement*> & );
 
     // Translation to ISL representation:
 
-    void make_isl_representation(isl::union_set & domains,
-                                 isl::union_map & dependencies);
+    void polyhedral_model(isl::union_set & domains,
+                          isl::union_map & dependencies);
 
-    isl::basic_set isl_iteration_domain( const statement_info & );
-    isl::union_map isl_dependencies( const statement_info & );
-    isl::matrix isl_constraint_matrix( const mapping & );
+    isl::basic_set polyhedral_domain( statement * );
+    isl::union_map polyhedral_dependencies( statement * );
+    isl::matrix constraint_matrix( const mapping & );
 
     // Dataflow
 
     void compute_dataflow_dependencies( vector<dataflow_dependency> & result );
 
-    void compute_dataflow_dependencies( const statement_info &info,
+    void compute_dataflow_dependencies( statement *,
                                         vector<dataflow_dependency> & result );
 
-    void compute_dataflow_counts ( const vector<dataflow_dependency> &,
-                                   unordered_map<string,dataflow_count> & result );
+    void compute_dataflow_counts ( const vector<dataflow_dependency> & );
 
     void dataflow_model( const isl::union_set & domains,
                          const isl::union_map & dependencies,
-                         const unordered_map<string,dataflow_count> & counts,
                          isl::union_set & result_domains,
                          isl::union_map & result_dependencies);
 
@@ -135,19 +109,17 @@ private:
                               const isl::map & dependence,
                               const isl::space & time_space );
 
-    friend int compute_buffer_size_helper(isl_map *dependence, void *d);
-
     // General helpers:
 
     void dependencies( expression *, vector<stream_access*> & );
     int first_infinite_dimension( statement *stmt );
     vector<int> infinite_dimensions( statement *stmt );
 
-
-    statement_store m_statements;
     isl::context m_ctx;
     isl::printer m_printer;
-    unordered_map<string,dataflow_count> m_dataflow_counts;
+
+    vector<statement*> m_statements;
+    vector<dataflow_dependency> m_dataflow_deps;
 };
 
 }
