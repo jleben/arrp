@@ -107,6 +107,9 @@ private:
     isl::union_map make_schedule(isl::union_set & domains,
                                  isl::union_map & dependencies);
 
+    isl::union_map entire_steady_schedule( const isl::union_map &
+                                           period_schedule );
+
     // Buffer size computation
 
     void compute_buffer_sizes( const isl::union_map & schedule,
@@ -158,6 +161,7 @@ private:
     statement_store m_statements;
     isl::context m_ctx;
     isl::printer m_printer;
+    unordered_map<string,dataflow_count> m_dataflow_counts;
 };
 
 }

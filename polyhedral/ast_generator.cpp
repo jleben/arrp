@@ -43,10 +43,9 @@ ast_generator::generate( const vector<statement*> & statements )
     vector<dataflow_dependency> dataflow_deps;
     compute_dataflow_dependencies(dataflow_deps);
 
-    unordered_map<string,dataflow_count> counts;
     if (!dataflow_deps.empty())
     {
-        compute_dataflow_counts(dataflow_deps, counts);
+        compute_dataflow_counts(dataflow_deps, m_dataflow_counts);
     }
 
     /*
@@ -69,7 +68,7 @@ ast_generator::generate( const vector<statement*> & statements )
 
     isl::union_set dataflow_domains(m_ctx);
     isl::union_map dataflow_dependencies(m_ctx);
-    dataflow_model(domains, dependencies, counts,
+    dataflow_model(domains, dependencies, m_dataflow_counts,
                    dataflow_domains, dataflow_dependencies);
 
     isl::union_set first_steady_period(m_ctx);
@@ -89,17 +88,24 @@ ast_generator::generate( const vector<statement*> & statements )
 
     auto schedule = make_schedule(first_steady_period, dataflow_dependencies);
 
-    cout << endl << "Unbounded Schedule:" << endl;
+    cout << endl << "Unbounded steady period schedule:" << endl;
     m_printer.print(schedule);
     cout << endl;
 
     auto bounded_schedule = schedule.in_domain(first_steady_period);
 
-    cout << endl << "Schedule:" << endl;
+    cout << endl << "Bounded steady period schedule:" << endl;
     m_printer.print(bounded_schedule);
     cout << endl;
 
-    //compute_buffer_sizes(schedule, dependencies);
+
+    auto all_steady_periods = entire_steady_schedule(bounded_schedule);
+
+    cout << endl << "Steady schedule:" << endl;
+    m_printer.print(all_steady_periods);
+    cout << endl;
+
+    compute_buffer_sizes(all_steady_periods, dataflow_dependencies);
 
     //return nullptr;
 
@@ -314,7 +320,7 @@ isl::union_map ast_generator::make_schedule
     options->debug = 0;
     options->moredebug = 0;
     //options->islsolve = 1;
-    options->fuse = MAXIMAL_FUSE;
+    //options->fuse = MAXIMAL_FUSE;
     //options->unroll = 1;
     //options->polyunroll = 1;
     //options->ufactor = 2;
@@ -329,6 +335,29 @@ isl::union_map ast_generator::make_schedule
     pluto_options_free(options);
 
     return isl::union_map(schedule);
+}
+
+isl::union_map ast_generator::entire_steady_schedule
+( const isl::union_map &period_schedule )
+{
+    isl::union_map entire_schedule(m_ctx);
+    period_schedule.for_each( [&]( isl::map & m )
+    {
+        m.drop_constraints_with(isl::space::input, 0);
+
+        m.insert_dimensions(isl::space::output, 0, 1);
+
+        auto cnstr = isl::constraint::equality(isl::local_space(m.get_space()));
+        cnstr.set_coefficient(isl::space::input, 0, 1);
+        cnstr.set_coefficient(isl::space::output, 0, -1);
+        m.add_constraint(cnstr);
+
+        entire_schedule = entire_schedule | m;
+
+        return true;
+    });
+
+    return entire_schedule;
 }
 
 void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
@@ -347,33 +376,38 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
         return false;
     });
 
-    cout << "Each dependency:" << endl;
     dependencies.for_each([&]( const map & dependency )
     {
         compute_buffer_size(schedule, dependency, *time_space);
         return true;
     });
     cout << endl;
+
+    delete time_space;
 }
 
 void ast_generator::compute_buffer_size( const isl::union_map & schedule,
-                                         const isl::map & dependence,
+                                         const isl::map & dependency,
                                          const isl::space & time_space )
 {
+    cout << "Buffer size for dependency: ";
+    m_printer.print(dependency); cout << endl;
+
     using namespace isl;
     using isl::tuple;
     using isl::expression;
 
-    space src_space = dependence.domain().get_space();
-    space sink_space = dependence.range().get_space();
+    space src_space = dependency.domain().get_space();
+    space sink_space = dependency.range().get_space();
+
+    const dataflow_count & src_count =
+            m_dataflow_counts.at(src_space.name(space::variable));
+
     space src_sched_space = space::from(src_space, time_space);
     space sink_sched_space = space::from(sink_space, time_space);
 
     map src_sched = schedule.map_for(src_sched_space);
     map sink_sched = schedule.map_for(sink_sched_space);
-    m_printer.print(dependence); cout << endl;
-    //p.print(src_sched); cout << endl;
-    //p.print(sink_sched); cout << endl;
 
     map not_later = order_greater_than_or_equal(time_space);
     map not_earlier = order_less_than_or_equal(time_space);
@@ -381,33 +415,29 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     map src_not_later = src_sched.inverse()( not_later );
     map sink_not_earlier = sink_sched.inverse()( not_earlier );
     map src_consumed_not_earlier =
-            dependence.inverse()( sink_not_earlier ).in_range(src_sched.domain());
+            dependency.inverse()( sink_not_earlier ).in_range(src_sched.domain());
 
-    m_printer.print(src_not_later); cout << endl;
-    m_printer.print(sink_not_earlier); cout << endl;
-    m_printer.print(src_consumed_not_earlier); cout << endl;
+    //m_printer.print(src_not_later); cout << endl;
+    //m_printer.print(sink_not_earlier); cout << endl;
+    //m_printer.print(src_consumed_not_earlier); cout << endl;
 
-    auto distance_func = []( const space & s ) -> map
-    {
-        int dimensions = s.dimension(space::variable);
-        local_space distance_space = local_space(range_product(s,s));
-        auto a = isl::expression::variable(distance_space, space::variable, 0);
-        auto b = isl::expression::variable(distance_space, space::variable, dimensions);
-        return map(a - b);
-    };
+    auto combined = (src_not_later * src_consumed_not_earlier).range();
 
-    map distance = distance_func(src_space);
-    map delta = distance(src_not_later * src_consumed_not_earlier);
-    cout << "delta := "; m_printer.print(delta); cout << endl;
+    //cout << "Combined:" << endl;
+    //m_printer.print(combined); cout << endl;
 
-    set range = delta.range();
-    cout << "range := "; m_printer.print(range); cout << endl;
+    isl::local_space optimization_space(combined.get_space());
+    auto x1 = expression::variable(optimization_space, isl::space::variable, 0);
+    auto x2 = expression::variable(optimization_space, isl::space::variable, 1);
+    auto y1 = expression::variable(optimization_space, isl::space::variable, 2);
+    auto y2 = expression::variable(optimization_space, isl::space::variable, 3);
+    auto cost =
+            (x1 * src_count.steady + x2) -
+            (y1 * src_count.steady + y2);
 
-    set max_delta = range.lex_maximum();
-    max_delta.coalesce();
-    cout << "max delta := ";
-    m_printer.print(max_delta);
-    cout << endl;
+    auto maximum = combined.maximum(cost);
+
+    cout << "Maximum = "; m_printer.print(maximum); cout << endl;
 }
 
 void ast_generator::compute_dataflow_dependencies
