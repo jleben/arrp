@@ -72,21 +72,28 @@ ast_generator::generate( const vector<statement*> & statements )
     dataflow_model(domains, dependencies, counts,
                    dataflow_domains, dataflow_dependencies);
 
-    return nullptr;
+    isl::union_set first_steady_period(m_ctx);
+    dataflow_domains.for_each( [&first_steady_period](isl::set & domain)
+    {
+        auto v = domain.get_space()(isl::space::variable, 0);
+        domain.add_constraint(v == 0);
+        first_steady_period = first_steady_period | domain;
+        return true;
+    });
 
-#if 0
-    auto steady_period = this->steady_period(domains, counts);
+    cout << endl;
+    cout << "First steady period:" << endl;
+    m_printer.print(first_steady_period); cout << endl;
 
-    cout << "Steady period:" << endl;
-    m_printer.print(steady_period); cout << endl;
+    //return nullptr;
 
-    auto schedule = make_schedule(steady_period, dependencies);
+    auto schedule = make_schedule(first_steady_period, dataflow_dependencies);
 
     cout << endl << "Unbounded Schedule:" << endl;
     m_printer.print(schedule);
     cout << endl;
 
-    auto bounded_schedule = schedule.in_domain( steady_period );
+    auto bounded_schedule = schedule.in_domain(first_steady_period);
 
     cout << endl << "Schedule:" << endl;
     m_printer.print(bounded_schedule);
@@ -95,9 +102,9 @@ ast_generator::generate( const vector<statement*> & statements )
     //compute_buffer_sizes(schedule, dependencies);
 
     //return nullptr;
-#endif
 
-#if 0
+
+#if 1
     {
         CloogState *state = cloog_state_malloc();
         CloogOptions *options = cloog_options_malloc(state);
@@ -307,7 +314,7 @@ isl::union_map ast_generator::make_schedule
     options->debug = 0;
     options->moredebug = 0;
     //options->islsolve = 1;
-    //options->fuse = MAXIMAL_FUSE;
+    options->fuse = MAXIMAL_FUSE;
     //options->unroll = 1;
     //options->polyunroll = 1;
     //options->ufactor = 2;
@@ -653,17 +660,11 @@ void ast_generator::dataflow_model
 
         auto d_space = d.get_space();
 
-        // Compute output domain
+        // Output domain space
 
-        auto dd = isl::set::universe(d_space);
-        dd.insert_dimensions(0,1);
-        dd.set_name( stmt_name + '\'' );
-        auto dd_space = dd.get_space();
-        {
-            auto v = dd_space(isl::space::variable, inf_dim + 1);
-            dd.add_constraint(v >= 0);
-            dd.add_constraint(v < count.steady);
-        }
+        auto dd_space = d_space;
+        dd_space.insert_dimensions(isl::space::variable,0,1);
+        dd_space.set_name(isl::space::variable,  stmt_name);
 
         // Compute input->output mapping
 
@@ -689,9 +690,20 @@ void ast_generator::dataflow_model
             eq_mtx(dim, d_dims + dim + 1) = 1;
         }
 
+        // No inequalities
         isl::matrix ineq_mtx(m_ctx, 0, column_count);
 
         isl::map map = isl::basic_map(isl::space::from(d_space, dd_space), eq_mtx, ineq_mtx );
+
+        // Output domain is a mapping of input domain
+        // plus an additional constraint.
+
+        auto dd = map(d);
+        {
+            auto v = dd_space(isl::space::variable, inf_dim + 1);
+            dd.add_constraint(v >= 0);
+            dd.add_constraint(v < count.steady);
+        }
 
         // Store results
 
