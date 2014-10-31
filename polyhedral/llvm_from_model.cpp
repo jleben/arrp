@@ -60,12 +60,6 @@ void llvm_from_model::generate_statement( const string & name,
 void llvm_from_model::generate_statement
 ( statement *stmt, const vector<value_type> & raw_index, block_type block )
 {
-    if (!stmt->expr)
-    {
-        cout << "Not generating statement without expression: " << stmt->name << endl;
-        return;
-    }
-
     // Drop first dimension denoting period (always zero).
     assert(!raw_index.empty());
     vector<value_type> index(raw_index.begin()+1, raw_index.end());
