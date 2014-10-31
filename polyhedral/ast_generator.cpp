@@ -749,7 +749,8 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     // Store result
 
     assert(maximum.denominator() == 1);
-    int buf_size = maximum.numerator();
+    // "maximum" is index difference, so add 1
+    int buf_size = maximum.numerator() + 1;
     if (source_stmt->buffer_size < buf_size)
         source_stmt->buffer_size = buf_size;
 }
