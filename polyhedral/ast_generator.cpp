@@ -53,20 +53,6 @@ ast_generator::generate( const vector<statement*> & statements )
         compute_dataflow_counts(dataflow_deps);
     }
 
-    /*
-      Compute schedule with domains
-      offset by init counts and
-      spanning steady counts.
-
-      For the purpose of buffer calculation,
-      Construct a larger infinite schedule involving
-      entire execution (init phase and all steady periods).
-      Should be able to use original dependencies, cuz iteration
-      indexes (domains) don't change.
-
-      For buffer access index, use index in schedule minus init count.
-    */
-
     isl::union_set domains(m_ctx);
     isl::union_map dependencies(m_ctx);
     polyhedral_model(domains, dependencies);
@@ -111,6 +97,19 @@ ast_generator::generate( const vector<statement*> & statements )
     cout << endl;
 
     compute_buffer_sizes(all_steady_periods, dataflow_dependencies);
+
+    // assign obvious buffer sizes to terminal outputs
+
+    for (statement *stmt : m_statements)
+    {
+        if (stmt->buffer_size != -1)
+            continue;
+        else if (stmt->dimension != -1)
+        {
+            assert(stmt->steady_count >= 0);
+            stmt->buffer_size = stmt->steady_count;
+        }
+    }
 
     //return nullptr;
 

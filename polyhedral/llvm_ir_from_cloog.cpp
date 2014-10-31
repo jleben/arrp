@@ -11,26 +11,15 @@ using namespace std;
 namespace stream {
 namespace polyhedral {
 
-llvm_from_cloog::llvm_from_cloog(const string & module_name):
-    m_module(module_name, llvm::getGlobalContext()),
-    m_builder(llvm::getGlobalContext())
+llvm_from_cloog::llvm_from_cloog(llvm::Module *module):
+    m_module(module),
+    m_builder(module->getContext())
 {
 }
 
 void llvm_from_cloog::generate
-( clast_stmt *root )
+( clast_stmt *root, llvm::Function *func )
 {
-    llvm::FunctionType * func_type =
-            llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
-                                    false);
-
-
-    llvm::Function *func =
-            llvm::Function::Create(func_type,
-                                   llvm::Function::ExternalLinkage,
-                                   "process",
-                                   &m_module);
-
     llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "", func);
     m_builder.SetInsertPoint(bb);
 
@@ -282,7 +271,7 @@ void llvm_from_cloog::process( clast_user_stmt* stmt )
         m_stmt_func(stmt->statement->name, index, m_builder.GetInsertBlock());
     else
     {
-        auto noop_func = llvm::Intrinsic::getDeclaration(&m_module, llvm::Intrinsic::donothing);
+        auto noop_func = llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::donothing);
         m_builder.CreateCall(noop_func);
     }
 }
@@ -290,7 +279,7 @@ void llvm_from_cloog::process( clast_user_stmt* stmt )
 bool llvm_from_cloog::verify()
 {
     string verifier_msg;
-    bool failure = llvm::verifyModule(m_module, llvm::ReturnStatusAction,
+    bool failure = llvm::verifyModule(*m_module, llvm::ReturnStatusAction,
                                       &verifier_msg);
     if (failure)
     {
@@ -303,7 +292,7 @@ bool llvm_from_cloog::verify()
 void llvm_from_cloog::output( std::ostream & out )
 {
     llvm::raw_os_ostream llvm_ostream(out);
-    m_module.print( llvm_ostream, nullptr );
+    m_module->print( llvm_ostream, nullptr );
 }
 
 }

@@ -25,6 +25,8 @@ public:
                     const vector<statement*> &,
                     const vector<dataflow_dependency> &);
 
+    llvm::Function * function() { return m_function; }
+
     void generate_statement( const string & name,
                              const vector<value_type> & index,
                              block_type block );
@@ -36,12 +38,16 @@ private:
 
     value_type generate_expression( expression *, const vector<value_type> & index );
     value_type generate_intrinsic( intrinsic *, const vector<value_type> & index );
-    value_type generate_access( stream_access *, const vector<value_type> & index );
+    value_type generate_access( statement *, const vector<value_type> & index );
 
     //vector<value_type> map_index( statement *, const vector<value_type> & index );
 
-    value_type flat_index( const vector<value_type> & index,
-                           const vector<int> & size );
+    vector<value_type> mapped_index( const vector<value_type> & index,
+                                     const mapping & );
+
+    value_type flat_index( const vector<value_type> & index, statement* );
+
+    int statement_index( statement * stmt );
 
     type_type bool_type()
     {
@@ -63,6 +69,14 @@ private:
     value_type value( bool value )
     {
         return llvm::ConstantInt::get(bool_type(), value ? 1 : 0);
+    }
+    value_type value( std::int32_t v )
+    {
+        return llvm::ConstantInt::getSigned(int32_type(), v);
+    }
+    value_type value( std::uint32_t v )
+    {
+        return llvm::ConstantInt::get(int32_type(), v);
     }
     value_type value( std::int64_t v )
     {
@@ -86,6 +100,7 @@ private:
     llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
 
     llvm::Module *m_module;
+    llvm::Function *m_function;
     llvm::IRBuilder<> m_builder;
     const vector<statement*> & m_statements;
     const vector<dataflow_dependency> & m_dependencies;

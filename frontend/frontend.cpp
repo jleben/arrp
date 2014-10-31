@@ -351,8 +351,11 @@ int main(int argc, char *argv[])
     polyhedral::translator poly;
     polyhedral::printer poly_printer;
     polyhedral::ast_generator poly_ast_gen;
+
+    llvm::Module *module = new llvm::Module(args.input_filename,
+                                            llvm::getGlobalContext());
     //polyhedral::llvm_ir_generator poly_llvm_gen(args.input_filename);
-    polyhedral::llvm_from_cloog poly_llvm_gen(args.input_filename);
+    polyhedral::llvm_from_cloog llvm_cloog(module);
 
     for (const evaluation & eval : args.evaluations)
     {
@@ -398,8 +401,8 @@ int main(int argc, char *argv[])
 
                 auto ast = poly_ast_gen.generate( poly.statements() );
 
-                polyhedral::llvm_from_model poly_llvm_from_model
-                        (poly_llvm_gen.module(),
+                polyhedral::llvm_from_model llvm_from_model
+                        (module,
                          poly.statements(),
                          poly_ast_gen.dependencies() );
 #if 0
@@ -414,11 +417,11 @@ int main(int argc, char *argv[])
                         const vector<llvm::Value*> & index,
                         llvm::BasicBlock * block )
                 {
-                    poly_llvm_from_model.generate_statement(name, index, block);
+                    llvm_from_model.generate_statement(name, index, block);
                 };
 
-                poly_llvm_gen.set_stmt_func(stmt_func);
-                poly_llvm_gen.generate( ast );
+                llvm_cloog.set_stmt_func(stmt_func);
+                llvm_cloog.generate( ast, llvm_from_model.function() );
 
                 #if 0
                 string func_name = result_type->as<semantic::function>().name;
@@ -442,9 +445,9 @@ int main(int argc, char *argv[])
         return result::io_error;
     }
 
-    poly_llvm_gen.output(output_file);
+    llvm_cloog.output(output_file);
 
-    poly_llvm_gen.verify();
+    llvm_cloog.verify();
 #endif
     #if 0
     gen.output(output_file);

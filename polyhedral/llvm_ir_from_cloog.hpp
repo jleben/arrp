@@ -25,15 +25,15 @@ using std::vector;
 class llvm_from_cloog
 {
 public:
-    llvm_from_cloog(const string & module_name);
+    llvm_from_cloog(llvm::Module *);
 
-    void generate( clast_stmt *root );
+    void generate( clast_stmt *root, llvm::Function* );
 
     bool verify();
 
     void output( std::ostream & );
 
-    llvm::Module *module() { return &m_module; }
+    llvm::Module *module() { return m_module; }
 
     template<typename F>
     void set_stmt_func(F f)
@@ -126,9 +126,9 @@ private:
         llvm::BasicBlock::Create(llvm_context(), name, parent);
     }
 
-    llvm::LLVMContext & llvm_context() { return m_module.getContext(); }
+    llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
 
-    llvm::Module m_module;
+    llvm::Module *m_module;
     llvm::IRBuilder<> m_builder;
     context m_ctx;
     std::function<void(const string&,
