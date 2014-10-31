@@ -98,17 +98,31 @@ ast_generator::generate( const vector<statement*> & statements )
 
     compute_buffer_sizes(all_steady_periods, dataflow_dependencies);
 
-    // assign obvious buffer sizes to terminal outputs
-
+    // assign obvious buffer sizes
+    // & report buffer sizes
+    cout << endl << "Buffer sizes:" << endl;
     for (statement *stmt : m_statements)
     {
-        if (stmt->buffer_size != -1)
-            continue;
-        else if (stmt->dimension != -1)
+        if (stmt->buffer_size == -1)
         {
-            assert(stmt->steady_count >= 0);
-            stmt->buffer_size = stmt->steady_count;
+            if (stmt->dimension != -1)
+            {
+                assert(stmt->steady_count >= 0);
+                stmt->buffer_size = stmt->steady_count;
+            }
         }
+
+        int flat_buf_size = 1;
+        for (int d = 0; d < stmt->domain.size(); ++d)
+        {
+            if (d == stmt->dimension)
+                continue;
+            flat_buf_size *= stmt->domain[d];
+        }
+        if (stmt->buffer_size != -1)
+            flat_buf_size *= stmt->buffer_size;
+
+        cout << stmt->name << ": buffer size = " << flat_buf_size << endl;
     }
 
     //return nullptr;
@@ -744,7 +758,7 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
 
     auto maximum = combined.maximum(cost);
 
-    cout << "Maximum = "; m_printer.print(maximum); cout << endl;
+    cout << "Max delay = "; m_printer.print(maximum); cout << endl;
 
     // Store result
 

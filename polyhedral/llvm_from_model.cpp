@@ -26,7 +26,7 @@ llvm_from_model::llvm_from_model
     type_type buffer_pointer_type = llvm::PointerType::get(buffer_type, 0);
 
     // inputs, output, buffers
-    vector<type_type> arg_types = { i8_ptr_ptr_type, i8_ptr_type, buffer_pointer_type };
+    vector<type_type> arg_types = { i8_ptr_ptr_type, buffer_pointer_type };
 
     llvm::FunctionType * func_type =
             llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
@@ -40,7 +40,7 @@ llvm_from_model::llvm_from_model
 
     auto arg = m_function->arg_begin();
     m_inputs = arg++;
-    m_output = arg++;
+    //m_output = arg++;
     m_buffers = arg++;
 
     //llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "entry", func);
@@ -285,7 +285,7 @@ int llvm_from_model::statement_index( statement * stmt )
 {
     auto stmt_ref = std::find(m_statements.begin(), m_statements.end(), stmt);
     assert(stmt_ref != m_statements.end());
-    return (int) std::distance(stmt_ref, m_statements.begin());
+    return (int) std::distance(m_statements.begin(), stmt_ref);
 }
 
 #if 0
