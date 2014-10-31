@@ -6,10 +6,12 @@
 #include "../polyhedral/printer.hpp"
 #include "../polyhedral/ast_generator.hpp"
 //#include "../polyhedral/llvm_ir_generator.hpp"
-//#include "../polyhedral/llvm_ir_from_cloog.hpp"
+#include "../polyhedral/llvm_ir_from_cloog.hpp"
+#include "../polyhedral/llvm_from_model.hpp"
 
 #include <fstream>
 #include <iostream>
+#include <functional>
 
 using namespace std;
 using namespace stream;
@@ -350,7 +352,7 @@ int main(int argc, char *argv[])
     polyhedral::printer poly_printer;
     polyhedral::ast_generator poly_ast_gen;
     //polyhedral::llvm_ir_generator poly_llvm_gen(args.input_filename);
-    //polyhedral::llvm_from_cloog poly_llvm_gen(args.input_filename);
+    polyhedral::llvm_from_cloog poly_llvm_gen(args.input_filename);
 
     for (const evaluation & eval : args.evaluations)
     {
@@ -396,7 +398,27 @@ int main(int argc, char *argv[])
 
                 auto ast = poly_ast_gen.generate( poly.statements() );
 
-                //poly_llvm_gen.generate( ast, poly_ast_gen.statements() );
+                polyhedral::llvm_from_model poly_llvm_from_model
+                        (poly_llvm_gen.module(),
+                         poly.statements(),
+                         poly_ast_gen.dependencies() );
+#if 0
+                auto stmt_func = std::bind( &polyhedral::llvm_from_model::generate_statement,
+                                            &poly_llvm_from_model,
+                                            placeholders::_1,
+                                            placeholders::_2,
+                                            placeholders::_3 );
+#endif
+                auto stmt_func = [&]
+                        ( const string & name,
+                        const vector<llvm::Value*> & index,
+                        llvm::BasicBlock * block )
+                {
+                    poly_llvm_from_model.generate_statement(name, index, block);
+                };
+
+                poly_llvm_gen.set_stmt_func(stmt_func);
+                poly_llvm_gen.generate( ast );
 
                 #if 0
                 string func_name = result_type->as<semantic::function>().name;
@@ -412,7 +434,7 @@ int main(int argc, char *argv[])
         //gen.generate(sym_iter->second, eval.args);
 
     }
-#if 0
+#if 1
     ofstream output_file(args.output_filename);
     if (!output_file.is_open())
     {

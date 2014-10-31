@@ -65,6 +65,9 @@ public:
     struct clast_stmt *
     generate( const vector<statement*> & statements );
 
+    const vector<dataflow_dependency> & dependencies() const
+    { return m_dataflow_deps; }
+
 private:
 
     void store_statements( const vector<statement*> & );

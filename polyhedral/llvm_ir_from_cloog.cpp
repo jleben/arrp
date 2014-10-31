@@ -18,10 +18,8 @@ llvm_from_cloog::llvm_from_cloog(const string & module_name):
 }
 
 void llvm_from_cloog::generate
-( clast_stmt *root, const unordered_map<string, statement_data> & source )
+( clast_stmt *root )
 {
-    m_statements = &source;
-
     llvm::FunctionType * func_type =
             llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
                                     false);
@@ -42,7 +40,6 @@ void llvm_from_cloog::generate
     }
     catch (std::exception & e)
     {
-        m_statements = nullptr;
         cout << "ERROR: " << e.what() << endl;
         return;
     }
@@ -177,7 +174,7 @@ void llvm_from_cloog::process( clast_for* loop )
 
     m_builder.SetInsertPoint(body_block);
 
-    process(loop->body);
+    process_list(loop->body);
 
     auto iter_val_incremented = m_builder.CreateAdd(iter_val, step_val);
     iter_val->addIncoming(iter_val_incremented, m_builder.GetInsertBlock());
@@ -268,9 +265,26 @@ llvm_from_cloog::process( clast_expr* expr )
 
 void llvm_from_cloog::process( clast_user_stmt* stmt )
 {
-    cout << "....user statement: " << stmt->statement->name << endl;
-    auto noop_func = llvm::Intrinsic::getDeclaration(&m_module, llvm::Intrinsic::donothing);
-    m_builder.CreateCall(noop_func);
+    vector<value_type> index;
+
+    clast_stmt *index_stmt = stmt->substitutions;
+    while(index_stmt)
+    {
+        assert(CLAST_STMT_IS_A(index_stmt, stmt_ass));
+        clast_expr *index_expr =
+                reinterpret_cast<clast_assignment*>(index_stmt)->RHS;
+        index.push_back( process(index_expr) );
+
+        index_stmt = index_stmt->next;
+    }
+
+    if (m_stmt_func)
+        m_stmt_func(stmt->statement->name, index, m_builder.GetInsertBlock());
+    else
+    {
+        auto noop_func = llvm::Intrinsic::getDeclaration(&m_module, llvm::Intrinsic::donothing);
+        m_builder.CreateCall(noop_func);
+    }
 }
 
 bool llvm_from_cloog::verify()

@@ -10,26 +10,36 @@
 #include <llvm/IR/IRBuilder.h>
 
 #include <unordered_map>
+#include <vector>
 #include <string>
 #include <cstdint>
+#include <functional>
 
 namespace stream {
 namespace polyhedral {
 
 using std::unordered_map;
 using std::string;
+using std::vector;
 
 class llvm_from_cloog
 {
 public:
     llvm_from_cloog(const string & module_name);
 
-    void generate( clast_stmt *root,
-                   const unordered_map<string, statement_data> & source );
+    void generate( clast_stmt *root );
 
     bool verify();
 
     void output( std::ostream & );
+
+    llvm::Module *module() { return &m_module; }
+
+    template<typename F>
+    void set_stmt_func(F f)
+    {
+        m_stmt_func = f;
+    }
 
 private:
     using value_type = llvm::Value*;
@@ -116,13 +126,14 @@ private:
         llvm::BasicBlock::Create(llvm_context(), name, parent);
     }
 
-
     llvm::LLVMContext & llvm_context() { return m_module.getContext(); }
 
     llvm::Module m_module;
     llvm::IRBuilder<> m_builder;
     context m_ctx;
-    const unordered_map<string, statement_data> * m_statements;
+    std::function<void(const string&,
+                       const vector<value_type>&,
+                       block_type)> m_stmt_func;
 };
 
 }

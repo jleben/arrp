@@ -45,6 +45,16 @@ public:
         return m;
     }
 
+    int coefficient(int in_dim, int out_dim) const
+    {
+        return coefficients(out_dim, in_dim);
+    }
+
+    int constant(int out_dim) const
+    {
+        return constants[out_dim];
+    }
+
     int input_dimension() const { return coefficients.columns(); }
     int output_dimension() const { return coefficients.rows(); }
 
