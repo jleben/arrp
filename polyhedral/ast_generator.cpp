@@ -168,9 +168,6 @@ void ast_generator::polyhedral_model
 
     for (statement * stmt : m_statements)
     {
-        if (!stmt->expr)
-            continue;
-
         auto dependency = polyhedral_dependencies(stmt);
         all_dependencies = all_dependencies | dependency;
     }
@@ -335,9 +332,6 @@ void ast_generator::compute_dataflow_dependencies
 void ast_generator::compute_dataflow_dependencies
 ( statement *sink, vector<dataflow_dependency> & all_deps )
 {
-    if (!sink->expr)
-        return;
-
     cout << "-- sink flow dim = " << sink->dimension << endl;
 
     vector<stream_access*> sources;
@@ -775,7 +769,8 @@ void ast_generator::dependencies( expression *expr,
         return;
     }
     if ( dynamic_cast<constant<int>*>(expr) ||
-         dynamic_cast<constant<double>*>(expr) )
+         dynamic_cast<constant<double>*>(expr) ||
+         dynamic_cast<input_access*>(expr) )
     {
         return;
     }

@@ -22,6 +22,7 @@ class llvm_from_model
 
 public:
     llvm_from_model(llvm::Module *module,
+                    int input_count,
                     const vector<statement*> &,
                     const vector<dataflow_dependency> &);
 
@@ -38,14 +39,18 @@ private:
 
     value_type generate_expression( expression *, const vector<value_type> & index );
     value_type generate_intrinsic( intrinsic *, const vector<value_type> & index );
-    value_type generate_access( statement *, const vector<value_type> & index );
-
+    value_type generate_buffer_access( statement *, const vector<value_type> & index );
+    value_type generate_input_access( statement *, const vector<value_type> & index );
     //vector<value_type> map_index( statement *, const vector<value_type> & index );
+
+    template <typename T>
+    void transpose( vector<T> & index, int first_dim );
 
     vector<value_type> mapped_index( const vector<value_type> & index,
                                      const mapping & );
 
-    value_type flat_index( const vector<value_type> & index, statement* );
+    value_type flat_index( const vector<value_type> & index,
+                           const vector<int> & domain );
 
     int statement_index( statement * stmt );
 
@@ -104,6 +109,9 @@ private:
     llvm::IRBuilder<> m_builder;
     const vector<statement*> & m_statements;
     const vector<dataflow_dependency> & m_dependencies;
+    value_type m_inputs;
+    value_type m_output;
+    value_type m_buffers;
 };
 
 }

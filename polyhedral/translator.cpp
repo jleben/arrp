@@ -12,7 +12,8 @@ translator::translator()
     //m_context.enter_scope();
 }
 
-expression * translator::translate_type(const semantic::type_ptr & type)
+expression * translator::translate_input(const semantic::type_ptr & type,
+                                         int index)
 {
     switch(type->get_tag())
     {
@@ -26,6 +27,7 @@ expression * translator::translate_type(const semantic::type_ptr & type)
 
         statement *generator = new statement;
         generator->domain = stream_type.size;
+        generator->expr = new input_access { index };
         m_statements.push_back(generator);
 
         int dimension = generator->domain.size();
@@ -51,7 +53,7 @@ void translator::translate(const semantic::function & func,
     assert(func.parameters.size() == args.size());
     for(int i = 0; i < func.parameters.size(); ++i)
     {
-        m_context.bind(func.parameters[i], translate_type(args[i]) );
+        m_context.bind(func.parameters[i], translate_input(args[i], i) );
     }
 
     expression * result = do_block( func.expression() );

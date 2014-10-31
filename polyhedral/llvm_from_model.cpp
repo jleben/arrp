@@ -11,6 +11,7 @@ namespace polyhedral {
 
 llvm_from_model::llvm_from_model
 (llvm::Module *module,
+ int input_count,
  const vector<statement*> & statements,
  const vector<dataflow_dependency> & dependencies):
     m_module(module),
@@ -18,21 +19,29 @@ llvm_from_model::llvm_from_model
     m_statements(statements),
     m_dependencies(dependencies)
 {
-
     type_type i8_ptr_type = llvm::Type::getInt8PtrTy(llvm_context());
+    type_type i8_ptr_ptr_type = llvm::PointerType::get(i8_ptr_type, 0);
     type_type buffer_type =
             llvm::StructType::create(vector<type_type>({i8_ptr_type, int32_type()}));
     type_type buffer_pointer_type = llvm::PointerType::get(buffer_type, 0);
 
+    // inputs, output, buffers
+    vector<type_type> arg_types = { i8_ptr_ptr_type, i8_ptr_type, buffer_pointer_type };
+
     llvm::FunctionType * func_type =
             llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
-                                    buffer_pointer_type,
+                                    arg_types,
                                     false);
 
     m_function = llvm::Function::Create(func_type,
                                         llvm::Function::ExternalLinkage,
                                         "process",
                                         m_module);
+
+    auto arg = m_function->arg_begin();
+    m_inputs = arg++;
+    m_output = arg++;
+    m_buffers = arg++;
 
     //llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "entry", func);
     //m_builder.SetInsertPoint(bb);
@@ -63,9 +72,19 @@ void llvm_from_model::generate_statement
 
     m_builder.SetInsertPoint(block);
 
-    value_type value = generate_expression(stmt->expr, index);
+    value_type value;
 
-    value_type dst = generate_access(stmt, index);
+    if (auto input = dynamic_cast<input_access*>(stmt->expr))
+    {
+        value_type address = generate_input_access(stmt, index);
+        value = m_builder.CreateLoad(address);
+    }
+    else
+    {
+        value = generate_expression(stmt->expr, index);
+    }
+
+    value_type dst = generate_buffer_access(stmt, index);
 
     m_builder.CreateStore(value, dst);
 }
@@ -81,7 +100,7 @@ llvm_from_model::generate_expression
     if (auto read = dynamic_cast<stream_access*>(expr))
     {
         vector<value_type> target_index = mapped_index(index, read->pattern);
-        value_type address = generate_access(read->target, target_index);
+        value_type address = generate_buffer_access(read->target, target_index);
         return m_builder.CreateLoad(address);
     }
     if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
@@ -123,10 +142,12 @@ llvm_from_model::generate_intrinsic
 }
 
 llvm_from_model::value_type
-llvm_from_model::generate_access
+llvm_from_model::generate_buffer_access
 ( statement *stmt, const vector<value_type> & index )
 {
     // Get basic info about accessed statement
+
+    value_type stmt_index = value( (int32_t) statement_index(stmt) );
 
     int finite_slice_size = 1;
     for (int dim = 0; dim < stmt->domain.size(); ++dim)
@@ -139,21 +160,21 @@ llvm_from_model::generate_access
     assert(stmt->buffer_size >= 0);
     int buffer_size = finite_slice_size * stmt->buffer_size;
 
-    value_type stmt_index = value( (int32_t) statement_index(stmt) );
-
     // Compute flat access index
 
-    value_type flat_index = this->flat_index(index, stmt);
+    vector<value_type> the_index(index);
+    vector<int> the_domain = stmt->domain;
+    transpose(the_index, stmt->dimension);
+    transpose(the_domain, stmt->dimension);
+    value_type flat_index = this->flat_index(the_index, the_domain);
 
     // Get buffer state
 
-    value_type buffer_data = m_function->arg_begin();
     value_type buffer, phase;
-
     {
         vector<value_type> indices{stmt_index, value((int32_t) 0)};
         value_type buffer_ptr =
-                m_builder.CreateGEP(buffer_data, indices);
+                m_builder.CreateGEP(m_buffers, indices);
         buffer = m_builder.CreateLoad(buffer_ptr);
         type_type real_buffer_type = llvm::Type::getDoublePtrTy(llvm_context());
         buffer = m_builder.CreateBitCast(buffer, real_buffer_type);
@@ -161,7 +182,7 @@ llvm_from_model::generate_access
     {
         vector<value_type> indices{stmt_index, value((int32_t) 1)};
         value_type phase_ptr =
-                m_builder.CreateGEP(buffer_data, indices);
+                m_builder.CreateGEP(m_buffers, indices);
         phase = m_builder.CreateLoad(phase_ptr);
         if (phase->getType() == int32_type())
             phase = m_builder.CreateSExt(phase, int64_type());
@@ -183,6 +204,43 @@ llvm_from_model::generate_access
             m_builder.CreateGEP(buffer, buffer_index);
 
     return value_ptr;
+}
+
+llvm_from_model::value_type
+llvm_from_model::generate_input_access
+( statement *stmt, const vector<value_type> & index )
+{
+    int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
+
+    // Compute flat access index
+
+    vector<value_type> the_index(index);
+    vector<int> the_domain = stmt->domain;
+    transpose(the_index, stmt->dimension);
+    transpose(the_domain, stmt->dimension);
+    value_type flat_index = this->flat_index(the_index, the_domain);
+
+    // Access
+
+    value_type input_ptr = m_builder.CreateGEP(m_inputs, value(input_num));
+    value_type input = m_builder.CreateLoad(input_ptr);
+
+    type_type double_ptr_type = llvm::Type::getDoublePtrTy(llvm_context());
+    input = m_builder.CreateBitCast(input, double_ptr_type);
+
+    value_type value_ptr = m_builder.CreateGEP(input, flat_index);
+
+    return value_ptr;
+}
+
+template <typename T>
+void llvm_from_model::transpose( vector<T> & index, int first_dim )
+{
+    assert(first_dim < index.size());
+    T tmp = index[first_dim];
+    for (int i = first_dim; i > 0; --i)
+        index[i] = index[i-1];
+    index[0] = tmp;
 }
 
 vector<llvm_from_model::value_type>
@@ -212,20 +270,16 @@ llvm_from_model::mapped_index
 
 llvm_from_model::value_type
 llvm_from_model::flat_index
-( const vector<value_type> & index, statement *stmt )
+( const vector<value_type> & index, const vector<int> & domain )
 {
     assert(index.size() > 0);
-    assert(stmt->domain.size() == index.size());
+    assert(domain.size() == index.size());
 
-    int major_dim = stmt->dimension;
-    assert(major_dim >= 0 && major_dim < stmt->domain.size());
-
-    value_type flat_index = index[major_dim];
-    for( unsigned int i = 0; i < index.size(); ++i)
+    value_type flat_index = index[0];
+    for( unsigned int i = 1; i < index.size(); ++i)
     {
-        if (i == major_dim)
-            continue;
-        int size = stmt->domain[i];
+        int size = domain[i];
+        assert(size >= 0);
         flat_index = m_builder.CreateMul(flat_index, value((int64_t) size));
         flat_index = m_builder.CreateAdd(flat_index, index[i]);
     }

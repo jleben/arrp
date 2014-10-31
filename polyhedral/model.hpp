@@ -126,6 +126,13 @@ public:
     mapping pattern;
 };
 
+class input_access : public expression
+{
+public:
+    input_access(int index): index(index) {}
+    int index;
+};
+
 class statement
 {
 public:

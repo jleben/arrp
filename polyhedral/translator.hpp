@@ -66,7 +66,7 @@ private:
         return m_domain.size();
     }
 
-    expression * translate_type(const semantic::type_ptr & type);
+    expression * translate_input(const semantic::type_ptr & type, int index);
 
     mapping access(stream_view *source);
 

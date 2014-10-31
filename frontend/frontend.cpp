@@ -403,6 +403,7 @@ int main(int argc, char *argv[])
 
                 polyhedral::llvm_from_model llvm_from_model
                         (module,
+                         eval.args.size(),
                          poly.statements(),
                          poly_ast_gen.dependencies() );
 #if 0
