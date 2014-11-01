@@ -43,8 +43,14 @@ llvm_from_model::llvm_from_model
     //m_output = arg++;
     m_buffers = arg++;
 
-    //llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "entry", func);
-    //m_builder.SetInsertPoint(bb);
+    m_start_block = llvm::BasicBlock::Create(llvm_context(), "", m_function);
+
+    m_end_block = llvm::BasicBlock::Create(llvm_context(), "", m_function);
+    m_builder.SetInsertPoint(m_end_block);
+
+    advance_buffers();
+
+    m_builder.CreateRetVoid();
 }
 
 void llvm_from_model::generate_statement( const string & name,
@@ -143,16 +149,7 @@ llvm_from_model::generate_buffer_access
 
     value_type stmt_index = value( (int32_t) statement_index(stmt) );
 
-    int finite_slice_size = 1;
-    for (int dim = 0; dim < stmt->domain.size(); ++dim)
-    {
-        int size = stmt->domain[dim];
-        if (size >= 0)
-            finite_slice_size *= size;
-    }
-
-    assert(stmt->buffer_size >= 0);
-    int buffer_size = finite_slice_size * stmt->buffer_size;
+    int finite_slice_size = flat_buffer_size(stmt, 1);
 
     // Compute flat access index
 
@@ -190,7 +187,7 @@ llvm_from_model::generate_buffer_access
             m_builder.CreateAdd(flat_index, phase);
 
     buffer_index =
-            m_builder.CreateSRem(buffer_index, value((int64_t)buffer_size));
+            m_builder.CreateSRem(buffer_index, value((int64_t)stmt->buffer_size));
 
     // Get value from buffer
 
@@ -225,6 +222,48 @@ llvm_from_model::generate_input_access
     value_type value_ptr = m_builder.CreateGEP(input, flat_index);
 
     return value_ptr;
+}
+
+void llvm_from_model::advance_buffers()
+{
+    int buf_idx = 0;
+    for (statement * stmt : m_statements)
+    {
+        int offset = flat_buffer_size(stmt, stmt->steady_count);
+
+        if (offset == 0 || offset == stmt->buffer_size)
+            continue;
+
+        vector<value_type> indices
+        {value((int32_t) buf_idx), value((int32_t) 1)};
+        value_type phase_ptr =
+                m_builder.CreateGEP(m_buffers, indices);
+        value_type phase_val = m_builder.CreateLoad(phase_ptr);
+        value_type offset_val = value(phase_val->getType(), offset);
+        value_type buf_size_val = value(phase_val->getType(), stmt->buffer_size);
+        phase_val = m_builder.CreateAdd(phase_val, offset_val);
+        phase_val = m_builder.CreateSRem(phase_val, buf_size_val);
+        m_builder.CreateStore(phase_val, phase_ptr);
+
+        ++buf_idx;
+    }
+}
+
+int llvm_from_model::flat_buffer_size( statement *stmt, int flow_count )
+{
+    if (stmt->domain.empty())
+        return 0;
+
+    int flat_size = 1;
+    for (int dim = 0; dim < stmt->domain.size(); ++dim)
+    {
+        int size = stmt->domain[dim];
+        if (size == -1)
+            size = flow_count;
+
+        flat_size *= size;
+    }
+    return flat_size;
 }
 
 template <typename T>

@@ -98,29 +98,24 @@ ast_generator::generate( const vector<statement*> & statements )
 
     compute_buffer_sizes(all_steady_periods, dataflow_dependencies);
 
-    // assign obvious buffer sizes
-    // & report buffer sizes
+    // Convert buffer size to flat buffer size
+
     cout << endl << "Buffer sizes:" << endl;
     for (statement *stmt : m_statements)
     {
-        if (stmt->buffer_size == -1)
-        {
-            if (stmt->dimension != -1)
-            {
-                assert(stmt->steady_count >= 0);
-                stmt->buffer_size = stmt->steady_count;
-            }
-        }
+        int flow_dim_size = stmt->buffer_size ? stmt->buffer_size : stmt->steady_count;
 
-        int flat_buf_size = 1;
+        int flat_buf_size = 0;
         for (int d = 0; d < stmt->domain.size(); ++d)
         {
-            if (d == stmt->dimension)
-                continue;
-            flat_buf_size *= stmt->domain[d];
+            int size = (d == stmt->dimension) ? flow_dim_size : stmt->domain[d];
+            if (d == 0)
+                flat_buf_size = size;
+            else
+                flat_buf_size *= size;
         }
-        if (stmt->buffer_size != -1)
-            flat_buf_size *= stmt->buffer_size;
+
+        stmt->buffer_size = flat_buf_size;
 
         cout << stmt->name << ": buffer size = " << flat_buf_size << endl;
     }

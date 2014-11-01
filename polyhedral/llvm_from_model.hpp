@@ -27,6 +27,8 @@ public:
                     const vector<dataflow_dependency> &);
 
     llvm::Function * function() { return m_function; }
+    block_type start_block() { return m_start_block; }
+    block_type end_block() { return m_end_block; }
 
     void generate_statement( const string & name,
                              const vector<value_type> & index,
@@ -34,14 +36,15 @@ public:
     void generate_statement( statement *,
                              const vector<value_type> & index,
                              block_type block );
-
 private:
 
     value_type generate_expression( expression *, const vector<value_type> & index );
     value_type generate_intrinsic( intrinsic *, const vector<value_type> & index );
     value_type generate_buffer_access( statement *, const vector<value_type> & index );
     value_type generate_input_access( statement *, const vector<value_type> & index );
-    //vector<value_type> map_index( statement *, const vector<value_type> & index );
+    void advance_buffers();
+
+    int flat_buffer_size( statement *, int flow_count );
 
     template <typename T>
     void transpose( vector<T> & index, int first_dim );
@@ -96,6 +99,15 @@ private:
         return llvm::ConstantFP::get(double_type(), value);
     }
 
+    value_type value( type_type t, int32_t v )
+    {
+        return llvm::ConstantInt::getSigned(t,v);
+    }
+    value_type value( type_type t, uint32_t v )
+    {
+        return llvm::ConstantInt::get(t,v);
+    }
+
     block_type add_block( const string & name )
     {
         auto parent = m_builder.GetInsertBlock()->getParent();
@@ -112,6 +124,8 @@ private:
     value_type m_inputs;
     value_type m_output;
     value_type m_buffers;
+    block_type m_start_block;
+    block_type m_end_block;
 };
 
 }

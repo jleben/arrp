@@ -24,10 +24,17 @@ using std::vector;
 
 class llvm_from_cloog
 {
+    using value_type = llvm::Value*;
+    using type_type = llvm::Type*;
+    using block_type = llvm::BasicBlock*;
+    using context = stream::context<string, value_type>;
+
 public:
     llvm_from_cloog(llvm::Module *);
 
-    void generate( clast_stmt *root, llvm::Function* );
+    void generate( clast_stmt *root,
+                   block_type start_block,
+                   block_type end_block );
 
     bool verify();
 
@@ -42,11 +49,6 @@ public:
     }
 
 private:
-    using value_type = llvm::Value*;
-    using type_type = llvm::Type*;
-    using block_type = llvm::BasicBlock*;
-    using context = stream::context<string, value_type>;
-
     void process_list( clast_stmt * );
     void process( clast_stmt * );
     void process( clast_root* );

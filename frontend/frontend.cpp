@@ -422,7 +422,9 @@ int main(int argc, char *argv[])
                 };
 
                 llvm_cloog.set_stmt_func(stmt_func);
-                llvm_cloog.generate( ast, llvm_from_model.function() );
+                llvm_cloog.generate( ast,
+                                     llvm_from_model.start_block(),
+                                     llvm_from_model.end_block() );
 
                 #if 0
                 string func_name = result_type->as<semantic::function>().name;

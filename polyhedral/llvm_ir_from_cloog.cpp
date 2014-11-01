@@ -18,10 +18,9 @@ llvm_from_cloog::llvm_from_cloog(llvm::Module *module):
 }
 
 void llvm_from_cloog::generate
-( clast_stmt *root, llvm::Function *func )
+(clast_stmt *root, block_type start_block , block_type end_block)
 {
-    llvm::BasicBlock *bb = llvm::BasicBlock::Create(llvm_context(), "", func);
-    m_builder.SetInsertPoint(bb);
+    m_builder.SetInsertPoint(start_block);
 
     try
     {
@@ -33,7 +32,7 @@ void llvm_from_cloog::generate
         return;
     }
 
-    m_builder.CreateRetVoid();
+    m_builder.CreateBr(end_block);
 }
 
 void llvm_from_cloog::process_list(clast_stmt *stmt )

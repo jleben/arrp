@@ -141,9 +141,9 @@ public:
     expression * expr;
     string name;
     int dimension = -1;
-    int init_count = -1;
-    int steady_count = -1;
-    int buffer_size = -1;
+    int init_count = 0;
+    int steady_count = 0;
+    int buffer_size = 0;
 };
 
 struct dataflow_dependency
