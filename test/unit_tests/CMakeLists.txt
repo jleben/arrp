@@ -5,7 +5,7 @@ set(frontend_dir ${CMAKE_SOURCE_DIR}/frontend)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(unit_testing unit_test.cpp)
-target_link_libraries(unit_testing frontend_lib)
+target_link_libraries(unit_testing streamc-lib)
 
 function(add_unit_tests name test_header)
 

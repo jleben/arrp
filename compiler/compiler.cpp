@@ -1,7 +1,7 @@
-#include "parser.h"
-#include "ast_printer.hpp"
-#include "type_checker.hpp"
-#include "ir-generator.hpp"
+#include "../frontend/parser.h"
+#include "../frontend/ast_printer.hpp"
+#include "../frontend/type_checker.hpp"
+#include "../frontend/ir-generator.hpp"
 #include "../polyhedral/translator.hpp"
 #include "../polyhedral/printer.hpp"
 #include "../polyhedral/ast_generator.hpp"
@@ -32,7 +32,7 @@ enum code
 void print_help()
 {
     cout << "Usage:" << endl
-         << "  frontend <input file> [<parameter>...]" << endl;
+         << "  streamc <input file> [<parameter>...]" << endl;
 
     cout << "Parameters:" << endl;
 
