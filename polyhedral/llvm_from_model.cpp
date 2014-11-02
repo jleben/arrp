@@ -169,7 +169,7 @@ llvm_from_model::generate_buffer_access
 
     // Get buffer state
 
-    value_type buffer, phase;
+    value_type buffer;
     {
         vector<value_type> indices{stmt_index, value((int32_t) 0)};
         value_type buffer_ptr =
@@ -178,29 +178,49 @@ llvm_from_model::generate_buffer_access
         type_type real_buffer_type = llvm::Type::getDoublePtrTy(llvm_context());
         buffer = m_builder.CreateBitCast(buffer, real_buffer_type);
     }
+
+    int steady_buf_size = flat_buffer_size(stmt, stmt->steady_count);
+    int init_buf_size = flat_buffer_size(stmt, stmt->init_count);
+
+    bool use_phase =
+            stmt->steady_count > 1 &&
+            (steady_buf_size % stmt->buffer_size != 0);
+    use_phase = use_phase | init_buf_size % stmt->buffer_size != 0;
+
+    // Add current phase to index
+
+    if (use_phase)
     {
-        vector<value_type> indices{stmt_index, value((int32_t) 1)};
-        value_type phase_ptr =
-                m_builder.CreateGEP(m_buffers, indices);
-        phase = m_builder.CreateLoad(phase_ptr);
-        if (phase->getType() == int32_type())
-            phase = m_builder.CreateSExt(phase, int64_type());
+        value_type phase;
+        {
+            vector<value_type> indices{stmt_index, value((int32_t) 1)};
+            value_type phase_ptr =
+                    m_builder.CreateGEP(m_buffers, indices);
+            phase = m_builder.CreateLoad(phase_ptr);
+            if (phase->getType() == int32_type())
+                phase = m_builder.CreateSExt(phase, int64_type());
+        }
+
+        flat_index = m_builder.CreateAdd(flat_index, phase);
     }
 
-    // Add access index to current buffer state (phase)
+    // Wrap index
 
-    phase = m_builder.CreateMul(phase, value((int64_t)finite_slice_size));
+    bool may_wrap =
+            use_phase ||
+            ( steady_buf_size > stmt->buffer_size &&
+              stmt->buffer_size != flat_buffer_size(stmt, 1) );
 
-    value_type buffer_index =
-            m_builder.CreateAdd(flat_index, phase);
-
-    buffer_index =
-            m_builder.CreateSRem(buffer_index, value((int64_t)stmt->buffer_size));
+    if (may_wrap)
+    {
+        flat_index = m_builder.CreateSRem(flat_index,
+                                          value((int64_t)stmt->buffer_size));
+    }
 
     // Get value from buffer
 
     value_type value_ptr =
-            m_builder.CreateGEP(buffer, buffer_index);
+            m_builder.CreateGEP(buffer, flat_index);
 
     return value_ptr;
 }
@@ -306,7 +326,7 @@ void llvm_from_model::advance_buffers()
     {
         int offset = flat_buffer_size(stmt, stmt->steady_count);
 
-        if (offset == 0 || offset == stmt->buffer_size)
+        if (offset == 0 || offset == stmt->buffer_size || offset % stmt->buffer_size == 0)
             continue;
 
         vector<value_type> indices
