@@ -114,7 +114,8 @@ private:
 
     // General helpers:
 
-    void dependencies( expression *, vector<stream_access*> & );
+    template<typename T>
+    void find_nodes( expression * root, vector<T*> & );
     int first_infinite_dimension( statement *stmt );
     vector<int> infinite_dimensions( statement *stmt );
 

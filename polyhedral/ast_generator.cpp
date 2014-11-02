@@ -62,6 +62,9 @@ ast_generator::generate( const vector<statement*> & statements )
     dataflow_model(domains, dependencies,
                    dataflow_domains, dataflow_dependencies);
 
+    if (dataflow_domains.is_empty())
+        throw error("No infinite statements.");
+
     isl::union_set first_steady_period(m_ctx);
     dataflow_domains.for_each( [&first_steady_period](isl::set & domain)
     {
@@ -96,6 +99,35 @@ ast_generator::generate( const vector<statement*> & statements )
     m_printer.print(all_steady_periods);
     cout << endl;
 
+#if 1
+    struct clast_stmt *ast;
+    {
+        CloogState *state = cloog_state_malloc();
+        CloogOptions *options = cloog_options_malloc(state);
+        CloogUnionDomain *schedule =
+                cloog_union_domain_from_isl_union_map(bounded_schedule.copy());
+        //CloogMatrix *dummy_matrix = cloog_matrix_alloc(0,0);
+
+        CloogDomain *context_domain =
+                cloog_domain_from_isl_set(isl_set_universe(bounded_schedule.get_space().copy()));
+                //cloog_domain_from_cloog_matrix(state, dummy_matrix, 0);
+        CloogInput *input =  cloog_input_alloc(context_domain, schedule);
+
+        //cout << "--- Cloog input:" << endl;
+        //cloog_input_dump_cloog(stdout, input, options);
+        //cout << "--- End Cloog input ---" << endl;
+
+        if (!input)
+            cout << "Hmm no Cloog input..." << endl;
+
+        ast = cloog_clast_create_from_input(input, options);
+
+        cout << endl << "--- Cloog AST:" << endl;
+        clast_pprint(stdout, ast, 0, options);
+    }
+#endif
+
+#if 1
     compute_buffer_sizes(all_steady_periods, dataflow_dependencies);
 
     // Convert buffer size to flat buffer size
@@ -119,38 +151,8 @@ ast_generator::generate( const vector<statement*> & statements )
 
         cout << stmt->name << ": buffer size = " << flat_buf_size << endl;
     }
-
-    //return nullptr;
-
-
-#if 1
-    {
-        CloogState *state = cloog_state_malloc();
-        CloogOptions *options = cloog_options_malloc(state);
-        CloogUnionDomain *schedule =
-                cloog_union_domain_from_isl_union_map(bounded_schedule.copy());
-        //CloogMatrix *dummy_matrix = cloog_matrix_alloc(0,0);
-
-        CloogDomain *context_domain =
-                cloog_domain_from_isl_set(isl_set_universe(bounded_schedule.get_space().copy()));
-                //cloog_domain_from_cloog_matrix(state, dummy_matrix, 0);
-        CloogInput *input =  cloog_input_alloc(context_domain, schedule);
-
-        //cout << "--- Cloog input:" << endl;
-        //cloog_input_dump_cloog(stdout, input, options);
-        //cout << "--- End Cloog input ---" << endl;
-
-        if (!input)
-            cout << "Hmm no Cloog input..." << endl;
-
-        struct clast_stmt *ast = cloog_clast_create_from_input(input, options);
-
-        cout << endl << "--- Cloog AST:" << endl;
-        clast_pprint(stdout, ast, 0, options);
-
-        return ast;
-    }
 #endif
+    return ast;
 }
 
 void ast_generator::store_statements( const vector<statement*> & statements )
@@ -169,6 +171,9 @@ void ast_generator::store_statements( const vector<statement*> & statements )
 void ast_generator::polyhedral_model
 (isl::union_set & all_domains, isl::union_map & all_dependencies)
 {
+    cout << endl;
+    cout << "### Polyhedral model ###" << endl;
+
     for (statement * stmt : m_statements)
     {
         auto domain = polyhedral_domain(stmt);
@@ -210,15 +215,12 @@ isl::basic_set ast_generator::polyhedral_domain( statement *stmt )
         }
     }
 
-    cout << endl << "Iteration domain:" << endl;
-    isl::printer p(m_ctx);
-    p.print(domain);
-    cout << endl;
+    cout << "Iteration domain: "; m_printer.print(domain); cout << endl;
 
     return domain;
 }
 
-isl::union_map ast_generator::polyhedral_dependencies( statement * source )
+isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
 {
     using isl::tuple;
 
@@ -226,36 +228,132 @@ isl::union_map ast_generator::polyhedral_dependencies( statement * source )
     // Therefore, a dependency between two statements is exactly
     // the polyhedral::stream_access::pattern in the model.
 
-    vector<stream_access*> deps;
-
-    dependencies(source->expr, deps);
-
     isl::union_map all_dependencies_map(m_ctx);
 
-    for (auto dep : deps)
+    vector<stream_access*> stream_accesses;
+    find_nodes<stream_access>(dependent->expr, stream_accesses);
+
+    for (auto access : stream_accesses)
     {
-        statement *target = dep->target;
+        statement *target = access->target;
 
         // NOTE: "input" and "output" are swapped in the ISL model.
-        // "input" = dependee
-        // "output" = depender
+        // "input" = source
+        // "output" = sink
 
         isl::input_tuple target_tuple(isl::identifier(target->name, target),
                                       target->domain.size());
-        isl::output_tuple source_tuple(isl::identifier(source->name, source),
-                                       source->domain.size());
-        isl::space space(m_ctx, target_tuple, source_tuple);
+        isl::output_tuple dependent_tuple(isl::identifier(dependent->name, dependent),
+                                       dependent->domain.size());
+        isl::space space(m_ctx, target_tuple, dependent_tuple);
 
-        auto equalities = constraint_matrix(dep->pattern);
+        auto equalities = constraint_matrix(access->pattern);
         auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
 
         isl::basic_map dependency_map(space, equalities, inequalities);
 
-        cout << endl << "Dependency:" << endl;
-        m_printer.print(dependency_map);
-        cout << endl;
+        cout << "Dependency: ";
+        m_printer.print(dependency_map); cout << endl;
 
         all_dependencies_map = all_dependencies_map | dependency_map;
+    }
+
+    vector<reduction_access*> reduction_accesses;
+    find_nodes<reduction_access>(dependent->expr, reduction_accesses);
+
+    for (auto access : reduction_accesses)
+    {
+#if 1
+        isl::output_tuple dependent_space
+                (isl::identifier(dependent->name, dependent),
+                 dependent->domain.size());
+
+        // Initialization dependence
+        {
+            statement *initializer = access->initializer;
+
+            assert(dependent->domain.size() >= initializer->domain.size());
+
+            isl::input_tuple initializer_space
+                    (isl::identifier(initializer->name, initializer),
+                     initializer->domain.size());
+
+            isl::space space(m_ctx, initializer_space, dependent_space);
+
+            int coef_count = initializer->domain.size() + dependent->domain.size() + 1;
+            int dep_coef = initializer->domain.size();
+            int const_coef = coef_count - 1;
+            int reduction_dim = initializer->domain.size();
+            if (reduction_dim > dependent->domain.size() - 1)
+                --reduction_dim;
+
+            // Equalities
+            int eq_count = reduction_dim + 1;
+            auto equalities = isl::matrix(m_ctx, eq_count, coef_count, 0);
+            // Constraints: Initial dimensions are equal
+            for (int dim = 0; dim < reduction_dim; ++dim)
+            {
+                equalities(dim, dim) = 1;
+                equalities(dim, dep_coef + dim) = -1;
+            }
+            // Constraint: Dependent reduction dimension is 0:
+            equalities(reduction_dim, dep_coef + reduction_dim) = 1;
+
+            // No inequalities
+            auto inequalities = isl::matrix(m_ctx, 0, coef_count);
+
+            isl::basic_map dependency_map(space, equalities, inequalities);
+            all_dependencies_map = all_dependencies_map | dependency_map;
+
+            cout << "Reduction initializer dependency: ";
+            m_printer.print(dependency_map); cout << endl;
+        }
+
+        // Reduction dependence
+        {
+            statement *reductor = access->reductor;
+
+            assert(dependent->domain.size() >= reductor->domain.size());
+
+            isl::input_tuple reductor_space
+                    (isl::identifier(reductor->name, reductor),
+                     reductor->domain.size());
+
+            isl::space space(m_ctx, reductor_space, dependent_space);
+
+            int coef_count = reductor->domain.size() + dependent->domain.size() + 1;
+            int dep_coef = reductor->domain.size();
+            int const_coef = coef_count - 1;
+            int reduction_dim = reductor->domain.size() - 1;
+
+            // Equalities
+            int eq_count = reduction_dim + 1;
+            auto equalities = isl::matrix(m_ctx, eq_count, coef_count, 0);
+            // Constraints: Initial dimensions are equal
+            for (int dim = 0; dim < reduction_dim; ++dim)
+            {
+                equalities(dim, dim) = 1;
+                equalities(dim, dep_coef + dim) = -1;
+            }
+            // Constraint:
+            // r = reduction dimension; reduction(r) - dependent(r) + 1 = 0;
+            equalities(reduction_dim, reduction_dim) = 1;
+            equalities(reduction_dim, dep_coef + reduction_dim) = -1;
+            equalities(reduction_dim, const_coef) = 1;
+
+            // Inequalities
+            auto inequalities = isl::matrix(m_ctx, 1, coef_count);
+            // Constraint: dependent(reduction_dim) >= 1
+            inequalities(0, dep_coef + reduction_dim) = 1;
+            inequalities(0, const_coef) = -1;
+
+            isl::basic_map dependency_map(space, equalities, inequalities);
+            all_dependencies_map = all_dependencies_map | dependency_map;
+
+            cout << "Reduction self-dependency: ";
+            m_printer.print(dependency_map); cout << endl;
+        }
+#endif
     }
 
     return all_dependencies_map;
@@ -345,7 +443,7 @@ void ast_generator::compute_dataflow_dependencies
 
     vector<stream_access*> sources;
 
-    dependencies(sink->expr, sources);
+    find_nodes<stream_access>(sink->expr, sources);
     if (sources.empty())
         return;
 
@@ -519,6 +617,8 @@ void ast_generator::dataflow_model
         isl::identifier id = d.id();
         statement *stmt = statement_for(id);
         int inf_dim = stmt->dimension;
+        if (inf_dim == -1)
+            return true;
 
         auto d_space = d.get_space();
 
@@ -764,27 +864,20 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
         source_stmt->buffer_size = buf_size;
 }
 
-void ast_generator::dependencies( expression *expr,
-                                  vector<stream_access*> & deps )
+template<typename T>
+void ast_generator::find_nodes( expression * expr, vector<T*> & container )
 {
+    if (auto node = dynamic_cast<T*>(expr))
+    {
+        container.push_back(node);
+    }
+
     if (auto operation = dynamic_cast<intrinsic*>(expr))
     {
         for (auto sub_expr : operation->operands)
-            dependencies(sub_expr, deps);
+            find_nodes<T>(sub_expr, container);
         return;
     }
-    if (auto dependency = dynamic_cast<stream_access*>(expr))
-    {
-        deps.push_back(dependency);
-        return;
-    }
-    if ( dynamic_cast<constant<int>*>(expr) ||
-         dynamic_cast<constant<double>*>(expr) ||
-         dynamic_cast<input_access*>(expr) )
-    {
-        return;
-    }
-    throw std::runtime_error("Unexpected expression type.");
 }
 
 vector<int> ast_generator::infinite_dimensions( statement *stmt )
