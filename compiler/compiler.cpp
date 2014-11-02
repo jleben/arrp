@@ -416,9 +416,9 @@ int main(int argc, char *argv[])
                 auto stmt_func = [&]
                         ( const string & name,
                         const vector<llvm::Value*> & index,
-                        llvm::BasicBlock * block )
+                        llvm::BasicBlock * block ) -> llvm::BasicBlock*
                 {
-                    llvm_from_model.generate_statement(name, index, block);
+                    return llvm_from_model.generate_statement(name, index, block);
                 };
 
                 llvm_cloog.set_stmt_func(stmt_func);

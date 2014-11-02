@@ -53,17 +53,19 @@ llvm_from_model::llvm_from_model
     m_builder.CreateRetVoid();
 }
 
-void llvm_from_model::generate_statement( const string & name,
-                                          const vector<value_type> & index,
-                                          block_type block )
+llvm_from_model::block_type
+llvm_from_model::generate_statement( const string & name,
+                                     const vector<value_type> & index,
+                                     block_type block )
 {
     auto stmt_ref = std::find_if(m_statements.begin(), m_statements.end(),
                                  [&](statement *s){ return s->name == name; });
     assert(stmt_ref != m_statements.end());
-    generate_statement(*stmt_ref, index, block);
+    return generate_statement(*stmt_ref, index, block);
 }
 
-void llvm_from_model::generate_statement
+llvm_from_model::block_type
+llvm_from_model::generate_statement
 ( statement *stmt, const vector<value_type> & raw_index, block_type block )
 {
     // Drop first dimension denoting period (always zero).
@@ -87,6 +89,8 @@ void llvm_from_model::generate_statement
     value_type dst = generate_buffer_access(stmt, index);
 
     m_builder.CreateStore(value, dst);
+
+    return m_builder.GetInsertBlock();
 }
 
 llvm_from_model::value_type
@@ -102,6 +106,10 @@ llvm_from_model::generate_expression
         vector<value_type> target_index = mapped_index(index, read->pattern);
         value_type address = generate_buffer_access(read->target, target_index);
         return m_builder.CreateLoad(address);
+    }
+    if (auto access = dynamic_cast<reduction_access*>(expr))
+    {
+        return generate_reduction_access(access, index);
     }
     if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
     {
@@ -222,6 +230,73 @@ llvm_from_model::generate_input_access
     value_type value_ptr = m_builder.CreateGEP(input, flat_index);
 
     return value_ptr;
+}
+
+llvm_from_model::value_type
+llvm_from_model::generate_reduction_access
+( reduction_access *access, const vector<value_type> & index )
+{
+    int reduction_dim = access->reductor->domain.size() - 1;
+    assert(reduction_dim < index.size());
+
+    block_type init_block = add_block("reduction.init");
+    block_type recall_block = add_block("reduction.recall");
+    block_type after_block = add_block("reduction.after");
+
+    value_type cond = m_builder.CreateICmpEQ(index[reduction_dim],
+                                             value((int64_t)0));
+
+    m_builder.CreateCondBr(cond, init_block, recall_block);
+
+    value_type init_value, recall_value;
+
+    {
+        m_builder.SetInsertPoint(init_block);
+
+        assert(index.size() >= access->initializer->domain.size());
+        vector<value_type> init_index;
+        if (index.size() > 1)
+        {
+            int init_dims = access->initializer->domain.size();
+            init_index.insert(init_index.end(),
+                              index.begin(),
+                              index.begin() + init_dims);
+        }
+        else
+        {
+            init_index.push_back(0);
+        }
+        assert(access->initializer->domain.size() == init_index.size());
+        value_type init_ptr = generate_buffer_access(access->initializer, init_index);
+        init_value = m_builder.CreateLoad(init_ptr);
+
+        m_builder.CreateBr(after_block);
+    }
+
+    {
+        m_builder.SetInsertPoint(recall_block);
+
+        int reduction_dim = access->reductor->domain.size() - 1;
+        vector<value_type> reductor_index;
+        reductor_index.insert(reductor_index.end(),
+                              index.begin(), index.begin() + reduction_dim + 1);
+        reductor_index[reduction_dim] =
+                m_builder.CreateSub(reductor_index[reduction_dim],
+                                    value((int64_t) 1));
+        value_type recall_ptr = generate_buffer_access(access->reductor,
+                                                       reductor_index);
+        recall_value = m_builder.CreateLoad(recall_ptr);
+
+        m_builder.CreateBr(after_block);
+    }
+
+    m_builder.SetInsertPoint(after_block);
+
+    llvm::PHINode *value = m_builder.CreatePHI(double_type(), 2);
+    value->addIncoming(init_value, init_block);
+    value->addIncoming(recall_value, recall_block);
+
+    return value;
 }
 
 void llvm_from_model::advance_buffers()

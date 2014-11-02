@@ -30,18 +30,19 @@ public:
     block_type start_block() { return m_start_block; }
     block_type end_block() { return m_end_block; }
 
-    void generate_statement( const string & name,
-                             const vector<value_type> & index,
-                             block_type block );
-    void generate_statement( statement *,
-                             const vector<value_type> & index,
-                             block_type block );
+    block_type generate_statement( const string & name,
+                                   const vector<value_type> & index,
+                                   block_type block );
+    block_type generate_statement( statement *,
+                                   const vector<value_type> & index,
+                                   block_type block );
 private:
 
     value_type generate_expression( expression *, const vector<value_type> & index );
     value_type generate_intrinsic( intrinsic *, const vector<value_type> & index );
     value_type generate_buffer_access( statement *, const vector<value_type> & index );
     value_type generate_input_access( statement *, const vector<value_type> & index );
+    value_type generate_reduction_access( reduction_access *, const vector<value_type> & index );
     void advance_buffers();
 
     int flat_buffer_size( statement *, int flow_count );

@@ -267,7 +267,11 @@ void llvm_from_cloog::process( clast_user_stmt* stmt )
     }
 
     if (m_stmt_func)
-        m_stmt_func(stmt->statement->name, index, m_builder.GetInsertBlock());
+    {
+        block_type block = m_builder.GetInsertBlock();
+        block = m_stmt_func(stmt->statement->name, index, block);
+        m_builder.SetInsertPoint(block);
+    }
     else
     {
         auto noop_func = llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::donothing);

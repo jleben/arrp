@@ -133,9 +133,9 @@ private:
     llvm::Module *m_module;
     llvm::IRBuilder<> m_builder;
     context m_ctx;
-    std::function<void(const string&,
-                       const vector<value_type>&,
-                       block_type)> m_stmt_func;
+    std::function<block_type(const string&,
+                             const vector<value_type>&,
+                             block_type)> m_stmt_func;
 };
 
 }
