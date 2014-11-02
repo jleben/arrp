@@ -23,7 +23,7 @@ expression * translator::translate_input(const semantic::type_ptr & type,
         return new constant<double>(0.0);
     case semantic::type::stream:
     {
-        auto stream_type = type->as<semantic::stream>();
+        auto & stream_type = type->as<semantic::stream>();
 
         statement *generator = new statement;
         generator->domain = stream_type.size;
@@ -74,7 +74,12 @@ void translator::translate(const semantic::function & func,
     }
 
     if (auto view = dynamic_cast<stream_view*>(result))
-        result = complete_access(view);
+    {
+        stream_access * access = new stream_access;
+        access->pattern = view->pattern;
+        access->target = view->target;
+        result = access;
+    }
 
     auto stmt = new statement;
     m_statements.push_back(stmt);
@@ -106,9 +111,7 @@ void translator::do_statement(const ast::node_ptr &node)
     {
         using namespace semantic;
 
-        vector<int> domain;
-        domain.insert(domain.end(),
-                      m_domain.begin(), m_domain.end());
+        vector<int> domain = m_domain;
         switch(node->semantic_type->get_tag())
         {
         case type::integer_num:
@@ -125,7 +128,7 @@ void translator::do_statement(const ast::node_ptr &node)
         default:
             throw runtime_error("Unexpected type.");
         };
-        expr = make_statement(expr, domain);
+        expr = make_current_view( make_statement(expr, domain) );
     }
 
     m_context.bind(id, expr);
@@ -188,7 +191,10 @@ expression * translator::do_expression(const ast::node_ptr &node)
     {
         return do_mapping(node);
     }
-    //case ast::reduce_expression:
+    case ast::reduce_expression:
+    {
+        return do_reduction(node);
+    }
 
     default:
         throw std::runtime_error("Unexpected AST node type.");
@@ -413,7 +419,7 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
     const auto & iterators_node = node->as_list()->elements[0];
     const auto & body_node = node->as_list()->elements[1];
 
-    auto result_type = node->semantic_type->as<semantic::stream>();
+    auto & result_type = node->semantic_type->as<semantic::stream>();
 
     vector<expression*> sources;
 
@@ -427,7 +433,7 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
         if (!iter.domain->semantic_type->is(semantic::type::stream))
             throw runtime_error("Unsupported mapping source.");
 
-        semantic::stream source_type = iter.domain->semantic_type->as<semantic::stream>();
+        semantic::stream & source_type = iter.domain->semantic_type->as<semantic::stream>();
 
         expression *source_expr = do_expression(iter.domain);
 
@@ -441,10 +447,9 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
         }
         else
         {
-            vector<int> domain;
-            domain.insert(domain.end(), m_domain.begin(), m_domain.end());
+            vector<int> domain = m_domain;
             domain.insert(domain.end(), source_type.size.begin(), source_type.size.end());
-            source_stream = make_statement(source_expr, domain);
+            source_stream = make_current_view( make_statement(source_expr, domain) );
         }
 
         // Expand
@@ -496,6 +501,102 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
     return result;
 }
 
+expression * translator::do_reduction(const  ast::node_ptr &node)
+{
+    const auto & accum_node = node->as_list()->elements[0];
+    const auto & iter_node = node->as_list()->elements[1];
+    const auto & source_node = node->as_list()->elements[2];
+    const auto & body_node = node->as_list()->elements[3];
+
+    if (!source_node->semantic_type->is(semantic::type::stream))
+        throw runtime_error("Unsupported reduction source.");
+
+    semantic::stream & source_type = source_node->semantic_type->as<semantic::stream>();
+    assert(source_type.size.size() == 1);
+    assert(source_type.size.front() > 0);
+
+    expression *source_expr = do_expression(source_node);
+
+    stream_view *source_stream;
+    if (source_stream = dynamic_cast<stream_view*>(source_expr))
+    {
+        stream_view *copy = new stream_view;
+        copy->target = source_stream->target;
+        copy->pattern = access(source_stream);
+        copy->current_iteration = current_dimension();
+        source_stream = copy;
+    }
+    else
+    {
+        vector<int> domain = m_domain;
+        domain.insert(domain.end(), source_type.size.begin(), source_type.size.end());
+        source_stream = make_current_view( make_statement(source_expr, domain) );
+    }
+
+    vector<int> result_domain = m_domain;
+    if (result_domain.empty())
+        result_domain.push_back(1);
+
+    stream_access *init_access = complete_access(source_stream);
+    {
+        mapping &m = init_access->pattern;
+        if (m.input_dimension() > 1)
+        {
+            m.coefficients = m.coefficients.resized(m.coefficients.rows(),
+                                                    m.coefficients.columns()-1);
+        }
+        else
+        {
+            for (int d = 0; d < m.output_dimension(); ++d)
+                m.coefficient(m.input_dimension()-1,d) = 0;
+        }
+    }
+    statement *init_stmt = make_statement(init_access, result_domain);
+
+    reduction_access *accumulator = new reduction_access;
+    accumulator->initializer = init_stmt;
+
+    stream_view *iterator = source_stream;
+    iterator->current_iteration = current_dimension() + 1;
+    {
+        int dims = iterator->pattern.input_dimension();
+        assert(iterator->current_iteration == dims);
+        mapping offset = mapping::identity(dims, dims);
+        offset.constant(dims - 1) = 1;
+        iterator->pattern = iterator->pattern * offset;
+    }
+
+    string accum_id = accum_node->as_leaf<string>()->value;
+    string iter_id = iter_node->as_leaf<string>()->value;
+    m_context.bind( accum_id, accumulator );
+    m_context.bind( iter_id, iterator );
+
+    // Expand domain
+    int original_domain_size = m_domain.size();
+    m_domain.push_back(source_type.size.front() - 1);
+
+    expression *reduction_expr = do_block(body_node);
+    statement *reduction_stmt = make_statement(reduction_expr, m_domain);
+    accumulator->reductor = reduction_stmt;
+
+    // Restore domain
+    m_domain.resize(original_domain_size);
+
+    // Create a view with fixed mapping to last element of reduction:
+    auto result = new stream_view;
+    result->target = reduction_stmt;
+    result->pattern = mapping::identity(result_domain.size(),
+                                        reduction_stmt->domain.size());
+    if (current_dimension() < result_domain.size())
+        result->pattern.coefficient(current_dimension(),
+                                    current_dimension()) = 0;
+    result->pattern.constant(current_dimension())
+            = reduction_stmt->domain.back() - 1;
+    result->current_iteration = current_dimension();
+
+    return result;
+}
+
 mapping translator::access(stream_view *source)
 {
     if (source->current_iteration == current_dimension())
@@ -540,24 +641,24 @@ stream_access * translator::complete_access( stream_view * view )
     return access;
 }
 
-translator::stream_view *
+statement *
 translator::make_statement( expression * expr,
                             const vector<int> & domain )
 {
-    // create statement
-
     auto stmt = new statement;
     m_statements.push_back(stmt);
     stmt->domain = domain;
     stmt->expr = expr;
+    return stmt;
+}
 
-    // create view
-
+translator::stream_view *
+translator::make_current_view( statement * stmt )
+{
     auto view = new stream_view;
     view->target = stmt;
-    view->pattern = mapping::identity(domain.size(), domain.size());
+    view->pattern = mapping::identity(stmt->domain.size(), stmt->domain.size());
     view->current_iteration = current_dimension();
-
     return view;
 }
 

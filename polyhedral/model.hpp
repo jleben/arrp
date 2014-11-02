@@ -49,8 +49,16 @@ public:
     {
         return coefficients(out_dim, in_dim);
     }
+    int & coefficient(int in_dim, int out_dim)
+    {
+        return coefficients(out_dim, in_dim);
+    }
 
     int constant(int out_dim) const
+    {
+        return constants[out_dim];
+    }
+    int & constant(int out_dim)
     {
         return constants[out_dim];
     }
@@ -126,6 +134,13 @@ public:
     mapping pattern;
 };
 
+class reduction_access : public expression
+{
+public:
+    statement * initializer;
+    statement * reductor;
+};
+
 class input_access : public expression
 {
 public:
@@ -137,13 +152,13 @@ class statement
 {
 public:
     statement(): expr(nullptr) {}
-    vector<int> domain;
-    expression * expr;
     string name;
+    vector<int> domain;
     int dimension = -1;
     int init_count = 0;
     int steady_count = 0;
     int buffer_size = 0;
+    expression * expr;
 };
 
 struct dataflow_dependency

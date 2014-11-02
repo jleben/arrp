@@ -8,12 +8,14 @@
 #include "../utility/matrix.hpp"
 
 #include <deque>
+#include <vector>
 #include <stack>
 
 namespace stream {
 namespace polyhedral {
 
 using std::deque;
+using std::vector;
 using std::stack;
 using utility::matrix;
 
@@ -46,7 +48,7 @@ private:
     typedef stream::context<string,symbol> context;
 
     context m_context;
-    deque<int> m_domain;
+    vector<int> m_domain;
     vector<statement*> m_statements;
 
 
@@ -60,6 +62,7 @@ private:
     expression * do_transpose(const ast::node_ptr &node);
     expression * do_slicing(const  ast::node_ptr &node);
     expression * do_mapping(const  ast::node_ptr &node);
+    expression * do_reduction(const  ast::node_ptr &node);
 
     int current_dimension() const
     {
@@ -71,7 +74,8 @@ private:
     mapping access(stream_view *source);
 
     stream_access * complete_access( stream_view * );
-    stream_view * make_statement( expression *, const vector<int> & domain );
+    statement * make_statement( expression *, const vector<int> & domain );
+    stream_view * make_current_view( statement * );
 
     expression * update_accesses(expression *, const mapping & map);
 };
