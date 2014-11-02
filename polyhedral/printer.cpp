@@ -87,6 +87,13 @@ void printer::print(expression *expr, ostream &s)
         s << indentation() << "]";
 #endif
     }
+    else if (auto access = dynamic_cast<reduction_access*>(expr))
+    {
+        s << "reduction access: "
+          << access->initializer
+          << " / "
+          << access->reductor;
+    }
     else
     {
         s << "unexpected expression";

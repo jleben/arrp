@@ -18,6 +18,7 @@ ostream & operator<<(ostream &s, const mapping & m)
         s << " | " << m.constants[row];
         s << endl;
     }
+    return s;
 }
 
 }
