@@ -6,6 +6,8 @@
 #include <cloog/cloog.h>
 #include <cloog/isl/cloog.h>
 
+#include <isl/schedule.h>
+
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
 #include <isl-cpp/expression.hpp>
@@ -701,13 +703,29 @@ void ast_generator::dataflow_model
 isl::union_map ast_generator::make_schedule
 (isl::union_set & domains, isl::union_map & dependencies)
 {
+    isl::union_map proximities( dependencies.get_space() );
 
+    isl_union_set *dom = domains.copy();
+    isl_union_map *dep = dependencies.copy();
+    isl_union_map *prox = isl_union_map_empty( isl_union_map_get_space(dep) );
+
+    isl_schedule *sched = isl_union_set_compute_schedule(dom,dep,prox);
+    assert(sched);
+
+
+    isl_union_map *sched_map = isl_schedule_get_map(sched);
+
+    isl_schedule_free(sched);
+
+    return sched_map;
+
+#if 0
     PlutoOptions *options = pluto_options_alloc();
     options->silent = 1;
     options->quiet = 1;
     options->debug = 0;
     options->moredebug = 0;
-    //options->islsolve = 1;
+    options->islsolve = 1;
     options->fuse = MAXIMAL_FUSE;
     //options->unroll = 1;
     //options->polyunroll = 1;
@@ -741,6 +759,7 @@ isl::union_map ast_generator::make_schedule
     });
 
     return corrected_schedule;
+#endif
 }
 
 isl::union_map ast_generator::entire_steady_schedule
