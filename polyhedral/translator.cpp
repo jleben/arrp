@@ -288,33 +288,36 @@ expression * translator::do_transpose(const ast::node_ptr &node)
     const auto & object_node = node->as_list()->elements[0];
     const auto & dims_node = node->as_list()->elements[1];
 
-    semantic::stream & stream_type =
-            node->semantic_type->as<semantic::stream>();
+    semantic::stream & object_type =
+            object_node->semantic_type->as<semantic::stream>();
 
-    int dimension = current_dimension() + stream_type.dimensionality();
+    int dimension = object_type.dimensionality();
 
     vector<int> order(dimension,-1);
-
-    int dim = 0;
-    for(; dim < current_dimension(); ++dim)
-    {
-        order[dim] = dim;
-    }
+    vector<bool> used_dims(dimension,false);
+    int pos = 0;
     for ( const auto & dim_node : dims_node->as_list()->elements )
     {
-        int pos = current_dimension() + dim_node->as_leaf<int>()->value - 1;
+        int dim = dim_node->as_leaf<int>()->value - 1;
         order[pos] = dim;
-        ++dim;
+        used_dims[dim] = true;
+        ++pos;
     }
-    for (int pos = current_dimension(); pos < dimension; ++pos)
+    for (int dim = 0; dim < dimension; ++dim)
     {
-        if (order[pos] < 0)
+        if (!used_dims[dim])
         {
             order[pos] = dim;
-            ++dim;
+            ++pos;
         }
     }
-    assert(dim == dimension);
+    assert(pos == dimension);
+
+    /*
+    cout << "transpose: ";
+    for (int d : order) cout << d << " ";
+    cout << endl;
+    */
 
     mapping transposition = mapping::identity(dimension, dimension);
     transposition.coefficients = transposition.coefficients.reordered( order );
@@ -347,16 +350,11 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
         slice_dimension = 0;
 
     mapping slicing =
-            mapping(current_dimension() + slice_dimension,
-                    current_dimension() + object_dimension);
+            mapping(slice_dimension,
+                    object_dimension);
 
     int in_dim = 0;
     int out_dim = 0;
-
-    for (; in_dim < current_dimension(); ++in_dim, ++out_dim)
-    {
-        slicing.coefficients(out_dim, in_dim) = 1;
-    }
 
     for( const auto & range_node : ranges_node->as_list()->elements )
     {
@@ -683,12 +681,28 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
     }
     if (auto view = dynamic_cast<stream_view*>(expr))
     {
-        // FIXME: Only duplicate if shared. Avoid memory leak.
+        mapping m2 = mapping::identity(view->pattern.input_dimension(),
+                                       view->pattern.output_dimension());
+
+        int d_out = m2.output_dimension() - map.output_dimension();
+        int d_in = m2.input_dimension() - map.input_dimension();
+        for (int out = 0; out < map.output_dimension(); ++out)
+        {
+            int out2 = d_out + out;
+            m2.constant(out2) = map.constant(out);
+            for(int in = 0; in < map.input_dimension(); ++in)
+            {
+                int in2 = d_in + in;
+                m2.coefficient(in2, out2) = map.coefficient(in,out);
+            }
+        }
+
+        // FIXME: Only duplicate if shared (avoid memory leak).
 
         //cout << "before: " << endl << view->pattern;
         auto new_view = new stream_view;
         new_view->target = view->target;
-        new_view->pattern = view->pattern * map;
+        new_view->pattern = view->pattern * m2;
         new_view->current_iteration = view->current_iteration;
         //cout << "after: " << endl  << new_view->pattern;
         return new_view;
