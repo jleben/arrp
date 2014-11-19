@@ -183,6 +183,8 @@ isl::basic_set ast_generator::polyhedral_domain( statement *stmt )
 {
     using isl::tuple;
 
+    assert(stmt->domain.size());
+
     const string & name = stmt->name;
 
     auto space = isl::space( m_ctx,

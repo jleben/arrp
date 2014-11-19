@@ -128,7 +128,21 @@ void translator::do_statement(const ast::node_ptr &node)
         default:
             throw runtime_error("Unexpected type.");
         };
-        expr = make_current_view( make_statement(expr, domain) );
+
+        if (!domain.empty())
+        {
+            expr = make_current_view( make_statement(expr, domain) );
+        }
+        else
+        {
+            domain.push_back(1);
+            auto stmt = make_statement(expr, domain);
+            auto view = new stream_view;
+            view->target = stmt;
+            view->pattern = mapping(1,1);
+            view->current_iteration = 0;
+            expr = view;
+        }
     }
 
     m_context.bind(id, expr);
