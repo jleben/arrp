@@ -2,6 +2,7 @@
 #define STREAM_POLYHEDRAL_LLVM_FROM_MODEL_INCLUDED
 
 #include "model.hpp"
+#include "dataflow_model.hpp"
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -24,7 +25,7 @@ public:
     llvm_from_model(llvm::Module *module,
                     int input_count,
                     const vector<statement*> &,
-                    const vector<dataflow_dependency> &);
+                    const dataflow::model * );
 
     llvm::Function * function() { return m_function; }
     block_type start_block() { return m_start_block; }
@@ -121,7 +122,7 @@ private:
     llvm::Function *m_function;
     llvm::IRBuilder<> m_builder;
     const vector<statement*> & m_statements;
-    const vector<dataflow_dependency> & m_dependencies;
+    const dataflow::model * m_dataflow;
     value_type m_inputs;
     value_type m_output;
     value_type m_buffers;

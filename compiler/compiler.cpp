@@ -350,7 +350,6 @@ int main(int argc, char *argv[])
 
     polyhedral::translator poly;
     polyhedral::printer poly_printer;
-    polyhedral::ast_generator poly_ast_gen;
 
     llvm::Module *module = new llvm::Module(args.input_filename,
                                             llvm::getGlobalContext());
@@ -397,15 +396,21 @@ int main(int argc, char *argv[])
                     poly_printer.print(stmt, cout);
                 }
 
-                cout << "### AST Generation ###" << endl << endl;
+                cout << endl << "### Dataflow Analysis ###" << endl;
 
-                auto ast = poly_ast_gen.generate( poly.statements() );
+                dataflow::model dataflow_model(poly.statements());
+
+                cout << endl << "### AST Generation ###" << endl;
+
+                polyhedral::ast_generator poly_ast_gen( poly.statements(),
+                                                        &dataflow_model );
+                auto ast = poly_ast_gen.generate();
 
                 polyhedral::llvm_from_model llvm_from_model
                         (module,
                          eval.args.size(),
                          poly.statements(),
-                         poly_ast_gen.dependencies() );
+                         &dataflow_model);
 #if 0
                 auto stmt_func = std::bind( &polyhedral::llvm_from_model::generate_statement,
                                             &poly_llvm_from_model,

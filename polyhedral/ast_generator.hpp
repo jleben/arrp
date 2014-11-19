@@ -2,6 +2,7 @@
 #define STREAM_POLYHEDRAL_AST_GENERATOR_INCLUDED
 
 #include "model.hpp"
+#include "dataflow_model.hpp"
 #include "../utility/isl_printer.hpp"
 
 #include <isl/set.h>
@@ -59,14 +60,10 @@ public:
         {}
     };
 
-    ast_generator();
+    ast_generator( const vector<statement*> &, const dataflow::model * );
     ~ast_generator();
 
-    struct clast_stmt *
-    generate( const vector<statement*> & statements );
-
-    const vector<dataflow_dependency> & dependencies() const
-    { return m_dataflow_deps; }
+    struct clast_stmt *generate();
 
 private:
 
@@ -81,16 +78,7 @@ private:
     isl::union_map polyhedral_dependencies( statement * );
     isl::matrix constraint_matrix( const mapping & );
 
-    // Dataflow
-
-    void compute_dataflow_dependencies( vector<dataflow_dependency> & result );
-
-    void compute_dataflow_dependencies( statement *,
-                                        vector<dataflow_dependency> & result );
-
-    void compute_dataflow_counts ( const vector<dataflow_dependency> & );
-
-    void dataflow_model( const isl::union_set & domains,
+    void periodic_model( const isl::union_set & domains,
                          const isl::union_map & dependencies,
                          isl::union_set & result_domains,
                          isl::union_map & result_dependencies);
@@ -112,18 +100,11 @@ private:
                               const isl::map & dependence,
                               const isl::space & time_space );
 
-    // General helpers:
-
-    template<typename T>
-    void find_nodes( expression * root, vector<T*> & );
-    int first_infinite_dimension( statement *stmt );
-    vector<int> infinite_dimensions( statement *stmt );
-
     isl::context m_ctx;
     isl::printer m_printer;
 
     vector<statement*> m_statements;
-    vector<dataflow_dependency> m_dataflow_deps;
+    const dataflow::model * m_dataflow;
 };
 
 }

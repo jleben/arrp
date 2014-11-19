@@ -96,6 +96,9 @@ class expression
     // to be updated by slicing and transposition
 public:
     virtual ~expression() {}
+
+    template<typename T>
+    void find( vector<T*> & container );
 };
 
 template <typename T>
@@ -154,21 +157,34 @@ public:
     statement(): expr(nullptr) {}
     string name;
     vector<int> domain;
-    int dimension = -1;
-    int init_count = 0;
-    int steady_count = 0;
     int buffer_size = 0;
     expression * expr;
+
+    vector<int> infinite_dimensions()
+    {
+        vector<int> dimensions;
+        for (int dim = 0; dim < domain.size(); ++dim)
+            if (domain[dim] == infinite)
+                dimensions.push_back(dim);
+        return dimensions;
+    }
 };
 
-struct dataflow_dependency
+template<typename T> inline
+void expression::find( vector<T*> & container )
 {
-    statement *source;
-    statement *sink;
-    int push;
-    int peek;
-    int pop;
-};
+    if (auto node = dynamic_cast<T*>(this))
+    {
+        container.push_back(node);
+    }
+
+    if (auto operation = dynamic_cast<intrinsic*>(this))
+    {
+        for (auto sub_expr : operation->operands)
+            sub_expr->find<T>(container);
+        return;
+    }
+}
 
 }
 }

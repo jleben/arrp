@@ -1,4 +1,5 @@
 #include "ast_generator.hpp"
+#include "dataflow_model.hpp"
 
 #include <cloog/cloog.h>
 #include <cloog/isl/cloog.h>
@@ -29,9 +30,12 @@ statement *statement_for( const isl::identifier & id )
     return reinterpret_cast<statement*>(id.data);
 }
 
-ast_generator::ast_generator():
-    m_printer(m_ctx)
+ast_generator::ast_generator( const vector<statement*> & statements,
+                              const dataflow::model * dataflow ):
+    m_printer(m_ctx),
+    m_dataflow(dataflow)
 {
+    store_statements(statements);
     m_ctx.set_error_action(isl::context::abort_on_error);
 }
 
@@ -40,32 +44,22 @@ ast_generator::~ast_generator()
 }
 
 clast_stmt *
-ast_generator::generate( const vector<statement*> & statements )
+ast_generator::generate()
 {
-    store_statements(statements);
-
-    vector<dataflow_dependency> dataflow_deps;
-    compute_dataflow_dependencies(dataflow_deps);
-
-    if (!dataflow_deps.empty())
-    {
-        compute_dataflow_counts(dataflow_deps);
-    }
-
     isl::union_set domains(m_ctx);
     isl::union_map dependencies(m_ctx);
     polyhedral_model(domains, dependencies);
 
-    isl::union_set dataflow_domains(m_ctx);
-    isl::union_map dataflow_dependencies(m_ctx);
-    dataflow_model(domains, dependencies,
-                   dataflow_domains, dataflow_dependencies);
+    isl::union_set periodic_domains(m_ctx);
+    isl::union_map periodic_dependencies(m_ctx);
+    periodic_model(domains, dependencies,
+                   periodic_domains, periodic_dependencies);
 
-    if (dataflow_domains.is_empty())
+    if (periodic_domains.is_empty())
         throw error("No infinite statements.");
 
     isl::union_set first_steady_period(m_ctx);
-    dataflow_domains.for_each( [&first_steady_period](isl::set & domain)
+    periodic_domains.for_each( [&first_steady_period](isl::set & domain)
     {
         auto v = domain.get_space()(isl::space::variable, 0);
         domain.add_constraint(v == 0);
@@ -79,7 +73,7 @@ ast_generator::generate( const vector<statement*> & statements )
 
     //return nullptr;
 
-    auto schedule = make_schedule(first_steady_period, dataflow_dependencies);
+    auto schedule = make_schedule(first_steady_period, periodic_dependencies);
 
     cout << endl << "Unbounded steady period schedule:" << endl;
     m_printer.print(schedule);
@@ -92,10 +86,10 @@ ast_generator::generate( const vector<statement*> & statements )
     cout << endl;
 
 
-    auto all_steady_periods = entire_steady_schedule(bounded_schedule);
+    auto steady_period_schedule = entire_steady_schedule(bounded_schedule);
 
     cout << endl << "Steady schedule:" << endl;
-    m_printer.print(all_steady_periods);
+    m_printer.print(steady_period_schedule);
     cout << endl;
 
 #if 1
@@ -127,19 +121,21 @@ ast_generator::generate( const vector<statement*> & statements )
 #endif
 
 #if 1
-    compute_buffer_sizes(all_steady_periods, dataflow_dependencies);
+    compute_buffer_sizes(steady_period_schedule, periodic_dependencies);
 
     // Convert buffer size to flat buffer size
 
     cout << endl << "Buffer sizes:" << endl;
     for (statement *stmt : m_statements)
     {
-        int flow_dim_size = stmt->buffer_size ? stmt->buffer_size : stmt->steady_count;
+        const dataflow::actor & actor = m_dataflow->actor_for(stmt);
+
+        int flow_dim_size = stmt->buffer_size ? stmt->buffer_size : actor.steady_count;
 
         int flat_buf_size = 0;
         for (int d = 0; d < stmt->domain.size(); ++d)
         {
-            int size = (d == stmt->dimension) ? flow_dim_size : stmt->domain[d];
+            int size = (d == actor.flow_dimension) ? flow_dim_size : stmt->domain[d];
             if (d == 0)
                 flat_buf_size = size;
             else
@@ -170,9 +166,6 @@ void ast_generator::store_statements( const vector<statement*> & statements )
 void ast_generator::polyhedral_model
 (isl::union_set & all_domains, isl::union_map & all_dependencies)
 {
-    cout << endl;
-    cout << "### Polyhedral model ###" << endl;
-
     for (statement * stmt : m_statements)
     {
         auto domain = polyhedral_domain(stmt);
@@ -230,7 +223,7 @@ isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
     isl::union_map all_dependencies_map(m_ctx);
 
     vector<stream_access*> stream_accesses;
-    find_nodes<stream_access>(dependent->expr, stream_accesses);
+    dependent->expr->find<stream_access>(stream_accesses);
 
     for (auto access : stream_accesses)
     {
@@ -258,7 +251,7 @@ isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
     }
 
     vector<reduction_access*> reduction_accesses;
-    find_nodes<reduction_access>(dependent->expr, reduction_accesses);
+    dependent->expr->find<reduction_access>(reduction_accesses);
 
     for (auto access : reduction_accesses)
     {
@@ -390,227 +383,11 @@ isl::matrix ast_generator::constraint_matrix( const mapping & map )
     return matrix;
 }
 
-void ast_generator::compute_dataflow_dependencies
-( vector<dataflow_dependency> & result )
-{
-    vector<statement*> finite_statements;
-    vector<statement*> infinite_statements;
-    vector<statement*> invalid_statements;
-
-    for(statement *stmt : m_statements)
-    {
-        vector<int> infinite_dims = infinite_dimensions(stmt);
-        if (infinite_dims.empty())
-            finite_statements.push_back(stmt);
-        else if (infinite_dims.size() == 1)
-        {
-            stmt->dimension = infinite_dims.front();
-            infinite_statements.push_back(stmt);
-        }
-        else
-            invalid_statements.push_back(stmt);
-    }
-
-    cout << endl << "Statement types:" << endl;
-    cout << "- finite: " << finite_statements.size() << endl;
-    cout << "- infinite: " << infinite_statements.size() << endl;
-    cout << "- invalid: " << invalid_statements.size() << endl;
-
-    if (!invalid_statements.empty())
-    {
-        ostringstream msg;
-        msg << "The following statements are infinite"
-            << " in more than 1 dimension: " << endl;
-        for (statement *stmt: invalid_statements)
-        {
-            msg << "- " << stmt->name << endl;
-        }
-        throw error(msg.str());
-    }
-
-    for(statement *stmt : infinite_statements)
-    {
-        compute_dataflow_dependencies(stmt, result);
-    }
-}
-
-
-void ast_generator::compute_dataflow_dependencies
-( statement *sink, vector<dataflow_dependency> & all_deps )
-{
-    cout << "-- sink flow dim = " << sink->dimension << endl;
-
-    vector<stream_access*> sources;
-
-    find_nodes<stream_access>(sink->expr, sources);
-    if (sources.empty())
-        return;
-
-    for(stream_access *source : sources)
-    {
-        int source_flow_dim = -1;
-        for (int out_dim = 0;
-             out_dim < source->pattern.output_dimension();
-             ++out_dim)
-        {
-            cout << "-- coef: " << source->pattern.coefficients(out_dim, sink->dimension) << endl;
-            if (source->pattern.coefficients(out_dim, sink->dimension) != 0)
-            {
-                source_flow_dim = out_dim;
-                break;
-            }
-        }
-
-        if (source_flow_dim < 0)
-            throw std::runtime_error("Sink flow dimension does not map"
-                                     " to any source dimension.");
-        if (source_flow_dim != source->target->dimension)
-            throw std::runtime_error("Sink flow dimension does not map"
-                                     " to source flow dimension.");
-
-        int flow_pop = source->pattern.coefficients(source_flow_dim, sink->dimension);
-
-        vector<int> sink_index = sink->domain;
-        sink_index[sink->dimension] = 0;
-        vector<int> source_index = source->pattern * sink_index;
-        int flow_peek = std::max(1, source_index[source_flow_dim]);
-
-        dataflow_dependency dep;
-        dep.source = source->target;
-        dep.sink = sink;
-        //dep.source_dim = source_flow_dim;
-        //dep.sink_dim = sink_flow_dim;
-        dep.push = 1;
-        dep.peek = flow_peek;
-        dep.pop = flow_pop;
-
-        all_deps.push_back(dep);
-
-        cout << endl << "Dependency:" << endl;
-        cout << dep.source << "@" << source->target->dimension << " " << dep.push << " -> "
-             << dep.peek << "/" << dep.pop << " " << dep.sink << "@" << sink->dimension
-             << endl;
-    }
-}
-
-void ast_generator::compute_dataflow_counts
-( const vector<dataflow_dependency> & deps )
-{
-    using namespace isl;
-
-    // FIXME: Multiple dependencies between same pair of statements
-
-    unordered_set<statement*> involved_stmts;
-
-    for (const auto & dep: deps)
-    {
-        involved_stmts.insert(dep.source);
-        involved_stmts.insert(dep.sink);
-    }
-
-    int rows = deps.size();
-    int cols = involved_stmts.size();
-
-    isl::matrix flow_matrix(m_ctx, rows, cols);
-
-    for (int r = 0; r < rows; ++r)
-        for(int c = 0; c < cols; ++c)
-            flow_matrix(r,c) = 0;
-
-    int row = 0;
-    for (const auto & dep: deps)
-    {
-        auto source_loc = involved_stmts.find(dep.source);
-        int source_index = std::distance(involved_stmts.begin(), source_loc);
-        auto sink_loc = involved_stmts.find(dep.sink);
-        int sink_index = std::distance(involved_stmts.begin(), sink_loc);
-
-        cout << "source: " << dep.source->name << "@" << source_index << endl;
-        cout << "sink: " << dep.sink->name << "@" << sink_index << endl;
-        flow_matrix(row, source_index) = dep.push;
-        flow_matrix(row, sink_index) = - dep.pop;
-        ++row;
-    }
-
-    cout << "Flow:" << endl;
-    isl::print(flow_matrix);
-
-    isl::matrix steady_counts = flow_matrix.nullspace();
-
-    cout << "Steady Counts:" << endl;
-    isl::print(steady_counts);
-
-    // Initialization counts:
-
-    // Number of tokens produced should be at least number of tokens consumed
-    // after the initial epoch + one steady period.
-
-    isl::space statement_space(m_ctx, isl::set_tuple(involved_stmts.size()));
-    auto init_counts = isl::set::universe(statement_space);
-    auto init_cost = isl::expression::value(statement_space, 0);
-    cout << "Init count cost expr:" << endl;
-    m_printer.print(init_cost); cout << endl;
-    for (int i = 0; i < involved_stmts.size(); ++i)
-    {
-        auto stmt = isl::expression::variable(statement_space, space::variable, i);
-        init_counts.add_constraint( stmt >= 0 );
-        init_cost = stmt + init_cost;
-        cout << "Init count cost expr:" << endl;
-        m_printer.print(init_cost); cout << endl;
-    }
-    for (const auto & dep: deps)
-    {
-        auto source_ref = involved_stmts.find(dep.source);
-        int source_index = std::distance(involved_stmts.begin(), source_ref);
-        auto sink_ref = involved_stmts.find(dep.sink);
-        int sink_index = std::distance(involved_stmts.begin(), sink_ref);
-
-        auto source = isl::expression::variable(statement_space,
-                                                space::variable,
-                                                source_index);
-        auto sink = isl::expression::variable(statement_space,
-                                              space::variable,
-                                              sink_index);
-        int source_steady = steady_counts(source_index,0).value().numerator();
-        int sink_steady = steady_counts(sink_index,0).value().numerator();
-
-        // p(a)*i(a) - o(b)*i(b) + [p(a)*s(a) - o(b)*s(b) - e(b) + o(b)] >= 0
-
-        auto constraint =
-                dep.push * source - dep.pop * sink
-                + (dep.push * source_steady - dep.pop * sink_steady - dep.peek + dep.pop)
-                >= 0;
-
-        init_counts.add_constraint(constraint);
-    }
-
-    cout << "Viable initialization counts:" << endl;
-    m_printer.print(init_counts); cout << endl;
-
-    auto init_optimum = init_counts.minimum(init_cost);
-    init_counts.add_constraint( init_cost == init_optimum );
-    auto init_optimum_point = init_counts.single_point();
-
-    cout << "Initialization Counts:" << endl;
-    m_printer.print(init_optimum_point); cout << endl;
-
-    assert(steady_counts.column_count() == 1);
-    assert(steady_counts.row_count() == involved_stmts.size());
-    auto stmt_ref = involved_stmts.begin();
-    for (int stmt_idx = 0; stmt_idx < involved_stmts.size(); ++stmt_idx, ++stmt_ref)
-    {
-        (*stmt_ref)->init_count =
-                (int) init_optimum_point(isl::space::variable, stmt_idx).numerator();
-        (*stmt_ref)->steady_count =
-                steady_counts(stmt_idx,0).value().numerator();
-    }
-}
-
-void ast_generator::dataflow_model
+void ast_generator::periodic_model
 ( const isl::union_set & domains,
   const isl::union_map & dependencies,
-  isl::union_set & dataflow_domains,
-  isl::union_map & dataflow_dependencies)
+  isl::union_set & periodic_domains,
+  isl::union_map & periodic_dependencies)
 {
     isl::union_map domain_maps(m_ctx);
 
@@ -618,9 +395,10 @@ void ast_generator::dataflow_model
     {
         isl::identifier id = d.id();
         statement *stmt = statement_for(id);
-        int inf_dim = stmt->dimension;
-        if (inf_dim == -1)
-            return true;
+        const dataflow::actor & actor = m_dataflow->actor_for(stmt);
+
+        int inf_dim = actor.flow_dimension;
+        assert(inf_dim >= 0);
 
         auto d_space = d.get_space();
 
@@ -641,9 +419,9 @@ void ast_generator::dataflow_model
         // Compute relation between period and intra-period (iteration) domains
         // in = (out_period * steady) + out + init
         eq_mtx(inf_dim, inf_dim) = -1; // input iteration
-        eq_mtx(inf_dim, d_dims) = stmt->steady_count; // output period
+        eq_mtx(inf_dim, d_dims) = actor.steady_count; // output period
         eq_mtx(inf_dim, d_dims + inf_dim + 1) = 1; // output iteration
-        eq_mtx(inf_dim, d_dims + dd_dims) = stmt->init_count; // constant
+        eq_mtx(inf_dim, d_dims + dd_dims) = actor.init_count; // constant
 
         // Make all other dimensions equal
         for (int dim = 0; dim < d_dims; ++dim)
@@ -666,12 +444,12 @@ void ast_generator::dataflow_model
         {
             auto v = dd_space(isl::space::variable, inf_dim + 1);
             dd.add_constraint(v >= 0);
-            dd.add_constraint(v < stmt->steady_count);
+            dd.add_constraint(v < actor.steady_count);
         }
 
         // Store results
 
-        dataflow_domains = dataflow_domains | dd;
+        periodic_domains = periodic_domains | dd;
         domain_maps = domain_maps | map;
 
         return true;
@@ -679,23 +457,23 @@ void ast_generator::dataflow_model
 
     cout << endl;
 
-    cout << "Dataflow domains:" << endl;
-    m_printer.print(dataflow_domains); cout << endl;
+    cout << "Periodic domains:" << endl;
+    m_printer.print(periodic_domains); cout << endl;
 
     cout << "Domain mappings:" << endl;
     m_printer.print(domain_maps); cout << endl;
 
-    dataflow_dependencies = dependencies;
-    dataflow_dependencies.map_domain_through(domain_maps);
-    dataflow_dependencies.map_range_through(domain_maps);
+    periodic_dependencies = dependencies;
+    periodic_dependencies.map_domain_through(domain_maps);
+    periodic_dependencies.map_range_through(domain_maps);
 
-    cout << "Dataflow dependencies:" << endl;
-    m_printer.print(dataflow_dependencies); cout << endl;
+    cout << "Periodic dependencies:" << endl;
+    m_printer.print(periodic_dependencies); cout << endl;
 
-    cout << "Bounded dataflow dependencies:" << endl;
-    m_printer.print( dataflow_dependencies
-                     .in_domain(dataflow_domains)
-                     .in_range(dataflow_domains) );
+    cout << "Bounded periodic dependencies:" << endl;
+    m_printer.print( periodic_dependencies
+                     .in_domain(periodic_domains)
+                     .in_range(periodic_domains) );
     cout << endl;
 }
 
@@ -832,6 +610,7 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     map sink_sched = schedule.map_for(sink_sched_space);
 
     statement *source_stmt = statement_for(src_space.id(isl::space::variable));
+    const dataflow::actor & source_actor = m_dataflow->actor_for(source_stmt);
 
     // Do the work
 
@@ -858,7 +637,7 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     //m_printer.print(combined); cout << endl;
 
     int dim_count = src_space.dimension(isl::space::variable);
-    int dim = source_stmt->dimension + 1;
+    int dim = source_actor.flow_dimension + 1;
     assert(dim >= 0);
 
     isl::local_space opt_space(combined.get_space());
@@ -867,8 +646,8 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     auto y0 = expression::variable(opt_space, isl::space::variable, dim_count);
     auto y1 = expression::variable(opt_space, isl::space::variable, dim_count+dim);
     auto cost =
-            (x0 * source_stmt->steady_count + x1) -
-            (y0 * source_stmt->steady_count + y1);
+            (x0 * source_actor.steady_count + x1) -
+            (y0 * source_actor.steady_count + y1);
 
     auto maximum = combined.maximum(cost);
 
@@ -881,41 +660,6 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     int buf_size = maximum.numerator() + 1;
     if (source_stmt->buffer_size < buf_size)
         source_stmt->buffer_size = buf_size;
-}
-
-template<typename T>
-void ast_generator::find_nodes( expression * expr, vector<T*> & container )
-{
-    if (auto node = dynamic_cast<T*>(expr))
-    {
-        container.push_back(node);
-    }
-
-    if (auto operation = dynamic_cast<intrinsic*>(expr))
-    {
-        for (auto sub_expr : operation->operands)
-            find_nodes<T>(sub_expr, container);
-        return;
-    }
-}
-
-vector<int> ast_generator::infinite_dimensions( statement *stmt )
-{
-    vector<int> infinite_dimensions;
-
-    for (int dim = 0; dim < stmt->domain.size(); ++dim)
-        if (stmt->domain[dim] == infinite)
-            infinite_dimensions.push_back(dim);
-
-    return std::move(infinite_dimensions);
-}
-
-int ast_generator::first_infinite_dimension( statement *stmt )
-{
-    for (int dim = 0; dim < stmt->domain.size(); ++dim)
-        if (stmt->domain[dim] == infinite)
-            return dim;
-    return -1;
 }
 
 }

@@ -13,11 +13,11 @@ llvm_from_model::llvm_from_model
 (llvm::Module *module,
  int input_count,
  const vector<statement*> & statements,
- const vector<dataflow_dependency> & dependencies):
+ const dataflow::model *dataflow):
     m_module(module),
     m_builder(module->getContext()),
     m_statements(statements),
-    m_dependencies(dependencies)
+    m_dataflow(dataflow)
 {
     type_type i8_ptr_type = llvm::Type::getInt8PtrTy(llvm_context());
     type_type i8_ptr_ptr_type = llvm::PointerType::get(i8_ptr_type, 0);
@@ -155,6 +155,7 @@ llvm_from_model::generate_buffer_access
 {
     // Get basic info about accessed statement
 
+    const dataflow::actor & actor = m_dataflow->actor_for(stmt);
     value_type stmt_index = value( (int32_t) statement_index(stmt) );
 
     int finite_slice_size = flat_buffer_size(stmt, 1);
@@ -163,8 +164,8 @@ llvm_from_model::generate_buffer_access
 
     vector<value_type> the_index(index);
     vector<int> the_domain = stmt->domain;
-    transpose(the_index, stmt->dimension);
-    transpose(the_domain, stmt->dimension);
+    transpose(the_index, actor.flow_dimension);
+    transpose(the_domain, actor.flow_dimension);
     value_type flat_index = this->flat_index(the_index, the_domain);
 
     // Get buffer state
@@ -179,11 +180,11 @@ llvm_from_model::generate_buffer_access
         buffer = m_builder.CreateBitCast(buffer, real_buffer_type);
     }
 
-    int steady_buf_size = flat_buffer_size(stmt, stmt->steady_count);
-    int init_buf_size = flat_buffer_size(stmt, stmt->init_count);
+    int steady_buf_size = flat_buffer_size(stmt, actor.steady_count);
+    int init_buf_size = flat_buffer_size(stmt, actor.init_count);
 
     bool use_phase =
-            stmt->steady_count > 1 &&
+            actor.steady_count > 1 &&
             (steady_buf_size % stmt->buffer_size != 0);
     use_phase = use_phase | init_buf_size % stmt->buffer_size != 0;
 
@@ -229,14 +230,15 @@ llvm_from_model::value_type
 llvm_from_model::generate_input_access
 ( statement *stmt, const vector<value_type> & index )
 {
+    const dataflow::actor & actor = m_dataflow->actor_for(stmt);
     int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
 
     // Compute flat access index
 
     vector<value_type> the_index(index);
     vector<int> the_domain = stmt->domain;
-    transpose(the_index, stmt->dimension);
-    transpose(the_domain, stmt->dimension);
+    transpose(the_index, actor.flow_dimension);
+    transpose(the_domain, actor.flow_dimension);
     value_type flat_index = this->flat_index(the_index, the_domain);
 
     // Access
@@ -324,7 +326,7 @@ void llvm_from_model::advance_buffers()
     int buf_idx = 0;
     for (statement * stmt : m_statements)
     {
-        int offset = flat_buffer_size(stmt, stmt->steady_count);
+        int offset = flat_buffer_size(stmt, m_dataflow->actor_for(stmt).steady_count);
 
         if (offset == 0 || offset == stmt->buffer_size || offset % stmt->buffer_size == 0)
             continue;

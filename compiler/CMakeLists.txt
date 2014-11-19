@@ -15,6 +15,7 @@ add_library(streamc-lib ${lib_mode}
   #../frontend/ir-generator.cpp
   ../polyhedral/model.cpp
   ../polyhedral/translator.cpp
+  ../polyhedral/dataflow_model.cpp
   ../polyhedral/printer.cpp
   ../polyhedral/ast_generator.cpp
   #../polyhedral/llvm_ir_generator.cpp
