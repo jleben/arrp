@@ -67,54 +67,45 @@ model::model( const vector<statement*> & statements )
 
 void model::compute_channels( actor & sink )
 {
-    vector<stream_access*> accesses;
+    cout << "Channels for: " << sink.stmt << "..." << endl;
 
+    vector<stream_access*> accesses;
     sink.stmt->expr->find<stream_access>(accesses);
     if (accesses.empty())
         return;
 
     for(stream_access *access : accesses)
     {
-        actor & source = m_actors.at(access->target);
-
-        int source_flow_dim = -1;
-        for (int out_dim = 0;
-             out_dim < access->pattern.output_dimension();
-             ++out_dim)
+        auto source_ref = m_actors.find(access->target);
+        if (source_ref == m_actors.end())
         {
-            if (access->pattern.coefficients(out_dim, sink.flow_dimension) != 0)
-            {
-                source_flow_dim = out_dim;
-                break;
-            }
+            cout << "-- " << access->target
+                 << ": Non-actor access; not making a channel." << endl;
+            continue;
         }
 
-        if (source_flow_dim < 0)
-            throw std::runtime_error("Sink flow dimension does not map"
-                                     " to any source dimension.");
-        if (source_flow_dim != source.flow_dimension)
-            throw std::runtime_error("Sink flow dimension does not map"
-                                     " to source flow dimension.");
+        actor & source = source_ref->second;
 
-        int flow_pop = access->pattern.coefficients(source_flow_dim, sink.flow_dimension);
+        int pop_rate = access->pattern.coefficients(source.flow_dimension, sink.flow_dimension);
+        assert(pop_rate != 0);
 
         vector<int> sink_index = sink.stmt->domain;
         sink_index[sink.flow_dimension] = 0;
         vector<int> source_index = access->pattern * sink_index;
-        int flow_peek = std::max(1, source_index[source_flow_dim]);
+        int peek_rate = std::max(1, source_index[source.flow_dimension]);
 
         channel ch;
         ch.source = &source;
         ch.sink = &sink;
         ch.push = 1;
-        ch.peek = flow_peek;
-        ch.pop = flow_pop;
+        ch.peek = peek_rate;
+        ch.pop = pop_rate;
 
         m_channels.push_back(ch);
 
-        cout << endl << "Channel:" << endl;
-        cout << ch.source << "@" << source.flow_dimension << " " << ch.push << " -> "
-             << ch.peek << "/" << ch.pop << " " << ch.sink << "@" << sink.flow_dimension
+        cout << "-- " << ch.source->stmt << ": "
+             << ch.push << " -> "
+             << ch.peek << "/" << ch.pop
              << endl;
     }
 }
@@ -156,8 +147,6 @@ void model::compute_schedule()
         auto sink_loc = involved_actors.find(chan.sink);
         int sink_index = std::distance(involved_actors.begin(), sink_loc);
 
-        cout << "source: " << chan.source->stmt->name << "@" << source_index << endl;
-        cout << "sink: " << chan.sink->stmt->name << "@" << sink_index << endl;
         flow_matrix(row, source_index) = chan.push;
         flow_matrix(row, sink_index) = - chan.pop;
         ++row;
