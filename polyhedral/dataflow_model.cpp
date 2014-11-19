@@ -123,6 +123,9 @@ void model::compute_schedule()
 {
     //using namespace isl;
 
+    if (m_actors.empty())
+        return;
+
     isl::context isl_ctx;
     isl::printer isl_printer(isl_ctx);
 
