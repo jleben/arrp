@@ -1,8 +1,5 @@
 #include "ast_generator.hpp"
 
-#include <osl/osl.h>
-#include <pluto/libpluto.h>
-
 #include <cloog/cloog.h>
 #include <cloog/isl/cloog.h>
 
@@ -544,6 +541,9 @@ void ast_generator::compute_dataflow_counts
     isl::print(steady_counts);
 
     // Initialization counts:
+
+    // Number of tokens produced should be at least number of tokens consumed
+    // after the initial epoch + one steady period.
 
     isl::space statement_space(m_ctx, isl::set_tuple(involved_stmts.size()));
     auto init_counts = isl::set::universe(statement_space);
