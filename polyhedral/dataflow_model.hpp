@@ -35,6 +35,14 @@ class model
 public:
     model( const vector<statement*> & );
 
+    const dataflow::actor * find_actor_for( statement * stmt ) const
+    {
+        auto ref = m_actors.find(stmt);
+        if (ref != m_actors.end())
+            return &ref->second;
+        else
+            return nullptr;
+    }
     const dataflow::actor & actor_for( statement * stmt ) const
     {
         return m_actors.at(stmt);

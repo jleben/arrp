@@ -397,7 +397,10 @@ void ast_generator::periodic_model
     {
         isl::identifier id = d.id();
         statement *stmt = statement_for(id);
-        const dataflow::actor & actor = m_dataflow->actor_for(stmt);
+        auto actor_ptr = m_dataflow->find_actor_for(stmt);
+        if (!actor_ptr)
+            return true;
+        const dataflow::actor & actor = *actor_ptr;
 
         int inf_dim = actor.flow_dimension;
         assert(inf_dim >= 0);
