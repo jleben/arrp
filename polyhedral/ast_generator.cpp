@@ -50,6 +50,19 @@ ast_generator::generate()
     isl::union_map dependencies(m_ctx);
     polyhedral_model(domains, dependencies);
 
+    auto init_schedule = make_init_schedule(domains, dependencies);
+    auto steady_schedule = make_steady_schedule(domains, dependencies);
+    auto combined_schedule =
+            combine_schedule(init_schedule.in_domain(domains),
+                             steady_schedule.in_domain(domains));
+
+    // TODO:
+    // - Make a combined init + steady schedule
+    // - Compute buffer sizes on combined schedule
+    // - Generate AST and LLVM function for each schedule separately
+
+    return nullptr;
+#if 0
     isl::union_set periodic_domains(m_ctx);
     isl::union_map periodic_dependencies(m_ctx);
     periodic_model(domains, dependencies,
@@ -91,8 +104,9 @@ ast_generator::generate()
     cout << endl << "Steady schedule:" << endl;
     m_printer.print(steady_period_schedule);
     cout << endl;
+#endif
 
-#if 1
+#if 0
     struct clast_stmt *ast;
     {
         CloogState *state = cloog_state_malloc();
@@ -120,7 +134,7 @@ ast_generator::generate()
     }
 #endif
 
-#if 1
+#if 0
     compute_buffer_sizes(steady_period_schedule, periodic_dependencies);
 
     // Convert buffer size to flat buffer size
@@ -147,7 +161,8 @@ ast_generator::generate()
         cout << stmt->name << ": buffer size = " << flat_buf_size << endl;
     }
 #endif
-    return ast;
+
+    //return ast;
 }
 
 void ast_generator::store_statements( const vector<statement*> & statements )
@@ -543,6 +558,159 @@ isl::union_map ast_generator::make_schedule
 
     return corrected_schedule;
 #endif
+}
+
+isl::union_map
+ast_generator::make_init_schedule(isl::union_set & domains,
+                                  isl::union_map & dependencies)
+{
+    cout << endl << "Init domains:" << endl;
+    isl::union_set init_domains(m_ctx);
+    domains.for_each( [&](isl::set & domain)
+    {
+        isl::identifier id = domain.id();
+        statement *stmt = statement_for(id);
+        auto actor_ptr = m_dataflow->find_actor_for(stmt);
+        if (actor_ptr)
+        {
+            const dataflow::actor & actor = *actor_ptr;
+            if (!actor.init_count) return true;
+            auto v = domain.get_space()(isl::space::variable, actor.flow_dimension);
+            domain.add_constraint(v >= 0);
+            domain.add_constraint(v < actor.init_count);
+        };
+        init_domains = init_domains | domain;
+        m_printer.print(domain); cout << endl;
+        return true;
+    });
+
+    isl::union_map init_schedule = make_schedule(init_domains, dependencies);
+
+    cout << endl << "Init schedule:" << endl;
+    m_printer.print(init_schedule.in_domain(init_domains));
+    cout << endl;
+
+    return init_schedule;
+}
+
+isl::union_map
+ast_generator::make_steady_schedule(isl::union_set & domains,
+                                    isl::union_map & dependencies)
+{
+    cout << endl << "Steady domains:" << endl;
+    isl::union_set steady_domains(m_ctx);
+    domains.for_each( [&](isl::set & domain)
+    {
+        isl::identifier id = domain.id();
+        statement *stmt = statement_for(id);
+        auto actor_ptr = m_dataflow->find_actor_for(stmt);
+        if (actor_ptr)
+        {
+            const dataflow::actor & actor = *actor_ptr;
+            auto v = domain.get_space()(isl::space::variable, actor.flow_dimension);
+            domain.add_constraint(v >= actor.init_count);
+            domain.add_constraint(v < (actor.init_count + actor.steady_count));
+            steady_domains = steady_domains | domain;
+            m_printer.print(domain); cout << endl;
+        }
+        return true;
+    });
+
+    isl::union_map steady_schedule = make_schedule(steady_domains, dependencies);
+
+    cout << endl << "Steady schedule:" << endl;
+    m_printer.print(steady_schedule.in_domain(steady_domains));
+    cout << endl;
+
+    return steady_schedule;
+}
+
+isl::union_map
+ast_generator::combine_schedule(const isl::union_map & init_schedule,
+                                const isl::union_map & steady_schedule)
+{
+    // schedule must have applied general iteration domains
+
+    cout << endl << "Combined schedule:" << endl;
+
+    isl::union_map combined_schedule(m_ctx);
+
+    init_schedule.for_each( [&]( isl::map & m )
+    {
+        m.insert_dimensions(isl::space::output, 0, 1);
+
+        isl::local_space constraint_space(m.get_space());
+
+        isl::identifier id = m.id(isl::space::input);
+        statement *stmt = statement_for(id);
+        auto actor_ptr = m_dataflow->find_actor_for(stmt);
+        if (actor_ptr)
+        {
+            const dataflow::actor & actor = *actor_ptr;
+            assert(actor.init_count > 0);
+
+            {
+                // domain[flow] >= 0
+                auto cnstr = isl::constraint::inequality(constraint_space);
+                cnstr.set_coefficient(isl::space::input, actor.flow_dimension, 1);
+                m.add_constraint(cnstr);
+            }
+            {
+                // domain[flow] < init_count;
+                auto cnstr = isl::constraint::inequality(constraint_space);
+                cnstr.set_constant(actor.init_count-1);
+                cnstr.set_coefficient(isl::space::input, actor.flow_dimension, -1);
+                m.add_constraint(cnstr);
+            }
+        }
+        {
+            // range[0] = 0
+            auto cnstr = isl::constraint::equality(isl::local_space(m.get_space()));
+            cnstr.set_coefficient(isl::space::output, 0, 1);
+            m.add_constraint(cnstr);
+        }
+
+        combined_schedule = combined_schedule | m;
+
+        m_printer.print(m); cout << endl;
+
+        return true;
+    });
+
+    cout << "--" << endl;
+
+    steady_schedule.for_each( [&]( isl::map & m )
+    {
+        m.insert_dimensions(isl::space::output, 0, 1);
+
+        isl::local_space constraint_space(m.get_space());
+
+        isl::identifier id = m.id(isl::space::input);
+        statement *stmt = statement_for(id);
+        const dataflow::actor & actor = m_dataflow->actor_for(stmt);
+
+        {
+            // domain[actor.flow_dimension] >= actor.init_count
+            auto cnstr = isl::constraint::inequality(constraint_space);
+            cnstr.set_coefficient(isl::space::input, actor.flow_dimension, 1);
+            cnstr.set_constant(-actor.init_count);
+            m.add_constraint(cnstr);
+        }
+        {
+            // range[0] = 1
+            auto cnstr = isl::constraint::equality(constraint_space);
+            cnstr.set_coefficient(isl::space::output, 0, 1);
+            cnstr.set_constant(-1);
+            m.add_constraint(cnstr);
+        }
+
+        combined_schedule = combined_schedule | m;
+        m_printer.print(m); cout << endl;
+
+        return true;
+    });
+
+    return combined_schedule;
 }
 
 isl::union_map ast_generator::entire_steady_schedule

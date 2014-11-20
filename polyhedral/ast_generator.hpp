@@ -88,6 +88,15 @@ private:
     isl::union_map make_schedule(isl::union_set & domains,
                                  isl::union_map & dependencies);
 
+    isl::union_map make_init_schedule(isl::union_set & domains,
+                                      isl::union_map & dependencies);
+
+    isl::union_map make_steady_schedule(isl::union_set & domains,
+                                        isl::union_map & dependencies);
+
+    isl::union_map combine_schedule(const isl::union_map & init_schedule,
+                                    const isl::union_map & steady_schedule);
+
     isl::union_map entire_steady_schedule( const isl::union_map &
                                            period_schedule );
 

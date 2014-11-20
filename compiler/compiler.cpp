@@ -405,6 +405,11 @@ int main(int argc, char *argv[])
                 polyhedral::ast_generator poly_ast_gen( poly.statements(),
                                                         &dataflow_model );
                 auto ast = poly_ast_gen.generate();
+                if (!ast)
+                {
+                    cout << "No AST generated. Aborting." << endl;
+                    return result::generator_error;
+                }
 
                 polyhedral::llvm_from_model llvm_from_model
                         (module,
