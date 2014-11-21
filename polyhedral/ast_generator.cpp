@@ -50,18 +50,23 @@ ast_generator::generate()
     isl::union_map dependencies(m_ctx);
     polyhedral_model(domains, dependencies);
 
+    isl::union_set periodic_domains(m_ctx);
+    isl::union_map periodic_dependencies(m_ctx);
+    periodic_model(domains, dependencies,
+                   periodic_domains, periodic_dependencies);
+#if 0
     auto init_schedule = make_init_schedule(domains, dependencies);
     auto steady_schedule = make_steady_schedule(domains, dependencies);
     auto combined_schedule =
             combine_schedule(init_schedule.in_domain(domains),
                              steady_schedule.in_domain(domains));
+#endif
 
     // TODO:
     // - Make a combined init + steady schedule
     // - Compute buffer sizes on combined schedule
     // - Generate AST and LLVM function for each schedule separately
 
-    return nullptr;
 #if 0
     isl::union_set periodic_domains(m_ctx);
     isl::union_map periodic_dependencies(m_ctx);
@@ -162,6 +167,7 @@ ast_generator::generate()
     }
 #endif
 
+    return nullptr;
     //return ast;
 }
 
@@ -408,74 +414,105 @@ void ast_generator::periodic_model
 {
     isl::union_map domain_maps(m_ctx);
 
-    domains.for_each( [&](const isl::set & d)
+    domains.for_each( [&](const isl::set & domain)
     {
-        isl::identifier id = d.id();
+        isl::identifier id = domain.id();
+        auto in_space = domain.get_space();
+        auto out_space = in_space;
+        out_space.insert_dimensions(isl::space::variable,0);
+        out_space.set_id(isl::space::variable, id);
+        auto map_space = isl::space::from(in_space, out_space);
+        auto constraint_space = isl::local_space(map_space);
+        int in_dims = domain.dimensions();
+
         statement *stmt = statement_for(id);
         auto actor_ptr = m_dataflow->find_actor_for(stmt);
-        if (!actor_ptr)
-            return true;
-        const dataflow::actor & actor = *actor_ptr;
-
-        int inf_dim = actor.flow_dimension;
-        assert(inf_dim >= 0);
-
-        auto d_space = d.get_space();
-
-        // Output domain space
-
-        auto dd_space = d_space;
-        dd_space.insert_dimensions(isl::space::variable,0);
-        dd_space.set_id(isl::space::variable, id);
-
-        // Compute input->output mapping
-
-        int d_dims = d.dimensions();
-        int dd_dims = d_dims + 1;
-        int column_count = d_dims + dd_dims + 1;
-
-        isl::matrix eq_mtx(m_ctx, d_dims, column_count, 0 );
-
-        // Compute relation between period and intra-period (iteration) domains
-        // in = (out_period * steady) + out + init
-        eq_mtx(inf_dim, inf_dim) = -1; // input iteration
-        eq_mtx(inf_dim, d_dims) = actor.steady_count; // output period
-        eq_mtx(inf_dim, d_dims + inf_dim + 1) = 1; // output iteration
-        eq_mtx(inf_dim, d_dims + dd_dims) = actor.init_count; // constant
-
-        // Make all other dimensions equal
-        for (int dim = 0; dim < d_dims; ++dim)
+        if (actor_ptr)
         {
-            if (dim == inf_dim)
-                continue;
-            eq_mtx(dim, dim) = -1;
-            eq_mtx(dim, d_dims + dim + 1) = 1;
+            const dataflow::actor & actor = *actor_ptr;
+
+            // init part
+
+            isl::basic_map init_map = isl::basic_map::universe(map_space);
+
+            for (int in_dim = 0; in_dim < in_dims; ++in_dim)
+            {
+                auto in_var = constraint_space(isl::space::input, in_dim);
+                auto out_var = constraint_space(isl::space::output, in_dim+1);
+                init_map.add_constraint(out_var == in_var);
+            }
+
+            {
+                auto out_flow_var = constraint_space(isl::space::output, actor.flow_dimension+1);
+                init_map.add_constraint(out_flow_var >= 0);
+                init_map.add_constraint(out_flow_var < actor.init_count);
+            }
+            {
+                auto out0_var = constraint_space(isl::space::output, 0);
+                init_map.add_constraint(out0_var == -1);
+            }
+
+            domain_maps = domain_maps | init_map;
+
+            // steady part
+
+            isl::basic_map steady_map = isl::basic_map::universe(map_space);
+
+            for (int in_dim = 0; in_dim < in_dims; ++in_dim)
+            {
+                auto in_var = constraint_space(isl::space::input, in_dim);
+                auto out_var = constraint_space(isl::space::output, in_dim+1);
+
+                if (in_dim == actor.flow_dimension)
+                {
+                    // in[flow] = (out[0] * steady) + out[flow] + init
+                    auto out0_var = constraint_space(isl::space::output, 0);
+                    auto constraint = in_var == out0_var * actor.steady_count
+                            + out_var + actor.init_count;
+                    steady_map.add_constraint(constraint);
+                }
+                else
+                {
+                    steady_map.add_constraint(out_var == in_var);
+                }
+            }
+
+            {
+                auto out_flow_var = constraint_space(isl::space::output, actor.flow_dimension+1);
+                steady_map.add_constraint(out_flow_var >= 0);
+                steady_map.add_constraint(out_flow_var < actor.steady_count);
+            }
+            {
+                auto out0_var = constraint_space(isl::space::output, 0);
+                steady_map.add_constraint(out0_var >= 0);
+            }
+
+            domain_maps = domain_maps | steady_map;
         }
-
-        // No inequalities
-        isl::matrix ineq_mtx(m_ctx, 0, column_count);
-
-        isl::map map = isl::basic_map(isl::space::from(d_space, dd_space), eq_mtx, ineq_mtx );
-
-        // Output domain is a mapping of input domain
-        // plus an additional constraint.
-
-        auto dd = map(d);
+        else
         {
-            auto v = dd_space(isl::space::variable, inf_dim + 1);
-            dd.add_constraint(v >= 0);
-            dd.add_constraint(v < actor.steady_count);
+            isl::basic_map init_map = isl::basic_map::universe(map_space);
+
+            for (int in_dim = 0; in_dim < in_dims; ++in_dim)
+            {
+                auto in_var = constraint_space(isl::space::input, in_dim);
+                auto out_var = constraint_space(isl::space::output, in_dim+1);
+                init_map.add_constraint(out_var == in_var);
+            }
+            {
+                auto out0_var = constraint_space(isl::space::output, 0);
+                init_map.add_constraint(out0_var == -1);
+            }
+
+            domain_maps = domain_maps | init_map;
         }
-
-        // Store results
-
-        periodic_domains = periodic_domains | dd;
-        domain_maps = domain_maps | map;
 
         return true;
     });
 
     cout << endl;
+
+    periodic_domains = domain_maps(domains);
 
     cout << "Periodic domains:" << endl;
     m_printer.print(periodic_domains); cout << endl;
@@ -587,7 +624,8 @@ ast_generator::make_init_schedule(isl::union_set & domains,
     isl::union_map init_schedule = make_schedule(init_domains, dependencies);
 
     cout << endl << "Init schedule:" << endl;
-    m_printer.print(init_schedule.in_domain(init_domains));
+    //m_printer.print(init_schedule.in_domain(init_domains));
+    m_printer.print(init_schedule);
     cout << endl;
 
     return init_schedule;
@@ -619,7 +657,8 @@ ast_generator::make_steady_schedule(isl::union_set & domains,
     isl::union_map steady_schedule = make_schedule(steady_domains, dependencies);
 
     cout << endl << "Steady schedule:" << endl;
-    m_printer.print(steady_schedule.in_domain(steady_domains));
+    //m_printer.print(steady_schedule.in_domain(steady_domains));
+    m_printer.print(steady_schedule);
     cout << endl;
 
     return steady_schedule;
@@ -664,7 +703,7 @@ ast_generator::combine_schedule(const isl::union_map & init_schedule,
             }
         }
         {
-            // range[0] = 0
+            // range[0] = -1
             auto cnstr = isl::constraint::equality(isl::local_space(m.get_space()));
             cnstr.set_coefficient(isl::space::output, 0, 1);
             m.add_constraint(cnstr);
@@ -697,7 +736,8 @@ ast_generator::combine_schedule(const isl::union_map & init_schedule,
             m.add_constraint(cnstr);
         }
         {
-            // range[0] = 1
+            // range[0] = floor( domain[flow] - init_count / steady_count )
+            // range[0] = floor( domain[flow] / steady_count - init_count / steady_count )
             auto cnstr = isl::constraint::equality(constraint_space);
             cnstr.set_coefficient(isl::space::output, 0, 1);
             cnstr.set_constant(-1);
