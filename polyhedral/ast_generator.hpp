@@ -80,8 +80,10 @@ private:
 
     void periodic_model( const isl::union_set & domains,
                          const isl::union_map & dependencies,
-                         isl::union_set & result_domains,
-                         isl::union_map & result_dependencies);
+                         isl::union_map & domain_map,
+                         isl::union_set & init_domains,
+                         isl::union_set & steady_domains,
+                         isl::union_map & periodic_dependencies );
 
     // Scheduling
 
@@ -94,18 +96,19 @@ private:
     isl::union_map make_steady_schedule(isl::union_set & domains,
                                         isl::union_map & dependencies);
 
-    isl::union_map combine_schedule(const isl::union_map & init_schedule,
-                                    const isl::union_map & steady_schedule);
-
-    isl::union_map entire_steady_schedule( const isl::union_map &
-                                           period_schedule );
+    isl::union_map combine_schedule(const isl::union_set & init_domains,
+                                    const isl::union_set & steady_domains,
+                                    const isl::union_map & init_schedule,
+                                    const isl::union_map & period_schedule);
 
     // Buffer size computation
 
     void compute_buffer_sizes( const isl::union_map & schedule,
-                               const isl::union_map & dependencies );
+                               const isl::union_map & dependencies,
+                               const isl::union_map & domain_maps );
 
     void compute_buffer_size( const isl::union_map & schedule,
+                              const isl::union_map & domain_unmap,
                               const isl::map & dependence,
                               const isl::space & time_space );
 
