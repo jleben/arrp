@@ -67,6 +67,28 @@ ast_generator::generate()
 
     compute_buffer_sizes(combined_schedule, periodic_dependencies, domain_map);
 
+    cout << endl << "Buffer sizes:" << endl;
+    for (statement *stmt : m_statements)
+    {
+        if (stmt->buffer.empty())
+        {
+            const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
+            for (int dim = 0; dim < stmt->domain.size(); ++dim)
+            {
+                if (actor && dim == actor->flow_dimension)
+                    stmt->buffer.push_back(std::max(actor->init_count, actor->steady_count));
+                else
+                    stmt->buffer.push_back(stmt->domain[dim]);
+                assert(stmt->buffer.back() >= 0);
+            }
+        }
+
+        cout << stmt->name << ": ";
+        for (auto b : stmt->buffer)
+            cout << b << " ";
+        cout << endl;
+    }
+
 #if 0
     struct clast_stmt *ast;
     {
@@ -92,34 +114,6 @@ ast_generator::generate()
 
         cout << endl << "--- Cloog AST:" << endl;
         clast_pprint(stdout, ast, 0, options);
-    }
-#endif
-
-#if 0
-    compute_buffer_sizes(steady_period_schedule, periodic_dependencies);
-
-    // Convert buffer size to flat buffer size
-
-    cout << endl << "Buffer sizes:" << endl;
-    for (statement *stmt : m_statements)
-    {
-        const dataflow::actor & actor = m_dataflow->actor_for(stmt);
-
-        int flow_dim_size = stmt->buffer_size ? stmt->buffer_size : actor.steady_count;
-
-        int flat_buf_size = 0;
-        for (int d = 0; d < stmt->domain.size(); ++d)
-        {
-            int size = (d == actor.flow_dimension) ? flow_dim_size : stmt->domain[d];
-            if (d == 0)
-                flat_buf_size = size;
-            else
-                flat_buf_size *= size;
-        }
-
-        stmt->buffer_size = flat_buf_size;
-
-        cout << stmt->name << ": buffer size = " << flat_buf_size << endl;
     }
 #endif
 
@@ -659,8 +653,6 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
 {
     using namespace isl;
 
-    cout << endl;
-
     isl::space *time_space = nullptr;
 
     isl::union_map domain_unmap = domain_maps.inverse();
@@ -676,20 +668,21 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
         compute_buffer_size(schedule, domain_unmap, dependency, *time_space);
         return true;
     });
-    cout << endl;
 
     delete time_space;
 }
 
-#define DEBUG_BUFFER_SIZE 1
+#define DEBUG_BUFFER_SIZE 0
 
 void ast_generator::compute_buffer_size( const isl::union_map & schedule,
                                          const isl::union_map & domain_unmap,
                                          const isl::map & dependency,
                                          const isl::space & time_space )
 {
+#if DEBUG_BUFFER_SIZE == 1
     cout << "Buffer size for dependency: ";
     m_printer.print(dependency); cout << endl;
+#endif
 
     using namespace isl;
     using isl::expression;
@@ -703,7 +696,9 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     auto source_actor_ptr = m_dataflow->find_actor_for(source_stmt);
     if (!source_actor_ptr)
     {
+#if DEBUG_BUFFER_SIZE == 1
         cout << ".. Source not an actor; skipping." << endl;
+#endif
         return;
     }
 
@@ -730,12 +725,12 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     // Do the work
 
     map not_later = order_greater_than_or_equal(time_space);
-    map not_earlier = order_less_than_or_equal(time_space);
+    map later = order_less_than(time_space);
 
     map src_not_later = src_sched.inverse()( not_later );
-    map sink_not_earlier = sink_sched.inverse()( not_earlier );
-    map src_consumed_not_earlier =
-            dependency.inverse()( sink_not_earlier ).in_range(src_sched.domain());
+    map sink_later = sink_sched.inverse()( later );
+    map src_consumed_later =
+            dependency.inverse()( sink_later ).in_range(src_sched.domain());
 
 #if DEBUG_BUFFER_SIZE == 1
     cout << ".. produced:" << endl;
@@ -744,37 +739,50 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     cout << ".. consumed:" << endl;
     m_printer.print(src_consumed_not_earlier); cout << endl;
 #endif
-    auto reuse =
-            (src_unmap(src_not_later) *
-             src_unmap(src_consumed_not_earlier))
-            .range();
+
+    auto buffered = src_unmap(src_not_later) & src_unmap(src_consumed_later);
+
+    vector<long> buffer_size;
+
+    {
+        auto buffered_reflection = (buffered * buffered).wrapped();
 
 #if DEBUG_BUFFER_SIZE == 1
-    cout << ".. reuse:" << endl;
-    m_printer.print(reuse); cout << endl;
+        cout << ".. buffer reflection: " << endl;
+        m_printer.print(buffered_reflection); cout << endl;
 #endif
 
+        isl::local_space space(buffered_reflection.get_space());
+        int buf_dim_count = source_stmt->domain.size();
+        int time_dim_count = time_space.dimension(isl::space::variable);
+        buffer_size.reserve(buf_dim_count);
+#if DEBUG_BUFFER_SIZE == 1
+        cout << ".. Max reuse distance:" << endl;
+#endif
+        for (int dim = 0; dim < buf_dim_count; ++dim)
+        {
+            auto a = space(isl::space::variable, time_dim_count + dim);
+            auto b = space(isl::space::variable, time_dim_count + buf_dim_count + dim);
+            auto distance = b - a;
+            auto max_distance = buffered_reflection.maximum(distance).integer();
+#if DEBUG_BUFFER_SIZE == 1
+            cout << max_distance << " ";
+#endif
+            buffer_size.push_back(max_distance + 1);
+        }
+#if DEBUG_BUFFER_SIZE == 1
+        cout << endl;
+#endif
+    }
 
-    isl::local_space opt_space(reuse.get_space());
-    int dim = source_actor.flow_dimension;
-    assert(dim >= 0);
-
-    auto x = expression::variable(opt_space, isl::space::variable, dim);
-    auto y = expression::variable(opt_space, isl::space::variable,
-                                  source_stmt->domain.size()+dim);
-    auto cost = x - y;
-
-    auto maximum = reuse.maximum(cost);
-
-    cout << ".. Max delay = "; m_printer.print(maximum); cout << endl;
-
-    // Store result
-
-    assert(maximum.denominator() == 1);
-    // "maximum" is index difference, so add 1
-    int buf_size = maximum.numerator() + 1;
-    if (source_stmt->buffer_size < buf_size)
-        source_stmt->buffer_size = buf_size;
+    auto & max_buffer_size = source_stmt->buffer;
+    for (unsigned int dim = 0; dim < source_stmt->domain.size(); ++dim)
+    {
+        if (dim >= max_buffer_size.size())
+            max_buffer_size.push_back(buffer_size[dim]);
+        else if (buffer_size[dim] > max_buffer_size[dim])
+            max_buffer_size[dim] = buffer_size[dim];
+    }
 }
 
 }

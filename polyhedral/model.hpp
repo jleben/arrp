@@ -157,7 +157,7 @@ public:
     statement(): expr(nullptr) {}
     string name;
     vector<int> domain;
-    int buffer_size = 0;
+    vector<int> buffer;
     expression * expr;
 
     vector<int> infinite_dimensions()
