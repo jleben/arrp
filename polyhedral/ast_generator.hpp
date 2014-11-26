@@ -112,6 +112,10 @@ private:
                               const isl::map & dependence,
                               const isl::space & time_space );
 
+    // AST generation
+
+    struct clast_stmt *make_ast( const isl::union_map & schedule );
+
     isl::context m_ctx;
     isl::printer m_printer;
 

@@ -58,8 +58,17 @@ ast_generator::generate()
                    domain_map, init_domains, steady_domains,
                    periodic_dependencies);
 
+    isl::union_set period_domains(m_ctx);
+    steady_domains.for_each( [&](isl::set & domain)
+    {
+        auto period = domain.get_space()(isl::space::variable, 0);
+        domain.add_constraint(period == 0);
+        period_domains = period_domains | domain;
+        return true;
+    });
+
     auto init_schedule = make_init_schedule(init_domains, periodic_dependencies);
-    auto period_schedule = make_steady_schedule(steady_domains, periodic_dependencies);
+    auto period_schedule = make_steady_schedule(period_domains, periodic_dependencies);
 
     auto combined_schedule =
             combine_schedule(init_domains, steady_domains,
@@ -67,58 +76,14 @@ ast_generator::generate()
 
     compute_buffer_sizes(combined_schedule, periodic_dependencies, domain_map);
 
-    cout << endl << "Buffer sizes:" << endl;
-    for (statement *stmt : m_statements)
-    {
-        if (stmt->buffer.empty())
-        {
-            const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
-            for (int dim = 0; dim < stmt->domain.size(); ++dim)
-            {
-                if (actor && dim == actor->flow_dimension)
-                    stmt->buffer.push_back(std::max(actor->init_count, actor->steady_count));
-                else
-                    stmt->buffer.push_back(stmt->domain[dim]);
-                assert(stmt->buffer.back() >= 0);
-            }
-        }
+#if 1
+    struct clast_stmt *period_ast
+            = make_ast( period_schedule.in_domain(period_domains) );
 
-        cout << stmt->name << ": ";
-        for (auto b : stmt->buffer)
-            cout << b << " ";
-        cout << endl;
-    }
-
-#if 0
-    struct clast_stmt *ast;
-    {
-        CloogState *state = cloog_state_malloc();
-        CloogOptions *options = cloog_options_malloc(state);
-        CloogUnionDomain *schedule =
-                cloog_union_domain_from_isl_union_map(combined_schedule.copy());
-        //CloogMatrix *dummy_matrix = cloog_matrix_alloc(0,0);
-
-        CloogDomain *context_domain =
-                cloog_domain_from_isl_set(isl_set_universe(combined_schedule.get_space().copy()));
-                //cloog_domain_from_cloog_matrix(state, dummy_matrix, 0);
-        CloogInput *input =  cloog_input_alloc(context_domain, schedule);
-
-        //cout << "--- Cloog input:" << endl;
-        //cloog_input_dump_cloog(stdout, input, options);
-        //cout << "--- End Cloog input ---" << endl;
-
-        if (!input)
-            cout << "Hmm no Cloog input..." << endl;
-
-        ast = cloog_clast_create_from_input(input, options);
-
-        cout << endl << "--- Cloog AST:" << endl;
-        clast_pprint(stdout, ast, 0, options);
-    }
+    return period_ast;
 #endif
 
     return nullptr;
-    //return ast;
 }
 
 void ast_generator::store_statements( const vector<statement*> & statements )
@@ -568,20 +533,9 @@ ast_generator::make_init_schedule(isl::union_set & domains,
 }
 
 isl::union_map
-ast_generator::make_steady_schedule(isl::union_set & domains,
+ast_generator::make_steady_schedule(isl::union_set & period_domains,
                                     isl::union_map & dependencies)
 {
-    //cout << endl << "Steady domains:" << endl;
-    isl::union_set period_domains(m_ctx);
-    domains.for_each( [&](isl::set & domain)
-    {
-        auto period = domain.get_space()(isl::space::variable, 0);
-        domain.add_constraint(period == 0);
-        period_domains = period_domains | domain;
-        //m_printer.print(domain); cout << endl;
-        return true;
-    });
-
     isl::union_map steady_schedule = make_schedule(period_domains, dependencies);
 
     cout << endl << "Steady schedule:" << endl;
@@ -665,6 +619,28 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
     });
 
     delete time_space;
+
+    cout << endl << "Buffer sizes:" << endl;
+    for (statement *stmt : m_statements)
+    {
+        if (stmt->buffer.empty())
+        {
+            const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
+            for (int dim = 0; dim < stmt->domain.size(); ++dim)
+            {
+                if (actor && dim == actor->flow_dimension)
+                    stmt->buffer.push_back(std::max(actor->init_count, actor->steady_count));
+                else
+                    stmt->buffer.push_back(stmt->domain[dim]);
+                assert(stmt->buffer.back() >= 0);
+            }
+        }
+
+        cout << stmt->name << ": ";
+        for (auto b : stmt->buffer)
+            cout << b << " ";
+        cout << endl;
+    }
 }
 
 #define DEBUG_BUFFER_SIZE 0
@@ -778,6 +754,36 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
         else if (buffer_size[dim] > max_buffer_size[dim])
             max_buffer_size[dim] = buffer_size[dim];
     }
+}
+
+struct clast_stmt *ast_generator::make_ast( const isl::union_map & isl_schedule )
+{
+    CloogState *state = cloog_state_malloc();
+    CloogOptions *options = cloog_options_malloc(state);
+    CloogUnionDomain *schedule =
+            cloog_union_domain_from_isl_union_map(
+                isl_schedule.copy());
+    //CloogMatrix *dummy_matrix = cloog_matrix_alloc(0,0);
+
+    CloogDomain *context_domain =
+            cloog_domain_from_isl_set(
+                isl_set_universe(isl_schedule.get_space().copy()));
+            //cloog_domain_from_cloog_matrix(state, dummy_matrix, 0);
+    CloogInput *input =  cloog_input_alloc(context_domain, schedule);
+
+    //cout << "--- Cloog input:" << endl;
+    //cloog_input_dump_cloog(stdout, input, options);
+    //cout << "--- End Cloog input ---" << endl;
+
+    if (!input)
+        cout << "Hmm no Cloog input..." << endl;
+
+    clast_stmt *ast = cloog_clast_create_from_input(input, options);
+
+    cout << endl << "--- Cloog AST:" << endl;
+    clast_pprint(stdout, ast, 0, options);
+
+    return ast;
 }
 
 }
