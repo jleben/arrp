@@ -575,11 +575,6 @@ ast_generator::make_steady_schedule(isl::union_set & domains,
     isl::union_set period_domains(m_ctx);
     domains.for_each( [&](isl::set & domain)
     {
-        isl::identifier id = domain.id();
-        statement *stmt = statement_for(id);
-        auto actor_ptr = m_dataflow->find_actor_for(stmt);
-        assert(actor_ptr);
-        const dataflow::actor & actor = *actor_ptr;
         auto period = domain.get_space()(isl::space::variable, 0);
         domain.add_constraint(period == 0);
         period_domains = period_domains | domain;
