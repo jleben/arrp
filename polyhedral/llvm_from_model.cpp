@@ -13,11 +13,13 @@ llvm_from_model::llvm_from_model
 (llvm::Module *module,
  int input_count,
  const vector<statement*> & statements,
- const dataflow::model *dataflow):
+ const dataflow::model *dataflow,
+ schedule_type type ):
     m_module(module),
     m_builder(module->getContext()),
     m_statements(statements),
-    m_dataflow(dataflow)
+    m_dataflow(dataflow),
+    m_schedule_type(type)
 {
     type_type i8_ptr_type = llvm::Type::getInt8PtrTy(llvm_context());
     type_type i8_ptr_ptr_type = llvm::PointerType::get(i8_ptr_type, 0);
@@ -33,9 +35,18 @@ llvm_from_model::llvm_from_model
                                     arg_types,
                                     false);
 
+    const char *func_name;
+    switch(m_schedule_type)
+    {
+    case initial_schedule:
+        func_name = "initialize"; break;
+    case periodic_schedule:
+        func_name = "process"; break;
+    }
+
     m_function = llvm::Function::Create(func_type,
                                         llvm::Function::ExternalLinkage,
-                                        "process",
+                                        func_name,
                                         m_module);
 
     auto arg = m_function->arg_begin();
@@ -48,7 +59,8 @@ llvm_from_model::llvm_from_model
     m_end_block = llvm::BasicBlock::Create(llvm_context(), "", m_function);
     m_builder.SetInsertPoint(m_end_block);
 
-    advance_buffers();
+    if (m_schedule_type == periodic_schedule)
+        advance_buffers();
 
     m_builder.CreateRetVoid();
 }
@@ -74,14 +86,14 @@ llvm_from_model::generate_statement
 
     m_builder.SetInsertPoint(block);
 
-    // Offset by initialization count
+    // Offset steady-period index by initialization count
     // TODO:
     // - How does this affect the requirements for wrapping?
-    // - Could this be avoid by rather modifying how the index is generated
+    // - Could this be avoided by rather modifying how the index is generated
     //   in the first place?
     vector<value_type> offset_index = index;
     const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
-    if (actor)
+    if (m_schedule_type == periodic_schedule && actor)
     {
         value_type &flow_index = offset_index[actor->flow_dimension];
         flow_index = m_builder.CreateAdd(flow_index,
@@ -192,9 +204,18 @@ llvm_from_model::generate_input_access
     vector<value_type> the_index(index);
     vector<int> the_domain(stmt->domain);
     const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
+
     if (actor)
     {
-        the_domain[actor->flow_dimension] = actor->steady_count;
+        switch(m_schedule_type)
+        {
+        case initial_schedule:
+            the_domain[actor->flow_dimension] = actor->init_count;
+            break;
+        case periodic_schedule:
+            the_domain[actor->flow_dimension] = actor->steady_count;
+            break;
+        }
         transpose(the_index, actor->flow_dimension);
         transpose(the_domain, actor->flow_dimension);
     }
@@ -282,6 +303,8 @@ llvm_from_model::generate_reduction_access
 
 void llvm_from_model::advance_buffers()
 {
+    assert(m_schedule_type == periodic_schedule);
+
     int buf_idx = -1;
     for (statement * stmt : m_statements)
     {
@@ -325,19 +348,22 @@ llvm_from_model::flat_buffer_index
 
     bool use_phase = false;
 
-    // Get all data
+    // Prepare info
 
     vector<value_type> the_index(index);
     vector<int> the_domain = stmt->domain;
     vector<int> the_buffer_size = stmt->buffer;
 
     if (actor)
-        the_domain[actor->flow_dimension] =
-                actor->init_count + actor->steady_count;
+    {
+        the_domain[actor->flow_dimension] = actor->init_count;
+        if (m_schedule_type == periodic_schedule)
+            the_domain[actor->flow_dimension] += actor->steady_count;
+    }
 
     // Add flow index phase
 
-    if (actor)
+    if (actor &&  m_schedule_type == periodic_schedule)
     {
         bool period_overlaps =
                 actor->steady_count % the_buffer_size[actor->flow_dimension] != 0;

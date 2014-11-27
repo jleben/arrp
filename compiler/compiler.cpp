@@ -415,7 +415,8 @@ int main(int argc, char *argv[])
                         (module,
                          eval.args.size(),
                          poly.statements(),
-                         &dataflow_model);
+                         &dataflow_model,
+                         polyhedral::periodic_schedule);
 #if 0
                 auto stmt_func = std::bind( &polyhedral::llvm_from_model::generate_statement,
                                             &poly_llvm_from_model,

@@ -15,6 +15,12 @@ namespace polyhedral {
 
 using std::vector;
 
+enum schedule_type
+{
+    initial_schedule,
+    periodic_schedule
+};
+
 class llvm_from_model
 {
     using value_type = llvm::Value*;
@@ -25,7 +31,8 @@ public:
     llvm_from_model(llvm::Module *module,
                     int input_count,
                     const vector<statement*> &,
-                    const dataflow::model * );
+                    const dataflow::model *,
+                    schedule_type type );
 
     llvm::Function * function() { return m_function; }
     block_type start_block() { return m_start_block; }
@@ -125,6 +132,7 @@ private:
     llvm::IRBuilder<> m_builder;
     const vector<statement*> & m_statements;
     const dataflow::model * m_dataflow;
+    schedule_type m_schedule_type;
     value_type m_inputs;
     value_type m_output;
     value_type m_buffers;
