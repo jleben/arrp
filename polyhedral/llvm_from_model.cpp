@@ -74,6 +74,15 @@ llvm_from_model::generate_statement
 
     m_builder.SetInsertPoint(block);
 
+    vector<value_type> offset_index = index;
+    const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
+    if (actor)
+    {
+        value_type &flow_index = offset_index[actor->flow_dimension];
+        flow_index = m_builder.CreateAdd(flow_index,
+                                         this->value((int64_t)actor->init_count));
+    }
+
     value_type value;
 
     if (auto input = dynamic_cast<input_access*>(stmt->expr))
@@ -83,10 +92,10 @@ llvm_from_model::generate_statement
     }
     else
     {
-        value = generate_expression(stmt->expr, index);
+        value = generate_expression(stmt->expr, offset_index);
     }
 
-    value_type dst = generate_buffer_access(stmt, index);
+    value_type dst = generate_buffer_access(stmt, offset_index);
 
     m_builder.CreateStore(value, dst);
 
@@ -153,23 +162,8 @@ llvm_from_model::value_type
 llvm_from_model::generate_buffer_access
 ( statement *stmt, const vector<value_type> & index )
 {
-    // Get basic info about accessed statement
-
-    const dataflow::actor & actor = m_dataflow->actor_for(stmt);
+    value_type flat_index = flat_buffer_index(stmt, index);
     value_type stmt_index = value( (int32_t) statement_index(stmt) );
-
-    int finite_slice_size = flat_buffer_size(stmt, 1);
-
-    // Compute flat access index
-
-    vector<value_type> the_index(index);
-    vector<int> the_domain = stmt->domain;
-    transpose(the_index, actor.flow_dimension);
-    transpose(the_domain, actor.flow_dimension);
-    value_type flat_index = this->flat_index(the_index, the_domain);
-
-    // Get buffer state
-
     value_type buffer;
     {
         vector<value_type> indices{stmt_index, value((int32_t) 0)};
@@ -180,69 +174,29 @@ llvm_from_model::generate_buffer_access
         buffer = m_builder.CreateBitCast(buffer, real_buffer_type);
     }
 
-    int steady_buf_size = flat_buffer_size(stmt, actor.steady_count);
-    int init_buf_size = flat_buffer_size(stmt, actor.init_count);
-
-    bool use_phase =
-            actor.steady_count > 1 &&
-            (steady_buf_size % stmt->buffer_size != 0);
-    use_phase = use_phase | init_buf_size % stmt->buffer_size != 0;
-
-    // Add current phase to index
-
-    if (use_phase)
-    {
-        value_type phase;
-        {
-            vector<value_type> indices{stmt_index, value((int32_t) 1)};
-            value_type phase_ptr =
-                    m_builder.CreateGEP(m_buffers, indices);
-            phase = m_builder.CreateLoad(phase_ptr);
-            if (phase->getType() == int32_type())
-                phase = m_builder.CreateSExt(phase, int64_type());
-        }
-
-        flat_index = m_builder.CreateAdd(flat_index, phase);
-    }
-
-    // Wrap index
-
-    bool may_wrap =
-            use_phase ||
-            ( steady_buf_size > stmt->buffer_size &&
-              stmt->buffer_size != flat_buffer_size(stmt, 1) );
-
-    if (may_wrap)
-    {
-        flat_index = m_builder.CreateSRem(flat_index,
-                                          value((int64_t)stmt->buffer_size));
-    }
-
-    // Get value from buffer
-
-    value_type value_ptr =
+    value_type buffer_element_ptr =
             m_builder.CreateGEP(buffer, flat_index);
 
-    return value_ptr;
+    return buffer_element_ptr;
 }
 
 llvm_from_model::value_type
 llvm_from_model::generate_input_access
 ( statement *stmt, const vector<value_type> & index )
 {
-    const dataflow::actor & actor = m_dataflow->actor_for(stmt);
-    int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
-
-    // Compute flat access index
-
     vector<value_type> the_index(index);
-    vector<int> the_domain = stmt->domain;
-    transpose(the_index, actor.flow_dimension);
-    transpose(the_domain, actor.flow_dimension);
+    vector<int> the_domain(stmt->domain);
+    const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
+    if (actor)
+    {
+        the_domain[actor->flow_dimension] = actor->steady_count;
+        transpose(the_index, actor->flow_dimension);
+        transpose(the_domain, actor->flow_dimension);
+    }
+
     value_type flat_index = this->flat_index(the_index, the_domain);
 
-    // Access
-
+    int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
     value_type input_ptr = m_builder.CreateGEP(m_inputs, value(input_num));
     value_type input = m_builder.CreateLoad(input_ptr);
 
@@ -323,27 +277,118 @@ llvm_from_model::generate_reduction_access
 
 void llvm_from_model::advance_buffers()
 {
-    int buf_idx = 0;
+    int buf_idx = -1;
     for (statement * stmt : m_statements)
     {
-        int offset = flat_buffer_size(stmt, m_dataflow->actor_for(stmt).steady_count);
+        ++buf_idx;
 
-        if (offset == 0 || offset == stmt->buffer_size || offset % stmt->buffer_size == 0)
+        const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
+
+        if (!actor)
+            continue;
+
+        int offset = actor->steady_count;
+        int buffer_size = stmt->buffer[actor->flow_dimension];
+
+        if (offset == 0 || offset % buffer_size == 0)
             continue;
 
         vector<value_type> indices
-        {value((int32_t) buf_idx), value((int32_t) 1)};
+        {
+            value((int32_t) buf_idx),
+                    value((int32_t) 1),
+        };
         value_type phase_ptr =
                 m_builder.CreateGEP(m_buffers, indices);
         value_type phase_val = m_builder.CreateLoad(phase_ptr);
         value_type offset_val = value(phase_val->getType(), offset);
-        value_type buf_size_val = value(phase_val->getType(), stmt->buffer_size);
+        value_type buf_size_val = value(phase_val->getType(), buffer_size);
         phase_val = m_builder.CreateAdd(phase_val, offset_val);
         phase_val = m_builder.CreateSRem(phase_val, buf_size_val);
         m_builder.CreateStore(phase_val, phase_ptr);
-
-        ++buf_idx;
     }
+}
+
+llvm_from_model::value_type
+llvm_from_model::flat_buffer_index
+( statement * stmt, const vector<value_type> & index )
+{
+    // Get basic info about accessed statement
+
+    const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
+    value_type stmt_index = value( (int32_t) statement_index(stmt) );
+
+    //int finite_slice_size = flat_buffer_size(stmt, 1);
+
+    bool use_phase = false;
+
+    // Canonical transposition (flow dimension first);
+
+    vector<value_type> the_index(index);
+    vector<int> the_domain(stmt->domain);
+
+    if (actor)
+        the_domain[actor->flow_dimension] = actor->steady_count;
+
+    // Add flow index phase
+
+    if (actor)
+    {
+        bool period_overlaps =
+                actor->steady_count > 1 &&
+                (actor->steady_count % stmt->buffer[actor->flow_dimension] != 0);
+        bool init_overlaps =
+                actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
+
+        use_phase = period_overlaps || init_overlaps;
+
+        if (use_phase)
+        {
+            value_type phase;
+            {
+                vector<value_type> indices{stmt_index, value((int32_t) 1)};
+                value_type phase_ptr =
+                        m_builder.CreateGEP(m_buffers, indices);
+                phase = m_builder.CreateLoad(phase_ptr);
+                if (phase->getType() == int32_type())
+                    phase = m_builder.CreateSExt(phase, int64_type());
+            }
+
+            value_type & flow_index = the_index[actor->flow_dimension];
+            flow_index = m_builder.CreateAdd(flow_index, phase);
+        }
+    }
+
+    // Wrap index
+
+    for (int dim = 0; dim < the_index.size(); ++dim)
+    {
+        int domain = stmt->domain[dim];
+        int buffer = stmt->buffer[dim];
+
+        bool may_wrap =
+                domain > buffer ||
+                (actor && dim == actor->flow_dimension && use_phase);
+
+        if (may_wrap)
+        {
+            value_type & dim_index = the_index[dim];
+            dim_index = m_builder.CreateSRem( dim_index,
+                                              value((int64_t)buffer) );
+        }
+    }
+
+    // Flatten index
+
+    if (actor)
+    {
+        transpose(the_index, actor->flow_dimension);
+        transpose(the_domain, actor->flow_dimension);
+    }
+
+    value_type flat_index = this->flat_index(the_index, the_domain);
+
+    return flat_index;
 }
 
 int llvm_from_model::flat_buffer_size( statement *stmt, int flow_count )
@@ -405,6 +450,20 @@ llvm_from_model::flat_index
     assert(index.size() > 0);
     assert(domain.size() == index.size());
 
+    value_type flat_index = index.back();
+
+    int factor = 1;
+    for( int i = index.size() - 2; i >= 0; --i )
+    {
+        factor *= domain[i+1];
+        assert(factor != 0);
+        value_type term = index[i];
+        if (factor != 1)
+            term = m_builder.CreateMul(term, value((int64_t)factor));
+        flat_index = m_builder.CreateAdd(flat_index, term);
+    }
+#if 0
+
     value_type flat_index = index[0];
     for( unsigned int i = 1; i < index.size(); ++i)
     {
@@ -413,7 +472,7 @@ llvm_from_model::flat_index
         flat_index = m_builder.CreateMul(flat_index, value((int64_t) size));
         flat_index = m_builder.CreateAdd(flat_index, index[i]);
     }
-
+#endif
     return flat_index;
 }
 

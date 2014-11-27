@@ -54,6 +54,8 @@ private:
     vector<value_type> mapped_index( const vector<value_type> & index,
                                      const mapping & );
 
+    value_type flat_buffer_index( statement * stmt, const vector<value_type> & index );
+
     value_type flat_index( const vector<value_type> & index,
                            const vector<int> & domain );
 
