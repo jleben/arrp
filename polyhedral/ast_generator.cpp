@@ -636,9 +636,14 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
             }
         }
 
+        int flat_size = 1;
         cout << stmt->name << ": ";
         for (auto b : stmt->buffer)
+        {
             cout << b << " ";
+            flat_size *= b;
+        }
+        cout << "[" << flat_size << "]";
         cout << endl;
     }
 }
