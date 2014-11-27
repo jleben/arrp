@@ -43,7 +43,7 @@ ast_generator::~ast_generator()
 {
 }
 
-clast_stmt *
+pair<clast_stmt*,clast_stmt*>
 ast_generator::generate()
 {
     isl::union_set domains(m_ctx);
@@ -77,13 +77,14 @@ ast_generator::generate()
     compute_buffer_sizes(combined_schedule, periodic_dependencies, domain_map);
 
 #if 1
+    struct clast_stmt *init_ast
+            = make_ast( init_schedule.in_domain(init_domains) );
+
     struct clast_stmt *period_ast
             = make_ast( period_schedule.in_domain(period_domains) );
 
-    return period_ast;
+    return std::make_pair(init_ast, period_ast);
 #endif
-
-    return nullptr;
 }
 
 void ast_generator::store_statements( const vector<statement*> & statements )
@@ -763,6 +764,9 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
 
 struct clast_stmt *ast_generator::make_ast( const isl::union_map & isl_schedule )
 {
+    if (isl_schedule.is_empty())
+        return nullptr;
+
     CloogState *state = cloog_state_malloc();
     CloogOptions *options = cloog_options_malloc(state);
     CloogUnionDomain *schedule =

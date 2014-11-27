@@ -63,7 +63,7 @@ public:
     ast_generator( const vector<statement*> &, const dataflow::model * );
     ~ast_generator();
 
-    struct clast_stmt *generate();
+    pair<struct clast_stmt*,struct clast_stmt*> generate();
 
 private:
 
