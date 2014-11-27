@@ -74,6 +74,11 @@ llvm_from_model::generate_statement
 
     m_builder.SetInsertPoint(block);
 
+    // Offset by initialization count
+    // TODO:
+    // - How does this affect the requirements for wrapping?
+    // - Could this be avoid by rather modifying how the index is generated
+    //   in the first place?
     vector<value_type> offset_index = index;
     const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
     if (actor)
