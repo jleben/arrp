@@ -46,7 +46,7 @@ private:
     value_type generate_reduction_access( reduction_access *, const vector<value_type> & index );
     void advance_buffers();
 
-    int flat_buffer_size( statement *, int flow_count );
+    //int flat_buffer_size( statement *, int flow_count );
 
     template <typename T>
     void transpose( vector<T> & index, int first_dim );

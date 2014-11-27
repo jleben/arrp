@@ -323,27 +323,26 @@ llvm_from_model::flat_buffer_index
     const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
     value_type stmt_index = value( (int32_t) statement_index(stmt) );
 
-    //int finite_slice_size = flat_buffer_size(stmt, 1);
-
     bool use_phase = false;
 
-    // Canonical transposition (flow dimension first);
+    // Get all data
 
     vector<value_type> the_index(index);
-    vector<int> the_domain(stmt->domain);
+    vector<int> the_domain = stmt->domain;
+    vector<int> the_buffer_size = stmt->buffer;
 
     if (actor)
-        the_domain[actor->flow_dimension] = actor->steady_count;
+        the_domain[actor->flow_dimension] =
+                actor->init_count + actor->steady_count;
 
     // Add flow index phase
 
     if (actor)
     {
         bool period_overlaps =
-                actor->steady_count > 1 &&
-                (actor->steady_count % stmt->buffer[actor->flow_dimension] != 0);
+                actor->steady_count % the_buffer_size[actor->flow_dimension] != 0;
         bool init_overlaps =
-                actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
+                actor->init_count % the_buffer_size[actor->flow_dimension] != 0;
 
         use_phase = period_overlaps || init_overlaps;
 
@@ -368,8 +367,14 @@ llvm_from_model::flat_buffer_index
 
     for (int dim = 0; dim < the_index.size(); ++dim)
     {
-        int domain = stmt->domain[dim];
-        int buffer = stmt->buffer[dim];
+        int domain = the_domain[dim];
+        int buffer = the_buffer_size[dim];
+
+        if (buffer < 2)
+        {
+            the_index[dim] = value((int64_t) 0);
+            continue;
+        }
 
         bool may_wrap =
                 domain > buffer ||
@@ -388,14 +393,15 @@ llvm_from_model::flat_buffer_index
     if (actor)
     {
         transpose(the_index, actor->flow_dimension);
-        transpose(the_domain, actor->flow_dimension);
+        transpose(the_buffer_size, actor->flow_dimension);
     }
 
-    value_type flat_index = this->flat_index(the_index, the_domain);
+    value_type flat_index = this->flat_index(the_index, the_buffer_size);
 
     return flat_index;
 }
 
+#if 0
 int llvm_from_model::flat_buffer_size( statement *stmt, int flow_count )
 {
     if (stmt->domain.empty())
@@ -412,7 +418,7 @@ int llvm_from_model::flat_buffer_size( statement *stmt, int flow_count )
     }
     return flat_size;
 }
-
+#endif
 template <typename T>
 void llvm_from_model::transpose( vector<T> & index, int first_dim )
 {
