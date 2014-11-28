@@ -171,7 +171,7 @@ llvm_from_model::generate_intrinsic
     case intrinsic::divide:
         return m_builder.CreateFDiv(operands[0], operands[1]);
     default:
-        throw std::runtime_error("Unexpected expression type.");
+        throw std::runtime_error("Unexpected intrinsic type.");
     }
 }
 

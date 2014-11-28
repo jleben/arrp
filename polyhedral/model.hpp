@@ -136,7 +136,9 @@ public:
         ceil,
         floor,
         abs,
-        max
+        max,
+
+        count
     };
 
     of_kind kind;

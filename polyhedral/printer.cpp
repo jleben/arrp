@@ -1,11 +1,51 @@
 #include "printer.hpp"
 
 #include <iomanip>
+#include <vector>
 
 namespace stream {
 namespace polyhedral {
 
 using namespace std;
+
+vector<string> make_intrinsic_name_table()
+{
+    vector<string> table(intrinsic::count);
+    table[intrinsic::negate] = "!";
+    table[intrinsic::add] = "+";
+    table[intrinsic::subtract] = "-";
+    table[intrinsic::multiply] = "*";
+    table[intrinsic::divide] = "/";
+    table[intrinsic::raise] = "^";
+    table[intrinsic::exp] = "exp";
+    table[intrinsic::exp2] = "exp2";
+    table[intrinsic::log] = "log";
+    table[intrinsic::log2] = "log2";
+    table[intrinsic::log10] = "log10";
+    table[intrinsic::pow] = "pow";
+    table[intrinsic::sqrt] = "sqrt";
+    table[intrinsic::sin] = "sin";
+    table[intrinsic::cos] = "cos";
+    table[intrinsic::tan] = "tan";
+    table[intrinsic::asin] = "asin";
+    table[intrinsic::acos] = "acos";
+    table[intrinsic::atan] = "atan";
+    table[intrinsic::ceil] = "ceil";
+    table[intrinsic::floor] = "floor";
+    table[intrinsic::abs] = "abs";
+    table[intrinsic::max] = "max";
+    return table;
+}
+
+string name_of_intrinsic( intrinsic::of_kind type )
+{
+    static vector<string> intrinsic_names = make_intrinsic_name_table();
+
+    if (type >= intrinsic_names.size())
+        return "<unknown intrinsic>";
+    else
+        return intrinsic_names[type];
+}
 
 printer::printer(): level(0) {}
 
@@ -21,27 +61,7 @@ void printer::print(expression *expr, ostream &s)
     }
     else if (auto intr = dynamic_cast<intrinsic*>(expr))
     {
-        switch(intr->kind)
-        {
-        case intrinsic::add:
-            s << "+"; break;
-        case intrinsic::subtract:
-            s << "-"; break;
-        case intrinsic::multiply:
-            s << "*"; break;
-        case intrinsic::divide:
-            s << "/"; break;
-        case intrinsic::raise:
-            s << "^"; break;
-        case intrinsic::negate:
-            s << "!"; break;
-        case intrinsic::exp:
-            s << "exp"; break;
-        case intrinsic::log:
-            s << "log"; break;
-        default:
-            s << "unknown-intrinsic";
-        }
+        s << name_of_intrinsic(intr->kind);
 
         s << " (" << endl;
         indent();
