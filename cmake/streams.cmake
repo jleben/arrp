@@ -6,7 +6,7 @@ function(compile_stream_func out_file_var source_file options)
   add_custom_command(OUTPUT ${llvm_file}
     COMMAND $<TARGET_FILE:streamc>
     ARGS ${source_file} -o ${llvm_file} ${options}
-    DEPENDS ${source_file} frontend
+    DEPENDS ${source_file} streamc
   )
 
   set(object_file ${source_file_base}.o)
