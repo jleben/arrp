@@ -208,8 +208,12 @@ expression * translator::do_expression(const ast::node_ptr &node)
     {
         return do_slicing(node);
     }
-    //case ast::hash_expression:
-
+    case ast::hash_expression:
+    {
+        assert(node->semantic_type->is(semantic::type::integer_num));
+        const auto & integer = node->semantic_type->as<semantic::integer_num>();
+        return new constant<int>(integer.constant_value());
+    }
     case ast::for_expression:
     {
         return do_mapping(node);
