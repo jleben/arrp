@@ -1,13 +1,15 @@
 #include "translator.hpp"
 
 #include <stdexcept>
+#include <algorithm>
 
 namespace stream {
 namespace polyhedral {
 
 using namespace std;
 
-translator::translator()
+translator::translator(const semantic::environment &env):
+    m_env(env)
 {
     //m_context.enter_scope();
 }
@@ -93,7 +95,7 @@ void translator::do_statement_list(const ast::node_ptr &node)
         do_statement(stmt);
 }
 
-void translator::do_statement(const ast::node_ptr &node)
+expression* translator::do_statement(const ast::node_ptr &node)
 {
     ast::list_node *stmt = node->as_list();
     const auto & id_node = stmt->elements[0];
@@ -145,7 +147,10 @@ void translator::do_statement(const ast::node_ptr &node)
         }
     }
 
+    cout << "-- binding: " << id << endl;
     m_context.bind(id, expr);
+
+    return expr;
 }
 
 expression * translator::do_block(const ast::node_ptr &node)
@@ -219,7 +224,23 @@ expression * translator::do_identifier(const ast::node_ptr &node)
 {
     string id = node->as_leaf<string>()->value;
 
-    return m_context.find(id).value().source;
+    auto context_item = m_context.find(id);
+    if (context_item)
+        return context_item.value().source;
+
+    // Clear domain
+    vector<int> local_domain;
+    std::swap(local_domain, m_domain);
+
+    // Process statement
+    const semantic::symbol & sym = m_env.at(id);
+    assert(sym.source->type == ast::statement);
+    expression *result = do_statement(sym.source);
+
+    // Restore domain
+    std::swap(m_domain, local_domain);
+
+    return result;
 }
 
 expression * translator::do_unary_op(const ast::node_ptr &node)

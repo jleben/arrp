@@ -5,6 +5,7 @@
 #include "../frontend/ast.hpp"
 #include "../frontend/types.hpp"
 #include "../frontend/context.hpp"
+#include "../frontend/environment.hpp"
 #include "../utility/matrix.hpp"
 
 #include <deque>
@@ -22,7 +23,7 @@ using utility::matrix;
 class translator
 {
 public:
-    translator();
+    translator(const semantic::environment &);
 
     void translate(const semantic::function & func,
                    const vector<semantic::type_ptr> & args);
@@ -47,13 +48,14 @@ private:
 
     typedef stream::context<string,symbol> context;
 
+    const semantic::environment &m_env;
     context m_context;
     vector<int> m_domain;
     vector<statement*> m_statements;
 
 
     void do_statement_list(const ast::node_ptr &node);
-    void do_statement(const ast::node_ptr &node);
+    expression * do_statement(const ast::node_ptr &node);
     expression * do_block(const ast::node_ptr &node);
     expression * do_expression(const ast::node_ptr &node);
     expression * do_identifier(const ast::node_ptr &node);

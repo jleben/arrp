@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
 
     //IR::generator gen(args.input_filename, env);
 
-    polyhedral::translator poly;
+    polyhedral::translator poly(env);
     polyhedral::printer poly_printer;
 
     llvm::Module *module = new llvm::Module(args.input_filename,
