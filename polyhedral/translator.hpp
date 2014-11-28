@@ -59,6 +59,7 @@ private:
     expression * do_block(const ast::node_ptr &node);
     expression * do_expression(const ast::node_ptr &node);
     expression * do_identifier(const ast::node_ptr &node);
+    expression * do_call(const ast::node_ptr &node);
     expression * do_unary_op(const ast::node_ptr &node);
     expression * do_binary_op(const ast::node_ptr &node);
     expression * do_transpose(const ast::node_ptr &node);

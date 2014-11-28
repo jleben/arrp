@@ -101,9 +101,11 @@ expression* translator::do_statement(const ast::node_ptr &node)
     const auto & id_node = stmt->elements[0];
     const auto & params_node = stmt->elements[1];
     const auto & body_node = stmt->elements[2];
-    // user-defined functions should have been inlined:
-    // TODO: go check whether they are actually removed!
-    assert(!params_node);
+
+    // Skip function definitions -
+    // They are given as semantic types at function calls
+    if (params_node)
+        return nullptr;
 
     const string & id = id_node->as_leaf<string>()->value;
 
@@ -194,8 +196,10 @@ expression * translator::do_expression(const ast::node_ptr &node)
     {
         return do_binary_op(node);
     }
-    //case ast::call_expression:
-
+    case ast::call_expression:
+    {
+        return do_call(node);
+    }
     case ast::transpose_expression:
     {
         return do_transpose(node);
@@ -239,6 +243,68 @@ expression * translator::do_identifier(const ast::node_ptr &node)
 
     // Restore domain
     std::swap(m_domain, local_domain);
+
+    return result;
+}
+
+expression * translator::do_call(const ast::node_ptr &node)
+{
+    static unordered_map<string,intrinsic::of_kind> intrinsics =
+    {
+        {"log", intrinsic::log},
+        {"log2", intrinsic::log2},
+        {"log10", intrinsic::log10},
+        {"exp", intrinsic::exp},
+        {"exp2", intrinsic::exp2},
+        {"pow", intrinsic::pow},
+        {"sqrt", intrinsic::sqrt},
+        {"sin", intrinsic::sin},
+        {"cos", intrinsic::cos},
+        {"tan", intrinsic::tan},
+        {"asin", intrinsic::asin},
+        {"acos", intrinsic::acos},
+        {"atan", intrinsic::atan},
+        {"ceil", intrinsic::ceil},
+        {"floor", intrinsic::floor},
+        {"abs", intrinsic::abs},
+        {"max", intrinsic::max}
+    };
+
+    ast::list_node * call = node->as_list();
+    const auto & id_node = call->elements[0];
+    const auto & args_node = call->elements[1];
+
+    // Get callee id
+    assert(id_node->type == ast::identifier);
+    const string & id = id_node->as_leaf<string>()->value;
+
+    // Process args
+    std::vector<expression*> args;
+    for (const auto & arg_node : args_node->as_list()->elements)
+    {
+        args.push_back( do_expression(arg_node) );
+    }
+
+    // Try intrinsic
+    auto intrinsic_map = intrinsics.find(id);
+    if (intrinsic_map != intrinsics.end())
+    {
+        intrinsic *expr = new intrinsic;
+        expr->kind = intrinsic_map->second;
+        expr->operands = args;
+        return expr;
+    }
+
+    // Try user function
+    auto func = dynamic_cast<semantic::function*>(id_node->semantic_type.get());
+    assert(func->parameters.size() == args.size());
+
+    context::scope_holder func_scope(m_context);
+
+    for (int a = 0; a < args.size(); ++a)
+        m_context.bind(func->parameters[a], args[a]);
+
+    expression * result = do_block(func->expression());
 
     return result;
 }

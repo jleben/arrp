@@ -121,8 +121,22 @@ public:
         divide,
         raise,
         exp,
+        exp2,
         log,
-        sqrt
+        log2,
+        log10,
+        pow,
+        sqrt,
+        sin,
+        cos,
+        tan,
+        asin,
+        acos,
+        atan,
+        ceil,
+        floor,
+        abs,
+        max
     };
 
     of_kind kind;
