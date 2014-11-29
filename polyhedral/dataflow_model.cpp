@@ -23,6 +23,7 @@ model::model( const vector<statement*> & statements )
     vector<statement*> infinite_statements;
     vector<statement*> invalid_statements;
 
+    int actor_id = 0;
     for(statement *stmt : statements)
     {
         vector<int> infinite_dims = stmt->infinite_dimensions();
@@ -32,7 +33,7 @@ model::model( const vector<statement*> & statements )
         {
             infinite_statements.push_back(stmt);
 
-            actor a(stmt);
+            actor a(stmt, actor_id++);
             a.flow_dimension = infinite_dims.front();
             m_actors.emplace(stmt, a);
         }
@@ -57,56 +58,70 @@ model::model( const vector<statement*> & statements )
         throw std::runtime_error(msg.str());
     }
 
-    for(auto & actor: m_actors)
-    {
-        compute_channels(actor.second);
-    }
+    compute_channels();
 
-    compute_schedule();
+    if (!m_channels.empty())
+        compute_schedule();
+
+    for (auto & actor_record : m_actors)
+    {
+        actor & a = actor_record.second;
+        if (!a.steady_count)
+        {
+            cout << "WARNING: Infinite statement with no channels: " << a.stmt->name << endl;
+            cout << '\t' << "Assuming default steady-period count of 1.";
+        }
+        a.steady_count = 1;
+    }
 }
 
-void model::compute_channels( actor & sink )
+void model::compute_channels()
 {
-    cout << "Channels for: " << sink.stmt << "..." << endl;
-
-    vector<stream_access*> accesses;
-    sink.stmt->expr->find<stream_access>(accesses);
-    if (accesses.empty())
-        return;
-
-    for(stream_access *access : accesses)
+    for (auto & actor_record : m_actors)
     {
-        auto source_ref = m_actors.find(access->target);
-        if (source_ref == m_actors.end())
+        actor & sink = actor_record.second;
+
+        cout << "Channels for: " << sink.stmt << "..." << endl;
+
+        vector<stream_access*> accesses;
+        sink.stmt->expr->find<stream_access>(accesses);
+        if (accesses.empty())
+            return;
+
+        for(stream_access *access : accesses)
         {
-            cout << "-- " << access->target
-                 << ": Non-actor access; not making a channel." << endl;
-            continue;
+            auto source_record = m_actors.find(access->target);
+            if (source_record == m_actors.end())
+            {
+                cout << "-- " << access->target
+                     << ": Non-actor access; not making a channel." << endl;
+                continue;
+            }
+
+            actor & source = source_record->second;
+
+            int pop_rate = access->pattern.coefficients(source.flow_dimension, sink.flow_dimension);
+            assert(pop_rate != 0);
+
+            vector<int> sink_index = sink.stmt->domain;
+            sink_index[sink.flow_dimension] = 0;
+            vector<int> source_index = access->pattern * sink_index;
+            int peek_rate = std::max(1, source_index[source.flow_dimension]);
+
+            channel ch;
+            ch.source = &source;
+            ch.sink = &sink;
+            ch.push = 1;
+            ch.peek = peek_rate;
+            ch.pop = pop_rate;
+
+            m_channels.push_back(ch);
+
+            cout << "-- " << ch.source->stmt << ": "
+                 << ch.push << " -> "
+                 << ch.peek << "/" << ch.pop
+                 << endl;
         }
-
-        actor & source = source_ref->second;
-
-        int pop_rate = access->pattern.coefficients(source.flow_dimension, sink.flow_dimension);
-        assert(pop_rate != 0);
-
-        vector<int> sink_index = sink.stmt->domain;
-        sink_index[sink.flow_dimension] = 0;
-        vector<int> source_index = access->pattern * sink_index;
-        int peek_rate = std::max(1, source_index[source.flow_dimension]);
-
-        channel ch;
-        ch.source = &source;
-        ch.sink = &sink;
-        ch.push = 1;
-        ch.peek = peek_rate;
-        ch.pop = pop_rate;
-
-        m_channels.push_back(ch);
-
-        cout << "-- " << ch.source->stmt << ": "
-             << ch.push << " -> "
-             << ch.peek << "/" << ch.pop
-             << endl;
     }
 }
 
@@ -114,24 +129,14 @@ void model::compute_schedule()
 {
     //using namespace isl;
 
-    if (m_actors.empty())
-        return;
+    assert(!m_actors.empty());
+    assert(!m_channels.empty());
 
     isl::context isl_ctx;
     isl::printer isl_printer(isl_ctx);
 
-    // FIXME: Multiple dependencies between same pair of statements
-
-    unordered_set<actor*> involved_actors;
-
-    for (const auto & chan: m_channels)
-    {
-        involved_actors.insert(chan.source);
-        involved_actors.insert(chan.sink);
-    }
-
     int rows = m_channels.size();
-    int cols = involved_actors.size();
+    int cols = m_actors.size();
 
     isl::matrix flow_matrix(isl_ctx, rows, cols);
 
@@ -142,13 +147,8 @@ void model::compute_schedule()
     int row = 0;
     for (const auto & chan: m_channels)
     {
-        auto source_loc = involved_actors.find(chan.source);
-        int source_index = std::distance(involved_actors.begin(), source_loc);
-        auto sink_loc = involved_actors.find(chan.sink);
-        int sink_index = std::distance(involved_actors.begin(), sink_loc);
-
-        flow_matrix(row, source_index) = chan.push;
-        flow_matrix(row, sink_index) = - chan.pop;
+        flow_matrix(row, chan.source->id) = chan.push;
+        flow_matrix(row, chan.sink->id) = - chan.pop;
         ++row;
     }
 
@@ -165,12 +165,12 @@ void model::compute_schedule()
     // Number of tokens produced should be at least number of tokens consumed
     // after the initial epoch + one steady period.
 
-    isl::space statement_space(isl_ctx, isl::set_tuple(involved_actors.size()));
+    isl::space statement_space(isl_ctx, isl::set_tuple(m_actors.size()));
     auto init_counts = isl::set::universe(statement_space);
     auto init_cost = isl::expression::value(statement_space, 0);
     cout << "Init count cost expr:" << endl;
     isl_printer.print(init_cost); cout << endl;
-    for (int i = 0; i < involved_actors.size(); ++i)
+    for (int i = 0; i < m_actors.size(); ++i)
     {
         auto stmt = isl::expression::variable(statement_space, isl::space::variable, i);
         init_counts.add_constraint( stmt >= 0 );
@@ -180,19 +180,14 @@ void model::compute_schedule()
     }
     for (const auto & chan: m_channels)
     {
-        auto source_ref = involved_actors.find(chan.source);
-        int source_index = std::distance(involved_actors.begin(), source_ref);
-        auto sink_ref = involved_actors.find(chan.sink);
-        int sink_index = std::distance(involved_actors.begin(), sink_ref);
-
         auto source = isl::expression::variable(statement_space,
                                                 isl::space::variable,
-                                                source_index);
+                                                chan.source->id);
         auto sink = isl::expression::variable(statement_space,
                                               isl::space::variable,
-                                              sink_index);
-        int source_steady = steady_counts(source_index,0).value().numerator();
-        int sink_steady = steady_counts(sink_index,0).value().numerator();
+                                              chan.sink->id);
+        int source_steady = steady_counts(chan.source->id,0).value().numerator();
+        int sink_steady = steady_counts(chan.sink->id,0).value().numerator();
 
         // p(a)*i(a) - o(b)*i(b) + [p(a)*s(a) - o(b)*s(b) - e(b) + o(b)] >= 0
 
@@ -215,15 +210,15 @@ void model::compute_schedule()
     isl_printer.print(init_optimum_point); cout << endl;
 
     assert(steady_counts.column_count() == 1);
-    assert(steady_counts.row_count() == involved_actors.size());
-    auto actor_ref = involved_actors.begin();
-    for (int actor_idx = 0; actor_idx < involved_actors.size(); ++actor_idx, ++actor_ref)
+    assert(steady_counts.row_count() == m_actors.size());
+
+    for (auto & actor_record : m_actors)
     {
-        actor & a = (**actor_ref);
+        actor & a = actor_record.second;
         a.init_count =
-                (int) init_optimum_point(isl::space::variable, actor_idx).numerator();
+                (int) init_optimum_point(isl::space::variable, a.id).numerator();
         a.steady_count =
-                steady_counts(actor_idx,0).value().numerator();
+                steady_counts(a.id, 0).value().numerator();
     }
 }
 

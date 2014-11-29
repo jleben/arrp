@@ -17,14 +17,16 @@ using std::unordered_map;
 
 struct actor
 {
-    actor(statement* stmt):
+    actor(statement* stmt, int id):
         stmt(stmt),
+        id(id),
         flow_dimension(0),
         init_count(0),
         steady_count(0)
     {}
 
     statement *stmt;
+    int id;
     int flow_dimension;
     int init_count;
     int steady_count;
@@ -58,7 +60,7 @@ private:
         int pop;
     };
 
-    void compute_channels( actor & );
+    void compute_channels();
     void compute_schedule();
 
     unordered_map<statement*, actor> m_actors;
