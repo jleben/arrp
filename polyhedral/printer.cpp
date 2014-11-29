@@ -77,6 +77,11 @@ void printer::print(expression *expr, ostream &s)
         unindent();
         s << indentation() << ")";
     }
+    else if (auto it = dynamic_cast<iterator_access*>(expr))
+    {
+        s << "iterator: " << it->offset << " + " << it->ratio << " * "
+          << '[' << it->dimension << ']';
+    }
     else if (auto access = dynamic_cast<stream_access*>(expr))
     {
         s << "access: " << access->target << " [" << endl;

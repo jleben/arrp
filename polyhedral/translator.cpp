@@ -183,7 +183,20 @@ expression * translator::do_expression(const ast::node_ptr &node)
         double value = node->as_leaf<double>()->value;
         return new constant<double>(value);
     }
-    //case ast::range:
+    case ast::range:
+    {
+        const semantic::range &type = node->semantic_type->as<semantic::range>();
+        range *r = new range;
+        if (type.start_is_constant())
+            r->start = new constant<int>(type.const_start());
+        else
+            r->start = do_expression(node->as_list()->elements[0]);
+        if (type.end_is_constant())
+            r->end = new constant<int>(type.const_end());
+        else
+            r->end = do_expression(node->as_list()->elements[1]);
+        return r;
+    }
     case ast::negate:
     {
         return do_unary_op(node);
@@ -294,11 +307,8 @@ expression * translator::do_call(const ast::node_ptr &node)
     if (intrinsic_map != intrinsics.end())
     {
         for (expression *& arg : args)
-        {
-            auto arg_stream = dynamic_cast<stream_view*>(arg);
-            if (arg_stream)
-                arg = complete_access(arg_stream);
-        }
+            arg = iterate(arg);
+
         intrinsic *expr = new intrinsic;
         expr->kind = intrinsic_map->second;
         expr->operands = args;
@@ -321,14 +331,7 @@ expression * translator::do_call(const ast::node_ptr &node)
 
 expression * translator::do_unary_op(const ast::node_ptr &node)
 {
-    expression *operand = do_expression(node->as_list()->elements[0]);
-
-    auto source_stream = dynamic_cast<stream_view*>(operand);
-
-    // complete access
-
-    if (source_stream)
-        operand = complete_access(source_stream);
+    expression *operand = iterate( do_expression(node->as_list()->elements[0]) );
 
     // create operation
 
@@ -350,18 +353,8 @@ expression * translator::do_unary_op(const ast::node_ptr &node)
 
 expression * translator::do_binary_op(const ast::node_ptr &node)
 {
-    expression *operand1 = do_expression(node->as_list()->elements[0]);
-    expression *operand2 = do_expression(node->as_list()->elements[1]);
-
-    auto source_stream1 = dynamic_cast<stream_view*>(operand1);
-    auto source_stream2 = dynamic_cast<stream_view*>(operand2);
-
-    // complete access
-
-    if (source_stream1)
-        operand1 = complete_access(source_stream1);
-    if (source_stream2)
-        operand2 = complete_access(source_stream2);
+    expression *operand1 = iterate( do_expression(node->as_list()->elements[0]) );
+    expression *operand2 = iterate( do_expression(node->as_list()->elements[1]) );
 
     // create operation
 
@@ -488,7 +481,7 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
         case type::range:
         {
             // FIXME: do not assume range size > 1 !
-            range &r = selector_type->as<range>();
+            semantic::range &r = selector_type->as<semantic::range>();
             if (!r.start)
                 offset = 0;
             else
@@ -740,6 +733,28 @@ mapping translator::access(stream_view *source)
     return pattern;
 }
 
+expression *translator::iterate (expression *expr)
+{
+    if (auto rng = dynamic_cast<range*>(expr))
+        return iterate(rng);
+    else if (auto strm = dynamic_cast<stream_view*>(expr))
+        return complete_access(strm);
+    else
+        return expr;
+}
+
+iterator_access * translator::iterate( range *r )
+{
+    constant<int> *start, *end;
+    assert(start = dynamic_cast<constant<int>*>(r->start));
+    assert(end = dynamic_cast<constant<int>*>(r->end));
+
+    iterator_access *it = new iterator_access;
+    it->dimension = current_dimension();
+    it->offset = start->value;
+    it->ratio = 1;
+    return it;
+}
 
 stream_access * translator::complete_access( stream_view * view )
 {

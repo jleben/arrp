@@ -46,6 +46,20 @@ private:
         int current_iteration;
     };
 
+    class range : public expression
+    {
+    public:
+        expression *start;
+        expression *end;
+
+        bool is_constant()
+        {
+            bool start_is_const = dynamic_cast<constant<int>*>(start);
+            bool end_is_const = dynamic_cast<constant<int>*>(end);
+            return start_is_const && end_is_const;
+        }
+    };
+
     typedef stream::context<string,symbol> context;
 
     const semantic::environment &m_env;
@@ -76,7 +90,10 @@ private:
 
     mapping access(stream_view *source);
 
+    expression *iterate (expression *);
+    iterator_access * iterate( range * );
     stream_access * complete_access( stream_view * );
+
     statement * make_statement( expression *, const vector<int> & domain );
     stream_view * make_current_view( statement * );
 

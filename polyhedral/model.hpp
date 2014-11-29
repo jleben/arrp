@@ -146,6 +146,14 @@ public:
     vector<expression*> operands;
 };
 
+class iterator_access : public expression
+{
+public:
+    int dimension;
+    int offset;
+    int ratio;
+};
+
 class stream_access : public expression
 {
 public:
