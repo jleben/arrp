@@ -293,6 +293,12 @@ expression * translator::do_call(const ast::node_ptr &node)
     auto intrinsic_map = intrinsics.find(id);
     if (intrinsic_map != intrinsics.end())
     {
+        for (expression *& arg : args)
+        {
+            auto arg_stream = dynamic_cast<stream_view*>(arg);
+            if (arg_stream)
+                arg = complete_access(arg_stream);
+        }
         intrinsic *expr = new intrinsic;
         expr->kind = intrinsic_map->second;
         expr->operands = args;
