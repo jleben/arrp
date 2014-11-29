@@ -460,6 +460,9 @@ void ast_generator::periodic_model
 isl::union_map ast_generator::make_schedule
 (isl::union_set & domains, isl::union_map & dependencies)
 {
+    // FIXME: statements with no dependencies
+    // seem to always end up with an empty schedule.
+
     isl::union_map proximities( dependencies.get_space() );
 
     isl_union_set *dom = domains.copy();
