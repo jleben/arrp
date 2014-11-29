@@ -158,8 +158,7 @@ llvm_from_model::generate_expression
     }
     if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
     {
-        // FIXME: integers...
-        return value((double) const_int->value);
+        return value((int32_t) const_int->value);
     }
     if ( auto const_double = dynamic_cast<constant<double>*>(expr) )
     {
