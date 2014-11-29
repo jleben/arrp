@@ -148,32 +148,32 @@ struct range : public tagged_type<type::range>
     sp<type> start;
     sp<type> end;
 
-    bool start_is_constant()
+    bool start_is_constant() const
     {
         return start && start->as<semantic::integer_num>().is_constant();
     }
 
-    bool end_is_constant()
+    bool end_is_constant() const
     {
         return end && end->as<semantic::integer_num>().is_constant();
     }
 
-    bool is_constant()
+    bool is_constant() const
     {
         return start_is_constant() && end_is_constant();
     }
 
-    int const_start()
+    int const_start() const
     {
         return start->as<semantic::integer_num>().constant_value();
     }
 
-    int const_end()
+    int const_end() const
     {
         return end->as<semantic::integer_num>().constant_value();
     }
 
-    int const_size()
+    int const_size() const
     {
         return std::abs(const_end() - const_start()) + 1;
     }
