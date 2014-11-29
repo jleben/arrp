@@ -135,6 +135,17 @@ llvm_from_model::generate_expression
     {
         return generate_intrinsic(operation, index);
     }
+    if (auto iterator = dynamic_cast<iterator_access*>(expr))
+    {
+        assert(iterator->dimension >= 0 && iterator->dimension < index.size());
+        value_type val = index[iterator->dimension];
+        val = m_builder.CreateTrunc(val, int32_type());
+        if (iterator->ratio != 1)
+            val = m_builder.CreateMul(val, value((int32_t)iterator->ratio));
+        if (iterator->offset)
+            val = m_builder.CreateAdd(val, value((int32_t)iterator->offset));
+        return val;
+    }
     if (auto read = dynamic_cast<stream_access*>(expr))
     {
         vector<value_type> target_index = mapped_index(index, read->pattern);
