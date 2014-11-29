@@ -33,6 +33,7 @@ vector<string> make_intrinsic_name_table()
     table[intrinsic::ceil] = "ceil";
     table[intrinsic::floor] = "floor";
     table[intrinsic::abs] = "abs";
+    table[intrinsic::min] = "min";
     table[intrinsic::max] = "max";
     return table;
 }

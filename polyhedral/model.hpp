@@ -136,6 +136,7 @@ public:
         ceil,
         floor,
         abs,
+        min,
         max,
 
         count
