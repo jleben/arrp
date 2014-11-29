@@ -1,5 +1,7 @@
 #include "llvm_from_model.hpp"
 
+#include <llvm/IR/Intrinsics.h>
+
 #include <stdexcept>
 #include <algorithm>
 #include <iostream>
@@ -114,6 +116,12 @@ llvm_from_model::generate_statement
 
     value_type dst = generate_buffer_access(stmt, offset_index);
 
+    // FIXME:
+    // - Precise mathing of int/fp to source language semantic types
+    // - Integer streams?
+    if (value->getType() != double_type())
+        value = m_builder.CreateSIToFP(value, double_type());
+
     m_builder.CreateStore(value, dst);
 
     return m_builder.GetInsertBlock();
@@ -160,18 +168,200 @@ llvm_from_model::generate_intrinsic
         operands.push_back( generate_expression(expr, index) );
     }
 
+    type_type d_type = double_type();
+    type_type i_type = int32_type();
+
     switch(op->kind)
     {
+    case intrinsic::negate:
+    {
+        value_type operand = operands[0];
+        if (operand->getType() == i_type)
+            return m_builder.CreateSub(value((int32_t)0), operand);
+        else
+            return m_builder.CreateFSub(value((double)0), operand);
+    }
     case intrinsic::add:
-        return m_builder.CreateFAdd(operands[0], operands[1]);
     case intrinsic::subtract:
-        return m_builder.CreateFSub(operands[0], operands[1]);
     case intrinsic::multiply:
-        return m_builder.CreateFMul(operands[0], operands[1]);
     case intrinsic::divide:
-        return m_builder.CreateFDiv(operands[0], operands[1]);
+    {
+        if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
+        {
+            switch(op->kind)
+            {
+            case intrinsic::add:
+                return m_builder.CreateAdd(operands[0], operands[1]);
+            case intrinsic::subtract:
+                return m_builder.CreateSub(operands[0], operands[1]);
+            case intrinsic::multiply:
+                return m_builder.CreateMul(operands[0], operands[1]);
+            case intrinsic::divide:
+                return m_builder.CreateSDiv(operands[0], operands[1]);
+            default: assert(false);
+            }
+        }
+        else
+        {
+            if (operands[0]->getType() != d_type)
+                operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
+            if (operands[1]->getType() != d_type)
+                operands[1] = m_builder.CreateSIToFP(operands[1], d_type);
+            switch(op->kind)
+            {
+            case intrinsic::add:
+                return m_builder.CreateFAdd(operands[0], operands[1]);
+            case intrinsic::subtract:
+                return m_builder.CreateFSub(operands[0], operands[1]);
+            case intrinsic::multiply:
+                return m_builder.CreateFMul(operands[0], operands[1]);
+            case intrinsic::divide:
+                return m_builder.CreateFDiv(operands[0], operands[1]);
+            default: assert(false);
+            }
+        }
+    }
+    case intrinsic::pow:
+    {
+        llvm::Intrinsic::ID id =
+                (operands[1]->getType() == i_type) ?
+                            llvm::Intrinsic::powi : llvm::Intrinsic::pow;
+
+        type_type ret_type;
+        if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
+            ret_type == i_type;
+        else
+            ret_type == d_type;
+
+        if (operands[0]->getType() != d_type)
+            operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
+
+        llvm::Function *func =
+                llvm::Intrinsic::getDeclaration(m_module, id, d_type);
+
+        value_type result = m_builder.CreateCall(func, operands);
+
+        if (ret_type == i_type)
+            result = m_builder.CreateFPToSI(result, i_type);
+
+        return result;
+    }
+    case intrinsic::floor:
+    case intrinsic::ceil:
+    {
+        value_type operand = operands[0];
+
+        if (operand->getType() == i_type)
+            return operand;
+
+        llvm::Intrinsic::ID id = op->kind == intrinsic::floor ?
+                    llvm::Intrinsic::floor : llvm::Intrinsic::ceil;
+
+        llvm::Function *func =
+                llvm::Intrinsic::getDeclaration(m_module, id, operand->getType());
+
+        value_type result = m_builder.CreateCall(func, operand);
+        return m_builder.CreateFPToSI(result, i_type);
+    }
+    case intrinsic::abs:
+    {
+        value_type operand = operands[0];
+        if (operand->getType() == d_type)
+        {
+            llvm::Function *func =
+                    llvm::Intrinsic::getDeclaration(m_module,
+                                                    llvm::Intrinsic::fabs,
+                                                    d_type);
+            return m_builder.CreateCall(func, operand);
+        }
+        else
+        {
+            value_type operand_is_positive =
+                    m_builder.CreateICmpSGE(operand, value((uint32_t)0));
+            value_type negated_operand =
+                    m_builder.CreateSub(value((uint32_t)0), operand);
+            return m_builder.CreateSelect(operand_is_positive,
+                                          operand,
+                                          negated_operand);
+        }
+    }
+    case intrinsic::max:
+    case intrinsic::min:
+    {
+        if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
+        {
+            value_type condition;
+            if (op->kind == intrinsic::max)
+                condition = m_builder.CreateICmpSGT(operands[0], operands[1]);
+            else
+                condition = m_builder.CreateICmpSLT(operands[0], operands[1]);
+            return m_builder.CreateSelect(condition, operands[0], operands[1]);
+        }
+        else
+        {
+            if (operands[0]->getType() != d_type)
+                operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
+            if (operands[1]->getType() != d_type)
+                operands[1] = m_builder.CreateSIToFP(operands[1], d_type);
+
+            value_type condition;
+            if (op->kind == intrinsic::max)
+                condition = m_builder.CreateFCmpUGT(operands[0], operands[1]);
+            else
+                condition = m_builder.CreateFCmpULT(operands[0], operands[1]);
+
+            return m_builder.CreateSelect(condition, operands[0], operands[1]);
+
+#if 0 // Note: maxnum and minnum not supported by LLVM on my machine
+            llvm::Intrinsic::ID id = op->kind == intrinsic::max ?
+                        llvm::Intrinsic::maxnum : llvm::Intrinsic::minnum;
+
+            vector<type_type> arg_types = { d_type, d_type };
+
+            if (operands[0]->getType() != d_type)
+                operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
+            if (operands[1]->getType() != d_type)
+                operands[1] = m_builder.CreateSIToFP(operands[1], d_type);
+
+            llvm::Function *func =
+                    llvm::Intrinsic::getDeclaration(m_module,
+                                                    id,
+                                                    arg_types);
+            return m_builder.CreateCall(func, operands);
+#endif
+        }
+    }
     default:
-        throw std::runtime_error("Unexpected intrinsic type.");
+        llvm::Intrinsic::ID id;
+        switch(op->kind)
+        {
+        case intrinsic::log:
+            id = llvm::Intrinsic::log; break;
+        case intrinsic::log2:
+            id = llvm::Intrinsic::log2; break;
+        case intrinsic::log10:
+            id = llvm::Intrinsic::log10; break;
+        case intrinsic::exp:
+            id = llvm::Intrinsic::exp; break;
+        case intrinsic::exp2:
+            id = llvm::Intrinsic::exp2; break;
+        case intrinsic::sqrt:
+            id = llvm::Intrinsic::sqrt; break;
+        case intrinsic::sin:
+            id = llvm::Intrinsic::sin; break;
+        case intrinsic::cos:
+            id = llvm::Intrinsic::cos; break;
+        default:
+            throw std::runtime_error("Unexpected intrinsic type.");
+        }
+        value_type operand = operands[0];
+        if (operand->getType() != d_type)
+            operand = m_builder.CreateSIToFP(operand, d_type);
+        llvm::Function *func =
+                llvm::Intrinsic::getDeclaration(m_module,
+                                                id,
+                                                d_type);
+        return m_builder.CreateCall(func, operand);
     }
 }
 
