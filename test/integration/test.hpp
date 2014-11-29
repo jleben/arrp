@@ -11,6 +11,31 @@ namespace testing {
 using std::vector;
 using std::string;
 
+struct buffer
+{
+    double *data;
+    std::uint32_t phase;
+};
+
+buffer alloc_buffer( int size, int phase = 0 )
+{
+    buffer b;
+    b.data = new double[size];
+    b.phase = phase;
+    for (int i = 0; i < size; ++i)
+        b.data[i] = 0;
+    return b;
+}
+
+buffer init_buffer( double *data, int phase = 0 )
+{
+    buffer b;
+    b.data = data;
+    b.phase = 0;
+    return b;
+}
+
+#if 0
 void print( double *d,
             const vector<int> & size,
             const vector<int> & index = vector<int>() )
@@ -51,7 +76,7 @@ void print( double *d,
         cout << string(level * 2, '*') << level << endl;
     }
 }
-
+#endif
 int outcome(bool correct)
 {
     using namespace std;

@@ -1,16 +1,21 @@
 #include "test.hpp"
 
 #include <iostream>
+#include <array>
 
 using namespace std;
 using namespace stream;
 
-extern "C" { void matrix_multiply(void**); }
+extern "C" {
+void initialize(double** inputs, testing::buffer* buffers);
+void process(double** inputs, testing::buffer* buffers);
+}
 
 int main()
 {
     double m1[5][2][3];
     double m2[5][3][2];
+    double out[5][2][2];
 
     for (int x=0; x<5; ++x)
     {
@@ -29,13 +34,28 @@ int main()
         m2[x][2][1] = 6 + x;
     }
 
-    double out[5][2][2];
+/*
+S_0: 5 2 3 [30]
+S_1: 5 3 2 [30]
+S_2: 5 2 2 3 [60]
+S_3: 5 2 2 [20]
+S_4: 5 2 2 2 [40]
+S_5: 5 2 2 [20]
+*/
 
-    double buf[16]; // Required buffer pool.
+    testing::buffer buffers[] =
+    {
+        testing::alloc_buffer(30),
+        testing::alloc_buffer(30),
+        testing::alloc_buffer(60),
+        testing::alloc_buffer(20),
+        testing::alloc_buffer(40),
+        testing::init_buffer((double*)out)
+    };
 
-    void *args[] = {m1, m2, out, buf};
+    double *inputs[] = { (double*)m1, (double*)m2 };
 
-    matrix_multiply(args);
+    initialize(inputs, buffers);
 
     for (int x=0; x<5; ++x)
     {
