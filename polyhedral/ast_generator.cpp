@@ -556,14 +556,41 @@ ast_generator::combine_schedule
 {
     isl::union_map canonical_init_schedule(m_ctx);
 
+    int init_sched_dim, period_sched_dim;
+
     init_schedule.for_each( [&]( isl::map & sched )
     {
-        sched.insert_dimensions(isl::space::output, 0, 1);
+        init_sched_dim = sched.get_space().dimension(isl::space::output);
+        return false;
+    });
+    period_schedule.for_each( [&]( isl::map & sched )
+    {
+        period_sched_dim = sched.get_space().dimension(isl::space::output);
+        return false;
+    });
 
-        auto cnstr = isl::constraint::equality(isl::local_space(sched.get_space()));
-        cnstr.set_coefficient(isl::space::output, 0, 1);
-        cnstr.set_constant(1);
-        sched.add_constraint(cnstr);
+    init_schedule.for_each( [&]( isl::map & sched )
+    {
+        {
+            // Add first dimension for period, equal to -1
+            sched.insert_dimensions(isl::space::output, 0, 1);
+            auto t0 = sched.get_space()(isl::space::output, 0);
+            sched.add_constraint(t0 == -1);
+        }
+
+        if (period_sched_dim > init_sched_dim)
+        {
+            // Add dimensions to match period schedule, equal to 0
+            int location = init_sched_dim+1;
+            int count = period_sched_dim - init_sched_dim;
+            sched.insert_dimensions(isl::space::output, location, count);
+            isl::local_space space( sched.get_space() );
+            for (int dim = location; dim < location+count; ++dim)
+            {
+                auto t = space(isl::space::output, dim);
+                sched.add_constraint(t == 0);
+            }
+        }
 
         canonical_init_schedule = canonical_init_schedule | sched;
 
@@ -574,12 +601,28 @@ ast_generator::combine_schedule
 
     period_schedule.for_each( [&]( isl::map & sched )
     {
-        sched.insert_dimensions(isl::space::output, 0, 1);
+        {
+            // Add first dimension for period, equal to period index
+            sched.insert_dimensions(isl::space::output, 0, 1);
+            isl::local_space space( sched.get_space() );
+            auto p = space(isl::space::input, 0);
+            auto t0 = space(isl::space::output, 0);
+            sched.add_constraint(p == t0);
+        }
 
-        auto cnstr = isl::constraint::equality(isl::local_space(sched.get_space()));
-        cnstr.set_coefficient(isl::space::input, 0, 1);
-        cnstr.set_coefficient(isl::space::output, 0, -1);
-        sched.add_constraint(cnstr);
+        if (init_sched_dim > period_sched_dim)
+        {
+            // Add dimensions to match init schedule, equal to 0
+            int location = period_sched_dim+1;
+            int count = init_sched_dim - period_sched_dim;
+            sched.insert_dimensions(isl::space::output, location, count);
+            isl::local_space space( sched.get_space() );
+            for (int dim = location; dim < location + count; ++dim)
+            {
+                auto t = space(isl::space::output, dim);
+                sched.add_constraint(t == 0);
+            }
+        }
 
         canonical_steady_schedule = canonical_steady_schedule | sched;
 
