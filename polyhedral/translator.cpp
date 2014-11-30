@@ -530,14 +530,17 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
         semantic::iterator & iter =
                 iterator_node->semantic_type->as<semantic::iterator>();
 
-        // TODO: range as source
-
-        if (!iter.domain->semantic_type->is(semantic::type::stream))
-            throw runtime_error("Unsupported mapping source.");
-
-        semantic::stream & source_type = iter.domain->semantic_type->as<semantic::stream>();
-
         expression *source_expr = do_expression(iter.domain);
+
+        if(range *r = dynamic_cast<range*>(source_expr))
+        {
+            sources.push_back( iterate(r) );
+            continue;
+        }
+
+        assert(iter.domain->semantic_type->is(semantic::type::stream));
+        semantic::stream & source_type =
+                iter.domain->semantic_type->as<semantic::stream>();
 
         stream_view *source_stream;
         if (source_stream = dynamic_cast<stream_view*>(source_expr))
