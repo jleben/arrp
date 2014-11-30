@@ -62,25 +62,45 @@ void translator::translate(const semantic::function & func,
 
     vector<int> result_domain;
 
-    switch(func.result_type()->get_tag())
-    {
-    case type::stream:
-        result_domain = func.result_type()->as<stream>().size;
-        break;
-    case type::integer_num:
-    case type::real_num:
-        result_domain.resize(1,1);
-        break;
-    default:
-        throw runtime_error("Unexpected type.");
-    }
-
     if (auto view = dynamic_cast<stream_view*>(result))
     {
         stream_access * access = new stream_access;
         access->pattern = view->pattern;
         access->target = view->target;
         result = access;
+    }
+
+    switch(func.result_type()->get_tag())
+    {
+    case type::integer_num:
+    case type::real_num:
+        result_domain.resize(1,1);
+        break;
+    case type::stream:
+    {
+        result_domain = func.result_type()->as<stream>().size;
+        if (auto view = dynamic_cast<stream_view*>(result))
+        {
+            stream_access * access = new stream_access;
+            access->pattern = view->pattern;
+            access->target = view->target;
+            result = access;
+        }
+        break;
+    }
+    case type::range:
+    {
+        const semantic::range & range_type =
+                func.result_type()->as<semantic::range>();
+        if (!range_type.is_constant())
+            throw error("Non-constant range not supported as function result type.");
+        result_domain = { range_type.const_size() };
+        result = iterate(dynamic_cast<range*>(result));
+        break;
+    }
+
+    default:
+        throw runtime_error("Unexpected type.");
     }
 
     auto stmt = new statement;
@@ -187,14 +207,21 @@ expression * translator::do_expression(const ast::node_ptr &node)
     {
         const semantic::range &type = node->semantic_type->as<semantic::range>();
         range *r = new range;
+
         if (type.start_is_constant())
             r->start = new constant<int>(type.const_start());
-        else
+        else if (node->as_list()->elements[0])
             r->start = do_expression(node->as_list()->elements[0]);
+        else
+            r->start = nullptr;
+
         if (type.end_is_constant())
             r->end = new constant<int>(type.const_end());
-        else
+        else if (node->as_list()->elements[1])
             r->end = do_expression(node->as_list()->elements[1]);
+        else
+            r->end = nullptr;
+
         return r;
     }
     case ast::negate:
