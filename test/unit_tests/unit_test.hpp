@@ -4,19 +4,29 @@
 #include "../../frontend/types.hpp"
 #include "../../frontend/ast.hpp"
 #include "../../frontend/environment.hpp"
+#include "../../polyhedral/model.hpp"
 
 #include <iostream>
+#include <vector>
 
 namespace stream {
 namespace unit_test {
 
-ast::node_ptr syntactic_analysis(const string & code);
+using std::vector;
+using std::istream;
+
+ast::node_ptr syntactic_analysis(istream & code);
 
 bool symbolic_analysis
-(const string & code, semantic::environment * env = nullptr);
+(istream & code, semantic::environment * env = nullptr);
 
 semantic::type_ptr semantic_analysis
-(const string & code,
+(istream & code,
+ const string & symbol,
+ vector<semantic::type_ptr> arguments = vector<semantic::type_ptr>());
+
+vector<polyhedral::statement*> polyhedral_model
+(istream & code,
  const string & symbol,
  vector<semantic::type_ptr> arguments = vector<semantic::type_ptr>());
 

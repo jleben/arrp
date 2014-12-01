@@ -46,10 +46,11 @@ bool type_matches(const type & actual, const type & expected)
 
 result is_expr_type(const string & expr, const type_ptr & expected_type)
 {
-    ostringstream code;
+    stringstream code;
     code << "result = " << expr;
+    code.seekg(0);
     type_ptr result_type =
-            unit_test::semantic_analysis(code.str(), "result");
+            unit_test::semantic_analysis(code, "result");
     if (!result_type)
         return unit_test::failure;
 
@@ -71,11 +72,12 @@ result is_func_type(const string &func,
                     const vector<type_ptr> & arg_types,
                     const type_ptr & expected_type)
 {
-    ostringstream code;
+    stringstream code;
     code << "function" << func;
+    code.seekg(0);
 
     type_ptr func_type =
-            unit_test::semantic_analysis(code.str(), "function", arg_types);
+            unit_test::semantic_analysis(code, "function", arg_types);
     if (!func_type)
         return unit_test::failure;
 

@@ -4,6 +4,7 @@
 #include "../../frontend/environment.hpp"
 #include "../../frontend/type_checker.hpp"
 #include "../../frontend/ir-generator.hpp"
+#include "../../polyhedral/translator.hpp"
 
 #include <sstream>
 
@@ -12,10 +13,9 @@ using namespace std;
 namespace stream {
 namespace unit_test {
 
-ast::node_ptr syntactic_analysis(const string & code)
+ast::node_ptr syntactic_analysis(istream & code)
 {
-    istringstream code_stream(code);
-    Parser parser(code_stream);
+    Parser parser(code);
     if (parser.parse() == 0)
         return parser.ast();
     else
@@ -23,7 +23,7 @@ ast::node_ptr syntactic_analysis(const string & code)
 }
 
 bool symbolic_analysis
-(const string & code, semantic::environment * env)
+(istream & code, semantic::environment * env)
 {
     ast::node_ptr ast_root = syntactic_analysis(code);
     if (!ast_root)
@@ -43,7 +43,7 @@ bool symbolic_analysis
 }
 
 semantic::type_ptr semantic_analysis
-(const string & code,
+(istream & code,
  const string & symbol, vector<semantic::type_ptr> arguments)
 {
     semantic::environment env;
@@ -63,6 +63,40 @@ semantic::type_ptr semantic_analysis
 
     return result_type;
 }
+
+vector<polyhedral::statement*> polyhedral_model
+(istream & code,
+ const string & symbol,
+ vector<semantic::type_ptr> arguments)
+{
+    vector<polyhedral::statement*> empty_result;
+
+    semantic::environment env;
+    if (!symbolic_analysis(code, &env))
+        return empty_result;
+
+    auto sym_iter = env.find(symbol);
+    if (sym_iter == env.end())
+    {
+        cerr << "ERROR: no symbol '" << symbol << "' available." << endl;
+        return empty_result;
+    }
+
+    semantic::type_checker type_checker(env);
+    semantic::type_ptr result_type =
+            type_checker.check(sym_iter->second, arguments);
+
+    if (!result_type->is(semantic::type::function))
+    {
+        cerr << "ERROR: symbol '" << symbol << "' is not a function." << endl;
+        return empty_result;
+    }
+
+    polyhedral::translator poly(env);
+    poly.translate(result_type->as<semantic::function>(), arguments);
+    return poly.statements();
+}
+
 
 }
 }
