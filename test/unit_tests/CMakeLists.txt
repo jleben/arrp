@@ -7,6 +7,14 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_library(unit_testing unit_test.cpp)
 target_link_libraries(unit_testing streamc-lib)
 
+set(input_source_code
+  slice1.in
+)
+
+foreach(input IN LISTS input_source_code)
+  configure_file(${input} ${input} COPYONLY)
+endforeach()
+
 function(add_unit_tests name test_header)
 
   set(test_function_call_code "")
@@ -76,3 +84,5 @@ set(semantic_test_funcs
 )
 
 add_unit_tests(semantics test_semantics.hpp ${semantic_test_funcs})
+
+add_unit_tests(polyhedral test_polyhedral_model.hpp "slice::one")

@@ -86,6 +86,9 @@ vector<polyhedral::statement*> polyhedral_model
     semantic::type_ptr result_type =
             type_checker.check(sym_iter->second, arguments);
 
+    if (!result_type)
+        return empty_result;
+
     if (!result_type->is(semantic::type::function))
     {
         cerr << "ERROR: symbol '" << symbol << "' is not a function." << endl;

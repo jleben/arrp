@@ -1,0 +1,4 @@
+f(x) = {
+  for each (a takes 5 every 5 in x)
+    3 + a[2]
+}
