@@ -390,9 +390,11 @@ int main(int argc, char *argv[])
             {
                 semantic::function &f = result_type->as<semantic::function>();
                 poly.translate( f, eval.args );
+
+                cout << endl << "### Polyhedral Model ###" << endl;
                 for( polyhedral::statement * stmt : poly.statements() )
                 {
-                    cout << "Statement:" << endl;
+                    cout << endl;
                     poly_printer.print(stmt, cout);
                 }
 

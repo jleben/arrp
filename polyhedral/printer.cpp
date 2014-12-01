@@ -84,7 +84,7 @@ void printer::print(expression *expr, ostream &s)
     }
     else if (auto access = dynamic_cast<stream_access*>(expr))
     {
-        s << "access: " << access->target << " [" << endl;
+        s << "access: " << access->target->name << " [" << endl;
         indent();
         for (int row = 0; row < access->pattern.output_dimension(); ++row)
         {
@@ -116,9 +116,9 @@ void printer::print(expression *expr, ostream &s)
     else if (auto access = dynamic_cast<reduction_access*>(expr))
     {
         s << "reduction access: "
-          << access->initializer
+          << access->initializer->name
           << " / "
-          << access->reductor;
+          << access->reductor->name;
     }
     else if (auto access = dynamic_cast<input_access*>(expr))
     {
@@ -133,7 +133,7 @@ void printer::print(expression *expr, ostream &s)
 
 void printer::print(statement *stmt, ostream &s )
 {
-    s << stmt << " [";
+    s << stmt->name << " [";
     for(int size : stmt->domain)
         s << " " << size;
     s << " ] = ";
