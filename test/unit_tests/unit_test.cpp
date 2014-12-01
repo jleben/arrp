@@ -66,7 +66,7 @@ semantic::type_ptr semantic_analysis
 
 vector<polyhedral::statement*> polyhedral_model
 (istream & code,
- const string & symbol,
+ const string & symbol_name,
  vector<semantic::type_ptr> arguments)
 {
     vector<polyhedral::statement*> empty_result;
@@ -75,28 +75,38 @@ vector<polyhedral::statement*> polyhedral_model
     if (!symbolic_analysis(code, &env))
         return empty_result;
 
-    auto sym_iter = env.find(symbol);
+    auto sym_iter = env.find(symbol_name);
     if (sym_iter == env.end())
     {
-        cerr << "ERROR: no symbol '" << symbol << "' available." << endl;
+        cerr << "ERROR: no symbol '" << symbol_name << "' available." << endl;
         return empty_result;
     }
 
+    semantic::symbol & sym = sym_iter->second;
+
     semantic::type_checker type_checker(env);
     semantic::type_ptr result_type =
-            type_checker.check(sym_iter->second, arguments);
+            type_checker.check(sym, arguments);
 
     if (!result_type)
         return empty_result;
 
+    if (result_type->is(semantic::type::function))
+    {
+        sym_iter = env.find(result_type->as<semantic::function>().name);
+        assert(sym_iter != env.end());
+        sym = sym_iter->second;
+    }
+#if 0
     if (!result_type->is(semantic::type::function))
     {
         cerr << "ERROR: symbol '" << symbol << "' is not a function." << endl;
         return empty_result;
     }
+#endif
 
     polyhedral::translator poly(env);
-    poly.translate(result_type->as<semantic::function>(), arguments);
+    poly.translate(sym, arguments);
     return poly.statements();
 }
 

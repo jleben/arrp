@@ -385,84 +385,81 @@ int main(int argc, char *argv[])
 
         cout << "Type: " << *result_type << endl;
 
+        if (result_type->is(semantic::type::function))
         {
-            if(result_type->get_tag() == semantic::type::function)
-            {
-                semantic::function &f = result_type->as<semantic::function>();
-                poly.translate( f, eval.args );
-
-                cout << endl << "### Polyhedral Model ###" << endl;
-                for( polyhedral::statement * stmt : poly.statements() )
-                {
-                    cout << endl;
-                    poly_printer.print(stmt, cout);
-                }
-
-                cout << endl << "### Dataflow Analysis ###" << endl;
-
-                dataflow::model dataflow_model(poly.statements());
-
-                cout << endl << "### AST Generation ###" << endl;
-
-                polyhedral::ast_generator poly_ast_gen( poly.statements(),
-                                                        &dataflow_model );
-                auto ast = poly_ast_gen.generate();
-                if (!ast.first && !ast.second)
-                {
-                    cout << "No AST generated. Aborting." << endl;
-                    return result::generator_error;
-                }
-
-                if (ast.first)
-                {
-                    polyhedral::llvm_from_model llvm_from_model
-                            (module,
-                             eval.args.size(),
-                             poly.statements(),
-                             &dataflow_model,
-                             polyhedral::initial_schedule);
-
-                    auto stmt_func = [&]
-                            ( const string & name,
-                            const vector<llvm::Value*> & index,
-                            llvm::BasicBlock * block ) -> llvm::BasicBlock*
-                    {
-                        return llvm_from_model.generate_statement(name, index, block);
-                    };
-
-                    llvm_cloog.set_stmt_func(stmt_func);
-                    llvm_cloog.generate( ast.first,
-                                         llvm_from_model.start_block(),
-                                         llvm_from_model.end_block() );
-                }
-
-                if (ast.second)
-                {
-                    polyhedral::llvm_from_model llvm_from_model
-                            (module,
-                             eval.args.size(),
-                             poly.statements(),
-                             &dataflow_model,
-                             polyhedral::periodic_schedule);
-
-                    auto stmt_func = [&]
-                            ( const string & name,
-                            const vector<llvm::Value*> & index,
-                            llvm::BasicBlock * block ) -> llvm::BasicBlock*
-                    {
-                        return llvm_from_model.generate_statement(name, index, block);
-                    };
-
-                    llvm_cloog.set_stmt_func(stmt_func);
-                    llvm_cloog.generate( ast.second,
-                                         llvm_from_model.start_block(),
-                                         llvm_from_model.end_block() );
-                }
-            }
+            sym_iter = env.find(result_type->as<semantic::function>().name);
+            assert(sym_iter != env.end());
         }
 
-        //gen.generate(sym_iter->second, eval.args);
+        poly.translate( sym_iter->second, eval.args );
 
+        cout << endl << "### Polyhedral Model ###" << endl;
+        for( polyhedral::statement * stmt : poly.statements() )
+        {
+            cout << endl;
+            poly_printer.print(stmt, cout);
+        }
+
+        cout << endl << "### Dataflow Analysis ###" << endl;
+
+        dataflow::model dataflow_model(poly.statements());
+
+        cout << endl << "### AST Generation ###" << endl;
+
+        polyhedral::ast_generator poly_ast_gen( poly.statements(),
+                                                &dataflow_model );
+        auto ast = poly_ast_gen.generate();
+        if (!ast.first && !ast.second)
+        {
+            cout << "No AST generated. Aborting." << endl;
+            return result::generator_error;
+        }
+
+        if (ast.first)
+        {
+            polyhedral::llvm_from_model llvm_from_model
+                    (module,
+                     eval.args.size(),
+                     poly.statements(),
+                     &dataflow_model,
+                     polyhedral::initial_schedule);
+
+            auto stmt_func = [&]
+                    ( const string & name,
+                    const vector<llvm::Value*> & index,
+                    llvm::BasicBlock * block ) -> llvm::BasicBlock*
+            {
+                return llvm_from_model.generate_statement(name, index, block);
+            };
+
+            llvm_cloog.set_stmt_func(stmt_func);
+            llvm_cloog.generate( ast.first,
+                                 llvm_from_model.start_block(),
+                                 llvm_from_model.end_block() );
+        }
+
+        if (ast.second)
+        {
+            polyhedral::llvm_from_model llvm_from_model
+                    (module,
+                     eval.args.size(),
+                     poly.statements(),
+                     &dataflow_model,
+                     polyhedral::periodic_schedule);
+
+            auto stmt_func = [&]
+                    ( const string & name,
+                    const vector<llvm::Value*> & index,
+                    llvm::BasicBlock * block ) -> llvm::BasicBlock*
+            {
+                return llvm_from_model.generate_statement(name, index, block);
+            };
+
+            llvm_cloog.set_stmt_func(stmt_func);
+            llvm_cloog.generate( ast.second,
+                                 llvm_from_model.start_block(),
+                                 llvm_from_model.end_block() );
+        }
     }
 #if 1
     ofstream output_file(args.output_filename);

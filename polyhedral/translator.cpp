@@ -14,6 +14,85 @@ translator::translator(const semantic::environment &env):
     //m_context.enter_scope();
 }
 
+void translator::translate(const semantic::symbol & sym,
+                           const vector<semantic::type_ptr> & args)
+{
+    using namespace semantic;
+
+    expression * result = nullptr;
+
+    switch(sym.type)
+    {
+    case semantic::symbol::expression:
+    {
+        result = do_block( sym.source_expression() );
+        break;
+    }
+    case semantic::symbol::function:
+    {
+        context::scope_holder func_scope(m_context);
+
+        assert(sym.parameter_names.size() == args.size());
+        for(int i = 0; i < args.size(); ++i)
+        {
+            m_context.bind(sym.parameter_names[i], translate_input(args[i], i) );
+        }
+
+        result = do_block( sym.source_expression() );
+        break;
+    }
+    }
+
+    assert(result);
+
+    type_ptr result_type = sym.source_expression()->semantic_type;
+
+    vector<int> result_domain;
+
+    if (auto view = dynamic_cast<stream_view*>(result))
+    {
+        stream_access * access = new stream_access;
+        access->pattern = view->pattern;
+        access->target = view->target;
+        result = access;
+    }
+
+    switch(result_type->get_tag())
+    {
+    case type::integer_num:
+    case type::real_num:
+        result_domain.resize(1,1);
+        break;
+    case type::stream:
+    {
+        result_domain = result_type->as<stream>().size;
+        if (auto view = dynamic_cast<stream_view*>(result))
+        {
+            stream_access * access = new stream_access;
+            access->pattern = view->pattern;
+            access->target = view->target;
+            result = access;
+        }
+        break;
+    }
+    case type::range:
+    {
+        const semantic::range & range_type =
+                result_type->as<semantic::range>();
+        if (!range_type.is_constant())
+            throw error("Non-constant range not supported as result type.");
+        result_domain = { range_type.const_size() };
+        result = iterate(dynamic_cast<range*>(result));
+        break;
+    }
+
+    default:
+        throw runtime_error("Unexpected type.");
+    }
+
+    auto stmt = make_statement(result, result_domain);
+}
+
 expression * translator::translate_input(const semantic::type_ptr & type,
                                          int index)
 {
@@ -41,67 +120,6 @@ expression * translator::translate_input(const semantic::type_ptr & type,
     default:
         throw std::runtime_error("Translation: Unexpected type.");
     }
-}
-
-void translator::translate(const semantic::function & func,
-                           const vector<semantic::type_ptr> & args)
-{
-    using namespace semantic;
-
-    context::scope_holder func_scope(m_context);
-
-    assert(func.parameters.size() == args.size());
-    for(int i = 0; i < func.parameters.size(); ++i)
-    {
-        m_context.bind(func.parameters[i], translate_input(args[i], i) );
-    }
-
-    expression * result = do_block( func.expression() );
-
-    vector<int> result_domain;
-
-    if (auto view = dynamic_cast<stream_view*>(result))
-    {
-        stream_access * access = new stream_access;
-        access->pattern = view->pattern;
-        access->target = view->target;
-        result = access;
-    }
-
-    switch(func.result_type()->get_tag())
-    {
-    case type::integer_num:
-    case type::real_num:
-        result_domain.resize(1,1);
-        break;
-    case type::stream:
-    {
-        result_domain = func.result_type()->as<stream>().size;
-        if (auto view = dynamic_cast<stream_view*>(result))
-        {
-            stream_access * access = new stream_access;
-            access->pattern = view->pattern;
-            access->target = view->target;
-            result = access;
-        }
-        break;
-    }
-    case type::range:
-    {
-        const semantic::range & range_type =
-                func.result_type()->as<semantic::range>();
-        if (!range_type.is_constant())
-            throw error("Non-constant range not supported as function result type.");
-        result_domain = { range_type.const_size() };
-        result = iterate(dynamic_cast<range*>(result));
-        break;
-    }
-
-    default:
-        throw runtime_error("Unexpected type.");
-    }
-
-    auto stmt = make_statement(result, result_domain);
 }
 
 void translator::do_statement_list(const ast::node_ptr &node)

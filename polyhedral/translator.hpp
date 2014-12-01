@@ -25,7 +25,7 @@ class translator
 public:
     translator(const semantic::environment &);
 
-    void translate(const semantic::function & func,
+    void translate(const semantic::symbol &,
                    const vector<semantic::type_ptr> & args);
 
     vector<statement*> & statements() { return m_statements; }
