@@ -96,25 +96,39 @@ public:
         return printable<T>(v, printer);
     }
 
-    void compare()
+    result compare()
     {
-        compare_value("statement count", given_stmts.size(), expected_stmts.size());
+        try {
+            compare_value("statement count", given_stmts.size(), expected_stmts.size());
 
-        for (int i = 0; i < given_stmts.size(); ++i)
-        {
-            current_stmt = given_stmts[i];
-            try {
-                compare(given_stmts[i], expected_stmts[i]);
-            }
-            catch (test_error & e)
+            for (int i = 0; i < given_stmts.size(); ++i)
             {
-                ostringstream msg;
-                msg << "Statement " << current_stmt->name << ":" << endl;
-                msg << e.msg;
-                e.msg = msg.str();
-                throw e;
+                current_stmt = given_stmts[i];
+                try {
+                    compare(given_stmts[i], expected_stmts[i]);
+                }
+                catch (test_error & e)
+                {
+                    ostringstream msg;
+                    msg << "* In statement " << current_stmt->name << endl;
+                    msg << e.msg;
+                    e.msg = msg.str();
+                    throw e;
+                }
             }
         }
+        catch (test_error &e)
+        {
+            cerr << "FAILURE:" << endl;
+            cerr << e.msg << endl;
+            cerr << "Input:" << endl;
+            for (statement *s : given_stmts)
+                printer.print(s, cerr);
+
+            return unit_test::failure;
+        }
+
+        return unit_test::success;
     }
 
     void compare(const statement *found, const statement * expected)
@@ -126,8 +140,10 @@ public:
         catch (test_error & e)
         {
             ostringstream msg;
-            msg << "Expression :" << endl;
+            msg << "* In expression:" << endl;
+            printer.indent();
             printer.print(found->expr, msg);
+            printer.unindent();
             msg << endl;
             msg << e.msg;
             e.msg = msg.str();
@@ -164,7 +180,7 @@ public:
                                       print(found),
                                       print(expected) );
 
-            compare_expr(expected_type, found_type);
+            compare_expr(found_type, expected_type);
 
             throw success();
         }
@@ -252,9 +268,40 @@ semantic::type_ptr make_stream_type( const vector<int> & size )
     return make_shared<semantic::stream>(size);
 }
 
-namespace slice
+namespace poly {
+namespace slice {
+
+result dim_0_of_3()
 {
-result one ()
+    istringstream code("f(x) = x[5]");
+
+    comparator c;
+
+    c.given_stmts = unit_test::polyhedral_model(code, "f", { make_stream_type({10,15,20}) });
+
+    {
+        statement *in = new statement;
+        in->domain = {10,15,20};
+        in->expr = new input_access(0);
+
+        stream_access *slicer = new stream_access;
+        slicer->target = in;
+        slicer->pattern = mapping(2,3);
+        slicer->pattern.constant(0) = 4;
+        slicer->pattern.coefficient(0,1) = 1;
+        slicer->pattern.coefficient(1,2) = 1;
+
+        statement *out = new statement;
+        out->expr = slicer;
+        out->domain = {15,20};
+
+        c.expected_stmts = {in,out};
+    }
+
+    return c.compare();
+}
+
+result dummy ()
 {
     ifstream file("slice1.in");
     if (!file.is_open())
@@ -283,16 +330,9 @@ result one ()
 
     c.given_stmts = unit_test::polyhedral_model(file, "f", { make_stream_type({infinite}) });
 
-    try
-    {
-        c.compare();
-    }
-    catch (test_error &e)
-    {
-        return unit_test::failure_msg(e.msg);
-    }
 
-    return unit_test::success;
+    return c.compare();
 }
 
-}
+} // namespace slice
+} // namespace polyhedral

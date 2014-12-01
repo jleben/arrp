@@ -85,4 +85,9 @@ set(semantic_test_funcs
 
 add_unit_tests(semantics test_semantics.hpp ${semantic_test_funcs})
 
-add_unit_tests(polyhedral test_polyhedral_model.hpp "slice::one")
+set(polyhedral_tests
+"poly::slice::dim_0_of_3"
+"poly::slice::dummy"
+)
+
+add_unit_tests(polyhedral test_polyhedral_model.hpp ${polyhedral_tests})
