@@ -142,6 +142,11 @@ public:
         count
     };
 
+    intrinsic() {};
+    intrinsic(of_kind k, const vector<expression*> & operands):
+        kind(k), operands(operands)
+    {}
+
     of_kind kind;
     vector<expression*> operands;
 };
