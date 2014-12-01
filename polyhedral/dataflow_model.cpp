@@ -70,8 +70,8 @@ model::model( const vector<statement*> & statements )
         {
             cout << "WARNING: Infinite statement with no channels: " << a.stmt->name << endl;
             cout << '\t' << "Assuming default steady-period count of 1.";
+            a.steady_count = 1;
         }
-        a.steady_count = 1;
     }
 }
 
