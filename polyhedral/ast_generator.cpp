@@ -33,9 +33,9 @@ statement *statement_for( const isl::identifier & id )
 ast_generator::ast_generator( const vector<statement*> & statements,
                               const dataflow::model * dataflow ):
     m_printer(m_ctx),
+    m_statements(statements),
     m_dataflow(dataflow)
 {
-    store_statements(statements);
     m_ctx.set_error_action(isl::context::abort_on_error);
 }
 
@@ -85,19 +85,6 @@ ast_generator::generate()
 
     return std::make_pair(init_ast, period_ast);
 #endif
-}
-
-void ast_generator::store_statements( const vector<statement*> & statements )
-{
-    m_statements = statements;
-    int idx = 0;
-    for (statement * stmt : m_statements)
-    {
-        ostringstream name;
-        name << "S_" << idx;
-        stmt->name = name.str();
-        ++idx;
-    }
 }
 
 void ast_generator::polyhedral_model

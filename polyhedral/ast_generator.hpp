@@ -67,8 +67,6 @@ public:
 
 private:
 
-    void store_statements( const vector<statement*> & );
-
     // Translation to ISL representation:
 
     void polyhedral_model(isl::union_set & domains,

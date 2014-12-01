@@ -27,10 +27,8 @@ expression * translator::translate_input(const semantic::type_ptr & type,
     {
         auto & stream_type = type->as<semantic::stream>();
 
-        statement *generator = new statement;
-        generator->domain = stream_type.size;
-        generator->expr = new input_access { index };
-        m_statements.push_back(generator);
+        statement *generator =
+                make_statement(new input_access{index}, stream_type.size);
 
         int dimension = generator->domain.size();
 
@@ -103,10 +101,7 @@ void translator::translate(const semantic::function & func,
         throw runtime_error("Unexpected type.");
     }
 
-    auto stmt = new statement;
-    m_statements.push_back(stmt);
-    stmt->domain = result_domain;
-    stmt->expr = result;
+    auto stmt = make_statement(result, result_domain);
 }
 
 void translator::do_statement_list(const ast::node_ptr &node)
@@ -799,10 +794,15 @@ statement *
 translator::make_statement( expression * expr,
                             const vector<int> & domain )
 {
+    ostringstream name;
+    name << "S_" << m_statements.size();
+
     auto stmt = new statement;
     m_statements.push_back(stmt);
     stmt->domain = domain;
     stmt->expr = expr;
+    stmt->name = name.str();
+
     return stmt;
 }
 
