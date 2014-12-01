@@ -546,7 +546,7 @@ ast_generator::combine_schedule
 {
     isl::union_map canonical_init_schedule(m_ctx);
 
-    int init_sched_dim, period_sched_dim;
+    int init_sched_dim = 0, period_sched_dim = 0;
 
     init_schedule.for_each( [&]( isl::map & sched )
     {
