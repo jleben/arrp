@@ -837,18 +837,18 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
     }
     if (auto view = dynamic_cast<stream_view*>(expr))
     {
-        mapping m2 = mapping::identity(view->pattern.input_dimension(),
-                                       view->pattern.output_dimension());
+        int d = view->pattern.input_dimension() - map.output_dimension();
+        assert(d >= 0);
+        mapping m2 = mapping::identity(map.input_dimension() + d,
+                                       map.output_dimension() + d);
 
-        int d_out = m2.output_dimension() - map.output_dimension();
-        int d_in = m2.input_dimension() - map.input_dimension();
         for (int out = 0; out < map.output_dimension(); ++out)
         {
-            int out2 = d_out + out;
+            int out2 = d + out;
             m2.constant(out2) = map.constant(out);
             for(int in = 0; in < map.input_dimension(); ++in)
             {
-                int in2 = d_in + in;
+                int in2 = d + in;
                 m2.coefficient(in2, out2) = map.coefficient(in,out);
             }
         }
