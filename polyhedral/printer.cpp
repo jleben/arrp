@@ -50,17 +50,17 @@ string name_of_intrinsic( intrinsic::of_kind type )
 
 printer::printer(): level(0) {}
 
-void printer::print(expression *expr, ostream &s)
+void printer::print(const expression *expr, ostream &s)
 {
-    if (auto const_int = dynamic_cast<constant<int>*>(expr))
+    if (auto const_int = dynamic_cast<const constant<int>*>(expr))
     {
         s << const_int->value;
     }
-    else if (auto const_double = dynamic_cast<constant<double>*>(expr))
+    else if (auto const_double = dynamic_cast<const constant<double>*>(expr))
     {
         s << const_double->value;
     }
-    else if (auto intr = dynamic_cast<intrinsic*>(expr))
+    else if (auto intr = dynamic_cast<const intrinsic*>(expr))
     {
         s << name_of_intrinsic(intr->kind);
 
@@ -77,12 +77,12 @@ void printer::print(expression *expr, ostream &s)
         unindent();
         s << indentation() << ")";
     }
-    else if (auto it = dynamic_cast<iterator_access*>(expr))
+    else if (auto it = dynamic_cast<const iterator_access*>(expr))
     {
         s << "iterator: " << it->offset << " + " << it->ratio << " * "
           << '[' << it->dimension << ']';
     }
-    else if (auto access = dynamic_cast<stream_access*>(expr))
+    else if (auto access = dynamic_cast<const stream_access*>(expr))
     {
         s << "access: " << access->target->name << " [" << endl;
         indent();
@@ -113,14 +113,14 @@ void printer::print(expression *expr, ostream &s)
         s << indentation() << "]";
 #endif
     }
-    else if (auto access = dynamic_cast<reduction_access*>(expr))
+    else if (auto access = dynamic_cast<const reduction_access*>(expr))
     {
         s << "reduction access: "
           << access->initializer->name
           << " / "
           << access->reductor->name;
     }
-    else if (auto access = dynamic_cast<input_access*>(expr))
+    else if (auto access = dynamic_cast<const input_access*>(expr))
     {
         s << "input access: "
           << access->index;
@@ -131,7 +131,7 @@ void printer::print(expression *expr, ostream &s)
     }
 }
 
-void printer::print(statement *stmt, ostream &s )
+void printer::print(const statement *stmt, ostream &s )
 {
     s << stmt->name << " [";
     for(int size : stmt->domain)

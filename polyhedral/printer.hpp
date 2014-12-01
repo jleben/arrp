@@ -16,8 +16,8 @@ class printer
 {
 public:
     printer();
-    void print(expression *expr, ostream &);
-    void print(statement *stmt, ostream & );
+    void print(const expression *expr, ostream &);
+    void print(const statement *stmt, ostream & );
     void indent() { ++level; }
     void unindent() { --level; }
 private:
