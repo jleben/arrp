@@ -837,6 +837,8 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
     }
     if (auto view = dynamic_cast<stream_view*>(expr))
     {
+        //cout << "Applying map:" << endl << map;
+
         int d = view->pattern.input_dimension() - map.output_dimension();
         assert(d >= 0);
         mapping m2 = mapping::identity(map.input_dimension() + d,
@@ -853,14 +855,16 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
             }
         }
 
+        //cout << "Transform:" << endl << m2;
+        //cout << "Base:" << endl << view->pattern;
+
         // FIXME: Only duplicate if shared (avoid memory leak).
 
-        //cout << "before: " << endl << view->pattern;
         auto new_view = new stream_view;
         new_view->target = view->target;
         new_view->pattern = view->pattern * m2;
         new_view->current_iteration = view->current_iteration;
-        //cout << "after: " << endl  << new_view->pattern;
+        //cout << "Result: " << endl  << new_view->pattern;
         return new_view;
     }
     if ( dynamic_cast<constant<int>*>(expr) ||
