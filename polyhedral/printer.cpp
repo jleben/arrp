@@ -120,6 +120,11 @@ void printer::print(expression *expr, ostream &s)
           << " / "
           << access->reductor;
     }
+    else if (auto access = dynamic_cast<input_access*>(expr))
+    {
+        s << "input access: "
+          << access->index;
+    }
     else
     {
         s << "unexpected expression";
