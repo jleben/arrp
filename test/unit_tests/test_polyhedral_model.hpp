@@ -271,7 +271,7 @@ semantic::type_ptr make_stream_type( const vector<int> & size )
 namespace poly {
 namespace slice {
 
-result dim_0_of_3()
+result dim_1_of_3()
 {
     istringstream code("f(x) = x[5]");
 
@@ -294,6 +294,36 @@ result dim_0_of_3()
         statement *out = new statement;
         out->expr = slicer;
         out->domain = {15,20};
+
+        c.expected_stmts = {in,out};
+    }
+
+    return c.compare();
+}
+
+result dim_2_of_3()
+{
+    istringstream code("f(x) = for each (a in x) a[5]");
+
+    comparator c;
+
+    c.given_stmts = unit_test::polyhedral_model(code, "f", { make_stream_type({10,15,20}) });
+
+    {
+        statement *in = new statement;
+        in->domain = {10,15,20};
+        in->expr = new input_access(0);
+
+        stream_access *slicer = new stream_access;
+        slicer->target = in;
+        slicer->pattern = mapping(2,3);
+        slicer->pattern.coefficient(0,0) = 1;
+        slicer->pattern.constant(1) = 4;
+        slicer->pattern.coefficient(1,2) = 1;
+
+        statement *out = new statement;
+        out->expr = slicer;
+        out->domain = {10,20};
 
         c.expected_stmts = {in,out};
     }
