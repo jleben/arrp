@@ -66,6 +66,13 @@ public:
         return m;
     }
 
+    bool operator== (const matrix<T> & other) const
+    {
+        return m_rows == other.m_rows &&
+                m_columns == other.m_columns &&
+                m_storage == other.m_storage;
+    }
+
     int rows() const { return m_rows; }
 
     int columns() const { return m_columns; }

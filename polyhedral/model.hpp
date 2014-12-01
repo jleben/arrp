@@ -45,6 +45,11 @@ public:
         return m;
     }
 
+    bool operator== ( const mapping & other ) const
+    {
+        return coefficients == other.coefficients && constants == other.constants;
+    }
+
     int coefficient(int in_dim, int out_dim) const
     {
         return coefficients(out_dim, in_dim);
