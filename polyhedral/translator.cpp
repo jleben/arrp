@@ -647,6 +647,13 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
 
     expression *result = do_block(body_node);
 
+    if (stream_view *view = dynamic_cast<stream_view*>(result))
+    {
+        view->pattern = access(view);
+        view->current_iteration = current_dimension() - 1;
+        assert(view->current_iteration >= 0);
+    }
+
     m_domain.pop_back();
 
     return result;
@@ -752,7 +759,9 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
 
 mapping translator::access(stream_view *source, int padding)
 {
-    if (source->current_iteration == current_dimension() + padding)
+    assert(padding >= 0);
+
+    if (source->current_iteration == current_dimension() && padding == 0)
     {
         return source->pattern;
     }
