@@ -159,6 +159,12 @@ public:
 class iterator_access : public expression
 {
 public:
+    iterator_access() {}
+    iterator_access(int dimension, int offset=0, int ratio=1):
+        dimension(dimension),
+        offset(offset),
+        ratio(ratio)
+    {}
     int dimension;
     int offset;
     int ratio;
