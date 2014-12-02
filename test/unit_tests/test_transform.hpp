@@ -294,5 +294,179 @@ result stream3_by_range_int_range ()
 }
 
 }
+
+namespace transpose {
+
+result stream3_to_dim2()
+{
+    test t;
+
+    std::istringstream code("f(x) = x{2}");
+
+    t.expect_type(stream_type(11,9,13));
+
+    {
+        using namespace polyhedral;
+
+        statement *in = new statement;
+        in->domain = {9,11,13};
+        in->expr = new input_access(0);
+
+        stream_access *x = new stream_access;
+        x->target = in;
+        x->pattern = mapping(3,3);
+        x->pattern.coefficient(0,1) = 1;
+        x->pattern.coefficient(1,0) = 1;
+        x->pattern.coefficient(2,2) = 1;
+
+        statement *out = new statement;
+        out->domain = {11,9,13};
+        out->expr = x;
+
+        t.expect_polyhedral_model({in,out});
+    }
+
+    return run(t, code, "f", { stream_type(9,11,13) });
+}
+
+result stream4_to_dim2_dim3()
+{
+    test t;
+
+    std::istringstream code("f(x) = x{2,3}");
+
+    t.expect_type(stream_type(11,13,9,15));
+
+    {
+        using namespace polyhedral;
+
+        statement *in = new statement;
+        in->domain = {9,11,13,15};
+        in->expr = new input_access(0);
+
+        stream_access *x = new stream_access;
+        x->target = in;
+        x->pattern = mapping(4,4);
+        x->pattern.coefficient(0,1) = 1;
+        x->pattern.coefficient(1,2) = 1;
+        x->pattern.coefficient(2,0) = 1;
+        x->pattern.coefficient(3,3) = 1;
+
+        statement *out = new statement;
+        out->domain = {11,13,9,15};
+        out->expr = x;
+
+        t.expect_polyhedral_model({in,out});
+    }
+
+    return run(t, code, "f", { stream_type(9,11,13,15) });
+}
+
+result stream4_to_dim4_dim2()
+{
+    test t;
+
+    std::istringstream code("f(x) = x{4,2}");
+
+    t.expect_type(stream_type(15,11,9,13));
+
+    {
+        using namespace polyhedral;
+
+        statement *in = new statement;
+        in->domain = {9,11,13,15};
+        in->expr = new input_access(0);
+
+        stream_access *x = new stream_access;
+        x->target = in;
+        x->pattern = mapping(4,4);
+        x->pattern.coefficient(0,3) = 1;
+        x->pattern.coefficient(1,1) = 1;
+        x->pattern.coefficient(2,0) = 1;
+        x->pattern.coefficient(3,2) = 1;
+
+        statement *out = new statement;
+        out->domain = {15,11,9,13};
+        out->expr = x;
+
+        t.expect_polyhedral_model({in,out});
+    }
+
+    return run(t, code, "f", { stream_type(9,11,13,15) });
+}
+
+}
+
+namespace transform
+{
+
+result slice_by_scalar_and_transpose()
+{
+    test t;
+
+    std::istringstream code("f(x) = x[5]{3}");
+
+    t.expect_type(stream_type(15,11,13));
+
+    {
+        using namespace polyhedral;
+
+        statement *in = new statement;
+        in->domain = {9,11,13,15};
+        in->expr = new input_access(0);
+
+        stream_access *x = new stream_access;
+        x->target = in;
+        x->pattern = mapping(3,4);
+        x->pattern.constant(0) = 4;
+        x->pattern.coefficient(0,3) = 1;
+        x->pattern.coefficient(1,1) = 1;
+        x->pattern.coefficient(2,2) = 1;
+
+        statement *out = new statement;
+        out->domain = {15,11,13};
+        out->expr = x;
+
+        t.expect_polyhedral_model({in,out});
+    }
+
+    return run(t, code, "f", { stream_type(9,11,13,15) });
+}
+
+result transpose_and_slice_by_scalar()
+{
+    test t;
+
+    std::istringstream code("f(x) = x{3}[5]");
+
+    t.expect_type(stream_type(9,11,15));
+
+    {
+        using namespace polyhedral;
+
+        statement *in = new statement;
+        in->domain = {9,11,13,15};
+        in->expr = new input_access(0);
+
+        stream_access *x = new stream_access;
+        x->target = in;
+        x->pattern = mapping(3,4);
+        x->pattern.coefficient(0,0) = 1;
+        x->pattern.coefficient(1,1) = 1;
+        x->pattern.constant(2) = 4;
+        x->pattern.coefficient(2,3) = 1;
+
+        statement *out = new statement;
+        out->domain = {9,11,15};
+        out->expr = x;
+
+        t.expect_polyhedral_model({in,out});
+    }
+
+    return run(t, code, "f", { stream_type(9,11,13,15) });
+}
+
+}
+
 }
 }

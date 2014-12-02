@@ -68,7 +68,7 @@ set(binop_tests
 
 add_unit_tests(binop test_binop.hpp ${binop_tests})
 
-set(slice_tests
+set(transform_tests
 "slice::stream1_by_int"
 "slice::stream1_by_range"
 "slice::stream3_by_int"
@@ -78,14 +78,11 @@ set(slice_tests
 "slice::stream3_by_int3"
 "slice::stream3_by_range3"
 "slice::stream3_by_range_int_range"
-)
-
-add_unit_tests(slice test_slice.hpp ${slice_tests})
-
-set(transpose_tests
 "transpose::stream3_to_dim2"
 "transpose::stream4_to_dim2_dim3"
 "transpose::stream4_to_dim4_dim2"
+"transform::slice_by_scalar_and_transpose"
+"transform::transpose_and_slice_by_scalar"
 )
 
-add_unit_tests(transpose test_transpose.hpp ${transpose_tests})
+add_unit_tests(transform test_transform.hpp ${transform_tests})
