@@ -49,14 +49,6 @@ void translator::translate(const semantic::symbol & sym,
 
     vector<int> result_domain;
 
-    if (auto view = dynamic_cast<stream_view*>(result))
-    {
-        stream_access * access = new stream_access;
-        access->pattern = view->pattern;
-        access->target = view->target;
-        result = access;
-    }
-
     switch(result_type->get_tag())
     {
     case type::integer_num:
@@ -66,13 +58,6 @@ void translator::translate(const semantic::symbol & sym,
     case type::stream:
     {
         result_domain = result_type->as<stream>().size;
-        if (auto view = dynamic_cast<stream_view*>(result))
-        {
-            stream_access * access = new stream_access;
-            access->pattern = view->pattern;
-            access->target = view->target;
-            result = access;
-        }
         break;
     }
     case type::range:
@@ -82,7 +67,6 @@ void translator::translate(const semantic::symbol & sym,
         if (!range_type.is_constant())
             throw error("Non-constant range not supported as result type.");
         result_domain = { range_type.const_size() };
-        result = iterate(dynamic_cast<range*>(result));
         break;
     }
 
@@ -90,6 +74,7 @@ void translator::translate(const semantic::symbol & sym,
         throw runtime_error("Unexpected type.");
     }
 
+    result = iterate(result, result_type);
     auto stmt = make_statement(result, result_domain);
 }
 
