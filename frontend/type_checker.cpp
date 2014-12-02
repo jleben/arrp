@@ -124,6 +124,7 @@ type_checker::type_checker(environment &env):
     }
     {
         vector<string> names = {
+            "min",
             "max",
             "pow"
         };

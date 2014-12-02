@@ -89,6 +89,7 @@ environment_builder::environment_builder(environment &env):
         "ceil",
         "floor",
         "abs",
+        "min",
         "max"
     };
 
