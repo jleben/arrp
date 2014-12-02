@@ -91,6 +91,7 @@ set(map_tests
 "map::stream1_identity"
 "map::stream1_add_scalar"
 "map::stream1_mul_range"
+"map::stream1_add_stream1"
 "map::stream1_take_n_identity"
 "map::stream1_take_n_raise_int"
 "map::stream1_take_n_sub_range"

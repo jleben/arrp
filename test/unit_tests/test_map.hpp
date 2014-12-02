@@ -96,6 +96,44 @@ result stream1_mul_range()
     return run(t, code, "f", { stream_type(9) });
 }
 
+result stream1_add_stream1()
+{
+    test t;
+
+    std::istringstream code("f(a,b) = for each(x in a) x + b");
+
+    t.expect_type(stream_type(9,5));
+
+    {
+        using namespace polyhedral;
+
+        statement *a = new statement;
+        a->domain = {9};
+        a->expr = new input_access(0);
+
+        statement *b = new statement;
+        b->domain = {5};
+        b->expr = new input_access(1);
+
+        stream_access *a_elem = new stream_access;
+        a_elem->target = a;
+        a_elem->pattern = mapping::identity(2,1);
+
+        stream_access *b_elem = new stream_access;
+        b_elem->target = b;
+        b_elem->pattern = mapping(2,1);
+        b_elem->pattern.coefficient(1,0) = 1;
+
+        statement *out = new statement;
+        out->domain = {9,5};
+        out->expr = new intrinsic(intrinsic::add, {a_elem, b_elem});
+
+        t.expect_polyhedral_model({a,b,out});
+    }
+
+    return run(t, code, "f", { stream_type(9), stream_type(5) });
+}
+
 result stream1_take_n_identity()
 {
     test t;

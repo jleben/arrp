@@ -4,6 +4,7 @@
 
 namespace stream {
 namespace unit_testing {
+
 namespace slice {
 
 result stream1_by_int ()
