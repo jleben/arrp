@@ -491,7 +491,7 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
     if (result_type->is(semantic::type::stream))
         slice_dimension = result_type->as<semantic::stream>().dimensionality();
     else
-        slice_dimension = 0;
+        slice_dimension = 1;
 
     mapping slicing =
             mapping(slice_dimension,
