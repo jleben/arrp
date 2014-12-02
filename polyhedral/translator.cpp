@@ -439,29 +439,23 @@ expression * translator::do_transpose(const ast::node_ptr &node)
 
     vector<int> order(dimension,-1);
     vector<bool> used_dims(dimension,false);
-    int pos = 0;
+
+    int in_dim = 0;
     for ( const auto & dim_node : dims_node->as_list()->elements )
     {
-        int dim = dim_node->as_leaf<int>()->value - 1;
-        order[pos] = dim;
-        used_dims[dim] = true;
-        ++pos;
+        int out_dim = dim_node->as_leaf<int>()->value - 1;
+        order[out_dim] = in_dim;
+        ++in_dim;
     }
-    for (int dim = 0; dim < dimension; ++dim)
+    for(int out_dim = 0; out_dim < dimension; ++out_dim)
     {
-        if (!used_dims[dim])
+        if (order[out_dim] < 0)
         {
-            order[pos] = dim;
-            ++pos;
+            order[out_dim] = in_dim;
+            ++in_dim;
         }
     }
-    assert(pos == dimension);
-
-    /*
-    cout << "transpose: ";
-    for (int d : order) cout << d << " ";
-    cout << endl;
-    */
+    assert(in_dim == dimension);
 
     mapping transposition = mapping::identity(dimension, dimension);
     transposition.coefficients = transposition.coefficients.reordered( order );
