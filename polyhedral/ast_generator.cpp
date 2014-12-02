@@ -703,16 +703,6 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     space sink_space = dependency.range().get_space();
 
     statement *source_stmt = statement_for(src_space.id(isl::space::variable));
-    auto source_actor_ptr = m_dataflow->find_actor_for(source_stmt);
-    if (!source_actor_ptr)
-    {
-#if DEBUG_BUFFER_SIZE == 1
-        cout << ".. Source not an actor; skipping." << endl;
-#endif
-        return;
-    }
-
-    const dataflow::actor & source_actor = *source_actor_ptr;
 
     // Extract schedule
 
