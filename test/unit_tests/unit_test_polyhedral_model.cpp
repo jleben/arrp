@@ -1,15 +1,17 @@
 #include "unit_test.hpp"
+
 #include "../../polyhedral/model.hpp"
 #include "../../polyhedral/printer.hpp"
 
 #include <sstream>
-#include <fstream>
 #include <memory>
 #include <algorithm>
 
+namespace stream {
+namespace unit_testing {
+
 using namespace stream;
 using namespace stream::polyhedral;
-using stream::unit_test::result;
 using namespace std;
 
 // Printing
@@ -48,17 +50,7 @@ ostream & operator<<( ostream &stream, const vector<int> & v )
 
 // Exceptions
 
-class test_error
-{
-public:
-    test_error() {}
-    test_error( const string & msg ): msg(msg) {}
-    string msg;
-};
-
-class success {};
-
-class mismatch_error : public test_error
+class mismatch_error : public failure
 {
 public:
     template <typename T>
@@ -69,7 +61,7 @@ public:
         text << "-- found:" << endl << found << endl;
         text << "-- expected:" << endl << expected << endl;
 
-        msg = text.str();
+        reason = text.str();
     }
 };
 
@@ -84,11 +76,12 @@ void compare_value( const string & what, const T & found, const T & expected )
 
 class comparator
 {
+    polyhedral::printer printer;
+    statement * current_stmt = nullptr;
+
 public:
     vector<statement*> given_stmts;
     vector<statement*> expected_stmts;
-    statement * current_stmt = nullptr;
-    polyhedral::printer printer;
 
     template <typename T>
     printable<T> print( const T & v )
@@ -96,39 +89,33 @@ public:
         return printable<T>(v, printer);
     }
 
-    result compare()
+    void run()
     {
-        try {
-            compare_value("statement count", given_stmts.size(), expected_stmts.size());
+        compare_value("statement count", given_stmts.size(), expected_stmts.size());
 
-            for (int i = 0; i < given_stmts.size(); ++i)
+        for (int i = 0; i < given_stmts.size(); ++i)
+        {
+            current_stmt = given_stmts[i];
+            try {
+                compare(given_stmts[i], expected_stmts[i]);
+            }
+            catch (failure & e)
             {
-                current_stmt = given_stmts[i];
-                try {
-                    compare(given_stmts[i], expected_stmts[i]);
-                }
-                catch (test_error & e)
-                {
-                    ostringstream msg;
-                    msg << "* In statement " << current_stmt->name << endl;
-                    msg << e.msg;
-                    e.msg = msg.str();
-                    throw e;
-                }
+                ostringstream msg;
+
+                msg << "* In statement " << current_stmt->name << endl;
+
+                msg << e.reason << endl;
+
+                msg << "Input:" << endl;
+                for (statement *s : given_stmts)
+                    printer.print(s, msg);
+
+                e.reason = msg.str();
+
+                throw e;
             }
         }
-        catch (test_error &e)
-        {
-            cerr << "FAILURE:" << endl;
-            cerr << e.msg << endl;
-            cerr << "Input:" << endl;
-            for (statement *s : given_stmts)
-                printer.print(s, cerr);
-
-            return unit_test::failure;
-        }
-
-        return unit_test::success;
     }
 
     void compare(const statement *found, const statement * expected)
@@ -137,7 +124,7 @@ public:
         try {
             compare(found->expr, expected->expr);
         }
-        catch (test_error & e)
+        catch (failure & e)
         {
             ostringstream msg;
             msg << "* In expression:" << endl;
@@ -145,8 +132,8 @@ public:
             printer.print(found->expr, msg);
             printer.unindent();
             msg << endl;
-            msg << e.msg;
-            e.msg = msg.str();
+            msg << e.reason;
+            e.reason = msg.str();
             throw e;
         }
     }
@@ -263,106 +250,16 @@ private:
 
 };
 
-semantic::type_ptr make_stream_type( const vector<int> & size )
+void test::test_polyhedral_model(const vector<polyhedral::statement*> & actual)
 {
-    return make_shared<semantic::stream>(size);
-}
-
-namespace poly {
-namespace slice {
-
-result dim_1_of_3()
-{
-    istringstream code("f(x) = x[5]");
+    if (!do_test_polyhedral_model)
+        return;
 
     comparator c;
-
-    c.given_stmts = unit_test::polyhedral_model(code, "f", { make_stream_type({10,15,20}) });
-
-    {
-        statement *in = new statement;
-        in->domain = {10,15,20};
-        in->expr = new input_access(0);
-
-        stream_access *slicer = new stream_access;
-        slicer->target = in;
-        slicer->pattern = mapping(2,3);
-        slicer->pattern.constant(0) = 4;
-        slicer->pattern.coefficient(0,1) = 1;
-        slicer->pattern.coefficient(1,2) = 1;
-
-        statement *out = new statement;
-        out->expr = slicer;
-        out->domain = {15,20};
-
-        c.expected_stmts = {in,out};
-    }
-
-    return c.compare();
+    c.given_stmts = actual;
+    c.expected_stmts = m_expected_polyhedral_model;
+    c.run();
 }
 
-result dim_2_of_3()
-{
-    istringstream code("f(x) = for each (a in x) a[5]");
-
-    comparator c;
-
-    c.given_stmts = unit_test::polyhedral_model(code, "f", { make_stream_type({10,15,20}) });
-
-    {
-        statement *in = new statement;
-        in->domain = {10,15,20};
-        in->expr = new input_access(0);
-
-        stream_access *slicer = new stream_access;
-        slicer->target = in;
-        slicer->pattern = mapping(2,3);
-        slicer->pattern.coefficient(0,0) = 1;
-        slicer->pattern.constant(1) = 4;
-        slicer->pattern.coefficient(1,2) = 1;
-
-        statement *out = new statement;
-        out->expr = slicer;
-        out->domain = {10,20};
-
-        c.expected_stmts = {in,out};
-    }
-
-    return c.compare();
-}
-
-result dummy ()
-{
-    ifstream file("slice1.in");
-    if (!file.is_open())
-        return unit_test::failure_msg("Could not open input file.");
-
-    comparator c;
-
-    {
-        statement *in = new statement;
-        in->domain = {infinite};
-        in->expr = new input_access(0);
-
-        stream_access *in_access = new stream_access;
-        in_access->target = in;
-        in_access->pattern = mapping(1,1);
-        in_access->pattern.coefficient(0,0) = 5;
-        in_access->pattern.constant(0) = 1;
-
-        statement *compute = new statement;
-        compute->expr = new intrinsic(intrinsic::add, {new constant<int>(3), in_access});
-        compute->domain = {infinite};
-
-        c.expected_stmts = {in, compute};
-    }
-
-
-    c.given_stmts = unit_test::polyhedral_model(file, "f", { make_stream_type({infinite}) });
-
-
-    return c.compare();
-}
-
-} // namespace slice
-} // namespace polyhedral
+} // namespace unit_testing
+} // namespace stream

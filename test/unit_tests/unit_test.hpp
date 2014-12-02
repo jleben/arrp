@@ -7,47 +7,86 @@
 #include "../../polyhedral/model.hpp"
 
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <vector>
+#include <memory>
 
 namespace stream {
-namespace unit_test {
+namespace unit_testing {
 
 using std::vector;
 using std::istream;
+using std::string;
 
-ast::node_ptr syntactic_analysis(istream & code);
+class success {};
 
-bool symbolic_analysis
-(istream & code, semantic::environment * env = nullptr);
-
-semantic::type_ptr semantic_analysis
-(istream & code,
- const string & symbol,
- vector<semantic::type_ptr> arguments = vector<semantic::type_ptr>());
-
-vector<polyhedral::statement*> polyhedral_model
-(istream & code,
- const string & symbol,
- vector<semantic::type_ptr> arguments = vector<semantic::type_ptr>());
-
-enum result {
-    success = 0,
-    failure
+class failure
+{
+public:
+    failure() {}
+    failure( const string & reason ): reason(reason) {}
+    string reason;
 };
 
-inline result failure_msg(const string & msg)
+enum result
 {
-    using namespace std;
-    cerr << "FAILED: " << msg << endl;
-    return failure;
-}
+    succeeded = 0,
+    failed
+};
 
-inline result success_msg()
+using semantic::type_ptr;
+
+inline
+type_ptr int_type() { return std::make_shared<semantic::integer_num>(); }
+inline
+type_ptr real_type() { return std::make_shared<semantic::real_num>(); }
+inline
+type_ptr range_type() { return std::make_shared<semantic::range>(); }
+
+inline
+type_ptr stream_type( int size)
+{ return std::make_shared<semantic::stream>(size); }
+
+template <typename ...T> inline
+type_ptr stream_type(const T & ...size)
+{ return std::make_shared<semantic::stream>( vector<int>({size...}) ); }
+
+
+class test
 {
-    using namespace std;
-    cerr << "OK." << endl;
-    return success;
-}
+public:
+    typedef vector<semantic::type_ptr> arg_list;
+
+    test(): do_test_type(false), do_test_polyhedral_model(false) {}
+
+    void run(istream & code, const string & symbol, const arg_list & args = arg_list());
+
+    void expect_type( const semantic::type_ptr & t )
+    {
+        do_test_type = true;
+        m_expected_type = t;
+    }
+
+    void expect_polyhedral_model( const vector<polyhedral::statement*> & m )
+    {
+        do_test_polyhedral_model = true;
+        m_expected_polyhedral_model = m;
+    }
+
+private:
+    bool do_test_type;
+    bool do_test_polyhedral_model;
+
+    semantic::type_ptr m_expected_type;
+    vector<polyhedral::statement*> m_expected_polyhedral_model;
+
+    void test_type(const semantic::type_ptr & actual);
+    void test_polyhedral_model(const vector<polyhedral::statement*> & actual);
+};
+
+result run( test & t, istream & code,
+            const string & symbol, const test::arg_list & args = test::arg_list() );
 
 }
 }

@@ -4,7 +4,13 @@ set(frontend_dir ${CMAKE_SOURCE_DIR}/frontend)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(unit_testing unit_test.cpp)
+set(unit_testing_src
+  unit_test.cpp
+  unit_test_semantic.cpp
+  unit_test_polyhedral_model.cpp
+)
+
+add_library(unit_testing ${unit_testing_src})
 target_link_libraries(unit_testing streamc-lib)
 
 set(input_source_code
@@ -38,7 +44,8 @@ function(add_unit_tests name test_header)
 
 endfunction()
 
-set(semantic_test_funcs
+
+set(binop_tests
 "binop::ii"
 "binop::ir"
 "binop::ri"
@@ -49,46 +56,36 @@ set(semantic_test_funcs
 "binop::Rr"
 "binop::RR"
 "binop::iS"
-"binop::rS"
 "binop::Si"
+"binop::rS"
 "binop::Sr"
-"binop::SS"
 "binop::raise_int_int"
 "binop::raise_real_real"
 "binop::raise_int_real"
 "binop::raise_real_int"
 "binop::raise_stream_int"
-"slicing::stream1_by_int"
-"slicing::stream1_by_range"
-"slicing::stream3_by_int"
-"slicing::stream3_by_range"
-"slicing::stream3_by_int2"
-"slicing::stream3_by_range2"
-"slicing::stream3_by_range_int_range"
-"transposition::stream3_to_2"
-"transposition::stream4_to_3_2"
-"reduction::stream_1d"
-#"reduction::stream_1d_to_int"
-#"reduction::stream_1d_to_stream_1d"
-"mapping::stream1"
-"mapping::stream1_to_real"
-"mapping::stream1_to_int"
-"mapping::stream1_to_stream2"
-"mapping::stream1_take_n"
-"mapping::stream1_take_n_every_n"
-"mapping::stream3"
-"mapping::stream3_take_n"
-"mapping::range"
-"mapping::range_take_n"
-"mapping::range_take_n_every_n"
 )
 
-add_unit_tests(semantics test_semantics.hpp ${semantic_test_funcs})
+add_unit_tests(binop test_binop.hpp ${binop_tests})
 
-set(polyhedral_tests
-"poly::slice::dim_1_of_3"
-"poly::slice::dim_2_of_3"
-"poly::slice::dummy"
+set(slice_tests
+"slice::stream1_by_int"
+"slice::stream1_by_range"
+"slice::stream3_by_int"
+"slice::stream3_by_range"
+"slice::stream3_by_int2"
+"slice::stream3_by_range2"
+"slice::stream3_by_int3"
+"slice::stream3_by_range3"
+"slice::stream3_by_range_int_range"
 )
 
-add_unit_tests(polyhedral test_polyhedral_model.hpp ${polyhedral_tests})
+add_unit_tests(slice test_slice.hpp ${slice_tests})
+
+set(transpose_tests
+"transpose::stream3_to_dim2"
+"transpose::stream4_to_dim2_dim3"
+"transpose::stream4_to_dim4_dim2"
+)
+
+add_unit_tests(transpose test_transpose.hpp ${transpose_tests})
