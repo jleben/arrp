@@ -86,3 +86,24 @@ set(transform_tests
 )
 
 add_unit_tests(transform test_transform.hpp ${transform_tests})
+
+set(map_tests
+"map::stream1_identity"
+"map::stream1_add_scalar"
+"map::stream1_mul_range"
+"map::stream1_take_n_identity"
+"map::stream1_take_n_raise_int"
+"map::stream1_take_n_sub_range"
+"map::stream1_take_n_every_n_identity"
+"map::stream3_identity"
+"map::stream3_max_double"
+"map::stream3_take_n_identity"
+"map::stream3_take_n_every_n_identity"
+"map::range_identity"
+"map::range_add_int"
+"map::range_add_range"
+"map::range_every_n_identity"
+)
+
+add_unit_tests(map test_map.hpp ${map_tests})
+
