@@ -477,6 +477,36 @@ result range_every_n_identity()
     return run(t, code, "f");
 }
 
+result range_to_stream1()
+{
+    test t;
+
+    std::istringstream code("f(x) = for each(in 1..9) x");
+
+    t.expect_type(stream_type(9,5));
+
+    {
+        using namespace polyhedral;
+
+        statement *x = new statement;
+        x->domain = {5};
+        x->expr = new input_access(0);
+
+        stream_access *x_elem = new stream_access;
+        x_elem->target = x;
+        x_elem->pattern = mapping(2,1);
+        x_elem->pattern.coefficient(1,0) = 1;
+
+        statement *out = new statement;
+        out->domain = {9,5};
+        out->expr = x_elem;
+
+        t.expect_polyhedral_model({x,out});
+    }
+
+    return run(t, code, "f", { stream_type(5) });
+}
+
 /*
 result stream1()
 {

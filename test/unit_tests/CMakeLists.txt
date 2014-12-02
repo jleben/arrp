@@ -104,6 +104,7 @@ set(map_tests
 "map::range_add_int"
 "map::range_add_range"
 "map::range_every_n_identity"
+"map::range_to_stream1"
 )
 
 add_unit_tests(map test_map.hpp ${map_tests})
