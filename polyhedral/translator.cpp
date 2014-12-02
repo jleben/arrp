@@ -574,7 +574,15 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
 
         if(range *r = dynamic_cast<range*>(source_expr))
         {
-            sources.push_back( iterate(r) );
+            iterator_access *it = iterate(r);
+            it->ratio = iter.hop;
+
+            if (iter.size > 1)
+            {
+                throw error("Iterating range with slice size > 1 not yet implemented.");
+            }
+
+            sources.push_back(it);
             continue;
         }
 
