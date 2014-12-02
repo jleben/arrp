@@ -88,11 +88,11 @@ private:
 
     expression * translate_input(const semantic::type_ptr & type, int index);
 
-    mapping access(stream_view *source);
+    mapping access(stream_view *source, int padding = 0);
 
-    expression *iterate (expression *);
+    expression *iterate (expression *, const semantic::type_ptr & result_type);
     iterator_access * iterate( range * );
-    stream_access * complete_access( stream_view * );
+    stream_access * complete_access( stream_view *, const semantic::type_ptr & result_type );
 
     statement * make_statement( expression *, const vector<int> & domain );
     stream_view * make_current_view( statement * );

@@ -347,7 +347,7 @@ expression * translator::do_call(const ast::node_ptr &node)
     if (intrinsic_map != intrinsics.end())
     {
         for (expression *& arg : args)
-            arg = iterate(arg);
+            arg = iterate(arg, node->semantic_type);
 
         intrinsic *expr = new intrinsic;
         expr->kind = intrinsic_map->second;
@@ -371,7 +371,9 @@ expression * translator::do_call(const ast::node_ptr &node)
 
 expression * translator::do_unary_op(const ast::node_ptr &node)
 {
-    expression *operand = iterate( do_expression(node->as_list()->elements[0]) );
+    expression *operand = iterate
+            ( do_expression(node->as_list()->elements[0]),
+            node->semantic_type );
 
     // create operation
 
@@ -393,8 +395,10 @@ expression * translator::do_unary_op(const ast::node_ptr &node)
 
 expression * translator::do_binary_op(const ast::node_ptr &node)
 {
-    expression *operand1 = iterate( do_expression(node->as_list()->elements[0]) );
-    expression *operand2 = iterate( do_expression(node->as_list()->elements[1]) );
+    expression *operand1 = iterate( do_expression(node->as_list()->elements[0]),
+            node->semantic_type );
+    expression *operand2 = iterate( do_expression(node->as_list()->elements[1]),
+            node->semantic_type );
 
     // create operation
 
@@ -684,8 +688,10 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
     if (result_domain.empty())
         result_domain.push_back(1);
 
-    stream_access *init_access = complete_access(source_stream);
+    stream_access *init_access = new stream_access;
     {
+        init_access->target = source_stream->target;
+        init_access->pattern = source_stream->pattern;
         mapping &m = init_access->pattern;
         if (m.input_dimension() > 1)
         {
@@ -744,18 +750,18 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
     return result;
 }
 
-mapping translator::access(stream_view *source)
+mapping translator::access(stream_view *source, int padding)
 {
-    if (source->current_iteration == current_dimension())
+    if (source->current_iteration == current_dimension() + padding)
     {
         return source->pattern;
     }
 
     int distance = current_dimension() - source->current_iteration;
-    assert(distance > 0);
-
+    assert(distance >= 0);
     int out_dim = source->pattern.output_dimension();
-    int in_dim = source->pattern.input_dimension() + distance;
+    int in_dim = source->pattern.input_dimension() + distance + padding;
+
     mapping pattern;
     pattern.coefficients =
             source->pattern.coefficients.resized(out_dim, in_dim);
@@ -763,7 +769,7 @@ mapping translator::access(stream_view *source)
 
     auto & coef = pattern.coefficients;
 
-    int col = coef.columns() - 1;
+    int col = coef.columns() - padding - 1;
     for (; col >= current_dimension(); --col)
     {
         for (int r = 0; r < coef.rows(); ++r)
@@ -778,12 +784,12 @@ mapping translator::access(stream_view *source)
     return pattern;
 }
 
-expression *translator::iterate (expression *expr)
+expression *translator::iterate (expression *expr, const semantic::type_ptr & result_type)
 {
     if (auto rng = dynamic_cast<range*>(expr))
         return iterate(rng);
     else if (auto strm = dynamic_cast<stream_view*>(expr))
-        return complete_access(strm);
+        return complete_access(strm, result_type);
     else
         return expr;
 }
@@ -801,11 +807,20 @@ iterator_access * translator::iterate( range *r )
     return it;
 }
 
-stream_access * translator::complete_access( stream_view * view )
+stream_access * translator::complete_access
+( stream_view * view, const semantic::type_ptr & result_type)
 {
+    int padding = 0;
+    if (result_type->is(semantic::type::stream))
+    {
+        padding = result_type->as<semantic::stream>().dimensionality() -
+                (view->pattern.input_dimension() - view->current_iteration);
+    }
+    assert(padding >= 0);
+
     auto access = new stream_access;
     access->target = view->target;
-    access->pattern = this->access(view);
+    access->pattern = this->access(view, padding);
 
     return access;
 }
