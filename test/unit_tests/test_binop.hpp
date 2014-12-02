@@ -6,7 +6,7 @@ namespace stream {
 namespace unit_testing {
 namespace binop {
 
-result ii()
+result add_int_int()
 {
     std::istringstream code("result = 1 + 2");
     test t;
@@ -22,7 +22,7 @@ result ii()
     return run(t, code, "result");
 }
 
-result ir()
+result add_int_real()
 {
     std::istringstream code("result = 1 + 2.3");
     test t;
@@ -38,7 +38,7 @@ result ir()
     return run(t, code, "result");
 }
 
-result ri()
+result add_real_int()
 {
     std::istringstream code("result = 2.3 + 1");
     test t;
@@ -54,7 +54,7 @@ result ri()
     return run(t, code, "result");
 }
 
-result rr()
+result add_real_real()
 {
     std::istringstream code("result = 2.3 + 3.4");
     test t;
@@ -70,7 +70,7 @@ result rr()
     return run(t, code, "result");
 }
 
-result iR()
+result add_int_range()
 {
     std::istringstream code("result = 1 + 3..10");
     test t;
@@ -86,7 +86,7 @@ result iR()
     return run(t, code, "result");
 }
 
-result rR()
+result add_real_range()
 {
     std::istringstream code("result = 2.7 + 3..10");
     test t;
@@ -102,7 +102,7 @@ result rR()
     return run(t, code, "result");
 }
 
-result Ri()
+result add_range_int()
 {
     std::istringstream code("result = 3..10 + 222");
     test t;
@@ -118,7 +118,7 @@ result Ri()
     return run(t, code, "result");
 }
 
-result Rr()
+result add_range_real()
 {
     std::istringstream code("result = 3..10 + 2.34");
     test t;
@@ -134,7 +134,7 @@ result Rr()
     return run(t, code, "result");
 }
 
-result RR()
+result add_range_range()
 {
     std::istringstream code("result = 3..10 + 4..11");
     test t;
@@ -150,7 +150,7 @@ result RR()
     return run(t, code, "result");
 }
 
-result iS()
+result add_int_stream()
 {
     test t;
     std::istringstream code("result(x) = 2 + x");
@@ -178,7 +178,7 @@ result iS()
     return run(t, code, "result", { stream_type(4,5,6) });
 }
 
-result Si()
+result add_stream_int()
 {
     test t;
     std::istringstream code("result(x) = x + 2");
@@ -207,7 +207,7 @@ result Si()
 }
 
 
-result rS()
+result add_real_stream()
 {
     test t;
     std::istringstream code("result(x) = 3.4 + x");
@@ -235,7 +235,7 @@ result rS()
     return run(t, code, "result", { stream_type(4,5,6) });
 }
 
-result Sr()
+result add_stream_real()
 {
     test t;
     std::istringstream code("result(x) = x + 3.4");
