@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 
 using namespace std;
 
@@ -231,7 +232,7 @@ llvm_from_model::generate_intrinsic
             }
         }
     }
-    case intrinsic::pow:
+    case intrinsic::raise:
     {
         llvm::Intrinsic::ID id =
                 (operands[1]->getType() == i_type) ?
@@ -362,7 +363,9 @@ llvm_from_model::generate_intrinsic
         case intrinsic::cos:
             id = llvm::Intrinsic::cos; break;
         default:
-            throw std::runtime_error("Unexpected intrinsic type.");
+            ostringstream text;
+            text << "Unexpected intrinsic type: " << op->kind;
+            throw std::runtime_error(text.str());
         }
         value_type operand = operands[0];
         if (operand->getType() != d_type)

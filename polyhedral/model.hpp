@@ -130,7 +130,6 @@ public:
         log,
         log2,
         log10,
-        pow,
         sqrt,
         sin,
         cos,

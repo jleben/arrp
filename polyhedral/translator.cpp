@@ -298,7 +298,7 @@ expression * translator::do_call(const ast::node_ptr &node)
         {"log10", intrinsic::log10},
         {"exp", intrinsic::exp},
         {"exp2", intrinsic::exp2},
-        {"pow", intrinsic::pow},
+        {"pow", intrinsic::raise},
         {"sqrt", intrinsic::sqrt},
         {"sin", intrinsic::sin},
         {"cos", intrinsic::cos},
@@ -309,6 +309,7 @@ expression * translator::do_call(const ast::node_ptr &node)
         {"ceil", intrinsic::ceil},
         {"floor", intrinsic::floor},
         {"abs", intrinsic::abs},
+        {"min", intrinsic::min},
         {"max", intrinsic::max}
     };
 

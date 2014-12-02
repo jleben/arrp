@@ -22,7 +22,6 @@ vector<string> make_intrinsic_name_table()
     table[intrinsic::log] = "log";
     table[intrinsic::log2] = "log2";
     table[intrinsic::log10] = "log10";
-    table[intrinsic::pow] = "pow";
     table[intrinsic::sqrt] = "sqrt";
     table[intrinsic::sin] = "sin";
     table[intrinsic::cos] = "cos";
