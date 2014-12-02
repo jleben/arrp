@@ -109,3 +109,10 @@ set(map_tests
 
 add_unit_tests(map test_map.hpp ${map_tests})
 
+set(reduce_tests
+"reduce::stream1_add"
+"reduce::map_range_by_stream1_reduction"
+"reduce::map_stream2_by_substream_reduction"
+)
+
+add_unit_tests(reduce test_reduce.hpp ${reduce_tests})
