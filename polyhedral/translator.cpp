@@ -84,9 +84,9 @@ expression * translator::translate_input(const semantic::type_ptr & type,
     switch(type->get_tag())
     {
     case semantic::type::integer_num:
-        return new constant<int>(0);
+        return new input_access(index);
     case semantic::type::real_num:
-        return new constant<double>(0.0);
+        return new input_access(index);
     case semantic::type::stream:
     {
         auto & stream_type = type->as<semantic::stream>();

@@ -50,6 +50,7 @@ private:
     value_type generate_intrinsic( intrinsic *, const vector<value_type> & index );
     value_type generate_buffer_access( statement *, const vector<value_type> & index );
     value_type generate_input_access( statement *, const vector<value_type> & index );
+    value_type generate_scalar_input_access( input_access * );
     value_type generate_reduction_access( reduction_access *, const vector<value_type> & index );
     void advance_buffers();
 

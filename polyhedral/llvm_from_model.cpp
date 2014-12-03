@@ -136,6 +136,10 @@ llvm_from_model::generate_expression
     {
         return generate_intrinsic(operation, index);
     }
+    if (auto input = dynamic_cast<input_access*>(expr))
+    {
+        return generate_scalar_input_access(input);
+    }
     if (auto iterator = dynamic_cast<iterator_access*>(expr))
     {
         assert(iterator->dimension >= 0 && iterator->dimension < index.size());
@@ -435,6 +439,20 @@ llvm_from_model::generate_input_access
     value_type value_ptr = m_builder.CreateGEP(input, flat_index);
 
     return value_ptr;
+}
+
+llvm_from_model::value_type
+llvm_from_model::generate_scalar_input_access( input_access *access )
+{
+    int input_num = access->index;
+    value_type input_ptr = m_builder.CreateGEP(m_inputs, value(input_num));
+    value_type input = m_builder.CreateLoad(input_ptr);
+
+    type_type double_ptr_type = llvm::Type::getDoublePtrTy(llvm_context());
+    input = m_builder.CreateBitCast(input, double_ptr_type);
+
+    value_type value = m_builder.CreateLoad(input);
+    return value;
 }
 
 llvm_from_model::value_type
