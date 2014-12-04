@@ -1,8 +1,36 @@
 include(streams)
 
-compile_stream_func( matrix_mul_kernel
-  ${CMAKE_SOURCE_DIR}/examples/matrix-mult.in
-  "-g;matrix_multiply;[5,2,3];[5,3,2]" )
+function(add_integration_test name source func args driver)
+  set(kernel ${name}_kernel)
+  set(meta ${name}.meta)
+  set(exe test-${name})
 
-add_executable( test-matrix-mult EXCLUDE_FROM_ALL
-  test-matrix-mult.cpp ${matrix_mul_kernel} )
+  compile_stream_func( ${kernel}
+    ${source} ${func} "${args}"
+    "-m;${meta}"
+  )
+
+  add_executable( ${exe} ${driver} ${${kernel}} )
+
+  target_link_libraries( ${exe} streamc-interface-cpp )
+
+  add_test(NAME ${name} COMMAND $<TARGET_FILE:${exe}>)
+endfunction()
+
+add_integration_test(sum
+  ${CMAKE_SOURCE_DIR}/examples/audio-features.in
+  sum "[10]"
+  sum.cpp
+)
+
+add_integration_test(rms
+  ${CMAKE_SOURCE_DIR}/examples/audio-features.in
+  rms "[10]"
+  rms.cpp
+)
+
+add_integration_test(matrix-mult
+  ${CMAKE_SOURCE_DIR}/examples/matrix-mult.in
+  matrix_multiply "[5,2,3];[5,3,2]"
+  test-matrix-mult.cpp
+)
