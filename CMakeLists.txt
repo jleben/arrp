@@ -79,6 +79,7 @@ add_definitions(-DCLOOG_INT_GMP)
 # Subdirs
 
 add_subdirectory(extra/isl-cpp)
+add_subdirectory(extra/json++)
 add_subdirectory(frontend)
 add_subdirectory(utility)
 add_subdirectory(compiler)
