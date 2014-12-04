@@ -9,6 +9,8 @@
 #include "../polyhedral/llvm_ir_from_cloog.hpp"
 #include "../polyhedral/llvm_from_model.hpp"
 
+#include <json++/json.hh>
+
 #include <fstream>
 #include <iostream>
 #include <functional>
@@ -91,12 +93,14 @@ struct argument_parser
     bool print_symbols = false;
     string input_filename;
     string output_filename;
+    string output_description_filename;
     vector<evaluation> evaluations;
 
     argument_parser(int argc, char *argv[]):
         m_arg_count(argc),
         m_args(argv),
-        output_filename("out.ll")
+        output_filename("out.ll"),
+        output_description_filename("out.desc")
     {}
 
     void parse()
@@ -459,6 +463,106 @@ int main(int argc, char *argv[])
             llvm_cloog.generate( ast.second,
                                  llvm_from_model.start_block(),
                                  llvm_from_model.end_block() );
+        }
+
+        {
+            JSON::Object description;
+
+            JSON::Array inputs;
+
+            for(int in_idx = 0; in_idx < eval.args.size(); ++in_idx)
+            {
+                JSON::Object input;
+                JSON::Array size;
+
+                polyhedral::statement *stmt = poly.statements()[in_idx];
+                const dataflow::actor *actor = dataflow_model.find_actor_for(stmt);
+
+                if (actor)
+                {
+                    input["init"] = actor->init_count;
+                    input["period"] = actor->steady_count;
+                    for (int dim = 0; dim < stmt->domain.size(); ++dim)
+                    {
+                        if(dim == actor->flow_dimension)
+                            continue;
+                        size.push_back(stmt->domain[dim]);
+                    }
+
+                }
+                else
+                {
+                    input["init"] = stmt->domain[0];
+                    input["period"] = 0;
+                    for (int dim = 1; dim < stmt->domain.size(); ++dim)
+                        size.push_back(stmt->domain[dim]);
+                }
+
+                input["size"] = size;
+
+                inputs.push_back(input);
+            }
+
+            JSON::Array buffers;
+
+            for(polyhedral::statement *stmt : poly.statements())
+            {
+                if (stmt->buffer.empty())
+                    buffers.push_back(0);
+                else
+                {
+                    int b = stmt->buffer[0];
+                    for (int i = 1; i < stmt->buffer.size(); ++i)
+                        b *= stmt->buffer[i];
+                    buffers.push_back(b);
+                }
+            }
+
+            assert(poly.statements().size() > eval.args.size());
+
+            JSON::Object output;
+
+            {
+                polyhedral::statement *stmt = poly.statements().back();
+                const dataflow::actor *actor = dataflow_model.find_actor_for(stmt);
+
+                JSON::Array size;
+
+                if (actor)
+                {
+                    output["init"] = actor->init_count;
+                    output["period"] = actor->steady_count;
+                    for (int dim = 0; dim < stmt->domain.size(); ++dim)
+                    {
+                        if(dim == actor->flow_dimension)
+                            continue;
+                        size.push_back(stmt->domain[dim]);
+                    }
+                }
+                else
+                {
+                    output["init"] = stmt->domain[0];
+                    output["period"] = 0;
+                    for (int dim = 1; dim < stmt->domain.size(); ++dim)
+                        size.push_back(stmt->domain[dim]);
+                }
+
+                output["size"] = size;
+            }
+
+            description["inputs"] = inputs;
+            description["output"] = output;
+            description["buffers"] = buffers;
+
+            ofstream output_file(args.output_description_filename);
+            if (!output_file.is_open())
+            {
+                cerr << "ERROR: Could not open description output file: "
+                     << args.output_description_filename << endl;
+                return result::io_error;
+            }
+
+            output_file << description;
         }
     }
 #if 1
