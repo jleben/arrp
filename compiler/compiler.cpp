@@ -93,14 +93,14 @@ struct argument_parser
     bool print_symbols = false;
     string input_filename;
     string output_filename;
-    string output_description_filename;
+    string meta_output_filename;
     vector<evaluation> evaluations;
 
     argument_parser(int argc, char *argv[]):
         m_arg_count(argc),
         m_args(argv),
         output_filename("out.ll"),
-        output_description_filename("out.desc")
+        meta_output_filename("out.meta")
     {}
 
     void parse()
@@ -162,20 +162,33 @@ private:
         else if (arg == "--output" || arg == "-o")
         {
             advance();
-            if (m_arg_count && current_arg()[0] != '-')
-                output_filename = current_arg();
-            else
-            {
-                ostringstream msg;
-                msg << "Missing argument for option " << arg << ".";
-                throw command_line_error(msg.str());
-            }
+            output_filename = parse_option_arg(arg);
+        }
+        else if (arg == "--meta" || arg == "-m")
+        {
             advance();
+            meta_output_filename = parse_option_arg(arg);
         }
         else
         {
             ostringstream msg;
             msg << "Invalid argument: " << arg;
+            throw command_line_error(msg.str());
+        }
+    }
+
+    string parse_option_arg(const string & option)
+    {
+        if (m_arg_count && current_arg()[0] != '-')
+        {
+            string arg = current_arg();
+            advance();
+            return arg;
+        }
+        else
+        {
+            ostringstream msg;
+            msg << "Missing argument for option " << option << ".";
             throw command_line_error(msg.str());
         }
     }
@@ -465,6 +478,7 @@ int main(int argc, char *argv[])
                                  llvm_from_model.end_block() );
         }
 
+        if (!args.meta_output_filename.empty())
         {
             JSON::Object description;
 
@@ -554,11 +568,11 @@ int main(int argc, char *argv[])
             description["output"] = output;
             description["buffers"] = buffers;
 
-            ofstream output_file(args.output_description_filename);
+            ofstream output_file(args.meta_output_filename);
             if (!output_file.is_open())
             {
                 cerr << "ERROR: Could not open description output file: "
-                     << args.output_description_filename << endl;
+                     << args.meta_output_filename << endl;
                 return result::io_error;
             }
 
