@@ -45,6 +45,11 @@ struct all
         return "all";
     }
 
+    static string combined_id_with( const string & id )
+    {
+        return id;
+    }
+
     static status_value full_status()
     {
         return status<all>::value();
@@ -82,10 +87,16 @@ struct topic
 {
     static status_value default_status() { return default_status_value; }
 
+    static string combined_id_with( const string & id )
+    {
+        return full_id() + '.' + id;
+    }
+
     static string full_id()
     {
-        return topic_type::id() + '.' +
-                supertopic_type::full_id();
+        using namespace std;
+        string id = supertopic_type::combined_id_with( topic_type::id() );
+        return id;
     }
 
     static status_value full_status()
