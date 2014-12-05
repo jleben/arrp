@@ -150,11 +150,14 @@ int main(int argc, char *argv[])
 
     poly.translate( sym_iter->second, target.args );
 
-    cout << endl << "### Polyhedral Model ###" << endl;
-    for( polyhedral::statement * stmt : poly.statements() )
+    if (args.print_polyhedral_model)
     {
-        cout << endl;
-        poly_printer.print(stmt, cout);
+        cout << endl << "== Polyhedral Model ==" << endl;
+        for( polyhedral::statement * stmt : poly.statements() )
+        {
+            cout << endl;
+            poly_printer.print(stmt, cout);
+        }
     }
 
     // Construct dataflow model

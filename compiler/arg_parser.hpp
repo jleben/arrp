@@ -101,6 +101,7 @@ public:
     bool print_tokens = false;
     bool print_ast = false;
     bool print_symbols = false;
+    bool print_polyhedral_model = false;
     string input_filename;
     string output_filename;
     string meta_output_filename;
@@ -148,6 +149,10 @@ private:
         else if (opt == "--print-ast" || opt == "-s")
         {
             print_ast = true;
+        }
+        else if (opt == "--print-poly")
+        {
+            print_polyhedral_model = true;
         }
         else if (opt == "--list-symbols" || opt == "-l")
         {
