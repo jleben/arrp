@@ -2,6 +2,7 @@
 #define STREAM_LANG_DATAFLOW_MODEL_INCLUDED
 
 #include "model.hpp"
+#include "../utility/debug.hpp"
 
 #include <vector>
 #include <unordered_map>
@@ -14,6 +15,7 @@ using polyhedral::statement;
 using polyhedral::stream_access;
 using std::vector;
 using std::unordered_map;
+using std::string;
 
 struct actor
 {
@@ -35,6 +37,9 @@ struct actor
 class model
 {
 public:
+    struct debug : public stream::debug::topic<debug, stream::debug::all>
+    { static string id() { return "dataflow"; } };
+
     model( const vector<statement*> & );
 
     const dataflow::actor * find_actor_for( statement * stmt ) const

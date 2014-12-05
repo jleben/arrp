@@ -7,6 +7,7 @@ else()
 endif()
 
 add_library(streamc-lib ${lib_mode}
+  ../utility/debug.cpp
   ../frontend/lex.cc
   ../frontend/parse.cc
   ../frontend/environment.cpp

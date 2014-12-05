@@ -4,6 +4,7 @@
 #include "model.hpp"
 #include "dataflow_model.hpp"
 #include "../utility/isl_printer.hpp"
+#include "../utility/debug.hpp"
 
 #include <isl/set.h>
 #include <isl/union_set.h>
@@ -51,6 +52,14 @@ using std::pair;
 class ast_generator
 {
 public:
+
+    struct debug : public stream::debug::topic<debug, polyhedral::debug>
+    { static string id() { return "ast"; } };
+
+    struct debug_buffer_size :
+            public stream::debug::topic
+            <debug_buffer_size, debug, stream::debug::disabled>
+    { static string id() { return "buffer-size"; } };
 
     class error : public std::runtime_error
     {

@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include "../utility/matrix.hpp"
+#include "../utility/debug.hpp"
 
 namespace stream {
 namespace polyhedral {
@@ -226,7 +227,10 @@ void expression::find( vector<T*> & container )
     }
 }
 
-}
-}
+struct debug : public stream::debug::topic<debug, stream::debug::all>
+{ static string id() { return "polyhedral"; } };
+
+} // namespace polyhedral
+} // namespace stream
 
 #endif // STREAM_POLYHEDRAL_MODEL_INCLUDED

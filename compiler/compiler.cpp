@@ -157,11 +157,11 @@ int main(int argc, char *argv[])
         poly_printer.print(stmt, cout);
     }
 
-    cout << endl << "### Dataflow Analysis ###" << endl;
+    // Construct dataflow model
 
     dataflow::model dataflow_model(poly.statements());
 
-    cout << endl << "### AST Generation ###" << endl;
+    // Construct AST from polyhedral and dataflow models
 
     polyhedral::ast_generator poly_ast_gen( poly.statements(),
                                             &dataflow_model );
@@ -171,6 +171,8 @@ int main(int argc, char *argv[])
         cout << "No AST generated. Aborting." << endl;
         return result::generator_error;
     }
+
+    // Generate LLVM IR for finite part
 
     if (ast.first)
     {
@@ -195,6 +197,8 @@ int main(int argc, char *argv[])
                              llvm_from_model.end_block() );
     }
 
+    // Generate LLVM IR for periodic part
+
     if (ast.second)
     {
         polyhedral::llvm_from_model llvm_from_model
@@ -217,6 +221,8 @@ int main(int argc, char *argv[])
                              llvm_from_model.start_block(),
                              llvm_from_model.end_block() );
     }
+
+    // Output meta-data
 
     if (!args.meta_output_filename.empty())
     {
@@ -318,6 +324,8 @@ int main(int argc, char *argv[])
 
         output_file << description;
     }
+
+    // Output LLVM IR
 
 #if 1
     ofstream output_file(args.output_filename);

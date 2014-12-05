@@ -46,6 +46,9 @@ ast_generator::~ast_generator()
 pair<clast_stmt*,clast_stmt*>
 ast_generator::generate()
 {
+    if (debug::is_enabled())
+        cout << endl << "### AST Generation ###" << endl;
+
     isl::union_set domains(m_ctx);
     isl::union_map dependencies(m_ctx);
     polyhedral_model(domains, dependencies);
@@ -133,7 +136,10 @@ isl::basic_set ast_generator::polyhedral_domain( statement *stmt )
         }
     }
 
-    cout << "Iteration domain: "; m_printer.print(domain); cout << endl;
+    if(debug::is_enabled())
+    {
+        cout << "Iteration domain: "; m_printer.print(domain); cout << endl;
+    }
 
     return domain;
 }
@@ -170,8 +176,11 @@ isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
 
         isl::basic_map dependency_map(space, equalities, inequalities);
 
-        cout << "Dependency: ";
-        m_printer.print(dependency_map); cout << endl;
+        if (debug::is_enabled())
+        {
+            cout << "Dependency: ";
+            m_printer.print(dependency_map); cout << endl;
+        }
 
         all_dependencies_map = all_dependencies_map | dependency_map;
     }
@@ -223,8 +232,11 @@ isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
             isl::basic_map dependency_map(space, equalities, inequalities);
             all_dependencies_map = all_dependencies_map | dependency_map;
 
-            cout << "Reduction initializer dependency: ";
-            m_printer.print(dependency_map); cout << endl;
+            if (debug::is_enabled())
+            {
+                cout << "Reduction initializer dependency: ";
+                m_printer.print(dependency_map); cout << endl;
+            }
         }
 
         // Reduction dependence
@@ -268,8 +280,11 @@ isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
             isl::basic_map dependency_map(space, equalities, inequalities);
             all_dependencies_map = all_dependencies_map | dependency_map;
 
-            cout << "Reduction self-dependency: ";
-            m_printer.print(dependency_map); cout << endl;
+            if (debug::is_enabled())
+            {
+                cout << "Reduction self-dependency: ";
+                m_printer.print(dependency_map); cout << endl;
+            }
         }
 #endif
     }
@@ -416,15 +431,19 @@ void ast_generator::periodic_model
         return true;
     });
 
-    cout << endl;
+    if (debug::is_enabled())
+        cout << endl;
 
     init_domains = init_domain_maps(domains);
     steady_domains = steady_domain_maps(domains);
 
-    cout << "Init domains:" << endl;
-    m_printer.print(init_domains); cout << endl;
-    cout << "Steady domains:" << endl;
-    m_printer.print(steady_domains); cout << endl;
+    if (debug::is_enabled())
+    {
+        cout << "Init domains:" << endl;
+        m_printer.print(init_domains); cout << endl;
+        cout << "Steady domains:" << endl;
+        m_printer.print(steady_domains); cout << endl;
+    }
 
     domain_map = init_domain_maps | steady_domain_maps;
 
@@ -432,15 +451,18 @@ void ast_generator::periodic_model
     periodic_dependencies.map_domain_through(domain_map);
     periodic_dependencies.map_range_through(domain_map);
 
-    cout << "Periodic dependencies:" << endl;
-    m_printer.print(periodic_dependencies); cout << endl;
+    if (debug::is_enabled())
+    {
+        cout << "Periodic dependencies:" << endl;
+        m_printer.print(periodic_dependencies); cout << endl;
 #if 0
-    cout << "Bounded periodic dependencies:" << endl;
-    m_printer.print( periodic_dependencies
-                     .in_domain(periodic_domains)
-                     .in_range(periodic_domains) );
+        cout << "Bounded periodic dependencies:" << endl;
+        m_printer.print( periodic_dependencies
+                         .in_domain(periodic_domains)
+                         .in_range(periodic_domains) );
 #endif
-    cout << endl;
+        cout << endl;
+    }
 }
 
 
@@ -515,10 +537,13 @@ ast_generator::make_init_schedule(isl::union_set & domains,
 {
     isl::union_map init_schedule = make_schedule(domains, dependencies);
 
-    cout << endl << "Init schedule:" << endl;
-    //m_printer.print(init_schedule.in_domain(init_domains));
-    m_printer.print(init_schedule);
-    cout << endl;
+    if (debug::is_enabled())
+    {
+        cout << endl << "Init schedule:" << endl;
+        //m_printer.print(init_schedule.in_domain(init_domains));
+        m_printer.print(init_schedule);
+        cout << endl;
+    }
 
     return init_schedule;
 }
@@ -529,10 +554,13 @@ ast_generator::make_steady_schedule(isl::union_set & period_domains,
 {
     isl::union_map steady_schedule = make_schedule(period_domains, dependencies);
 
-    cout << endl << "Steady schedule:" << endl;
-    //m_printer.print(steady_schedule.in_domain(steady_domains));
-    m_printer.print(steady_schedule);
-    cout << endl;
+    if (debug::is_enabled())
+    {
+        cout << endl << "Steady schedule:" << endl;
+        //m_printer.print(steady_schedule.in_domain(steady_domains));
+        m_printer.print(steady_schedule);
+        cout << endl;
+    }
 
     return steady_schedule;
 }
@@ -623,9 +651,12 @@ ast_generator::combine_schedule
             canonical_init_schedule.in_domain(init_domains) |
             canonical_steady_schedule.in_domain(steady_domains);
 
-    cout << endl << "Combined schedule:" << endl;
-    m_printer.print(combined_schedule);
-    cout << endl;
+    if (debug::is_enabled())
+    {
+        cout << endl << "Combined schedule:" << endl;
+        m_printer.print(combined_schedule);
+        cout << endl;
+    }
 
     return combined_schedule;
 }
@@ -654,7 +685,9 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
 
     delete time_space;
 
-    cout << endl << "Buffer sizes:" << endl;
+    if (debug_buffer_size::is_enabled())
+        cout << endl << "Buffer sizes:" << endl;
+
     for (statement *stmt : m_statements)
     {
         if (stmt->buffer.empty())
@@ -670,29 +703,31 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
             }
         }
 
-        int flat_size = 1;
-        cout << stmt->name << ": ";
-        for (auto b : stmt->buffer)
+        if (debug_buffer_size::is_enabled())
         {
-            cout << b << " ";
-            flat_size *= b;
+            int flat_size = 1;
+            cout << stmt->name << ": ";
+            for (auto b : stmt->buffer)
+            {
+                cout << b << " ";
+                flat_size *= b;
+            }
+            cout << "[" << flat_size << "]";
+            cout << endl;
         }
-        cout << "[" << flat_size << "]";
-        cout << endl;
     }
 }
-
-#define DEBUG_BUFFER_SIZE 0
 
 void ast_generator::compute_buffer_size( const isl::union_map & schedule,
                                          const isl::union_map & domain_unmap,
                                          const isl::map & dependency,
                                          const isl::space & time_space )
 {
-#if DEBUG_BUFFER_SIZE == 1
-    cout << "Buffer size for dependency: ";
-    m_printer.print(dependency); cout << endl;
-#endif
+    if (debug_buffer_size::is_enabled())
+    {
+        cout << "Buffer size for dependency: ";
+        m_printer.print(dependency); cout << endl;
+    }
 
     using namespace isl;
     using isl::expression;
@@ -732,13 +767,14 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     map src_consumed_later =
             dependency.inverse()( sink_later ).in_range(src_sched.domain());
 
-#if DEBUG_BUFFER_SIZE == 1
-    cout << ".. produced:" << endl;
-    m_printer.print(src_not_later); cout << endl;
-    m_printer.print(sink_not_earlier); cout << endl;
-    cout << ".. consumed:" << endl;
-    m_printer.print(src_consumed_not_earlier); cout << endl;
-#endif
+    if (debug_buffer_size::is_enabled())
+    {
+        cout << ".. produced:" << endl;
+        m_printer.print(src_not_later); cout << endl;
+        m_printer.print(sink_later); cout << endl;
+        cout << ".. consumed:" << endl;
+        m_printer.print(src_consumed_later); cout << endl;
+    }
 
     auto buffered = src_unmap(src_not_later) & src_unmap(src_consumed_later);
 
@@ -747,32 +783,33 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
     {
         auto buffered_reflection = (buffered * buffered).wrapped();
 
-#if DEBUG_BUFFER_SIZE == 1
-        cout << ".. buffer reflection: " << endl;
-        m_printer.print(buffered_reflection); cout << endl;
-#endif
+        if (debug_buffer_size::is_enabled())
+        {
+            cout << ".. buffer reflection: " << endl;
+            m_printer.print(buffered_reflection); cout << endl;
+        }
 
         isl::local_space space(buffered_reflection.get_space());
         int buf_dim_count = source_stmt->domain.size();
         int time_dim_count = time_space.dimension(isl::space::variable);
         buffer_size.reserve(buf_dim_count);
-#if DEBUG_BUFFER_SIZE == 1
-        cout << ".. Max reuse distance:" << endl;
-#endif
+
+        if (debug_buffer_size::is_enabled())
+            cout << ".. Max reuse distance:" << endl;
+
         for (int dim = 0; dim < buf_dim_count; ++dim)
         {
             auto a = space(isl::space::variable, time_dim_count + dim);
             auto b = space(isl::space::variable, time_dim_count + buf_dim_count + dim);
             auto distance = b - a;
             auto max_distance = buffered_reflection.maximum(distance).integer();
-#if DEBUG_BUFFER_SIZE == 1
-            cout << max_distance << " ";
-#endif
+            if (debug_buffer_size::is_enabled())
+                cout << max_distance << " ";
             buffer_size.push_back(max_distance + 1);
         }
-#if DEBUG_BUFFER_SIZE == 1
-        cout << endl;
-#endif
+
+        if (debug_buffer_size::is_enabled())
+            cout << endl;
     }
 
     auto & max_buffer_size = source_stmt->buffer;
@@ -807,13 +844,15 @@ struct clast_stmt *ast_generator::make_ast( const isl::union_map & isl_schedule 
     //cloog_input_dump_cloog(stdout, input, options);
     //cout << "--- End Cloog input ---" << endl;
 
-    if (!input)
-        cout << "Hmm no Cloog input..." << endl;
+    assert(input);
 
     clast_stmt *ast = cloog_clast_create_from_input(input, options);
 
-    cout << endl << "--- Cloog AST:" << endl;
-    clast_pprint(stdout, ast, 0, options);
+    if(debug::is_enabled())
+    {
+        cout << endl << "--- Cloog AST:" << endl;
+        clast_pprint(stdout, ast, 0, options);
+    }
 
     return ast;
 }

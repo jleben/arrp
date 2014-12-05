@@ -19,6 +19,9 @@ namespace dataflow {
 
 model::model( const vector<statement*> & statements )
 {
+    if (debug::is_enabled())
+        cout << endl << "### Dataflow Analysis ###" << endl;
+
     vector<statement*> finite_statements;
     vector<statement*> infinite_statements;
     vector<statement*> invalid_statements;
@@ -41,10 +44,13 @@ model::model( const vector<statement*> & statements )
             invalid_statements.push_back(stmt);
     }
 
-    cout << endl << "Statement types:" << endl;
-    cout << "- finite: " << finite_statements.size() << endl;
-    cout << "- infinite: " << infinite_statements.size() << endl;
-    cout << "- invalid: " << invalid_statements.size() << endl;
+    if (debug::is_enabled())
+    {
+        cout << endl << "Statement types:" << endl;
+        cout << "- finite: " << finite_statements.size() << endl;
+        cout << "- infinite: " << infinite_statements.size() << endl;
+        cout << "- invalid: " << invalid_statements.size() << endl;
+    }
 
     if (!invalid_statements.empty())
     {
@@ -81,7 +87,8 @@ void model::compute_channels()
     {
         actor & sink = actor_record.second;
 
-        cout << "Channels for: " << sink.stmt << "..." << endl;
+        if (debug::is_enabled())
+            cout << "Channels for: " << sink.stmt << "..." << endl;
 
         vector<stream_access*> accesses;
         sink.stmt->expr->find<stream_access>(accesses);
@@ -93,8 +100,11 @@ void model::compute_channels()
             auto source_record = m_actors.find(access->target);
             if (source_record == m_actors.end())
             {
-                cout << "-- " << access->target
-                     << ": Non-actor access; not making a channel." << endl;
+                if (debug::is_enabled())
+                {
+                    cout << "-- " << access->target
+                         << ": Non-actor access; not making a channel." << endl;
+                }
                 continue;
             }
 
@@ -117,10 +127,13 @@ void model::compute_channels()
 
             m_channels.push_back(ch);
 
-            cout << "-- " << ch.source->stmt << ": "
-                 << ch.push << " -> "
-                 << ch.peek << "/" << ch.pop
-                 << endl;
+            if (debug::is_enabled())
+            {
+                cout << "-- " << ch.source->stmt << ": "
+                     << ch.push << " -> "
+                     << ch.peek << "/" << ch.pop
+                     << endl;
+            }
         }
     }
 }
@@ -152,13 +165,19 @@ void model::compute_schedule()
         ++row;
     }
 
-    cout << "Flow:" << endl;
-    isl::print(flow_matrix);
+    if (debug::is_enabled())
+    {
+        cout << "Flow:" << endl;
+        isl::print(flow_matrix);
+    }
 
     isl::matrix steady_counts = flow_matrix.nullspace();
 
-    cout << "Steady Counts:" << endl;
-    isl::print(steady_counts);
+    if (debug::is_enabled())
+    {
+        cout << "Steady Counts:" << endl;
+        isl::print(steady_counts);
+    }
 
     // Initialization counts:
 
@@ -168,15 +187,11 @@ void model::compute_schedule()
     isl::space statement_space(isl_ctx, isl::set_tuple(m_actors.size()));
     auto init_counts = isl::set::universe(statement_space);
     auto init_cost = isl::expression::value(statement_space, 0);
-    cout << "Init count cost expr:" << endl;
-    isl_printer.print(init_cost); cout << endl;
     for (int i = 0; i < m_actors.size(); ++i)
     {
         auto stmt = isl::expression::variable(statement_space, isl::space::variable, i);
         init_counts.add_constraint( stmt >= 0 );
         init_cost = stmt + init_cost;
-        cout << "Init count cost expr:" << endl;
-        isl_printer.print(init_cost); cout << endl;
     }
     for (const auto & chan: m_channels)
     {
@@ -199,15 +214,21 @@ void model::compute_schedule()
         init_counts.add_constraint(constraint);
     }
 
-    cout << "Viable initialization counts:" << endl;
-    isl_printer.print(init_counts); cout << endl;
+    if (debug::is_enabled())
+    {
+        cout << "Viable initialization counts:" << endl;
+        isl_printer.print(init_counts); cout << endl;
+    }
 
     auto init_optimum = init_counts.minimum(init_cost);
     init_counts.add_constraint( init_cost == init_optimum );
     auto init_optimum_point = init_counts.single_point();
 
-    cout << "Initialization Counts:" << endl;
-    isl_printer.print(init_optimum_point); cout << endl;
+    if (debug::is_enabled())
+    {
+        cout << "Initialization Counts:" << endl;
+        isl_printer.print(init_optimum_point); cout << endl;
+    }
 
     assert(steady_counts.column_count() == 1);
     assert(steady_counts.row_count() == m_actors.size());
