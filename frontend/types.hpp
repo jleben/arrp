@@ -253,7 +253,7 @@ struct abstract_function : public type
 struct function : public abstract_function
 {
     function(): abstract_function(type::function) {}
-    //string name;
+
     vector<string> parameters;
     ast::node_ptr statement_list;
     ast::node_ptr statement;
@@ -279,18 +279,48 @@ struct function_signature
     vector<type::tag> parameters;
 };
 
+struct intrinsic
+{
+    enum type
+    {
+        negate,
+        add,
+        subtract,
+        multiply,
+        divide,
+        raise,
+        exp,
+        exp2,
+        log,
+        log2,
+        log10,
+        sqrt,
+        sin,
+        cos,
+        tan,
+        asin,
+        acos,
+        atan,
+        ceil,
+        floor,
+        abs,
+        min,
+        max
+    };
+};
+
 struct builtin_function : public abstract_function
 {
     builtin_function(): abstract_function(type::builtin_function) {}
-    //string name;
     function_signature signature;
+    intrinsic::type intrinsic_type;
 };
 
 struct builtin_function_group : public abstract_function
 {
     builtin_function_group(): abstract_function(type::builtin_function_group) {}
-    //string name;
     vector<function_signature> overloads;
+    intrinsic::type intrinsic_type;
 };
 
 using func_type_ptr = std::shared_ptr<abstract_function>;

@@ -64,7 +64,8 @@ private:
     type_ptr process_iterator( const sp<ast::node> & );
     type_ptr process_reduction( const sp<ast::node> & );
 
-    //type_ptr process_context_item( const context_item & item );
+    type_ptr constant_for( const builtin_function & func,
+                           const vector<type_ptr> & args );
 
     string generate_func_name( string name )
     {
@@ -87,6 +88,7 @@ private:
     bool m_has_error;
 
     std::shared_ptr<builtin_function_group> m_pow_func;
+    vector<function_signature> m_arithmetic_func_signatures;
 };
 
 }
