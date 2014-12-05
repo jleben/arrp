@@ -51,6 +51,11 @@ int main(int argc, char *argv[])
         return result::command_line_error;
     }
 
+    for(const string & topic : args.debug_topics)
+        debug::set_status_for_id(topic, debug::enabled);
+    for(const string & topic : args.no_debug_topics)
+        debug::set_status_for_id(topic, debug::disabled);
+
     if (args.input_filename.empty())
     {
         cerr << "streamc: error: Missing argument: input filename." << endl;

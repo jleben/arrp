@@ -106,6 +106,8 @@ public:
     string output_filename;
     string meta_output_filename;
     target_info target;
+    vector<string> debug_topics;
+    vector<string> no_debug_topics;
 
 private:
     int m_arg_count;
@@ -171,6 +173,18 @@ private:
         else if (opt == "--meta" || opt == "-m")
         {
             parse_argument(meta_output_filename, "output meta-data file (JSON)");
+        }
+        else if (opt == "--debug")
+        {
+            string topic;
+            parse_argument(topic, "topic");
+            debug_topics.push_back(topic);
+        }
+        else if (opt == "--no-debug")
+        {
+            string topic;
+            parse_argument(topic, "topic");
+            no_debug_topics.push_back(topic);
         }
         else
         {
