@@ -1,4 +1,5 @@
 #include "translator.hpp"
+#include "../utility/debug_source.hpp"
 
 #include <stdexcept>
 #include <algorithm>
@@ -167,7 +168,6 @@ expression* translator::do_statement(const ast::node_ptr &node)
         }
     }
 
-    cout << "-- binding: " << id << endl;
     m_context.bind(id, expr);
 
     return expr;
