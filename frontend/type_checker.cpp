@@ -337,54 +337,13 @@ type_checker::process_function( const func_type_ptr & func_type,
     {
         builtin_function_group &g = func_type->as<builtin_function_group>();
 
-        vector<pair<type_ptr, vector<int>>> reduced_types;
-        for (const auto & arg : args)
-        {
-            reduced_types.push_back( inner_type(arg) );
-        }
-
-        vector<type::tag> reduced_type_tags;
-        for (const auto & rt : reduced_types)
-            reduced_type_tags.push_back( rt.first->get_tag() );
-
-        const function_signature & selected_candidate =
-                overload_resolution(g.overloads, reduced_type_tags);
+        auto result = process_intrinsic(g, args);
 
         builtin_function *f = new builtin_function;
         f->name = g.name;
-        f->signature = selected_candidate;
+        f->signature = result.second;
 
-        // Find result size, check that all args have the same size.
-        vector<int> result_size;
-        for ( const auto & rt : reduced_types )
-        {
-            const auto & arg_size = rt.second;
-            if (result_size.empty())
-                result_size = arg_size;
-            else if (!arg_size.empty() && result_size != arg_size)
-                throw type_error("Argument size mismatch.");
-        }
-
-        type_ptr result_type;
-
-        if (!result_size.empty())
-            result_type = make_shared<stream>(result_size);
-        else
-        {
-            switch(f->signature.result)
-            {
-            case type::integer_num:
-                result_type = make_shared<integer_num>();
-                break;
-            case type::real_num:
-                result_type = make_shared<real_num>();
-                break;
-            default:
-                assert(false);
-            }
-        }
-
-        return make_pair(result_type, func_type_ptr(f));
+        return make_pair(result.first, func_type_ptr(f));
     }
     default:
         throw type_error("Callee not a function.");
@@ -546,38 +505,15 @@ type_checker::process_identifier( const sp<ast::node> & root )
 type_ptr type_checker::process_negate( const sp<ast::node> & root )
 {
     type_ptr operand_type = process_expression(root->as_list()->elements[0]);
-    switch(operand_type->get_tag())
-    {
-    case type::integer_num:
-    {
-        auto result = make_shared<integer_num>();
-        integer_num &int_op = operand_type->as<integer_num>();
-        if (int_op.is_constant())
-            result->set_constant(- int_op.constant_value());
-        return result;
-    }
-    case type::real_num:
-    {
-        auto result = make_shared<real_num>();
-        real_num &real_op = operand_type->as<real_num>();
-        if (real_op.is_constant())
-            result->set_constant(- real_op.constant_value());
-        return result;
-    }
-    case type::range:
-    {
-        range & r = operand_type->as<range>();
-        if (!r.is_constant())
-            throw source_error("Non-constant range used where constant range required.",
-                               root->line);
-        return make_shared<stream>(r.const_size());
-    }
-    case type::stream:
-        return operand_type;
-        break;
-    default:
-        throw source_error("Unexpected expression type.", root->line);
-    }
+
+    builtin_function_group func;
+    func.intrinsic_type = intrinsic::negate;
+    func.overloads.push_back(function_signature({type::integer_num}, type::integer_num));
+    func.overloads.push_back(function_signature({type::real_num}, type::real_num));
+
+    auto result = process_intrinsic(func, {operand_type});
+
+    return result.first;
 }
 
 type_ptr type_checker::process_binop( const sp<ast::node> & root )
@@ -586,83 +522,34 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     type_ptr lhs_type = process_expression(expr->elements[0]);
     type_ptr rhs_type = process_expression(expr->elements[1]);
 
-    if (root->type == ast::raise)
+    builtin_function_group func;
+
+    switch(root->type)
     {
-        return process_function(m_pow_func, {lhs_type, rhs_type},
-                                m_ctx.root_scope()).first;
+    case ast::add:
+        func.intrinsic_type = intrinsic::add;
+        break;
+    case ast::subtract:
+        func.intrinsic_type = intrinsic::subtract;
+        break;
+    case ast::multiply:
+        func.intrinsic_type = intrinsic::multiply;
+        break;
+    case ast::divide:
+        func.intrinsic_type = intrinsic::divide;
+        break;
+    case ast::raise:
+        func.intrinsic_type = intrinsic::raise;
+        break;
+    default:
+        throw error("Unexpected AST node type.");
     }
 
-    pair<type_ptr, vector<int>> lhs_inner_type, rhs_inner_type;
-    try {
-         lhs_inner_type = inner_type(lhs_type);
-    } catch (type_error & e) {
-        report( source_error(e.what(), root->line));
-    }
-    try {
-         rhs_inner_type = inner_type(rhs_type);
-    } catch (type_error & e) {
-        report( source_error(e.what(), root->line));
-    }
-    if (has_error())
-        throw abort_error();
+    func.overloads = m_arithmetic_func_signatures;
 
-    lhs_type = lhs_inner_type.first;
-    rhs_type = rhs_inner_type.first;
-    vector<int> & lhs_size = lhs_inner_type.second;
-    vector<int> & rhs_size = rhs_inner_type.second;
+    auto result = process_intrinsic(func, {lhs_type, rhs_type});
 
-    if (lhs_size.empty() && rhs_size.empty())
-    {
-        function_signature signature = overload_resolution
-                (m_arithmetic_func_signatures,{lhs_type->get_tag(), rhs_type->get_tag()});
-
-        //cout << "binop signature: " << signature.parameters.size() << endl;
-
-        builtin_function func;
-
-        func.signature = signature;
-
-        switch(root->type)
-        {
-        case ast::add:
-            func.intrinsic_type = intrinsic::add;
-            break;
-        case ast::subtract:
-            func.intrinsic_type = intrinsic::subtract;
-            break;
-        case ast::multiply:
-            func.intrinsic_type = intrinsic::multiply;
-            break;
-        case ast::divide:
-            func.intrinsic_type = intrinsic::divide;
-            break;
-        default:
-            throw error("Unexpected AST node type.");
-        }
-
-        type_ptr const_type = constant_for(func, {lhs_type, rhs_type});
-
-        if (const_type)
-            return const_type;
-
-        if (lhs_type->is(type::integer_num) && rhs_type->is(type::integer_num))
-            return make_shared<integer_num>();
-        else
-            return make_shared<real_num>();
-    }
-
-    if (!lhs_size.empty() && !rhs_size.empty() && lhs_size != rhs_size)
-    {
-        ostringstream text;
-        text << "Binary operator (" << root->type << "): "
-             << "Operand size mismatch.";
-        throw source_error(text.str(), root->line);
-    }
-
-    if (!lhs_size.empty())
-        return make_shared<stream>(lhs_size);
-    else
-        return make_shared<stream>(rhs_size);
+    return result.first;
 }
 
 type_ptr type_checker::process_range( const sp<ast::node> & root )
@@ -1148,6 +1035,85 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
     return val1;
 }
 
+pair<type_ptr, function_signature>
+type_checker::process_intrinsic( const builtin_function_group & group,
+                                 const vector<type_ptr> & args )
+{
+    vector<pair<type_ptr, vector<int>>> reduced_types;
+    for (const auto & arg : args)
+    {
+        reduced_types.push_back( inner_type(arg) );
+    }
+
+    vector<type::tag> reduced_type_tags;
+    for (const auto & rt : reduced_types)
+        reduced_type_tags.push_back( rt.first->get_tag() );
+
+    const function_signature & signature =
+            overload_resolution(group.overloads, reduced_type_tags);
+
+    vector<int> result_size;
+    for ( const auto & rt : reduced_types )
+    {
+        const auto & arg_size = rt.second;
+        if (result_size.empty())
+            result_size = arg_size;
+        else if (!arg_size.empty() && result_size != arg_size)
+            throw type_error("Argument size mismatch.");
+    }
+
+    type_ptr result_type;
+
+    if (!result_size.empty())
+        result_type = make_shared<stream>(result_size);
+    else
+    {
+        builtin_function f;
+        f.intrinsic_type = group.intrinsic_type;
+        f.signature = signature;
+
+        result_type = constant_for(f, args);
+
+        if (!result_type)
+        {
+            switch(signature.result)
+            {
+            case type::integer_num:
+                result_type = make_shared<integer_num>();
+                break;
+            case type::real_num:
+                result_type = make_shared<real_num>();
+                break;
+            default:
+                assert(false);
+            }
+        }
+    }
+
+    return make_pair(result_type, signature);
+}
+
+template<typename T> type::tag type_tag_for();
+template<> type::tag type_tag_for<int>() { return type::integer_num; }
+template<> type::tag type_tag_for<double>() { return type::real_num; }
+
+type_ptr type_for(int value)
+{
+    return make_shared<integer_num>(value);
+}
+
+type_ptr type_for(double value)
+{
+    return make_shared<real_num>(value);
+}
+
+template<typename R, typename ...A>
+bool signature_is(const function_signature & signature)
+{
+    return signature.result == type_tag_for<R>() &&
+            signature.parameters == vector<type::tag>({type_tag_for<A>()...});
+}
+
 template <typename T>
 T constant_value_from(const type_ptr & type)
 {
@@ -1160,16 +1126,6 @@ T constant_value_from(const type_ptr & type)
     default:
         assert(false);
     }
-}
-
-type_ptr type_for(int value)
-{
-    return make_shared<integer_num>(value);
-}
-
-type_ptr type_for(double value)
-{
-    return make_shared<real_num>(value);
 }
 
 template<intrinsic::type I>
@@ -1203,9 +1159,58 @@ struct intrinsic_processor<intrinsic::divide>
     static double process(double a, double b) { return a / b; }
 };
 
-template<intrinsic::type I, typename R, typename ...A>
-struct intrinsic_helper
+template<>
+struct intrinsic_processor<intrinsic::raise>
 {
+    static int process(int a, int b) { return std::pow(a, b); }
+    static double process(double a, double b) { return std::pow(a, b); }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::negate>
+{
+    static int process(int a) { return -a; }
+    static double process(double a) { return -a; }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::abs>
+{
+    static int process(int a) { return std::abs(a); }
+    static double process(double a) { return std::abs(a); }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::max>
+{
+    static int process(int a, int b) { return std::max(a, b); }
+    static double process(double a, double b) { return std::max(a, b); }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::min>
+{
+    static int process(int a, int b) { return std::min(a, b); }
+    static double process(double a, double b) { return std::min(a, b); }
+};
+
+template<intrinsic::type I, typename R, typename ...A>
+struct intrinsic_for
+{
+    template <typename ...T> static
+    bool try_compute(type_ptr & result,
+                     const function_signature & func,
+                     const T & ...args)
+    {
+        if (signature_is<R,A...>(func))
+        {
+            result = compute(args...);
+            return true;
+        }
+        else
+            return false;
+    }
+
     template <typename ...T> static
     type_ptr compute(const T & ...args)
     {
@@ -1214,24 +1219,40 @@ struct intrinsic_helper
     }
 };
 
+
 template<intrinsic::type I>
 type_ptr const_arithmetic( const function_signature & func,
                            const vector<type_ptr> & args)
 {
-    static function_signature int_func
-            ({type::integer_num, type::integer_num}, type::integer_num);
-    static function_signature real_func
-            ({type::real_num, type::real_num}, type::real_num);
-
-    if (func == int_func)
-        return intrinsic_helper<I,int,int,int>
-                ::compute(args[0], args[1]);
-    else if (func == real_func)
-        return intrinsic_helper<I,double,double,double>
-                ::compute(args[0], args[1]);
-
-    return type_ptr();
+    type_ptr result;
+    bool ok =
+            intrinsic_for<I,int,int,int>::try_compute(result, func, args[0], args[1]) ||
+            intrinsic_for<I,double,double,double>::try_compute(result, func, args[0], args[1]);
+    if (ok)
+        return result;
+    else
+        return type_ptr();
 }
+
+template<intrinsic::type I>
+type_ptr const_unary_arithmetic( const function_signature & func,
+                                 const type_ptr & arg)
+{
+    type_ptr result;
+    intrinsic_for<I,int,int>::try_compute(result, func, arg) ||
+            intrinsic_for<I,double,double>::try_compute(result, func, arg);
+    return result;
+}
+#if 0
+template<intrinsic::type I, typename R, typename ...A>
+bool constant_for(const builtin_function & func,
+                  const vector<type_ptr> & args,
+                  type_ptr & result)
+{
+    if (signature_is<A...>(func))
+        result = intrinsic_for<I,A...>::compute(args[0], args[1]);
+}
+#endif
 
 type_ptr type_checker::constant_for( const builtin_function & func,
                                      const vector<type_ptr> & args )
@@ -1256,13 +1277,8 @@ type_ptr type_checker::constant_for( const builtin_function & func,
             return type_ptr();
     }
 
-    //cout << "all args constant." << endl;
-
-    function_signature int_func
-            ({type::integer_num, type::integer_num}, type::integer_num);
-    function_signature real_func
-            ({type::real_num, type::real_num}, type::real_num);
-
+    type_ptr result;
+    bool ok;
     switch(func.intrinsic_type)
     {
     case intrinsic::add:
@@ -1273,11 +1289,46 @@ type_ptr type_checker::constant_for( const builtin_function & func,
         return const_arithmetic<intrinsic::multiply>(func.signature, args);
     case intrinsic::divide:
         return const_arithmetic<intrinsic::divide>(func.signature, args);
-    default:
-        throw error("Unexpected intrinsic type.");
+    case intrinsic::raise:
+        return const_arithmetic<intrinsic::raise>(func.signature, args);
+    case intrinsic::negate:
+        return const_unary_arithmetic<intrinsic::negate>(func.signature, args[0]);
+    case intrinsic::log:
+        return type_for( (double) std::log(constant_value_from<double>(args[0])) );
+    case intrinsic::log2:
+        return type_for( (double) std::log2(constant_value_from<double>(args[0])) );
+    case intrinsic::log10:
+        return type_for( (double) std::log10(constant_value_from<double>(args[0])) );
+    case intrinsic::exp:
+        return type_for( (double) std::exp(constant_value_from<double>(args[0])) );
+    case intrinsic::exp2:
+        return type_for( (double) std::exp2(constant_value_from<double>(args[0])) );
+    case intrinsic::sqrt:
+        return type_for( (double) std::sqrt(constant_value_from<double>(args[0])) );
+    case intrinsic::cos:
+        return type_for( (double) std::cos(constant_value_from<double>(args[0])) );
+    case intrinsic::tan:
+        return type_for( (double) std::tan(constant_value_from<double>(args[0])) );
+    case intrinsic::asin:
+        return type_for( (double) std::asin(constant_value_from<double>(args[0])) );
+    case intrinsic::acos:
+        return type_for( (double) std::acos(constant_value_from<double>(args[0])) );
+    case intrinsic::atan:
+        return type_for( (double) std::atan(constant_value_from<double>(args[0])) );
+    case intrinsic::ceil:
+        return type_for( (int) std::ceil(constant_value_from<double>(args[0])) );
+    case intrinsic::floor:
+        return type_for( (int) std::floor(constant_value_from<double>(args[0])) );
+    case intrinsic::abs:
+        return const_unary_arithmetic<intrinsic::abs>(func.signature, args[0]);
+    case intrinsic::max:
+        return const_arithmetic<intrinsic::max>(func.signature, args);
+    case intrinsic::min:
+        return const_arithmetic<intrinsic::min>(func.signature, args);
+    default:;
     }
 
-    return type_ptr();
+    return result;
 }
 
 }

@@ -64,6 +64,10 @@ private:
     type_ptr process_iterator( const sp<ast::node> & );
     type_ptr process_reduction( const sp<ast::node> & );
 
+    pair<type_ptr, function_signature>
+    process_intrinsic( const builtin_function_group &,
+                       const vector<type_ptr> & args  );
+
     type_ptr constant_for( const builtin_function & func,
                            const vector<type_ptr> & args );
 
