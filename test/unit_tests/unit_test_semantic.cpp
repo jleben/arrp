@@ -8,12 +8,30 @@ namespace unit_testing {
 using namespace stream::semantic;
 using namespace std;
 
+template <typename scalar_type>
+bool scalar_matches(const type & actual, const type & expected)
+{
+    if (actual.get_tag() != expected.get_tag())
+        return false;
+
+    const scalar_type & actual_scalar = actual.as<scalar_type>();
+    const scalar_type & expected_scalar = expected.as<scalar_type>();
+    if (actual_scalar.is_constant() != expected_scalar.is_constant())
+        return false;
+    if (actual_scalar.is_constant() && expected_scalar.is_constant())
+        if (actual_scalar.constant_value() != expected_scalar.constant_value())
+            return false;
+    return true;
+}
+
 bool type_matches(const type & actual, const type & expected)
 {
     switch(actual.get_tag())
     {
     case type::integer_num:
+        return scalar_matches<integer_num>(actual, expected);
     case type::real_num:
+        return scalar_matches<real_num>(actual, expected);
     case type::range:
         return actual.get_tag() == expected.get_tag();
     case type::stream:

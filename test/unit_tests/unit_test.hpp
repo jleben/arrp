@@ -40,7 +40,11 @@ using semantic::type_ptr;
 inline
 type_ptr int_type() { return std::make_shared<semantic::integer_num>(); }
 inline
+type_ptr int_type(int c) { return std::make_shared<semantic::integer_num>(c); }
+inline
 type_ptr real_type() { return std::make_shared<semantic::real_num>(); }
+inline
+type_ptr real_type(double c) { return std::make_shared<semantic::real_num>(c); }
 inline
 type_ptr range_type() { return std::make_shared<semantic::range>(); }
 

@@ -1,73 +1,143 @@
 #include "unit_test.hpp"
 
 #include <sstream>
+#include <iostream>
+#include <cmath>
+
+using namespace std;
 
 namespace stream {
 namespace unit_testing {
-namespace binop {
+namespace intrinsics {
 
-result add_int_int()
+template<typename T> T test_const_lhs();
+template<typename T> T test_const_rhs();
+template<> int test_const_lhs<int>() { return 2; }
+template<> int test_const_rhs<int>() { return 3; }
+template<> double test_const_lhs<double>() { return 2.3; }
+template<> double test_const_rhs<double>() { return 3.4; }
+
+template<typename T> type_ptr type_for();
+template<> type_ptr type_for<int>() { return int_type(); }
+template<> type_ptr type_for<double>() { return real_type(); }
+
+template<typename T> type_ptr type_for(T);
+template<> type_ptr type_for<int>(int c) { return int_type(c); }
+template<> type_ptr type_for<double>(double c) { return real_type(c); }
+
+template<polyhedral::intrinsic::of_kind intrinsic_type>
+struct intrinsic_test;
+
+template<>
+struct intrinsic_test<polyhedral::intrinsic::add>
 {
-    std::istringstream code("result = 1 + 2");
+    template<typename A, typename B, typename R>
+    static
+    R perform(A a, B b) { return a + b; }
+
+    static
+    string code(const string & a, const string & b) { return a + " + " + b; }
+};
+
+template<>
+struct intrinsic_test<polyhedral::intrinsic::raise>
+{
+    template<typename A, typename B, typename R>
+    static
+    R perform(A a, B b) { return std::pow(a,b); }
+
+    static
+    string code(const string & a, const string & b) { return "pow(" + a + "," + b + ")"; }
+};
+
+template <polyhedral::intrinsic::of_kind I, typename A, typename B, typename R>
+result test_intrinsic_const()
+{
+    A lhs = test_const_lhs<A>();
+    B rhs = test_const_rhs<B>();
+    R result = intrinsic_test<I>::template perform<A,B,R>(lhs, rhs);
+
+    std::stringstream code;
+    code << "result = " << intrinsic_test<I>::code(to_string(lhs), to_string(rhs));
+    code.seekg(0);
+
+    cout << "Input:" << endl;
+    cout << code.str() << endl;
+
     test t;
-    t.expect_type(int_type());
+    t.expect_type(type_for<R>(result));
     {
         using namespace polyhedral;
         statement *stmt = new statement;
         stmt->domain = {1};
-        stmt->expr = new intrinsic(intrinsic::add,
-        {new constant<int>(1), new constant<int>(2)});
+        stmt->expr = new constant<R>(result);
         t.expect_polyhedral_model({stmt});
     }
     return run(t, code, "result");
+}
+
+template <polyhedral::intrinsic::of_kind I, typename A, typename B, typename R>
+result test_intrinsic()
+{
+    std::stringstream code;
+    code << "result(a,b) = " << intrinsic_test<I>::code("a","b");
+    code.seekg(0);
+
+    cout << "Input:" << endl;
+    cout << code.str() << endl;
+
+    test t;
+    t.expect_type(type_for<R>());
+    {
+        using namespace polyhedral;
+        statement *stmt = new statement;
+        stmt->domain = {1};
+        stmt->expr = new intrinsic(I,
+        {new input_access(0), new input_access(1)});
+        t.expect_polyhedral_model({stmt});
+    }
+    return run(t, code, "result", {type_for<A>(), type_for<B>()});
+}
+
+result add_int_int_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::add,int,int,int>();
+}
+
+
+result add_int_real_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::add,int,double,double>();
+}
+
+result add_real_int_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::add,double,int,double>();
+}
+
+result add_real_real_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::add,double,double,double>();
+}
+
+result add_int_int()
+{
+    return test_intrinsic<polyhedral::intrinsic::add,int,int,int>();
 }
 
 result add_int_real()
 {
-    std::istringstream code("result = 1 + 2.3");
-    test t;
-    t.expect_type(real_type());
-    {
-        using namespace polyhedral;
-        statement *stmt = new statement;
-        stmt->domain = {1};
-        stmt->expr = new intrinsic(intrinsic::add,
-        {new constant<int>(1), new constant<double>(2.3)});
-        t.expect_polyhedral_model({stmt});
-    }
-    return run(t, code, "result");
+    return test_intrinsic<polyhedral::intrinsic::add,int,double,double>();
 }
 
 result add_real_int()
 {
-    std::istringstream code("result = 2.3 + 1");
-    test t;
-    t.expect_type(real_type());
-    {
-        using namespace polyhedral;
-        statement *stmt = new statement;
-        stmt->domain = {1};
-        stmt->expr = new intrinsic(intrinsic::add,
-        {new constant<double>(2.3), new constant<int>(1)});
-        t.expect_polyhedral_model({stmt});
-    }
-    return run(t, code, "result");
+    return test_intrinsic<polyhedral::intrinsic::add,double,int,double>();
 }
 
 result add_real_real()
 {
-    std::istringstream code("result = 2.3 + 3.4");
-    test t;
-    t.expect_type(real_type());
-    {
-        using namespace polyhedral;
-        statement *stmt = new statement;
-        stmt->domain = {1};
-        stmt->expr = new intrinsic(intrinsic::add,
-        {new constant<double>(2.3), new constant<double>(3.4)});
-        t.expect_polyhedral_model({stmt});
-    }
-    return run(t, code, "result");
+    return test_intrinsic<polyhedral::intrinsic::add,double,double,double>();
 }
 
 result add_int_range()
@@ -263,75 +333,50 @@ result add_stream_real()
     return run(t, code, "result", { stream_type(4,5,6) });
 }
 
-
-result raise_int_int()
+result power_int_int_const()
 {
-    std::istringstream code("result = 2 ^ 4");
-    test t;
-    t.expect_type(int_type());
-    {
-        using namespace polyhedral;
-        statement *stmt = new statement;
-        stmt->domain = {1};
-        stmt->expr = new intrinsic(intrinsic::raise,
-        {new constant<int>(2), new constant<int>(4)});
-        t.expect_polyhedral_model({stmt});
-    }
-    return run(t, code, "result");
+    return test_intrinsic_const<polyhedral::intrinsic::raise,int,int,int>();
 }
 
-result raise_real_real()
+result power_real_real_const()
 {
-    std::istringstream code("result = 2.2 ^ 4.4");
-    test t;
-    t.expect_type(real_type());
-    {
-        using namespace polyhedral;
-        statement *stmt = new statement;
-        stmt->domain = {1};
-        stmt->expr = new intrinsic(intrinsic::raise,
-        {new constant<double>(2.2), new constant<double>(4.4)});
-        t.expect_polyhedral_model({stmt});
-    }
-    return run(t, code, "result");
+    return test_intrinsic_const<polyhedral::intrinsic::raise,double,double,double>();
 }
 
-result raise_int_real()
+result power_int_real_const()
 {
-    std::istringstream code("result = 2 ^ 4.4");
-    test t;
-    t.expect_type(real_type());
-    {
-        using namespace polyhedral;
-        statement *stmt = new statement;
-        stmt->domain = {1};
-        stmt->expr = new intrinsic(intrinsic::raise,
-        {new constant<int>(2), new constant<double>(4.4)});
-        t.expect_polyhedral_model({stmt});
-    }
-    return run(t, code, "result");
+    return test_intrinsic_const<polyhedral::intrinsic::raise,int,double,double>();
 }
 
-result raise_real_int()
+result power_real_int_const()
 {
-    std::istringstream code("result = 2.2 ^ 4");
-    test t;
-    t.expect_type(real_type());
-    {
-        using namespace polyhedral;
-        statement *stmt = new statement;
-        stmt->domain = {1};
-        stmt->expr = new intrinsic(intrinsic::raise,
-        {new constant<double>(2.2), new constant<int>(4)});
-        t.expect_polyhedral_model({stmt});
-    }
-    return run(t, code, "result");
+    return test_intrinsic_const<polyhedral::intrinsic::raise,double,int,double>();
 }
 
-result raise_stream_int()
+result power_int_int()
+{
+    return test_intrinsic<polyhedral::intrinsic::raise,int,int,int>();
+}
+
+result power_real_real()
+{
+    return test_intrinsic<polyhedral::intrinsic::raise,double,double,double>();
+}
+
+result power_int_real()
+{
+    return test_intrinsic<polyhedral::intrinsic::raise,int,double,double>();
+}
+
+result power_real_int()
+{
+    return test_intrinsic<polyhedral::intrinsic::raise,double,int,double>();
+}
+
+result power_stream_int()
 {
     test t;
-    std::istringstream code("result(x) = x ^ 3");
+    std::istringstream code("result(x) = pow(x,3)");
 
     t.expect_type(stream_type(4,5,6));
 

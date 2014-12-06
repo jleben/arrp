@@ -45,28 +45,36 @@ function(add_unit_tests name test_header)
 endfunction()
 
 
-set(binop_tests
-"binop::add_int_int"
-"binop::add_int_real"
-"binop::add_real_int"
-"binop::add_real_real"
-"binop::add_int_range"
-"binop::add_real_range"
-"binop::add_range_int"
-"binop::add_range_real"
-"binop::add_range_range"
-"binop::add_int_stream"
-"binop::add_stream_int"
-"binop::add_real_stream"
-"binop::add_stream_real"
-"binop::raise_int_int"
-"binop::raise_real_real"
-"binop::raise_int_real"
-"binop::raise_real_int"
-"binop::raise_stream_int"
+set(intrinsics_tests
+"intrinsics::add_int_int_const"
+"intrinsics::add_int_real_const"
+"intrinsics::add_real_int_const"
+"intrinsics::add_real_real_const"
+"intrinsics::add_int_int"
+"intrinsics::add_int_real"
+"intrinsics::add_real_int"
+"intrinsics::add_real_real"
+"intrinsics::add_int_range"
+"intrinsics::add_real_range"
+"intrinsics::add_range_int"
+"intrinsics::add_range_real"
+"intrinsics::add_range_range"
+"intrinsics::add_int_stream"
+"intrinsics::add_stream_int"
+"intrinsics::add_real_stream"
+"intrinsics::add_stream_real"
+"intrinsics::power_int_int_const"
+"intrinsics::power_real_real_const"
+"intrinsics::power_int_real_const"
+"intrinsics::power_real_int_const"
+"intrinsics::power_int_int"
+"intrinsics::power_real_real"
+"intrinsics::power_int_real"
+"intrinsics::power_real_int"
+"intrinsics::power_stream_int"
 )
 
-add_unit_tests(binop test_binop.hpp ${binop_tests})
+add_unit_tests(intrinsics test_intrinsics.hpp ${intrinsics_tests})
 
 set(transform_tests
 "slice::stream1_by_int"
