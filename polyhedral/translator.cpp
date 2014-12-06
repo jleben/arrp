@@ -185,6 +185,25 @@ expression * translator::do_block(const ast::node_ptr &node)
 
 expression * translator::do_expression(const ast::node_ptr &node)
 {
+    switch(node->semantic_type->get_tag())
+    {
+    case semantic::type::integer_num:
+    {
+        const semantic::integer_num &num = node->semantic_type->as<semantic::integer_num>();
+        if (num.is_constant())
+            return  new constant<int>(num.constant_value());
+        break;
+    }
+    case semantic::type::real_num:
+    {
+        const semantic::real_num &num = node->semantic_type->as<semantic::real_num>();
+        if (num.is_constant())
+            return  new constant<double>(num.constant_value());
+        break;
+    }
+    default:;
+    }
+
     switch(node->type)
     {
     case ast::identifier:
