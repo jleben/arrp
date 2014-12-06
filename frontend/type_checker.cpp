@@ -143,15 +143,6 @@ type_checker::type_checker(environment &env):
             m_ctx.bind(f->name, type_ptr(f));
         }
     }
-
-    m_pow_func = static_pointer_cast<builtin_function_group>(m_ctx.find("pow").value());
-
-    m_arithmetic_func_signatures.push_back
-            ( function_signature({type::integer_num, type::integer_num},
-                                 type::integer_num) );
-    m_arithmetic_func_signatures.push_back
-            ( function_signature({type::real_num, type::real_num},
-                                 type::real_num) );
 }
 
 type_ptr type_checker::check( const symbol & sym, const vector<type_ptr> & args )
@@ -545,7 +536,12 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
         throw error("Unexpected AST node type.");
     }
 
-    func.overloads = m_arithmetic_func_signatures;
+    func.overloads.push_back
+            ( function_signature({type::integer_num, type::integer_num},
+                                 type::integer_num) );
+    func.overloads.push_back
+            ( function_signature({type::real_num, type::real_num},
+                                 type::real_num) );
 
     auto result = process_intrinsic(func, {lhs_type, rhs_type});
 
@@ -1243,22 +1239,10 @@ type_ptr const_unary_arithmetic( const function_signature & func,
             intrinsic_for<I,double,double>::try_compute(result, func, arg);
     return result;
 }
-#if 0
-template<intrinsic::type I, typename R, typename ...A>
-bool constant_for(const builtin_function & func,
-                  const vector<type_ptr> & args,
-                  type_ptr & result)
-{
-    if (signature_is<A...>(func))
-        result = intrinsic_for<I,A...>::compute(args[0], args[1]);
-}
-#endif
 
 type_ptr type_checker::constant_for( const builtin_function & func,
                                      const vector<type_ptr> & args )
 {
-    //cout << "checking args..." << endl;
-
     for (const auto  & arg : args)
     {
         bool is_constant;

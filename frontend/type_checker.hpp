@@ -90,9 +90,6 @@ private:
 
     int m_func_counter;
     bool m_has_error;
-
-    std::shared_ptr<builtin_function_group> m_pow_func;
-    vector<function_signature> m_arithmetic_func_signatures;
 };
 
 }
