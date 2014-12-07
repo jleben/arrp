@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        assert(poly.statements().size() > target.args.size());
+        assert(poly.statements().size() > 0);
 
         JSON::Object output;
 
