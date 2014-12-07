@@ -117,9 +117,6 @@ llvm_from_model::generate_statement
 
     value_type dst = generate_buffer_access(stmt, offset_index);
 
-    // FIXME:
-    // - Precise mathing of int/fp to source language semantic types
-    // - Integer streams?
     if (value->getType() != double_type())
         value = m_builder.CreateSIToFP(value, double_type());
 
@@ -132,15 +129,17 @@ llvm_from_model::value_type
 llvm_from_model::generate_expression
 ( expression *expr, const vector<value_type> & index )
 {
+    value_type result;
+
     if (auto operation = dynamic_cast<intrinsic*>(expr))
     {
-        return generate_intrinsic(operation, index);
+        result = generate_intrinsic(operation, index);
     }
-    if (auto input = dynamic_cast<input_access*>(expr))
+    else if (auto input = dynamic_cast<input_access*>(expr))
     {
-        return generate_scalar_input_access(input);
+        result = generate_scalar_input_access(input);
     }
-    if (auto iterator = dynamic_cast<iterator_access*>(expr))
+    else if (auto iterator = dynamic_cast<iterator_access*>(expr))
     {
         assert(iterator->dimension >= 0 && iterator->dimension < index.size());
         value_type val = index[iterator->dimension];
@@ -149,27 +148,41 @@ llvm_from_model::generate_expression
             val = m_builder.CreateMul(val, value((int32_t)iterator->ratio));
         if (iterator->offset)
             val = m_builder.CreateAdd(val, value((int32_t)iterator->offset));
-        return val;
+        result = val;
     }
-    if (auto read = dynamic_cast<stmt_access*>(expr))
+    else if (auto read = dynamic_cast<stmt_access*>(expr))
     {
         vector<value_type> target_index = mapped_index(index, read->pattern);
         value_type address = generate_buffer_access(read->target, target_index);
-        return m_builder.CreateLoad(address);
+        result = m_builder.CreateLoad(address);
     }
-    if (auto access = dynamic_cast<reduction_access*>(expr))
+    else if (auto access = dynamic_cast<reduction_access*>(expr))
     {
-        return generate_reduction_access(access, index);
+        result = generate_reduction_access(access, index);
     }
-    if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
+    else if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
     {
-        return value((int32_t) const_int->value);
+        result = value((int32_t) const_int->value);
     }
-    if ( auto const_double = dynamic_cast<constant<double>*>(expr) )
+    else if ( auto const_double = dynamic_cast<constant<double>*>(expr) )
     {
-        return value(const_double->value);
+        result = value(const_double->value);
     }
-    throw std::runtime_error("Unexpected expression type.");
+    else
+    {
+        throw std::runtime_error("Unexpected expression type.");
+    }
+
+    if (result->getType() == int32_type() && expr->type == polyhedral::real)
+    {
+        result = m_builder.CreateSIToFP(result, double_type());
+    }
+    else if (result->getType() == double_type() && expr->type == polyhedral::integer)
+    {
+        result = m_builder.CreateFPToSI(result, int32_type());
+    }
+
+    return result;
 }
 
 llvm_from_model::value_type
@@ -242,24 +255,13 @@ llvm_from_model::generate_intrinsic
                 (operands[1]->getType() == i_type) ?
                             llvm::Intrinsic::powi : llvm::Intrinsic::pow;
 
-        type_type ret_type;
-        if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
-            ret_type == i_type;
-        else
-            ret_type == d_type;
-
         if (operands[0]->getType() != d_type)
             operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
 
         llvm::Function *func =
                 llvm::Intrinsic::getDeclaration(m_module, id, d_type);
 
-        value_type result = m_builder.CreateCall(func, operands);
-
-        if (ret_type == i_type)
-            result = m_builder.CreateFPToSI(result, i_type);
-
-        return result;
+        return m_builder.CreateCall(func, operands);
     }
     case intrinsic::floor:
     case intrinsic::ceil:
@@ -275,8 +277,7 @@ llvm_from_model::generate_intrinsic
         llvm::Function *func =
                 llvm::Intrinsic::getDeclaration(m_module, id, operand->getType());
 
-        value_type result = m_builder.CreateCall(func, operand);
-        return m_builder.CreateFPToSI(result, i_type);
+        return m_builder.CreateCall(func, operand);
     }
     case intrinsic::abs:
     {
