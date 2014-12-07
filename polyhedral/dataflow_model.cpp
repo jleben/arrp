@@ -90,12 +90,12 @@ void model::compute_channels()
         if (debug::is_enabled())
             cout << "Channels for: " << sink.stmt << "..." << endl;
 
-        vector<stream_access*> accesses;
-        sink.stmt->expr->find<stream_access>(accesses);
+        vector<stmt_access*> accesses;
+        sink.stmt->expr->find<stmt_access>(accesses);
         if (accesses.empty())
             return;
 
-        for(stream_access *access : accesses)
+        for(stmt_access *access : accesses)
         {
             auto source_record = m_actors.find(access->target);
             if (source_record == m_actors.end())

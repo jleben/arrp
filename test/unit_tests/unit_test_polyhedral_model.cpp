@@ -140,13 +140,20 @@ public:
 
     void compare(const expression *found, const expression * expected)
     {
+        if (found->type != expected->type)
+        {
+            throw mismatch_error( "numerical type",
+                                  print(found->type),
+                                  print(expected->type) );
+        }
+
         try
         {
             compare_expr_type<constant<int>>(found, expected);
             compare_expr_type<constant<double>>(found, expected);
             compare_expr_type<intrinsic>(found, expected);
             compare_expr_type<iterator_access>(found, expected);
-            compare_expr_type<stream_access>(found, expected);
+            compare_expr_type<stmt_access>(found, expected);
             compare_expr_type<reduction_access>(found, expected);
             compare_expr_type<input_access>(found, expected);
         }
@@ -201,7 +208,7 @@ public:
         compare_value("iterator offset", found->offset, expected->offset);
     }
 
-    void compare_expr(const stream_access *found, const stream_access * expected)
+    void compare_expr(const stmt_access *found, const stmt_access * expected)
     {
         compare_stmt_reference("stream access target",
                                found->target, expected->target);

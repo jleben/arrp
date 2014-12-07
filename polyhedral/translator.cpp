@@ -9,6 +9,23 @@ namespace polyhedral {
 
 using namespace std;
 
+numerical_type expr_type_for( const semantic::type_ptr t )
+{
+    switch(t->get_tag())
+    {
+    case semantic::type::integer_num:
+        return integer;
+    case semantic::type::real_num:
+        return real;
+    case semantic::type::range:
+        return integer;
+    case semantic::type::stream:
+        return real;
+    default:
+        throw string("Unexpected type.");
+    }
+}
+
 translator::translator(const semantic::environment &env):
     m_env(env)
 {
@@ -85,20 +102,19 @@ expression * translator::translate_input(const semantic::type_ptr & type,
     switch(type->get_tag())
     {
     case semantic::type::integer_num:
-        return new input_access(index);
+        return new input_access(integer, index);
     case semantic::type::real_num:
-        return new input_access(index);
+        return new input_access(real, index);
     case semantic::type::stream:
     {
         auto & stream_type = type->as<semantic::stream>();
 
         statement *generator =
-                make_statement(new input_access{index}, stream_type.size);
+                make_statement(new input_access(real, index), stream_type.size);
 
         int dimension = generator->domain.size();
 
-        auto expr = new stream_view;
-        expr->target = generator;
+        auto expr = new stmt_view(generator);
         expr->pattern = mapping::identity(dimension, dimension);
         expr->current_iteration = 0;
         return expr;
@@ -130,7 +146,7 @@ expression* translator::do_statement(const ast::node_ptr &node)
 
     expression *expr = do_block(body_node);
 
-    if(!dynamic_cast<stream_view*>(expr))
+    if(!dynamic_cast<stmt_view*>(expr))
     {
         using namespace semantic;
 
@@ -160,8 +176,7 @@ expression* translator::do_statement(const ast::node_ptr &node)
         {
             domain.push_back(1);
             auto stmt = make_statement(expr, domain);
-            auto view = new stream_view;
-            view->target = stmt;
+            auto view = new stmt_view(stmt);
             view->pattern = mapping(1,1);
             view->current_iteration = 0;
             expr = view;
@@ -354,9 +369,12 @@ expression * translator::do_call(const ast::node_ptr &node)
         for (expression *& arg : args)
             arg = iterate(arg, node->semantic_type);
 
-        intrinsic *expr = new intrinsic;
-        expr->kind = intrinsic_map->second;
-        expr->operands = args;
+        intrinsic::of_kind intrinsic_kind = intrinsic_map->second;
+
+        intrinsic *expr = new intrinsic
+                ( expr_type_for(node->semantic_type),
+                  intrinsic_kind, args );
+
         return expr;
     }
 
@@ -382,7 +400,8 @@ expression * translator::do_unary_op(const ast::node_ptr &node)
 
     // create operation
 
-    auto operation_result = new intrinsic;
+    auto operation_result =
+            new intrinsic(expr_type_for(node->semantic_type));
 
     operation_result->operands.push_back(operand);
 
@@ -407,7 +426,8 @@ expression * translator::do_binary_op(const ast::node_ptr &node)
 
     // create operation
 
-    auto operation_result = new intrinsic;
+    auto operation_result =
+            new intrinsic(expr_type_for(node->semantic_type));
 
     operation_result->operands.push_back(operand1);
     operation_result->operands.push_back(operand2);
@@ -593,11 +613,10 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
         semantic::stream & source_type =
                 iter.domain->semantic_type->as<semantic::stream>();
 
-        stream_view *source_stream;
-        if (source_stream = dynamic_cast<stream_view*>(source_expr))
+        stmt_view *source_stream;
+        if (source_stream = dynamic_cast<stmt_view*>(source_expr))
         {
-            stream_view *copy = new stream_view;
-            copy->target = source_stream->target;
+            stmt_view *copy = new stmt_view(source_stream->target);
             copy->pattern = access(source_stream);
             source_stream = copy;
         }
@@ -652,7 +671,7 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
 
     expression *result = do_block(body_node);
 
-    if (stream_view *view = dynamic_cast<stream_view*>(result))
+    if (stmt_view *view = dynamic_cast<stmt_view*>(result))
     {
         view->pattern = access(view);
         view->current_iteration = current_dimension() - 1;
@@ -660,6 +679,8 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
     }
 
     m_domain.pop_back();
+
+    result->type = polyhedral::real;
 
     return result;
 }
@@ -680,30 +701,28 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
 
     expression *source_expr = do_expression(source_node);
 
-    stream_view *source_stream;
-    if (source_stream = dynamic_cast<stream_view*>(source_expr))
+    stmt_view *source_stmt_view;
+    if (source_stmt_view = dynamic_cast<stmt_view*>(source_expr))
     {
-        stream_view *copy = new stream_view;
-        copy->target = source_stream->target;
-        copy->pattern = access(source_stream);
+        stmt_view *copy = new stmt_view(source_stmt_view->target);
+        copy->pattern = access(source_stmt_view);
         copy->current_iteration = current_dimension();
-        source_stream = copy;
+        source_stmt_view = copy;
     }
     else
     {
         vector<int> domain = m_domain;
         domain.insert(domain.end(), source_type.size.begin(), source_type.size.end());
-        source_stream = make_current_view( make_statement(source_expr, domain) );
+        source_stmt_view = make_current_view( make_statement(source_expr, domain) );
     }
 
     vector<int> result_domain = m_domain;
     if (result_domain.empty())
         result_domain.push_back(1);
 
-    stream_access *init_access = new stream_access;
+    stmt_access *init_access = new stmt_access(source_stmt_view->target);
     {
-        init_access->target = source_stream->target;
-        init_access->pattern = source_stream->pattern;
+        init_access->pattern = source_stmt_view->pattern;
         mapping &m = init_access->pattern;
         if (m.input_dimension() > 1)
         {
@@ -718,10 +737,10 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
     }
     statement *init_stmt = make_statement(init_access, result_domain);
 
-    reduction_access *accumulator = new reduction_access;
+    reduction_access *accumulator = new reduction_access(init_stmt->expr->type);
     accumulator->initializer = init_stmt;
 
-    stream_view *iterator = source_stream;
+    stmt_view *iterator = source_stmt_view;
     iterator->current_iteration = current_dimension() + 1;
     {
         int dims = iterator->pattern.input_dimension();
@@ -744,12 +763,13 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
     statement *reduction_stmt = make_statement(reduction_expr, m_domain);
     accumulator->reductor = reduction_stmt;
 
+    assert(init_stmt->expr->type == reduction_stmt->expr->type);
+
     // Restore domain
     m_domain.resize(original_domain_size);
 
     // Create a view with fixed mapping to last element of reduction:
-    auto result = new stream_view;
-    result->target = reduction_stmt;
+    auto result = new stmt_view(reduction_stmt);
     result->pattern = mapping::identity(result_domain.size(),
                                         reduction_stmt->domain.size());
     if (current_dimension() < result_domain.size())
@@ -762,7 +782,7 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
     return result;
 }
 
-mapping translator::access(stream_view *source, int padding)
+mapping translator::access(stmt_view *source, int padding)
 {
     assert(padding >= 0);
 
@@ -802,7 +822,7 @@ expression *translator::iterate (expression *expr, const semantic::type_ptr & re
 {
     if (auto rng = dynamic_cast<range*>(expr))
         return iterate(rng);
-    else if (auto strm = dynamic_cast<stream_view*>(expr))
+    else if (auto strm = dynamic_cast<stmt_view*>(expr))
         return complete_access(strm, result_type);
     else
         return expr;
@@ -814,15 +834,15 @@ iterator_access * translator::iterate( range *r )
     assert(start = dynamic_cast<constant<int>*>(r->start));
     assert(end = dynamic_cast<constant<int>*>(r->end));
 
-    iterator_access *it = new iterator_access;
+    iterator_access *it = new iterator_access(r->type);
     it->dimension = current_dimension();
     it->offset = start->value;
     it->ratio = 1;
     return it;
 }
 
-stream_access * translator::complete_access
-( stream_view * view, const semantic::type_ptr & result_type)
+stmt_access * translator::complete_access
+( stmt_view * view, const semantic::type_ptr & result_type)
 {
     int padding = 0;
     if (result_type->is(semantic::type::stream))
@@ -832,8 +852,7 @@ stream_access * translator::complete_access
     }
     assert(padding >= 0);
 
-    auto access = new stream_access;
-    access->target = view->target;
+    auto access = new stmt_access(view->target);
     access->pattern = this->access(view, padding);
 
     return access;
@@ -855,11 +874,10 @@ translator::make_statement( expression * expr,
     return stmt;
 }
 
-translator::stream_view *
+translator::stmt_view *
 translator::make_current_view( statement * stmt )
 {
-    auto view = new stream_view;
-    view->target = stmt;
+    auto view = new stmt_view(stmt);
     view->pattern = mapping::identity(stmt->domain.size(), stmt->domain.size());
     view->current_iteration = current_dimension();
     return view;
@@ -875,7 +893,7 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
         }
         return expr;
     }
-    if (auto dependency = dynamic_cast<stream_access*>(expr))
+    if (auto dependency = dynamic_cast<stmt_access*>(expr))
     {
         // FIXME: duplicate, for the sake of consistency with stream_view below.
 
@@ -884,7 +902,7 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
         //cout << "after: " << endl  << dependency->pattern;
         return expr;
     }
-    if (auto view = dynamic_cast<stream_view*>(expr))
+    if (auto view = dynamic_cast<stmt_view*>(expr))
     {
         //cout << "Applying map:" << endl << map;
 
@@ -909,8 +927,7 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
 
         // FIXME: Only duplicate if shared (avoid memory leak).
 
-        auto new_view = new stream_view;
-        new_view->target = view->target;
+        auto new_view = new stmt_view(view->target);
         new_view->pattern = view->pattern * m2;
         new_view->current_iteration = view->current_iteration;
         //cout << "Result: " << endl  << new_view->pattern;

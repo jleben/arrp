@@ -16,6 +16,7 @@ class printer
 {
 public:
     printer();
+    void print(const numerical_type t, ostream &);
     void print(const expression *expr, ostream &);
     void print(const statement *stmt, ostream & );
     void indent() { ++level; }

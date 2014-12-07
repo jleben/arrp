@@ -20,10 +20,9 @@ result stream1_identity()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping::identity(1,1);
 
         statement *out = new statement;
@@ -49,15 +48,14 @@ result stream1_add_scalar()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping::identity(1,1);
 
         statement *out = new statement;
         out->domain = {9};
-        out->expr = new intrinsic(intrinsic::add, {y, new constant<int>(3)});
+        out->expr = new intrinsic(polyhedral::real, intrinsic::add, {y, new constant<int>(3)});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -78,17 +76,16 @@ result stream1_mul_range()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping::identity(2,1);
 
-        iterator_access *r = new iterator_access(1, 3);
+        iterator_access *r = new iterator_access(polyhedral::integer, 1, 3);
 
         statement *out = new statement;
         out->domain = {9,3};
-        out->expr = new intrinsic(intrinsic::multiply, {y, r});
+        out->expr = new intrinsic(polyhedral::real, intrinsic::multiply, {y, r});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -109,24 +106,22 @@ result stream1_add_stream1()
 
         statement *a = new statement;
         a->domain = {9};
-        a->expr = new input_access(0);
+        a->expr = new input_access(polyhedral::real, 0);
 
         statement *b = new statement;
         b->domain = {5};
-        b->expr = new input_access(1);
+        b->expr = new input_access(polyhedral::real, 1);
 
-        stream_access *a_elem = new stream_access;
-        a_elem->target = a;
+        stmt_access *a_elem = new stmt_access(a);
         a_elem->pattern = mapping::identity(2,1);
 
-        stream_access *b_elem = new stream_access;
-        b_elem->target = b;
+        stmt_access *b_elem = new stmt_access(b);
         b_elem->pattern = mapping(2,1);
         b_elem->pattern.coefficient(1,0) = 1;
 
         statement *out = new statement;
         out->domain = {9,5};
-        out->expr = new intrinsic(intrinsic::add, {a_elem, b_elem});
+        out->expr = new intrinsic(polyhedral::real, intrinsic::add, {a_elem, b_elem});
 
         t.expect_polyhedral_model({a,b,out});
     }
@@ -147,10 +142,9 @@ result stream1_take_n_identity()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping(2,1);
         y->pattern.coefficient(0,0) = 1;
         y->pattern.coefficient(1,0) = 1;
@@ -178,17 +172,16 @@ result stream1_take_n_raise_int()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping(2,1);
         y->pattern.coefficient(0,0) = 1;
         y->pattern.coefficient(1,0) = 1;
 
         statement *out = new statement;
         out->domain = {6,4};
-        out->expr = new intrinsic(intrinsic::raise, {y, new constant<int>(5)});
+        out->expr = new intrinsic(polyhedral::real, intrinsic::raise, {y, new constant<int>(5)});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -209,19 +202,18 @@ result stream1_take_n_sub_range()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping(2,1);
         y->pattern.coefficient(0,0) = 1;
         y->pattern.coefficient(1,0) = 1;
 
-        iterator_access *r = new iterator_access(1, 5);
+        iterator_access *r = new iterator_access(polyhedral::integer, 1, 5);
 
         statement *out = new statement;
         out->domain = {6,4};
-        out->expr = new intrinsic(intrinsic::subtract, {y, r});
+        out->expr = new intrinsic(polyhedral::real, intrinsic::subtract, {y, r});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -242,10 +234,9 @@ result stream1_take_n_every_n_identity()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping(2,1);
         y->pattern.coefficient(0,0) = 2;
         y->pattern.coefficient(1,0) = 1;
@@ -273,10 +264,9 @@ result stream3_identity()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping::identity(3,3);
 
         statement *out = new statement;
@@ -302,15 +292,15 @@ result stream3_max_double()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping::identity(3,3);
 
         statement *out = new statement;
         out->domain = {9,11,13};
-        out->expr = new intrinsic(intrinsic::max, {y, new constant<double>(100.5)});
+        out->expr = new intrinsic(polyhedral::real, intrinsic::max,
+        {y, new constant<double>(100.5)});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -331,10 +321,9 @@ result stream3_take_n_identity()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping(4,3);
         y->pattern.coefficient(0,0) = 1;
         y->pattern.coefficient(1,0) = 1;
@@ -364,10 +353,9 @@ result stream3_take_n_every_n_identity()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *y = new stream_access;
-        y->target = in;
+        stmt_access *y = new stmt_access(in);
         y->pattern = mapping(4,3);
         y->pattern.coefficient(0,0) = 2;
         y->pattern.coefficient(1,0) = 1;
@@ -395,7 +383,7 @@ result range_identity()
     {
         using namespace polyhedral;
 
-        iterator_access *y = new iterator_access(0, 3);
+        iterator_access *y = new iterator_access(polyhedral::real, 0, 3);
 
         statement *out = new statement;
         out->domain = {5};
@@ -418,11 +406,12 @@ result range_add_int()
     {
         using namespace polyhedral;
 
-        iterator_access *y = new iterator_access(0, 3);
+        iterator_access *y = new iterator_access(polyhedral::integer, 0, 3);
 
         statement *out = new statement;
         out->domain = {5};
-        out->expr = new intrinsic(intrinsic::add, {y, new constant<int>(123)});
+        out->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        {y, new constant<int>(123)});
 
         t.expect_polyhedral_model({out});
     }
@@ -441,12 +430,12 @@ result range_add_range()
     {
         using namespace polyhedral;
 
-        iterator_access *y = new iterator_access(0, 3);
-        iterator_access *r = new iterator_access(1, 5);
+        iterator_access *y = new iterator_access(polyhedral::integer, 0, 3);
+        iterator_access *r = new iterator_access(polyhedral::integer, 1, 5);
 
         statement *out = new statement;
         out->domain = {5,3};
-        out->expr = new intrinsic(intrinsic::add, {y, r});
+        out->expr = new intrinsic(polyhedral::real, intrinsic::add, {y, r});
 
         t.expect_polyhedral_model({out});
     }
@@ -465,7 +454,7 @@ result range_every_n_identity()
     {
         using namespace polyhedral;
 
-        iterator_access *y = new iterator_access(0, 10, 2);
+        iterator_access *y = new iterator_access(polyhedral::real, 0, 10, 2);
 
         statement *out = new statement;
         out->domain = {4};
@@ -490,10 +479,9 @@ result range_to_stream1()
 
         statement *x = new statement;
         x->domain = {5};
-        x->expr = new input_access(0);
+        x->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x_elem = new stream_access;
-        x_elem->target = x;
+        stmt_access *x_elem = new stmt_access(x);
         x_elem->pattern = mapping(2,1);
         x_elem->pattern.coefficient(1,0) = 1;
 

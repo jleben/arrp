@@ -12,7 +12,7 @@ namespace stream {
 namespace dataflow {
 
 using polyhedral::statement;
-using polyhedral::stream_access;
+using polyhedral::stmt_access;
 using std::vector;
 using std::unordered_map;
 using std::string;

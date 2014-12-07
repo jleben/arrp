@@ -151,7 +151,7 @@ llvm_from_model::generate_expression
             val = m_builder.CreateAdd(val, value((int32_t)iterator->offset));
         return val;
     }
-    if (auto read = dynamic_cast<stream_access*>(expr))
+    if (auto read = dynamic_cast<stmt_access*>(expr))
     {
         vector<value_type> target_index = mapped_index(index, read->pattern);
         value_type address = generate_buffer_access(read->target, target_index);

@@ -38,9 +38,13 @@ private:
         expression * source;
     };
 
-    class stream_view : public expression
+    class stmt_view : public expression
     {
     public:
+        stmt_view(statement *target):
+            expression(target->expr->type),
+            target(target)
+        {}
         statement *target;
         mapping pattern;
         int current_iteration;
@@ -51,6 +55,8 @@ private:
     public:
         expression *start;
         expression *end;
+
+        range(): expression(integer) {}
 
         bool is_constant()
         {
@@ -88,14 +94,14 @@ private:
 
     expression * translate_input(const semantic::type_ptr & type, int index);
 
-    mapping access(stream_view *source, int padding = 0);
+    mapping access(stmt_view *source, int padding = 0);
 
     expression *iterate (expression *, const semantic::type_ptr & result_type);
     iterator_access * iterate( range * );
-    stream_access * complete_access( stream_view *, const semantic::type_ptr & result_type );
+    stmt_access * complete_access( stmt_view *, const semantic::type_ptr & result_type );
 
     statement * make_statement( expression *, const vector<int> & domain );
-    stream_view * make_current_view( statement * );
+    stmt_view * make_current_view( statement * );
 
     expression * update_accesses(expression *, const mapping & map);
 };

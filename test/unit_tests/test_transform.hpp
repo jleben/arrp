@@ -20,10 +20,9 @@ result stream1_by_int ()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(1,1);
         x->pattern.constant(0) = 2;
 
@@ -50,10 +49,9 @@ result stream1_by_range ()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(1,1);
         x->pattern.coefficient(0,0) = 1;
         x->pattern.constant(0) = 2;
@@ -81,10 +79,9 @@ result stream3_by_int ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(2,3);
         x->pattern.constant(0) = 2;
         x->pattern.coefficient(0,1) = 1;
@@ -113,10 +110,9 @@ result stream3_by_range ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping::identity(3,3);
         x->pattern.constant(0) = 2;
 
@@ -143,10 +139,9 @@ result stream3_by_int2 ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(1,3);
         x->pattern.constant(0) = 2;
         x->pattern.constant(1) = 4;
@@ -175,10 +170,9 @@ result stream3_by_range2 ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping::identity(3,3);
         x->pattern.constant(0) = 2;
         x->pattern.constant(1) = 3;
@@ -206,10 +200,9 @@ result stream3_by_int3 ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(1,3);
         x->pattern.constant(0) = 2;
         x->pattern.constant(1) = 4;
@@ -238,10 +231,9 @@ result stream3_by_range3 ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping::identity(3,3);
         x->pattern.constant(0) = 2;
         x->pattern.constant(1) = 3;
@@ -270,10 +262,9 @@ result stream3_by_range_int_range ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(2,3);
 
         x->pattern.coefficient(0,0) = 1;
@@ -311,10 +302,9 @@ result stream3_to_dim2()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(3,3);
         x->pattern.coefficient(0,1) = 1;
         x->pattern.coefficient(1,0) = 1;
@@ -343,10 +333,9 @@ result stream4_to_dim2_dim3()
 
         statement *in = new statement;
         in->domain = {9,11,13,15};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(4,4);
         x->pattern.coefficient(0,1) = 1;
         x->pattern.coefficient(1,2) = 1;
@@ -376,10 +365,9 @@ result stream4_to_dim4_dim2()
 
         statement *in = new statement;
         in->domain = {9,11,13,15};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(4,4);
         x->pattern.coefficient(0,3) = 1;
         x->pattern.coefficient(1,1) = 1;
@@ -414,10 +402,9 @@ result slice_by_scalar_and_transpose()
 
         statement *in = new statement;
         in->domain = {9,11,13,15};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(3,4);
         x->pattern.constant(0) = 4;
         x->pattern.coefficient(0,3) = 1;
@@ -447,10 +434,9 @@ result transpose_and_slice_by_scalar()
 
         statement *in = new statement;
         in->domain = {9,11,13,15};
-        in->expr = new input_access(0);
+        in->expr = new input_access(polyhedral::real, 0);
 
-        stream_access *x = new stream_access;
-        x->target = in;
+        stmt_access *x = new stmt_access(in);
         x->pattern = mapping(3,4);
         x->pattern.coefficient(0,0) = 1;
         x->pattern.coefficient(1,1) = 1;

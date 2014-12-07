@@ -49,6 +49,19 @@ string name_of_intrinsic( intrinsic::of_kind type )
 
 printer::printer(): level(0) {}
 
+void printer::print(const numerical_type t, ostream &s)
+{
+    switch(t)
+    {
+    case integer:
+        s << "integer";
+        break;
+    case real:
+        s << "real";
+        break;
+    }
+}
+
 void printer::print(const expression *expr, ostream &s)
 {
     if (auto const_int = dynamic_cast<const constant<int>*>(expr))
@@ -81,7 +94,7 @@ void printer::print(const expression *expr, ostream &s)
         s << "iterator: " << it->offset << " + " << it->ratio << " * "
           << '[' << it->dimension << ']';
     }
-    else if (auto access = dynamic_cast<const stream_access*>(expr))
+    else if (auto access = dynamic_cast<const stmt_access*>(expr))
     {
         s << "access: " << access->target->name << " [" << endl;
         indent();

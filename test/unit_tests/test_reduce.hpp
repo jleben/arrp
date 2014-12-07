@@ -20,11 +20,10 @@ result stream1_add()
 
         statement *x = new statement;
         x->domain = {9};
-        x->expr = new input_access(0);
+        x->expr = new input_access(polyhedral::real, 0);
 
         // initializer
-        stream_access *x0 = new stream_access;
-        x0->target = x;
+        stmt_access *x0 = new stmt_access(x);
         x0->pattern = mapping(1,1);
         statement *initializer = new statement;
         initializer->domain = {1};
@@ -34,20 +33,18 @@ result stream1_add()
         statement *reductor = new statement;
         reductor->domain = {8};
 
-        reduction_access *a = new reduction_access;
+        reduction_access *a = new reduction_access(polyhedral::real);
         a->initializer = initializer;
         a->reductor = reductor;
 
-        stream_access *b = new stream_access;
-        b->target = x;
+        stmt_access *b = new stmt_access(x);
         b->pattern = mapping::identity(1,1);
         b->pattern.constant(0) = 1;
 
-        reductor->expr = new intrinsic(intrinsic::add,{a,b});
+        reductor->expr = new intrinsic(polyhedral::real, intrinsic::add,{a,b});
 
         // result
-        stream_access *out_expr = new stream_access;
-        out_expr->target = reductor;
+        stmt_access *out_expr = new stmt_access(reductor);
         out_expr->pattern = mapping(1,1);
         out_expr->pattern.constant(0) = 7;
         statement *out = new statement;
@@ -73,11 +70,10 @@ result map_range_by_stream1_reduction()
 
         statement *x = new statement;
         x->domain = {9};
-        x->expr = new input_access(0);
+        x->expr = new input_access(polyhedral::real, 0);
 
         // initializer
-        stream_access *x0 = new stream_access;
-        x0->target = x;
+        stmt_access *x0 = new stmt_access(x);
         x0->pattern = mapping(1,1);
         statement *initializer = new statement;
         initializer->domain = {100};
@@ -87,21 +83,19 @@ result map_range_by_stream1_reduction()
         statement *reductor = new statement;
         reductor->domain = {100,8};
 
-        reduction_access *a = new reduction_access;
+        reduction_access *a = new reduction_access(polyhedral::real);
         a->initializer = initializer;
         a->reductor = reductor;
 
-        stream_access *b = new stream_access;
-        b->target = x;
+        stmt_access *b = new stmt_access(x);
         b->pattern = mapping(2,1);
         b->pattern.coefficient(1,0) = 1;
         b->pattern.constant(0) = 1;
 
-        reductor->expr = new intrinsic(intrinsic::add,{a,b});
+        reductor->expr = new intrinsic(polyhedral::real, intrinsic::add,{a,b});
 
         // result
-        stream_access *out_expr = new stream_access;
-        out_expr->target = reductor;
+        stmt_access *out_expr = new stmt_access(reductor);
         out_expr->pattern = mapping(1,2);
         out_expr->pattern.coefficient(0,0) = 1;
         out_expr->pattern.constant(1) = 7;
@@ -128,11 +122,10 @@ result map_stream2_by_substream_reduction()
 
         statement *x = new statement;
         x->domain = {9,13};
-        x->expr = new input_access(0);
+        x->expr = new input_access(polyhedral::real, 0);
 
         // initializer
-        stream_access *x0 = new stream_access;
-        x0->target = x;
+        stmt_access *x0 = new stmt_access(x);
         x0->pattern = mapping::identity(1,2);
 
         statement *initializer = new statement;
@@ -143,20 +136,18 @@ result map_stream2_by_substream_reduction()
         statement *reductor = new statement;
         reductor->domain = {9,12};
 
-        reduction_access *a = new reduction_access;
+        reduction_access *a = new reduction_access(polyhedral::real);
         a->initializer = initializer;
         a->reductor = reductor;
 
-        stream_access *b = new stream_access;
-        b->target = x;
+        stmt_access *b = new stmt_access(x);
         b->pattern = mapping::identity(2,2);
         b->pattern.constant(1) = 1;
 
-        reductor->expr = new intrinsic(intrinsic::add,{a,b});
+        reductor->expr = new intrinsic(polyhedral::real, intrinsic::add,{a,b});
 
         // result
-        stream_access *out_expr = new stream_access;
-        out_expr->target = reductor;
+        stmt_access *out_expr = new stmt_access(reductor);
         out_expr->pattern = mapping(1,2);
         out_expr->pattern.coefficient(0,0) = 1;
         out_expr->pattern.constant(1) = 11;

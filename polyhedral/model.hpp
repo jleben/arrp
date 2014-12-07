@@ -19,6 +19,20 @@ enum
     infinite = -1
 };
 
+enum numerical_type
+{
+    integer,
+    real
+};
+
+template <numerical_type> struct cpp_type;
+template<> struct cpp_type<integer> { typedef int type; };
+template<> struct cpp_type<real> { typedef double type; };
+
+template <typename T> struct expr_type;
+template<> struct expr_type<int> { static constexpr numerical_type type = integer; };
+template<> struct expr_type<double> { static constexpr numerical_type type = real; };
+
 class statement;
 
 class mapping
@@ -101,17 +115,21 @@ class expression
     // (of all sub-expressions)
     // to be updated by slicing and transposition
 public:
+    expression(numerical_type t): type(t) {}
+
     virtual ~expression() {}
 
     template<typename T>
     void find( vector<T*> & container );
+
+    numerical_type type;
 };
 
 template <typename T>
 class constant : public expression
 {
 public:
-    constant(const T & v): value(v) {}
+    constant(const T & v): expression(expr_type<T>::type), value(v) {}
     T value;
 };
 
@@ -147,8 +165,9 @@ public:
         count
     };
 
-    intrinsic() {};
-    intrinsic(of_kind k, const vector<expression*> & operands):
+    intrinsic(numerical_type t): expression(t) {}
+    intrinsic(numerical_type t, of_kind k, const vector<expression*> & operands):
+        expression(t),
         kind(k), operands(operands)
     {}
 
@@ -159,8 +178,9 @@ public:
 class iterator_access : public expression
 {
 public:
-    iterator_access() {}
-    iterator_access(int dimension, int offset=0, int ratio=1):
+    iterator_access(numerical_type t): expression(t) {}
+    iterator_access(numerical_type t, int dimension, int offset=0, int ratio=1):
+        expression(t),
         dimension(dimension),
         offset(offset),
         ratio(ratio)
@@ -170,25 +190,10 @@ public:
     int ratio;
 };
 
-class stream_access : public expression
-{
-public:
-    stream_access(): target(nullptr) {}
-    statement * target;
-    mapping pattern;
-};
-
-class reduction_access : public expression
-{
-public:
-    statement * initializer;
-    statement * reductor;
-};
-
 class input_access : public expression
 {
 public:
-    input_access(int index): index(index) {}
+    input_access(numerical_type t, int index): expression(t), index(index) {}
     int index;
 };
 
@@ -209,6 +214,24 @@ public:
                 dimensions.push_back(dim);
         return dimensions;
     }
+};
+
+class stmt_access : public expression
+{
+public:
+    stmt_access(statement *target):
+        expression(target->expr->type),
+        target(target) {}
+    statement * target;
+    mapping pattern;
+};
+
+class reduction_access : public expression
+{
+public:
+    reduction_access(numerical_type t): expression(t) {}
+    statement * initializer;
+    statement * reductor;
 };
 
 template<typename T> inline

@@ -150,14 +150,14 @@ isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
 
     // We assume that a statement only writes one scalar value at a time.
     // Therefore, a dependency between two statements is exactly
-    // the polyhedral::stream_access::pattern in the model.
+    // the polyhedral::stmt_access::pattern in the model.
 
     isl::union_map all_dependencies_map(m_ctx);
 
-    vector<stream_access*> stream_accesses;
-    dependent->expr->find<stream_access>(stream_accesses);
+    vector<stmt_access*> stmt_accesses;
+    dependent->expr->find<stmt_access>(stmt_accesses);
 
-    for (auto access : stream_accesses)
+    for (auto access : stmt_accesses)
     {
         statement *target = access->target;
 
