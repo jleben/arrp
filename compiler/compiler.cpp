@@ -335,7 +335,6 @@ int main(int argc, char *argv[])
 
     // Output LLVM IR
 
-#if 1
     ofstream output_file(args.output_filename);
     if (!output_file.is_open())
     {
@@ -345,15 +344,8 @@ int main(int argc, char *argv[])
 
     llvm_cloog.output(output_file);
 
-    llvm_cloog.verify();
-#endif
-    #if 0
-    gen.output(output_file);
-
-    if (!gen.verify())
-    {
+    if (!llvm_cloog.verify())
         return result::generator_error;
-    }
-#endif
+
     return result::ok;
 }
