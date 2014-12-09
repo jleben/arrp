@@ -1,30 +1,18 @@
-#include "../../interface/cpp-interface.hpp"
+#include "sum.h"
 
 #include <iostream>
 
-using buffer = stream::interface::buffer;
 using namespace std;
-
-extern "C" {
-void initialize(double* input, buffer* buffers);
-}
 
 int main()
 {
-    using namespace stream::interface;
+    sum::buffer b[4];
 
-    descriptor d;
-    try
+    for(int i = 0; i < 4; ++i)
     {
-        d = descriptor::from_file("sum.meta");
+        b[i].data = new double;
+        b[i].phase = 0;
     }
-    catch (descriptor::read_error & e)
-    {
-        cerr << "** Error reading meta-data: " << e.what << endl;
-        return 1;
-    }
-
-    process p(d);
 
     double *input = new double[10];
     for (int i = 0; i < 10; ++i)
@@ -32,9 +20,9 @@ int main()
         input[i] = i;
     }
 
-    initialize(input, p.m_buffers.data());
+    sum::initialize(input, b);
 
-    double result = *p.output<real>();
+    double result = *(double*)b[3].data;
 
     cout << "result = " << result << endl;
 
