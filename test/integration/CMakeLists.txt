@@ -7,8 +7,10 @@ function(add_integration_test name source func args driver)
 
   compile_stream_func( ${kernel}
     ${source} ${func} "${args}"
-    "-m;${meta}"
+    "-m;${meta};--cpp;${name}.h"
   )
+
+  include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
   add_executable( ${exe} ${driver} ${${kernel}} )
 
