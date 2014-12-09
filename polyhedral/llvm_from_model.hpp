@@ -47,6 +47,14 @@ public:
                                    block_type block );
 private:
 
+    struct buffer
+    {
+        polyhedral::numerical_type type;
+        int index;
+        bool has_phase;
+        int phase_index;
+    };
+
     value_type generate_expression( expression *, const vector<value_type> & index );
     value_type generate_intrinsic( intrinsic *, const vector<value_type> & index );
     value_type generate_buffer_access( statement *, const vector<value_type> & index );
@@ -135,8 +143,12 @@ private:
     const vector<statement*> & m_statements;
     const dataflow::model * m_dataflow;
     schedule_type m_schedule_type;
+    vector<buffer> m_stmt_buffers;
     vector<value_type> m_inputs;
-    value_type m_buffers;
+    value_type m_int_buffer;
+    value_type m_real_buffer;
+    value_type m_phase_buffer;
+
     block_type m_start_block;
     block_type m_end_block;
 };

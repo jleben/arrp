@@ -17,6 +17,10 @@ pointer_type_node *int_ptr_type()
 }
 
 base_type_node *int32_type() { return new basic_type_node("int32_t"); }
+base_type_node *int32_ptr_type() { return new pointer_type_node(int32_type()); }
+
+base_type_node *int64_type() { return new basic_type_node("int64_t"); }
+base_type_node *int64_ptr_type() { return new pointer_type_node(int64_type()); }
 
 base_type_node *double_type() { return new basic_type_node("double"); }
 pointer_type_node *double_ptr_type()
@@ -79,9 +83,11 @@ cpp_gen::program * create
     class_node *buffer_struct = new class_node(struct_class, "buffer");
     class_section_node *buffer_section = new class_section_node;
     buffer_section->members.push_back(
-                new data_field_decl_node(void_ptr_type(), "data") );
+                new data_field_decl_node(double_ptr_type(), "real_buffer") );
     buffer_section->members.push_back(
-                new data_field_decl_node(int32_type(), "phase") );
+                new data_field_decl_node(int32_ptr_type(), "int_buffer") );
+    buffer_section->members.push_back(
+                new data_field_decl_node(int64_ptr_type(), "phase_buffer") );
     buffer_struct->sections.push_back(buffer_section);
 
     namespc->members.push_back(buffer_struct);

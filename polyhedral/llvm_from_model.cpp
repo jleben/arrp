@@ -12,6 +12,16 @@ using namespace std;
 namespace stream {
 namespace polyhedral {
 
+int volume( vector<int> extent )
+{
+    if (extent.empty())
+        return 0;
+    int v = 1;
+    for(int e : extent)
+        v *= e;
+    return v;
+}
+
 llvm_from_model::llvm_from_model
 (llvm::Module *module,
  const vector<semantic::type_ptr> & args,
@@ -24,13 +34,73 @@ llvm_from_model::llvm_from_model
     m_dataflow(dataflow),
     m_schedule_type(type)
 {
-    type_type i32_ptr_type = llvm::PointerType::get(int32_type(), 0);
-    type_type double_ptr_type = llvm::PointerType::get(double_type(), 0);
+    // Analyze buffer requirements
+
+    {
+        int int_buf_idx = 0;
+        int real_buf_idx = 0;
+        int phase_buf_idx = 0;
+
+        for (statement *stmt : statements)
+        {
+            buffer buf;
+
+            buf.type = stmt->expr->type;
+
+            switch(stmt->expr->type)
+            {
+            case integer:
+                buf.index = int_buf_idx;
+                int_buf_idx += volume(stmt->buffer);
+                break;
+            case real:
+                buf.index = real_buf_idx;
+                real_buf_idx += volume(stmt->buffer);
+                break;
+            default:
+                throw std::runtime_error("Unexpected expression type.");
+            }
+
+            const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
+            if (actor)
+            {
+                bool period_overlaps =
+                        actor->steady_count % stmt->buffer[actor->flow_dimension] != 0;
+                bool init_overlaps =
+                        actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
+
+                buf.has_phase = period_overlaps || init_overlaps;
+                buf.phase_index = phase_buf_idx++;
+            }
+            else
+            {
+                buf.has_phase = false;
+                buf.phase_index = -1;
+            }
+
+            m_stmt_buffers.push_back(buf);
+        }
+    }
+
+    // Create function
+
     type_type i8_ptr_type = llvm::Type::getInt8PtrTy(llvm_context());
     type_type i8_ptr_ptr_type = llvm::PointerType::get(i8_ptr_type, 0);
-    type_type buffer_type =
-            llvm::StructType::create(vector<type_type>({i8_ptr_type, int32_type()}));
-    type_type buffer_ptr_type = llvm::PointerType::get(buffer_type, 0);
+    type_type i32_ptr_type = llvm::PointerType::get(int32_type(), 0);
+    type_type i64_ptr_type = llvm::PointerType::get(int64_type(), 0);
+    type_type double_ptr_type = llvm::PointerType::get(double_type(), 0);
+
+    vector<type_type> buffer_info_member_types =
+    {
+        double_ptr_type,
+        i32_ptr_type,
+        i64_ptr_type
+    };
+
+    type_type buffer_info_type =
+            llvm::StructType::create(buffer_info_member_types);
+
+    type_type buffer_ptr_type = llvm::PointerType::get(buffer_info_type, 0);
 
     vector<type_type> param_types;
 
@@ -74,11 +144,40 @@ llvm_from_model::llvm_from_model
                                         m_module);
 
     auto arg = m_function->arg_begin();
+
     for (int i = 0; i < args.size(); ++i)
-        m_inputs.push_back(arg++);
-    m_buffers = arg++;
+    {
+        value_type in = arg++;
+        ostringstream name;
+        name << "in" << i;
+        in->setName(name.str());
+        m_inputs.push_back(in);
+    }
+
+    value_type buffer_info_ptr = arg++;
+
+    // Start block
 
     m_start_block = llvm::BasicBlock::Create(llvm_context(), "", m_function);
+    m_builder.SetInsertPoint(m_start_block);
+
+    {
+        vector<value_type> address = { value((int32_t)0), value((int32_t)0) };
+        m_real_buffer = m_builder.CreateLoad(
+                    m_builder.CreateGEP(buffer_info_ptr, address), "real_buf");
+    }
+    {
+        vector<value_type> address = { value((int32_t)0), value((int32_t)1) };
+        m_int_buffer = m_builder.CreateLoad(
+                    m_builder.CreateGEP(buffer_info_ptr, address), "int_buf");
+    }
+    {
+        vector<value_type> address = { value((int32_t)0), value((int32_t)2) };
+        m_phase_buffer = m_builder.CreateLoad(
+                    m_builder.CreateGEP(buffer_info_ptr, address), "phase_buf");
+    }
+
+    // End block
 
     m_end_block = llvm::BasicBlock::Create(llvm_context(), "", m_function);
     m_builder.SetInsertPoint(m_end_block);
@@ -412,22 +511,16 @@ llvm_from_model::generate_buffer_access
     value_type stmt_index = value( (int32_t) statement_index(stmt) );
     value_type buffer;
     {
-        vector<value_type> indices{stmt_index, value((int32_t) 0)};
-        value_type buffer_ptr =
-                m_builder.CreateGEP(m_buffers, indices);
-        buffer = m_builder.CreateLoad(buffer_ptr);
         switch(stmt->expr->type)
         {
         case integer:
         {
-            type_type int_ptr_type = llvm::Type::getInt32PtrTy(llvm_context());
-            buffer = m_builder.CreateBitCast(buffer, int_ptr_type);
+            buffer = m_int_buffer;
             break;
         }
         case real:
         {
-            type_type double_ptr_type = llvm::Type::getDoublePtrTy(llvm_context());
-            buffer = m_builder.CreateBitCast(buffer, double_ptr_type);
+            buffer = m_real_buffer;
             break;
         }
         default:
@@ -564,19 +657,16 @@ void llvm_from_model::advance_buffers()
         if (!actor)
             continue;
 
+        const buffer & buf = m_stmt_buffers[buf_idx];
+
+        if (!buf.has_phase)
+            continue;
+
         int offset = actor->steady_count;
         int buffer_size = stmt->buffer[actor->flow_dimension];
 
-        if (offset == 0 || offset % buffer_size == 0)
-            continue;
-
-        vector<value_type> indices
-        {
-            value((int32_t) buf_idx),
-                    value((int32_t) 1),
-        };
         value_type phase_ptr =
-                m_builder.CreateGEP(m_buffers, indices);
+                m_builder.CreateGEP(m_phase_buffer, value(buf.phase_index));
         value_type phase_val = m_builder.CreateLoad(phase_ptr);
         value_type offset_val = value(phase_val->getType(), offset);
         value_type buf_size_val = value(phase_val->getType(), buffer_size);
@@ -593,9 +683,8 @@ llvm_from_model::flat_buffer_index
     // Get basic info about accessed statement
 
     const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
-    value_type stmt_index = value( (int32_t) statement_index(stmt) );
-
-    bool use_phase = false;
+    int stmt_index = statement_index(stmt);
+    const buffer & buf = m_stmt_buffers[stmt_index];
 
     // Prepare info
 
@@ -614,24 +703,12 @@ llvm_from_model::flat_buffer_index
 
     if (actor &&  m_schedule_type == periodic_schedule)
     {
-        bool period_overlaps =
-                actor->steady_count % the_buffer_size[actor->flow_dimension] != 0;
-        bool init_overlaps =
-                actor->init_count % the_buffer_size[actor->flow_dimension] != 0;
-
-        use_phase = period_overlaps || init_overlaps;
-
-        if (use_phase)
+        if (buf.has_phase)
         {
-            value_type phase;
-            {
-                vector<value_type> indices{stmt_index, value((int32_t) 1)};
-                value_type phase_ptr =
-                        m_builder.CreateGEP(m_buffers, indices);
-                phase = m_builder.CreateLoad(phase_ptr);
-                if (phase->getType() == int32_type())
-                    phase = m_builder.CreateSExt(phase, int64_type());
-            }
+            value_type phase_ptr =
+                    m_builder.CreateGEP(m_phase_buffer, value(buf.phase_index));
+            value_type phase =
+                    m_builder.CreateLoad(phase_ptr);
 
             value_type & flow_index = the_index[actor->flow_dimension];
             flow_index = m_builder.CreateAdd(flow_index, phase);
@@ -653,7 +730,7 @@ llvm_from_model::flat_buffer_index
 
         bool may_wrap =
                 domain > buffer ||
-                (actor && dim == actor->flow_dimension && use_phase);
+                (actor && dim == actor->flow_dimension && buf.has_phase);
 
         if (may_wrap)
         {
@@ -672,6 +749,10 @@ llvm_from_model::flat_buffer_index
     }
 
     value_type flat_index = this->flat_index(the_index, the_buffer_size);
+
+    // Add statement offset:
+    if (buf.index != 0)
+        flat_index = m_builder.CreateAdd(flat_index, value((int64_t)buf.index));
 
     return flat_index;
 }
