@@ -46,6 +46,31 @@ func_decl_node *decl_alloc_func()
     return new func_decl_node(sig);
 }
 
+func_decl_node *decl_get_output_func(polyhedral::statement *output_stmt)
+{
+    auto buf_ptr_type = new pointer_type_node(new basic_type_node("buffer"));
+
+    type_node *ret_type;
+    switch(output_stmt->expr->type)
+    {
+    case polyhedral::integer:
+        ret_type = int32_ptr_type();
+        break;
+    case polyhedral::real:
+        ret_type = double_ptr_type();
+        break;
+    default:
+        assert(false);
+    }
+
+    func_signature_node *sig = new func_signature_node;
+    sig->name = "get_output";
+    sig->type = ret_type;
+    sig->parameters.push_back(new variable_decl_node(buf_ptr_type));
+
+    return new func_decl_node(sig);
+}
+
 func_decl_node *decl_process_func(const string & name,
                                   const vector<semantic::type_ptr> & args)
 {
@@ -108,6 +133,7 @@ cpp_gen::program * create
     extern_c->members.push_back(decl_alloc_func());
     extern_c->members.push_back(decl_process_func("initialize", args));
     extern_c->members.push_back(decl_process_func("process", args));
+    extern_c->members.push_back(decl_get_output_func(stmts.back()));
 
     namespc->members.push_back(extern_c);
 

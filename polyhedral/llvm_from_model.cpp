@@ -142,6 +142,58 @@ llvm_from_model::llvm_from_model
 
         m_builder.ClearInsertionPoint();
     }
+
+    // Generate output access function
+
+    {
+        const buffer & buf_info = m_stmt_buffers.back();
+
+        type_type ret_type;
+
+        switch(buf_info.type)
+        {
+        case integer:
+            ret_type = pointer(int32_type());
+            break;
+        case real:
+            ret_type = pointer(double_type());
+            break;
+        default:
+            assert(false);
+        }
+
+        type_type buffer_struct_ptr_type =
+                llvm::PointerType::get(m_buffer_struct_type, 0);
+
+        llvm::FunctionType * func_type =
+                llvm::FunctionType::get(ret_type,
+                                        buffer_struct_ptr_type,
+                                        false);
+
+        llvm::Function * func =
+                llvm::Function::Create(func_type,
+                                       llvm::Function::ExternalLinkage,
+                                       "get_output",
+                                       m_module);
+
+        value_type buf_struct_ptr = func->arg_begin();
+
+        block_type block
+                = llvm::BasicBlock::Create(llvm_context(), "", func);
+        m_builder.SetInsertPoint(block);
+
+        int data_field = buf_info.type == real ? 0 : 1;
+        vector<value_type> address = { value((int)0),
+                                       value(data_field) };
+        value_type buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
+        value_type buf = m_builder.CreateLoad(buf_ptr);
+
+        value_type output = m_builder.CreateGEP(buf, value(buf_info.index));
+
+        m_builder.CreateRet(output);
+
+        m_builder.ClearInsertionPoint();
+    }
 }
 
 llvm_from_model::context

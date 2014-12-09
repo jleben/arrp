@@ -110,7 +110,10 @@ private:
     {
         return llvm::Type::getDoubleTy(llvm_context());
     }
-
+    type_type pointer(type_type t)
+    {
+        return llvm::PointerType::get(t, 0);
+    }
     value_type value( bool value )
     {
         return llvm::ConstantInt::get(bool_type(), value ? 1 : 0);
