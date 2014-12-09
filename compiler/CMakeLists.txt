@@ -8,6 +8,7 @@ endif()
 
 add_library(streamc-lib ${lib_mode}
   ../utility/debug.cpp
+  ../utility/cpp-gen.cpp
   ../frontend/lex.cc
   ../frontend/parse.cc
   ../frontend/environment.cpp
@@ -22,6 +23,7 @@ add_library(streamc-lib ${lib_mode}
   #../polyhedral/llvm_ir_generator.cpp
   ../polyhedral/llvm_ir_from_cloog.cpp
   ../polyhedral/llvm_from_model.cpp
+  ../interface/cpp-intf-gen.cpp
 )
 
 set_property( TARGET streamc-lib PROPERTY OUTPUT_NAME streamc )

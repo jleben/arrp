@@ -9,6 +9,7 @@
 //#include "../polyhedral/llvm_ir_generator.hpp"
 #include "../polyhedral/llvm_ir_from_cloog.hpp"
 #include "../polyhedral/llvm_from_model.hpp"
+#include "../interface/cpp-intf-gen.hpp"
 
 #include <json++/json.hh>
 
@@ -228,6 +229,48 @@ int main(int argc, char *argv[])
         llvm_cloog.generate( ast.second,
                              llvm_from_model.start_block(),
                              llvm_from_model.end_block() );
+    }
+
+    // Output C++ interface
+
+    if (!args.cpp_output_filename.empty())
+    {
+        ofstream cpp_output_file(args.cpp_output_filename);
+        if (!cpp_output_file.is_open())
+        {
+            cerr << "Could not open C++ interface output file: "
+                 << args.cpp_output_filename << endl;
+            return result::io_error;
+        }
+
+        cpp_output_file << "#ifndef stream_function_" << target.name << "_included" << endl;
+        cpp_output_file << "#define stream_function_" << target.name << "_included" << endl;
+        cpp_output_file << endl;
+        cpp_output_file << "#include <cstdint>" << endl;
+
+        auto program = cpp_interface::create(target.name, target.args,
+                                           poly.statements(),
+                                           dataflow_model);
+        cpp_gen::options opt;
+        cpp_gen::state state(opt);
+        try
+        {
+            program->generate(state, cpp_output_file);
+        }
+        catch (std::exception & e)
+        {
+            cerr << "Error generating C++ interface output file: "
+                 << e.what()
+                 << endl;
+            return result::io_error;
+        }
+        catch (...)
+        {
+            cerr << "Error generating C++ interface output file." << endl;
+            return result::io_error;
+        }
+
+        cpp_output_file << "#endif // stream_function_" << target.name << "_included" << endl;
     }
 
     // Output meta-data

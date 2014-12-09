@@ -42,6 +42,8 @@ public:
 
     model( const vector<statement*> & );
 
+    bool empty() { return m_actors.empty(); }
+
     const dataflow::actor * find_actor_for( statement * stmt ) const
     {
         auto ref = m_actors.find(stmt);

@@ -105,6 +105,7 @@ public:
     string input_filename;
     string output_filename;
     string meta_output_filename;
+    string cpp_output_filename;
     target_info target;
     vector<string> debug_topics;
     vector<string> no_debug_topics;
@@ -173,6 +174,10 @@ private:
         else if (opt == "--meta" || opt == "-m")
         {
             parse_argument(meta_output_filename, "output meta-data file (JSON)");
+        }
+        else if (opt == "--cpp")
+        {
+            parse_argument(cpp_output_filename, "C++ interface output file");
         }
         else if (opt == "--debug")
         {
