@@ -29,22 +29,38 @@ class llvm_from_model
     using block_type = llvm::BasicBlock*;
 
 public:
-    llvm_from_model(llvm::Module *module,
-                    const vector<semantic::type_ptr> & args,
-                    const vector<statement*> &,
-                    const dataflow::model *,
-                    schedule_type type );
+    struct context
+    {
+        context(schedule_type mode): mode(mode) {}
 
-    llvm::Function * function() { return m_function; }
-    block_type start_block() { return m_start_block; }
-    block_type end_block() { return m_end_block; }
+        schedule_type mode;
+        llvm::Function *func;
+        block_type start_block;
+        block_type end_block;
+        vector<value_type> inputs;
+        value_type int_buffer;
+        value_type real_buffer;
+        value_type phase_buffer;
+    };
+
+    typedef vector<value_type> index_type;
+
+    llvm_from_model(llvm::Module *module,
+                    const vector<statement*> &,
+                    const dataflow::model * );
+
+    context create_process_function(schedule_type mode,
+                                    const vector<semantic::type_ptr> & args);
 
     block_type generate_statement( const string & name,
-                                   const vector<value_type> & index,
+                                   const index_type &,
+                                   const context & ctx,
                                    block_type block );
     block_type generate_statement( statement *,
-                                   const vector<value_type> & index,
+                                   const index_type &,
+                                   const context & ctx,
                                    block_type block );
+
 private:
 
     struct buffer
@@ -55,15 +71,13 @@ private:
         int phase_index;
     };
 
-    value_type generate_expression( expression *, const vector<value_type> & index );
-    value_type generate_intrinsic( intrinsic *, const vector<value_type> & index );
-    value_type generate_buffer_access( statement *, const vector<value_type> & index );
-    value_type generate_input_access( statement *, const vector<value_type> & index );
-    value_type generate_scalar_input_access( input_access * );
-    value_type generate_reduction_access( reduction_access *, const vector<value_type> & index );
-    void advance_buffers();
-
-    //int flat_buffer_size( statement *, int flow_count );
+    value_type generate_expression( expression *, const index_type &, const context & );
+    value_type generate_intrinsic( intrinsic *, const index_type &, const context &  );
+    value_type generate_buffer_access( statement *, const index_type &, const context &  );
+    value_type generate_input_access( statement *, const index_type &, const context &  );
+    value_type generate_scalar_input_access( input_access *, const context & );
+    value_type generate_reduction_access( reduction_access *, const index_type &, const context & );
+    void advance_buffers(const context & );
 
     template <typename T>
     void transpose( vector<T> & index, int first_dim );
@@ -71,7 +85,9 @@ private:
     vector<value_type> mapped_index( const vector<value_type> & index,
                                      const mapping & );
 
-    value_type flat_buffer_index( statement * stmt, const vector<value_type> & index );
+    value_type flat_buffer_index( statement * stmt,
+                                  const index_type &,
+                                  const context & );
 
     value_type flat_index( const vector<value_type> & index,
                            const vector<int> & domain );
@@ -138,19 +154,10 @@ private:
     llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
 
     llvm::Module *m_module;
-    llvm::Function *m_function;
     llvm::IRBuilder<> m_builder;
     const vector<statement*> & m_statements;
     const dataflow::model * m_dataflow;
-    schedule_type m_schedule_type;
     vector<buffer> m_stmt_buffers;
-    vector<value_type> m_inputs;
-    value_type m_int_buffer;
-    value_type m_real_buffer;
-    value_type m_phase_buffer;
-
-    block_type m_start_block;
-    block_type m_end_block;
 };
 
 }

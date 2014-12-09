@@ -181,54 +181,51 @@ int main(int argc, char *argv[])
         return result::generator_error;
     }
 
+    // Generate LLVM IR
+
+    polyhedral::llvm_from_model llvm_from_model
+            (module, poly.statements(), &dataflow_model);
+
     // Generate LLVM IR for finite part
 
     if (ast.first)
     {
-        polyhedral::llvm_from_model llvm_from_model
-                (module,
-                 target.args,
-                 poly.statements(),
-                 &dataflow_model,
-                 polyhedral::initial_schedule);
+        auto ctx = llvm_from_model.create_process_function
+                (polyhedral::initial_schedule, target.args);
 
         auto stmt_func = [&]
                 ( const string & name,
                 const vector<llvm::Value*> & index,
                 llvm::BasicBlock * block ) -> llvm::BasicBlock*
         {
-            return llvm_from_model.generate_statement(name, index, block);
+            return llvm_from_model.generate_statement(name, index, ctx, block);
         };
 
         llvm_cloog.set_stmt_func(stmt_func);
         llvm_cloog.generate( ast.first,
-                             llvm_from_model.start_block(),
-                             llvm_from_model.end_block() );
+                             ctx.start_block,
+                             ctx.end_block );
     }
 
     // Generate LLVM IR for periodic part
 
     if (ast.second)
     {
-        polyhedral::llvm_from_model llvm_from_model
-                (module,
-                 target.args,
-                 poly.statements(),
-                 &dataflow_model,
-                 polyhedral::periodic_schedule);
+        auto ctx = llvm_from_model.create_process_function
+                (polyhedral::periodic_schedule, target.args);
 
         auto stmt_func = [&]
                 ( const string & name,
                 const vector<llvm::Value*> & index,
                 llvm::BasicBlock * block ) -> llvm::BasicBlock*
         {
-            return llvm_from_model.generate_statement(name, index, block);
+            return llvm_from_model.generate_statement(name, index, ctx, block);
         };
 
         llvm_cloog.set_stmt_func(stmt_func);
         llvm_cloog.generate( ast.second,
-                             llvm_from_model.start_block(),
-                             llvm_from_model.end_block() );
+                             ctx.start_block,
+                             ctx.end_block );
     }
 
     // Output C++ interface

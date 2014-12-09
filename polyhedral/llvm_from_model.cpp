@@ -24,68 +24,66 @@ int volume( vector<int> extent )
 
 llvm_from_model::llvm_from_model
 (llvm::Module *module,
- const vector<semantic::type_ptr> & args,
  const vector<statement*> & statements,
- const dataflow::model *dataflow,
- schedule_type type ):
+ const dataflow::model *dataflow ):
     m_module(module),
     m_builder(module->getContext()),
     m_statements(statements),
-    m_dataflow(dataflow),
-    m_schedule_type(type)
+    m_dataflow(dataflow)
 {
     // Analyze buffer requirements
 
+    int int_buf_idx = 0;
+    int real_buf_idx = 0;
+    int phase_buf_idx = 0;
+
+    for (statement *stmt : statements)
     {
-        int int_buf_idx = 0;
-        int real_buf_idx = 0;
-        int phase_buf_idx = 0;
+        buffer buf;
 
-        for (statement *stmt : statements)
+        buf.type = stmt->expr->type;
+
+        switch(stmt->expr->type)
         {
-            buffer buf;
-
-            buf.type = stmt->expr->type;
-
-            switch(stmt->expr->type)
-            {
-            case integer:
-                buf.index = int_buf_idx;
-                int_buf_idx += volume(stmt->buffer);
-                break;
-            case real:
-                buf.index = real_buf_idx;
-                real_buf_idx += volume(stmt->buffer);
-                break;
-            default:
-                throw std::runtime_error("Unexpected expression type.");
-            }
-
-            const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
-            if (actor)
-            {
-                bool period_overlaps =
-                        actor->steady_count % stmt->buffer[actor->flow_dimension] != 0;
-                bool init_overlaps =
-                        actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
-
-                buf.has_phase = period_overlaps || init_overlaps;
-                buf.phase_index = phase_buf_idx++;
-            }
-            else
-            {
-                buf.has_phase = false;
-                buf.phase_index = -1;
-            }
-
-            m_stmt_buffers.push_back(buf);
+        case integer:
+            buf.index = int_buf_idx;
+            int_buf_idx += volume(stmt->buffer);
+            break;
+        case real:
+            buf.index = real_buf_idx;
+            real_buf_idx += volume(stmt->buffer);
+            break;
+        default:
+            throw std::runtime_error("Unexpected expression type.");
         }
+
+        const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
+        if (actor)
+        {
+            bool period_overlaps =
+                    actor->steady_count % stmt->buffer[actor->flow_dimension] != 0;
+            bool init_overlaps =
+                    actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
+
+            buf.has_phase = period_overlaps || init_overlaps;
+            buf.phase_index = phase_buf_idx++;
+        }
+        else
+        {
+            buf.has_phase = false;
+            buf.phase_index = -1;
+        }
+
+        m_stmt_buffers.push_back(buf);
     }
+}
 
-    // Create function
+llvm_from_model::context
+llvm_from_model::create_process_function
+(schedule_type mode, const vector<semantic::type_ptr> & args)
+{
+    context ctx(mode);
 
-    type_type i8_ptr_type = llvm::Type::getInt8PtrTy(llvm_context());
-    type_type i8_ptr_ptr_type = llvm::PointerType::get(i8_ptr_type, 0);
     type_type i32_ptr_type = llvm::PointerType::get(int32_type(), 0);
     type_type i64_ptr_type = llvm::PointerType::get(int64_type(), 0);
     type_type double_ptr_type = llvm::PointerType::get(double_type(), 0);
@@ -130,7 +128,7 @@ llvm_from_model::llvm_from_model
                                     false);
 
     const char *func_name;
-    switch(m_schedule_type)
+    switch(mode)
     {
     case initial_schedule:
         func_name = "initialize"; break;
@@ -138,12 +136,13 @@ llvm_from_model::llvm_from_model
         func_name = "process"; break;
     }
 
-    m_function = llvm::Function::Create(func_type,
-                                        llvm::Function::ExternalLinkage,
-                                        func_name,
-                                        m_module);
+    ctx.func =
+            llvm::Function::Create(func_type,
+                                   llvm::Function::ExternalLinkage,
+                                   func_name,
+                                   m_module);
 
-    auto arg = m_function->arg_begin();
+    auto arg = ctx.func->arg_begin();
 
     for (int i = 0; i < args.size(); ++i)
     {
@@ -151,61 +150,65 @@ llvm_from_model::llvm_from_model
         ostringstream name;
         name << "in" << i;
         in->setName(name.str());
-        m_inputs.push_back(in);
+        ctx.inputs.push_back(in);
     }
 
     value_type buffer_info_ptr = arg++;
 
     // Start block
 
-    m_start_block = llvm::BasicBlock::Create(llvm_context(), "", m_function);
-    m_builder.SetInsertPoint(m_start_block);
+    ctx.start_block = llvm::BasicBlock::Create(llvm_context(), "", ctx.func);
+    m_builder.SetInsertPoint(ctx.start_block);
 
     {
         vector<value_type> address = { value((int32_t)0), value((int32_t)0) };
-        m_real_buffer = m_builder.CreateLoad(
+        ctx.real_buffer = m_builder.CreateLoad(
                     m_builder.CreateGEP(buffer_info_ptr, address), "real_buf");
     }
     {
         vector<value_type> address = { value((int32_t)0), value((int32_t)1) };
-        m_int_buffer = m_builder.CreateLoad(
+        ctx.int_buffer = m_builder.CreateLoad(
                     m_builder.CreateGEP(buffer_info_ptr, address), "int_buf");
     }
     {
         vector<value_type> address = { value((int32_t)0), value((int32_t)2) };
-        m_phase_buffer = m_builder.CreateLoad(
+        ctx.phase_buffer = m_builder.CreateLoad(
                     m_builder.CreateGEP(buffer_info_ptr, address), "phase_buf");
     }
 
     // End block
 
-    m_end_block = llvm::BasicBlock::Create(llvm_context(), "", m_function);
-    m_builder.SetInsertPoint(m_end_block);
+    ctx.end_block = llvm::BasicBlock::Create(llvm_context(), "", ctx.func);
+    m_builder.SetInsertPoint(ctx.end_block);
 
-    if (m_schedule_type == periodic_schedule)
-        advance_buffers();
+    if (mode == periodic_schedule)
+        advance_buffers(ctx);
 
     m_builder.CreateRetVoid();
+
+    return ctx;
 }
 
 llvm_from_model::block_type
 llvm_from_model::generate_statement( const string & name,
-                                     const vector<value_type> & index,
+                                     const index_type & index,
+                                     const context & ctx,
                                      block_type block )
 {
     auto stmt_ref = std::find_if(m_statements.begin(), m_statements.end(),
                                  [&](statement *s){ return s->name == name; });
     assert(stmt_ref != m_statements.end());
-    return generate_statement(*stmt_ref, index, block);
+    return generate_statement(*stmt_ref, index, ctx, block);
 }
 
 llvm_from_model::block_type
 llvm_from_model::generate_statement
-( statement *stmt, const vector<value_type> & raw_index, block_type block )
+( statement *stmt, const index_type & ctx_index,
+  const context & ctx, block_type block )
 {
     // Drop first dimension denoting period (always zero).
-    assert(!raw_index.empty());
-    vector<value_type> index(raw_index.begin()+1, raw_index.end());
+    assert(!ctx_index.empty());
+    vector<value_type> index(ctx_index.begin()+1, ctx_index.end());
 
     m_builder.SetInsertPoint(block);
 
@@ -214,11 +217,11 @@ llvm_from_model::generate_statement
     // - How does this affect the requirements for wrapping?
     // - Could this be avoided by rather modifying how the index is generated
     //   in the first place?
-    vector<value_type> offset_index = index;
+    vector<value_type> global_index = index;
     const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
-    if (m_schedule_type == periodic_schedule && actor)
+    if (ctx.mode == periodic_schedule && actor)
     {
-        value_type &flow_index = offset_index[actor->flow_dimension];
+        value_type &flow_index = global_index[actor->flow_dimension];
         flow_index = m_builder.CreateAdd(flow_index,
                                          this->value((int64_t)actor->init_count));
     }
@@ -227,14 +230,14 @@ llvm_from_model::generate_statement
 
     if (auto input = dynamic_cast<input_access*>(stmt->expr))
     {
-        value = generate_input_access(stmt, index);
+        value = generate_input_access(stmt, index, ctx);
     }
     else
     {
-        value = generate_expression(stmt->expr, offset_index);
+        value = generate_expression(stmt->expr, global_index, ctx);
     }
 
-    value_type dst = generate_buffer_access(stmt, offset_index);
+    value_type dst = generate_buffer_access(stmt, global_index, ctx);
 
 #if 0
     if (value->getType() != double_type())
@@ -247,17 +250,17 @@ llvm_from_model::generate_statement
 
 llvm_from_model::value_type
 llvm_from_model::generate_expression
-( expression *expr, const vector<value_type> & index )
+( expression *expr, const index_type & index, const context & ctx )
 {
     value_type result;
 
     if (auto operation = dynamic_cast<intrinsic*>(expr))
     {
-        result = generate_intrinsic(operation, index);
+        result = generate_intrinsic(operation, index, ctx);
     }
     else if (auto input = dynamic_cast<input_access*>(expr))
     {
-        result = generate_scalar_input_access(input);
+        result = generate_scalar_input_access(input, ctx);
     }
     else if (auto iterator = dynamic_cast<iterator_access*>(expr))
     {
@@ -273,12 +276,12 @@ llvm_from_model::generate_expression
     else if (auto read = dynamic_cast<stmt_access*>(expr))
     {
         vector<value_type> target_index = mapped_index(index, read->pattern);
-        value_type address = generate_buffer_access(read->target, target_index);
+        value_type address = generate_buffer_access(read->target, target_index, ctx);
         result = m_builder.CreateLoad(address);
     }
     else if (auto access = dynamic_cast<reduction_access*>(expr))
     {
-        result = generate_reduction_access(access, index);
+        result = generate_reduction_access(access, index, ctx);
     }
     else if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
     {
@@ -307,13 +310,13 @@ llvm_from_model::generate_expression
 
 llvm_from_model::value_type
 llvm_from_model::generate_intrinsic
-( intrinsic *op, const vector<value_type> & index )
+( intrinsic *op, const index_type & index, const context & ctx )
 {
     vector<value_type> operands;
     operands.reserve(op->operands.size());
     for (expression * expr : op->operands)
     {
-        operands.push_back( generate_expression(expr, index) );
+        operands.push_back( generate_expression(expr, index, ctx) );
     }
 
     type_type d_type = double_type();
@@ -505,9 +508,9 @@ llvm_from_model::generate_intrinsic
 
 llvm_from_model::value_type
 llvm_from_model::generate_buffer_access
-( statement *stmt, const vector<value_type> & index )
+( statement *stmt, const index_type & index, const context & ctx )
 {
-    value_type flat_index = flat_buffer_index(stmt, index);
+    value_type flat_index = flat_buffer_index(stmt, index, ctx);
     value_type stmt_index = value( (int32_t) statement_index(stmt) );
     value_type buffer;
     {
@@ -515,12 +518,12 @@ llvm_from_model::generate_buffer_access
         {
         case integer:
         {
-            buffer = m_int_buffer;
+            buffer = ctx.int_buffer;
             break;
         }
         case real:
         {
-            buffer = m_real_buffer;
+            buffer = ctx.real_buffer;
             break;
         }
         default:
@@ -536,7 +539,7 @@ llvm_from_model::generate_buffer_access
 
 llvm_from_model::value_type
 llvm_from_model::generate_input_access
-( statement *stmt, const vector<value_type> & index )
+( statement *stmt, const index_type & index, const context & ctx)
 {
     vector<value_type> the_index(index);
     vector<int> the_domain(stmt->domain);
@@ -544,7 +547,7 @@ llvm_from_model::generate_input_access
 
     if (actor)
     {
-        switch(m_schedule_type)
+        switch(ctx.mode)
         {
         case initial_schedule:
             the_domain[actor->flow_dimension] = actor->init_count;
@@ -561,7 +564,7 @@ llvm_from_model::generate_input_access
 
     int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
 
-    value_type input = m_inputs[input_num];
+    value_type input = ctx.inputs[input_num];
     assert(input->getType()->isPointerTy());
     input = m_builder.CreateGEP(input, flat_index);
     input = m_builder.CreateLoad(input);
@@ -570,15 +573,15 @@ llvm_from_model::generate_input_access
 }
 
 llvm_from_model::value_type
-llvm_from_model::generate_scalar_input_access( input_access *access )
+llvm_from_model::generate_scalar_input_access( input_access *access, const context & ctx )
 {
     int input_num = access->index;
-    return m_inputs[input_num];
+    return ctx.inputs[input_num];
 }
 
 llvm_from_model::value_type
 llvm_from_model::generate_reduction_access
-( reduction_access *access, const vector<value_type> & index )
+( reduction_access *access, const index_type & index, const context & ctx)
 {
     int reduction_dim = access->reductor->domain.size() - 1;
     assert(reduction_dim < index.size());
@@ -611,7 +614,7 @@ llvm_from_model::generate_reduction_access
             init_index.push_back(0);
         }
         assert(access->initializer->domain.size() == init_index.size());
-        value_type init_ptr = generate_buffer_access(access->initializer, init_index);
+        value_type init_ptr = generate_buffer_access(access->initializer, init_index, ctx);
         init_value = m_builder.CreateLoad(init_ptr);
 
         m_builder.CreateBr(after_block);
@@ -628,7 +631,7 @@ llvm_from_model::generate_reduction_access
                 m_builder.CreateSub(reductor_index[reduction_dim],
                                     value((int64_t) 1));
         value_type recall_ptr = generate_buffer_access(access->reductor,
-                                                       reductor_index);
+                                                       reductor_index, ctx);
         recall_value = m_builder.CreateLoad(recall_ptr);
 
         m_builder.CreateBr(after_block);
@@ -643,10 +646,8 @@ llvm_from_model::generate_reduction_access
     return value;
 }
 
-void llvm_from_model::advance_buffers()
+void llvm_from_model::advance_buffers(const context & ctx)
 {
-    assert(m_schedule_type == periodic_schedule);
-
     int buf_idx = -1;
     for (statement * stmt : m_statements)
     {
@@ -666,7 +667,7 @@ void llvm_from_model::advance_buffers()
         int buffer_size = stmt->buffer[actor->flow_dimension];
 
         value_type phase_ptr =
-                m_builder.CreateGEP(m_phase_buffer, value(buf.phase_index));
+                m_builder.CreateGEP(ctx.phase_buffer, value(buf.phase_index));
         value_type phase_val = m_builder.CreateLoad(phase_ptr);
         value_type offset_val = value(phase_val->getType(), offset);
         value_type buf_size_val = value(phase_val->getType(), buffer_size);
@@ -678,7 +679,7 @@ void llvm_from_model::advance_buffers()
 
 llvm_from_model::value_type
 llvm_from_model::flat_buffer_index
-( statement * stmt, const vector<value_type> & index )
+( statement * stmt, const index_type & index, const context & ctx )
 {
     // Get basic info about accessed statement
 
@@ -695,18 +696,18 @@ llvm_from_model::flat_buffer_index
     if (actor)
     {
         the_domain[actor->flow_dimension] = actor->init_count;
-        if (m_schedule_type == periodic_schedule)
+        if (ctx.mode == periodic_schedule)
             the_domain[actor->flow_dimension] += actor->steady_count;
     }
 
     // Add flow index phase
 
-    if (actor &&  m_schedule_type == periodic_schedule)
+    if (actor &&  ctx.mode == periodic_schedule)
     {
         if (buf.has_phase)
         {
             value_type phase_ptr =
-                    m_builder.CreateGEP(m_phase_buffer, value(buf.phase_index));
+                    m_builder.CreateGEP(ctx.phase_buffer, value(buf.phase_index));
             value_type phase =
                     m_builder.CreateLoad(phase_ptr);
 
@@ -757,24 +758,6 @@ llvm_from_model::flat_buffer_index
     return flat_index;
 }
 
-#if 0
-int llvm_from_model::flat_buffer_size( statement *stmt, int flow_count )
-{
-    if (stmt->domain.empty())
-        return 0;
-
-    int flat_size = 1;
-    for (int dim = 0; dim < stmt->domain.size(); ++dim)
-    {
-        int size = stmt->domain[dim];
-        if (size == -1)
-            size = flow_count;
-
-        flat_size *= size;
-    }
-    return flat_size;
-}
-#endif
 template <typename T>
 void llvm_from_model::transpose( vector<T> & index, int first_dim )
 {
