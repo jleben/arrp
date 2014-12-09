@@ -34,7 +34,19 @@ pointer_type_node *void_ptr_type()
     return new pointer_type_node(void_type());
 }
 
-func_decl_node *process_func(const string & name,
+func_decl_node *decl_alloc_func()
+{
+    auto buf_ptr_t = new pointer_type_node(new basic_type_node("buffer"));
+
+    func_signature_node *sig = new func_signature_node;
+    sig->name = "allocate";
+    sig->type = void_type();
+    sig->parameters.push_back(new variable_decl_node(buf_ptr_t));
+
+    return new func_decl_node(sig);
+}
+
+func_decl_node *decl_process_func(const string & name,
                                   const vector<semantic::type_ptr> & args)
 {
     func_signature_node *func = new func_signature_node;
@@ -93,8 +105,9 @@ cpp_gen::program * create
     namespc->members.push_back(buffer_struct);
 
     extern_c_node *extern_c = new extern_c_node;
-    extern_c->members.push_back(process_func("initialize", args));
-    extern_c->members.push_back(process_func("process", args));
+    extern_c->members.push_back(decl_alloc_func());
+    extern_c->members.push_back(decl_process_func("initialize", args));
+    extern_c->members.push_back(decl_process_func("process", args));
 
     namespc->members.push_back(extern_c);
 

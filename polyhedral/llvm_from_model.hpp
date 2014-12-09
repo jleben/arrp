@@ -151,6 +151,8 @@ private:
         llvm::BasicBlock::Create(llvm_context(), name, parent);
     }
 
+    value_type malloc( type_type t, std::uint64_t size );
+
     llvm::LLVMContext & llvm_context() { return m_module->getContext(); }
 
     llvm::Module *m_module;
@@ -158,6 +160,7 @@ private:
     const vector<statement*> & m_statements;
     const dataflow::model * m_dataflow;
     vector<buffer> m_stmt_buffers;
+    type_type m_buffer_struct_type;
 };
 
 }

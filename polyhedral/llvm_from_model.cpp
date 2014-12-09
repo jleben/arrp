@@ -76,6 +76,72 @@ llvm_from_model::llvm_from_model
 
         m_stmt_buffers.push_back(buf);
     }
+
+    //
+
+    type_type i32_ptr_type = llvm::PointerType::get(int32_type(), 0);
+    type_type i64_ptr_type = llvm::PointerType::get(int64_type(), 0);
+    type_type double_ptr_type = llvm::PointerType::get(double_type(), 0);
+
+    vector<type_type> buffer_struct_member_types =
+    {
+        double_ptr_type,
+        i32_ptr_type,
+        i64_ptr_type
+    };
+
+    m_buffer_struct_type =
+            llvm::StructType::create(buffer_struct_member_types);
+
+    // Generate buffer allocation function
+
+    {
+        type_type buffer_struct_ptr_type =
+                llvm::PointerType::get(m_buffer_struct_type, 0);
+
+        llvm::FunctionType * func_type =
+                llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
+                                        buffer_struct_ptr_type,
+                                        false);
+
+        llvm::Function * func =
+                llvm::Function::Create(func_type,
+                                       llvm::Function::ExternalLinkage,
+                                       "allocate",
+                                       m_module);
+
+        value_type buf_struct_ptr = func->arg_begin();
+
+        block_type block
+                = llvm::BasicBlock::Create(llvm_context(), "", func);
+        m_builder.SetInsertPoint(block);
+
+        if (real_buf_idx)
+        {
+            vector<value_type> address = { value((int32_t)0), value((int32_t)0) };
+            value_type real_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
+            value_type buf = malloc(double_type(), real_buf_idx * 8);
+            m_builder.CreateStore(buf, real_buf_ptr);
+        }
+        if (int_buf_idx)
+        {
+            vector<value_type> address = { value((int32_t)0), value((int32_t)1) };
+            value_type int_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
+            value_type buf = malloc(int32_type(), real_buf_idx * 4);
+            m_builder.CreateStore(buf, int_buf_ptr);
+        }
+        if (phase_buf_idx)
+        {
+            vector<value_type> address = { value((int32_t)0), value((int32_t)2) };
+            value_type phase_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
+            value_type buf = malloc(int64_type(), real_buf_idx * 8);
+            m_builder.CreateStore(buf, phase_buf_ptr);
+        }
+
+        m_builder.CreateRetVoid();
+
+        m_builder.ClearInsertionPoint();
+    }
 }
 
 llvm_from_model::context
@@ -84,21 +150,7 @@ llvm_from_model::create_process_function
 {
     context ctx(mode);
 
-    type_type i32_ptr_type = llvm::PointerType::get(int32_type(), 0);
-    type_type i64_ptr_type = llvm::PointerType::get(int64_type(), 0);
-    type_type double_ptr_type = llvm::PointerType::get(double_type(), 0);
-
-    vector<type_type> buffer_info_member_types =
-    {
-        double_ptr_type,
-        i32_ptr_type,
-        i64_ptr_type
-    };
-
-    type_type buffer_info_type =
-            llvm::StructType::create(buffer_info_member_types);
-
-    type_type buffer_ptr_type = llvm::PointerType::get(buffer_info_type, 0);
+    type_type buffer_ptr_type = llvm::PointerType::get(m_buffer_struct_type, 0);
 
     vector<type_type> param_types;
 
@@ -113,7 +165,7 @@ llvm_from_model::create_process_function
             param_types.push_back(double_type());
             break;
         case semantic::type::stream:
-            param_types.push_back(double_ptr_type);
+            param_types.push_back(llvm::PointerType::get(double_type(),0));
             break;
         default:
             throw string("Unexpected argument type.");
@@ -833,14 +885,23 @@ int llvm_from_model::statement_index( statement * stmt )
     return (int) std::distance(m_statements.begin(), stmt_ref);
 }
 
-#if 0
-vector<llvm_from_model::value_type>
-llvm_from_model::map_index
-( statement *stmt, const vector<value_type> & index )
+llvm_from_model::value_type
+llvm_from_model::malloc( type_type t, std::uint64_t size )
 {
+    // FIXME: determine size_t type!
 
+    type_type t_ptr_type = llvm::PointerType::get(t, 0);
+
+    value_type malloc_func =
+            m_module->getOrInsertFunction("malloc",
+                                          llvm::AttributeSet(),
+                                          llvm::Type::getInt8PtrTy(llvm_context()),
+                                          int64_type(), nullptr);
+
+    value_type ptr = m_builder.CreateCall(malloc_func, value(size));
+
+    return m_builder.CreateBitCast(ptr, t_ptr_type);
 }
-#endif
 
 }
 }
