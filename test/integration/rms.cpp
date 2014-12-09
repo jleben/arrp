@@ -7,17 +7,25 @@ using buffer = stream::interface::buffer;
 using namespace std;
 
 extern "C" {
-void initialize(double** inputs, buffer* buffers);
-//void process(double** inputs, buffer* buffers);
+void initialize(double* input, buffer* buffers);
 }
 
 int main()
 {
     using namespace stream::interface;
 
-    descriptor d = descriptor::from_file("rms.meta");
+    descriptor d;
+    try
+    {
+        d = descriptor::from_file("rms.meta");
+    }
+    catch (descriptor::read_error & e)
+    {
+        cerr << "** Error reading meta-data: " << e.what << endl;
+        return 1;
+    }
 
-    process p(d, &::initialize, nullptr);
+    process p(d);
 
     double *input = new double[10];
     for (int i = 0; i < 10; ++i)
@@ -25,9 +33,7 @@ int main()
         input[i] = i;
     }
 
-    double *inputs[] = {input};
-
-    p.run(inputs);
+    initialize(input, p.m_buffers.data());
 
     double expected;
 
@@ -39,7 +45,7 @@ int main()
         expected = std::sqrt(sum);
     }
 
-    double actual = p.output()[0];
+    double actual = *p.output<real>();
 
     cout << "expected: " << expected << endl;
     cout << "actual: " << actual << endl;

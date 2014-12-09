@@ -14,7 +14,7 @@ namespace polyhedral {
 
 llvm_from_model::llvm_from_model
 (llvm::Module *module,
- int input_count,
+ const vector<semantic::type_ptr> & args,
  const vector<statement*> & statements,
  const dataflow::model *dataflow,
  schedule_type type ):
@@ -24,18 +24,39 @@ llvm_from_model::llvm_from_model
     m_dataflow(dataflow),
     m_schedule_type(type)
 {
+    type_type i32_ptr_type = llvm::PointerType::get(int32_type(), 0);
+    type_type double_ptr_type = llvm::PointerType::get(double_type(), 0);
     type_type i8_ptr_type = llvm::Type::getInt8PtrTy(llvm_context());
     type_type i8_ptr_ptr_type = llvm::PointerType::get(i8_ptr_type, 0);
     type_type buffer_type =
             llvm::StructType::create(vector<type_type>({i8_ptr_type, int32_type()}));
-    type_type buffer_pointer_type = llvm::PointerType::get(buffer_type, 0);
+    type_type buffer_ptr_type = llvm::PointerType::get(buffer_type, 0);
 
-    // inputs, output, buffers
-    vector<type_type> arg_types = { i8_ptr_ptr_type, buffer_pointer_type };
+    vector<type_type> param_types;
+
+    for(const auto & arg : args)
+    {
+        switch(arg->get_tag())
+        {
+        case semantic::type::integer_num:
+            param_types.push_back(int32_type());
+            break;
+        case semantic::type::real_num:
+            param_types.push_back(double_type());
+            break;
+        case semantic::type::stream:
+            param_types.push_back(double_ptr_type);
+            break;
+        default:
+            throw string("Unexpected argument type.");
+        }
+    }
+
+    param_types.push_back(buffer_ptr_type);
 
     llvm::FunctionType * func_type =
             llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
-                                    arg_types,
+                                    param_types,
                                     false);
 
     const char *func_name;
@@ -53,8 +74,8 @@ llvm_from_model::llvm_from_model
                                         m_module);
 
     auto arg = m_function->arg_begin();
-    m_inputs = arg++;
-    //m_output = arg++;
+    for (int i = 0; i < args.size(); ++i)
+        m_inputs.push_back(arg++);
     m_buffers = arg++;
 
     m_start_block = llvm::BasicBlock::Create(llvm_context(), "", m_function);
@@ -107,8 +128,7 @@ llvm_from_model::generate_statement
 
     if (auto input = dynamic_cast<input_access*>(stmt->expr))
     {
-        value_type address = generate_input_access(stmt, index);
-        value = m_builder.CreateLoad(address);
+        value = generate_input_access(stmt, index);
     }
     else
     {
@@ -117,9 +137,10 @@ llvm_from_model::generate_statement
 
     value_type dst = generate_buffer_access(stmt, offset_index);
 
+#if 0
     if (value->getType() != double_type())
         value = m_builder.CreateSIToFP(value, double_type());
-
+#endif
     m_builder.CreateStore(value, dst);
 
     return m_builder.GetInsertBlock();
@@ -395,8 +416,23 @@ llvm_from_model::generate_buffer_access
         value_type buffer_ptr =
                 m_builder.CreateGEP(m_buffers, indices);
         buffer = m_builder.CreateLoad(buffer_ptr);
-        type_type real_buffer_type = llvm::Type::getDoublePtrTy(llvm_context());
-        buffer = m_builder.CreateBitCast(buffer, real_buffer_type);
+        switch(stmt->expr->type)
+        {
+        case integer:
+        {
+            type_type int_ptr_type = llvm::Type::getInt32PtrTy(llvm_context());
+            buffer = m_builder.CreateBitCast(buffer, int_ptr_type);
+            break;
+        }
+        case real:
+        {
+            type_type double_ptr_type = llvm::Type::getDoublePtrTy(llvm_context());
+            buffer = m_builder.CreateBitCast(buffer, double_ptr_type);
+            break;
+        }
+        default:
+            throw string("Unexpected expression type.");
+        }
     }
 
     value_type buffer_element_ptr =
@@ -431,29 +467,20 @@ llvm_from_model::generate_input_access
     value_type flat_index = this->flat_index(the_index, the_domain);
 
     int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
-    value_type input_ptr = m_builder.CreateGEP(m_inputs, value(input_num));
-    value_type input = m_builder.CreateLoad(input_ptr);
 
-    type_type double_ptr_type = llvm::Type::getDoublePtrTy(llvm_context());
-    input = m_builder.CreateBitCast(input, double_ptr_type);
+    value_type input = m_inputs[input_num];
+    assert(input->getType()->isPointerTy());
+    input = m_builder.CreateGEP(input, flat_index);
+    input = m_builder.CreateLoad(input);
 
-    value_type value_ptr = m_builder.CreateGEP(input, flat_index);
-
-    return value_ptr;
+    return input;
 }
 
 llvm_from_model::value_type
 llvm_from_model::generate_scalar_input_access( input_access *access )
 {
     int input_num = access->index;
-    value_type input_ptr = m_builder.CreateGEP(m_inputs, value(input_num));
-    value_type input = m_builder.CreateLoad(input_ptr);
-
-    type_type double_ptr_type = llvm::Type::getDoublePtrTy(llvm_context());
-    input = m_builder.CreateBitCast(input, double_ptr_type);
-
-    value_type value = m_builder.CreateLoad(input);
-    return value;
+    return m_inputs[input_num];
 }
 
 llvm_from_model::value_type

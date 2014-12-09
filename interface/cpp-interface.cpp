@@ -4,15 +4,32 @@
 namespace stream {
 namespace interface {
 
-channel parse_channel(const JSON::Value & data)
+numerical_type parse_type(const JSON::Value & data)
 {
     using read_error = descriptor::read_error;
-    //using descriptor::read_error;
+
+    if (data.type() != JSON::STRING)
+        throw read_error("Numerical type not a string.");
+    string type_str = data.as_string();
+    if (type_str == "integer")
+        return integer;
+    else if (type_str == "real")
+        return real;
+    else
+        throw read_error("Invalid numerical type: " + type_str);
+}
+
+descriptor::channel parse_channel(const JSON::Value & data)
+{
+    using read_error = descriptor::read_error;
+    using channel = descriptor::channel;
 
     channel ch;
 
     if (data.type() != JSON::OBJECT)
         throw read_error("Channel not an object.");
+
+    ch.type = parse_type(data["type"]);
 
     JSON::Value init_count = data["init"];
     if (init_count.type() != JSON::INT)
@@ -87,10 +104,20 @@ descriptor descriptor::from_file(const string &filename)
     for(int i = 0; i < buffers_array.size(); ++i)
     {
         JSON::Value buffer = buffers_array[i];
-        if (buffer.type() != JSON::INT)
-            throw read_error("Buffer not an integer.");
+        if (buffer.type() != JSON::OBJECT)
+            throw read_error("Buffer not an object.");
 
-        d.buffers.push_back(buffer.as_int());
+        JSON::Value type = buffer["type"];
+        JSON::Value size = buffer["size"];
+
+        if (size.type() != JSON::INT)
+            throw read_error("Buffer size not an integer.");
+
+        descriptor::buffer b;
+        b.type = parse_type(type);
+        b.size = size.as_int();
+
+        d.buffers.push_back(b);
     }
 
     return d;

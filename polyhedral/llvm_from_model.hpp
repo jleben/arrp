@@ -3,6 +3,7 @@
 
 #include "model.hpp"
 #include "dataflow_model.hpp"
+#include "../frontend/types.hpp"
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -29,7 +30,7 @@ class llvm_from_model
 
 public:
     llvm_from_model(llvm::Module *module,
-                    int input_count,
+                    const vector<semantic::type_ptr> & args,
                     const vector<statement*> &,
                     const dataflow::model *,
                     schedule_type type );
@@ -134,8 +135,7 @@ private:
     const vector<statement*> & m_statements;
     const dataflow::model * m_dataflow;
     schedule_type m_schedule_type;
-    value_type m_inputs;
-    value_type m_output;
+    vector<value_type> m_inputs;
     value_type m_buffers;
     block_type m_start_block;
     block_type m_end_block;

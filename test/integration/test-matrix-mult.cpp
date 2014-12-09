@@ -1,18 +1,31 @@
-#include "test.hpp"
+//#include "test.hpp"
+#include "../../interface/cpp-interface.hpp"
 
 #include <iostream>
 #include <array>
 
 using namespace std;
-using namespace stream;
+using namespace stream::interface;
 
 extern "C" {
-void initialize(double** inputs, testing::buffer* buffers);
-void process(double** inputs, testing::buffer* buffers);
+void initialize(double* a, double *b, buffer* buffers);
 }
 
 int main()
 {
+    descriptor d;
+    try
+    {
+        d = descriptor::from_file("matrix-mult.meta");
+    }
+    catch (descriptor::read_error & e)
+    {
+        cerr << "** Error reading meta-data: " << e.what << endl;
+        return 1;
+    }
+
+    process p(d);
+
     double m1[5][2][3];
     double m2[5][3][2];
     double out[5][2][2];
@@ -34,28 +47,9 @@ int main()
         m2[x][2][1] = 6 + x;
     }
 
-/*
-S_0: 5 2 3 [30]
-S_1: 5 3 2 [30]
-S_2: 5 2 2 3 [60]
-S_3: 5 2 2 [20]
-S_4: 5 2 2 2 [40]
-S_5: 5 2 2 [20]
-*/
+    p.m_buffers.back().data = out;
 
-    testing::buffer buffers[] =
-    {
-        testing::alloc_buffer(30),
-        testing::alloc_buffer(30),
-        testing::alloc_buffer(60),
-        testing::alloc_buffer(20),
-        testing::alloc_buffer(40),
-        testing::init_buffer((double*)out)
-    };
-
-    double *inputs[] = { (double*)m1, (double*)m2 };
-
-    initialize(inputs, buffers);
+    initialize((double*)m1, (double*)m2, p.m_buffers.data());
 
     for (int x=0; x<5; ++x)
     {

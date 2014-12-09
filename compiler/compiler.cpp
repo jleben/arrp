@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
     {
         polyhedral::llvm_from_model llvm_from_model
                 (module,
-                 target.args.size(),
+                 target.args,
                  poly.statements(),
                  &dataflow_model,
                  polyhedral::initial_schedule);
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
     {
         polyhedral::llvm_from_model llvm_from_model
                 (module,
-                 target.args.size(),
+                 target.args,
                  poly.statements(),
                  &dataflow_model,
                  polyhedral::periodic_schedule);
@@ -246,6 +246,18 @@ int main(int argc, char *argv[])
             polyhedral::statement *stmt = poly.statements()[in_idx];
             const dataflow::actor *actor = dataflow_model.find_actor_for(stmt);
 
+            switch (stmt->expr->type )
+            {
+            case polyhedral::integer:
+                input["type"] = "integer";
+                break;
+            case polyhedral::real:
+                input["type"] = "real";
+                break;
+            default:
+                assert(false);
+            }
+
             if (actor)
             {
                 input["init"] = actor->init_count;
@@ -275,15 +287,31 @@ int main(int argc, char *argv[])
 
         for(polyhedral::statement *stmt : poly.statements())
         {
+            JSON::Object buffer;
+
+            switch (stmt->expr->type )
+            {
+            case polyhedral::integer:
+                buffer["type"] = "integer";
+                break;
+            case polyhedral::real:
+                buffer["type"] = "real";
+                break;
+            default:
+                assert(false);
+            }
+
             if (stmt->buffer.empty())
-                buffers.push_back(0);
+                buffer["size"] = 0;
             else
             {
                 int b = stmt->buffer[0];
                 for (int i = 1; i < stmt->buffer.size(); ++i)
                     b *= stmt->buffer[i];
-                buffers.push_back(b);
+                buffer["size"] = b;
             }
+
+            buffers.push_back(buffer);
         }
 
         assert(poly.statements().size() > 0);
@@ -295,6 +323,18 @@ int main(int argc, char *argv[])
             const dataflow::actor *actor = dataflow_model.find_actor_for(stmt);
 
             JSON::Array size;
+
+            switch (stmt->expr->type )
+            {
+            case polyhedral::integer:
+                output["type"] = "integer";
+                break;
+            case polyhedral::real:
+                output["type"] = "real";
+                break;
+            default:
+                assert(false);
+            }
 
             if (actor)
             {

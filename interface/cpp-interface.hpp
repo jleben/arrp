@@ -8,23 +8,39 @@ namespace interface {
 using std::vector;
 using std::string;
 
-struct buffer
-{
-    double *data;
-    std::uint32_t phase;
+enum numerical_type {
+    integer,
+    real
 };
 
-typedef void (*process_fn)(double** inputs, buffer* buffers);
+template<numerical_type>
+struct represent;
 
-struct channel
+template<> struct represent<integer> { typedef int type; };
+template<> struct represent<real> { typedef double type; };
+
+struct buffer
 {
-    int init_count;
-    int period_count;
-    vector<int> size;
+    void *data;
+    std::uint32_t phase;
 };
 
 struct descriptor
 {
+    struct channel
+    {
+        numerical_type type;
+        int init_count;
+        int period_count;
+        vector<int> size;
+    };
+
+    struct buffer
+    {
+        numerical_type type;
+        int size;
+    };
+
     struct read_error {
         read_error(const string & what): what(what) {}
         string what;
@@ -32,7 +48,7 @@ struct descriptor
 
     vector<channel> inputs;
     channel output;
-    vector<int> buffers;
+    vector<buffer> buffers;
 
     descriptor() {}
     static descriptor from_file( const string & filename );
@@ -40,53 +56,32 @@ struct descriptor
 
 class process
 {
-    process_fn m_finite_fn;
-    process_fn m_period_fn;
-    vector<buffer> m_buffers;
 public:
-    process( const descriptor & description,
-             process_fn finite_fn,
-             process_fn period_fn ):
-        m_finite_fn(finite_fn),
-        m_period_fn(period_fn)
+    vector<buffer> m_buffers;
+
+    process( const descriptor & description )
     {
         // Allocate buffers
-        for( const int & buffer_size : description.buffers )
+        for( const auto & buffer_info : description.buffers )
         {
-            int vol = buffer_size;
-            double *data = vol ? new double[vol] : nullptr;
+            void *data;
+            switch(buffer_info.type)
+            {
+            case integer:
+                data = new int[buffer_info.size];
+                break;
+            case real:
+                data = new double[buffer_info.size];
+                break;
+            }
             m_buffers.push_back(buffer{data, 0});
         }
     }
 
-    void run(double **inputs)
+    template <numerical_type T>
+    typename represent<T>::type *output() const
     {
-        m_finite_fn(inputs, m_buffers.data());
-    }
-
-    void run_period(double **inputs)
-    {
-        m_period_fn(inputs, m_buffers.data());
-    }
-
-    double *output() const
-    {
-        return m_buffers.back().data;
-    }
-
-private:
-    int volume( const vector<int> & v )
-    {
-        int size;
-        if (v.empty())
-            size = 0;
-        else
-        {
-            size = v[0];
-            for (int i = 1; i < v.size(); ++i)
-                size *= v[i];
-        }
-        return size;
+        return reinterpret_cast<typename represent<T>::type*>(m_buffers.back().data);
     }
 };
 
