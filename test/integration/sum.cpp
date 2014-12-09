@@ -6,13 +6,8 @@ using namespace std;
 
 int main()
 {
-    sum::buffer b[4];
-
-    for(int i = 0; i < 4; ++i)
-    {
-        b[i].data = new double;
-        b[i].phase = 0;
-    }
+    sum::buffer buf;
+    sum::allocate(&buf);
 
     double *input = new double[10];
     for (int i = 0; i < 10; ++i)
@@ -20,9 +15,9 @@ int main()
         input[i] = i;
     }
 
-    sum::initialize(input, b);
+    sum::initialize(input, &buf);
 
-    double result = *(double*)b[3].data;
+    double result = *sum::get_output(&buf);
 
     cout << "result = " << result << endl;
 

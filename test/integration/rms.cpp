@@ -1,31 +1,14 @@
-#include "../../interface/cpp-interface.hpp"
+#include "rms.h"
 
 #include <iostream>
 #include <cmath>
 
-using buffer = stream::interface::buffer;
 using namespace std;
-
-extern "C" {
-void initialize(double* input, buffer* buffers);
-}
 
 int main()
 {
-    using namespace stream::interface;
-
-    descriptor d;
-    try
-    {
-        d = descriptor::from_file("rms.meta");
-    }
-    catch (descriptor::read_error & e)
-    {
-        cerr << "** Error reading meta-data: " << e.what << endl;
-        return 1;
-    }
-
-    process p(d);
+    rms::buffer buf;
+    rms::allocate(&buf);
 
     double *input = new double[10];
     for (int i = 0; i < 10; ++i)
@@ -33,10 +16,9 @@ int main()
         input[i] = i;
     }
 
-    initialize(input, p.m_buffers.data());
+    rms::initialize(input, &buf);
 
     double expected;
-
     {
         double sum = 0;
         for (int i = 0; i < 10; ++i)
@@ -45,7 +27,7 @@ int main()
         expected = std::sqrt(sum);
     }
 
-    double actual = *p.output<real>();
+    double actual = *rms::get_output(&buf);
 
     cout << "expected: " << expected << endl;
     cout << "actual: " << actual << endl;

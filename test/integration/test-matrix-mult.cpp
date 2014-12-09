@@ -1,34 +1,52 @@
-//#include "test.hpp"
-#include "../../interface/cpp-interface.hpp"
+#include "matrix-mult.h"
 
 #include <iostream>
 #include <array>
 
 using namespace std;
-using namespace stream::interface;
 
-extern "C" {
-void initialize(double* a, double *b, buffer* buffers);
-}
+template<typename T, int ...S>
+struct multi_array
+{
+    multi_array(T* d): data(d) {}
+
+    template<int size_head, int ...size_tail>
+    struct indexer
+    {
+        template<typename ...int_type>
+        static
+        int index(int base, int idx_head, int_type ... idx_tail)
+        {
+            return indexer<size_tail...>::index(idx_head + base * size_head, idx_tail...);
+        }
+    };
+    template<int size_head>
+    struct indexer<size_head>
+    {
+        static
+        int index(int base, int idx_head)
+        {
+            return idx_head + base * size_head;
+        }
+    };
+
+    template<typename ...int_type>
+    T operator()(int_type ...idxs)
+    {
+        int idx = indexer<S...>::index(0,idxs...);
+        return data[idx];
+    }
+
+    T * data;
+};
 
 int main()
 {
-    descriptor d;
-    try
-    {
-        d = descriptor::from_file("matrix-mult.meta");
-    }
-    catch (descriptor::read_error & e)
-    {
-        cerr << "** Error reading meta-data: " << e.what << endl;
-        return 1;
-    }
-
-    process p(d);
+    matrix_multiply::buffer buf;
+    matrix_multiply::allocate(&buf);
 
     double m1[5][2][3];
     double m2[5][3][2];
-    double out[5][2][2];
 
     for (int x=0; x<5; ++x)
     {
@@ -47,14 +65,14 @@ int main()
         m2[x][2][1] = 6 + x;
     }
 
-    p.m_buffers.back().data = out;
+    matrix_multiply::initialize((double*)m1, (double*)m2, &buf);
 
-    initialize((double*)m1, (double*)m2, p.m_buffers.data());
+    multi_array<double,5,2,2> output(matrix_multiply::get_output(&buf));
 
     for (int x=0; x<5; ++x)
     {
-        cout << out[x][0][0] << "  " << out[x][0][1] << endl;
-        cout << out[x][1][0] << "  " << out[x][1][1] << endl;
+        cout << output(x,0,0) << "  " << output(x,0,1) << endl;
+        cout << output(x,1,0) << "  " << output(x,1,1) << endl;
         cout << "---" << endl;
     }
 
@@ -70,7 +88,7 @@ int main()
                 {
                     sum += m1[x][r][i] * m2[x][i][c];
                 }
-                if (out[x][r][c] == sum)
+                if (output(x,r,c) == sum)
                     ++correct_count;
             }
         }
