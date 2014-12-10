@@ -288,6 +288,7 @@ struct intrinsic
         subtract,
         multiply,
         divide,
+        divide_integer,
         raise,
         exp,
         exp2,

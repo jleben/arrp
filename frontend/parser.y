@@ -11,7 +11,7 @@
 %left '='
 %left EQ NEQ LESS MORE
 %left '+' '-'
-%left '*' '/'
+%left '*' '/' ':'
 %left '^'
 %left DOTDOT
 %right UMINUS '#'
@@ -195,6 +195,9 @@ expr:
   |
   expr '/' expr
   { $$ = new ast::binary_op_expression( $1, ast::divide, $3 ); }
+  |
+  expr ':' expr
+  { $$ = new ast::binary_op_expression( $1, ast::divide_integer, $3 ); }
   |
   expr '^' expr
   { $$ = new ast::binary_op_expression( $1, ast::raise, $3 ); }

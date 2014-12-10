@@ -72,6 +72,22 @@ set(intrinsics_tests
 "intrinsics::power_int_real"
 "intrinsics::power_real_int"
 "intrinsics::power_stream_int"
+"intrinsics::div_int_int_const"
+"intrinsics::div_real_real_const"
+"intrinsics::div_int_real_const"
+"intrinsics::div_real_int_const"
+"intrinsics::div_int_int"
+"intrinsics::div_real_real"
+"intrinsics::div_int_real"
+"intrinsics::div_real_int"
+"intrinsics::i_div_int_int_const"
+"intrinsics::i_div_real_real_const"
+"intrinsics::i_div_int_real_const"
+"intrinsics::i_div_real_int_const"
+"intrinsics::i_div_int_int"
+"intrinsics::i_div_real_real"
+"intrinsics::i_div_int_real"
+"intrinsics::i_div_real_int"
 )
 
 add_unit_tests(intrinsics test_intrinsics.hpp ${intrinsics_tests})

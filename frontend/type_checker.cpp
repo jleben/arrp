@@ -429,6 +429,7 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::subtract:
     case ast::multiply:
     case ast::divide:
+    case ast::divide_integer:
     case ast::raise:
     case ast::lesser:
     case ast::greater:
@@ -513,35 +514,50 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     type_ptr lhs_type = process_expression(expr->elements[0]);
     type_ptr rhs_type = process_expression(expr->elements[1]);
 
+    function_signature iii({type::integer_num, type::integer_num},
+                           type::integer_num);
+    function_signature rrr({type::real_num, type::real_num},
+                           type::real_num);
+    function_signature rri({type::real_num, type::real_num},
+                           type::integer_num);
+
+
     builtin_function_group func;
 
     switch(root->type)
     {
     case ast::add:
         func.intrinsic_type = intrinsic::add;
+        func.overloads.push_back(iii);
+        func.overloads.push_back(rrr);
         break;
     case ast::subtract:
         func.intrinsic_type = intrinsic::subtract;
+        func.overloads.push_back(iii);
+        func.overloads.push_back(rrr);
         break;
     case ast::multiply:
         func.intrinsic_type = intrinsic::multiply;
+        func.overloads.push_back(iii);
+        func.overloads.push_back(rrr);
         break;
     case ast::divide:
         func.intrinsic_type = intrinsic::divide;
+        func.overloads.push_back(rrr);
+        break;
+    case ast::divide_integer:
+        func.intrinsic_type = intrinsic::divide_integer;
+        func.overloads.push_back(iii);
+        func.overloads.push_back(rri);
         break;
     case ast::raise:
         func.intrinsic_type = intrinsic::raise;
+        func.overloads.push_back(iii);
+        func.overloads.push_back(rrr);
         break;
     default:
         throw error("Unexpected AST node type.");
     }
-
-    func.overloads.push_back
-            ( function_signature({type::integer_num, type::integer_num},
-                                 type::integer_num) );
-    func.overloads.push_back
-            ( function_signature({type::real_num, type::real_num},
-                                 type::real_num) );
 
     auto result = process_intrinsic(func, {lhs_type, rhs_type});
 
@@ -1111,7 +1127,7 @@ bool signature_is(const function_signature & signature)
 }
 
 template <typename T>
-T constant_value_from(const type_ptr & type)
+T const_val(const type_ptr & type)
 {
     switch(type->get_tag())
     {
@@ -1151,7 +1167,6 @@ struct intrinsic_processor<intrinsic::multiply>
 template<>
 struct intrinsic_processor<intrinsic::divide>
 {
-    static int process(int a, int b) { return a / b; }
     static double process(double a, double b) { return a / b; }
 };
 
@@ -1210,7 +1225,7 @@ struct intrinsic_for
     template <typename ...T> static
     type_ptr compute(const T & ...args)
     {
-        R result = intrinsic_processor<I>::process(constant_value_from<A>(args)...);
+        R result = intrinsic_processor<I>::process(const_val<A>(args)...);
         return type_for(result);
     }
 };
@@ -1272,37 +1287,42 @@ type_ptr type_checker::constant_for( const builtin_function & func,
     case intrinsic::multiply:
         return const_arithmetic<intrinsic::multiply>(func.signature, args);
     case intrinsic::divide:
-        return const_arithmetic<intrinsic::divide>(func.signature, args);
+        return type_for(const_val<double>(args[0]) / const_val<double>(args[1]));
+    case intrinsic::divide_integer:
+        if (signature_is<int,int,int>(func.signature))
+            return type_for((const_val<int>(args[0]) / const_val<int>(args[1])));
+        else
+            return type_for((int)(const_val<double>(args[0]) / const_val<double>(args[1])));
     case intrinsic::raise:
         return const_arithmetic<intrinsic::raise>(func.signature, args);
     case intrinsic::negate:
         return const_unary_arithmetic<intrinsic::negate>(func.signature, args[0]);
     case intrinsic::log:
-        return type_for( (double) std::log(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::log(const_val<double>(args[0])) );
     case intrinsic::log2:
-        return type_for( (double) std::log2(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::log2(const_val<double>(args[0])) );
     case intrinsic::log10:
-        return type_for( (double) std::log10(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::log10(const_val<double>(args[0])) );
     case intrinsic::exp:
-        return type_for( (double) std::exp(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::exp(const_val<double>(args[0])) );
     case intrinsic::exp2:
-        return type_for( (double) std::exp2(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::exp2(const_val<double>(args[0])) );
     case intrinsic::sqrt:
-        return type_for( (double) std::sqrt(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::sqrt(const_val<double>(args[0])) );
     case intrinsic::cos:
-        return type_for( (double) std::cos(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::cos(const_val<double>(args[0])) );
     case intrinsic::tan:
-        return type_for( (double) std::tan(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::tan(const_val<double>(args[0])) );
     case intrinsic::asin:
-        return type_for( (double) std::asin(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::asin(const_val<double>(args[0])) );
     case intrinsic::acos:
-        return type_for( (double) std::acos(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::acos(const_val<double>(args[0])) );
     case intrinsic::atan:
-        return type_for( (double) std::atan(constant_value_from<double>(args[0])) );
+        return type_for( (double) std::atan(const_val<double>(args[0])) );
     case intrinsic::ceil:
-        return type_for( (int) std::ceil(constant_value_from<double>(args[0])) );
+        return type_for( (int) std::ceil(const_val<double>(args[0])) );
     case intrinsic::floor:
-        return type_for( (int) std::floor(constant_value_from<double>(args[0])) );
+        return type_for( (int) std::floor(const_val<double>(args[0])) );
     case intrinsic::abs:
         return const_unary_arithmetic<intrinsic::abs>(func.signature, args[0]);
     case intrinsic::max:

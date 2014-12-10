@@ -52,6 +52,7 @@ public:
         case subtract:
         case multiply:
         case divide:
+        case divide_integer:
         case lesser:
         case greater:
         case lesser_or_equal:
@@ -108,6 +109,7 @@ private:
         m_type_names[subtract] = "-";
         m_type_names[multiply] = "*";
         m_type_names[divide] = "/";
+        m_type_names[divide_integer] = ":";
         m_type_names[lesser] = "<";
         m_type_names[greater] = ">";
         m_type_names[lesser_or_equal] = "<=";

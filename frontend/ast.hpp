@@ -51,6 +51,7 @@ enum node_type
     subtract,
     multiply,
     divide,
+    divide_integer,
     raise,
     lesser,
     greater,

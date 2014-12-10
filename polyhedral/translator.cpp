@@ -264,6 +264,7 @@ expression * translator::do_expression(const ast::node_ptr &node)
     case ast::subtract:
     case ast::multiply:
     case ast::divide:
+    case ast::divide_integer:
     case ast::raise:
     {
         return do_binary_op(node);
@@ -445,6 +446,9 @@ expression * translator::do_binary_op(const ast::node_ptr &node)
         break;
     case ast::divide:
         operation_result->kind = intrinsic::divide;
+        break;
+    case ast::divide_integer:
+        operation_result->kind = intrinsic::divide_integer;
         break;
     case ast::raise:
         operation_result->kind = intrinsic::raise;

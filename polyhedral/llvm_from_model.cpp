@@ -439,7 +439,6 @@ llvm_from_model::generate_intrinsic
     case intrinsic::add:
     case intrinsic::subtract:
     case intrinsic::multiply:
-    case intrinsic::divide:
     {
         if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
         {
@@ -451,8 +450,6 @@ llvm_from_model::generate_intrinsic
                 return m_builder.CreateSub(operands[0], operands[1]);
             case intrinsic::multiply:
                 return m_builder.CreateMul(operands[0], operands[1]);
-            case intrinsic::divide:
-                return m_builder.CreateSDiv(operands[0], operands[1]);
             default: assert(false);
             }
         }
@@ -470,10 +467,32 @@ llvm_from_model::generate_intrinsic
                 return m_builder.CreateFSub(operands[0], operands[1]);
             case intrinsic::multiply:
                 return m_builder.CreateFMul(operands[0], operands[1]);
-            case intrinsic::divide:
-                return m_builder.CreateFDiv(operands[0], operands[1]);
             default: assert(false);
             }
+        }
+    }
+    case intrinsic::divide:
+    {
+        if (operands[0]->getType() != d_type)
+            operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
+        if (operands[1]->getType() != d_type)
+            operands[1] = m_builder.CreateSIToFP(operands[1], d_type);
+        return m_builder.CreateFDiv(operands[0], operands[1]);
+    }
+    case intrinsic::divide_integer:
+    {
+        if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
+        {
+            return m_builder.CreateSDiv(operands[0], operands[1]);
+        }
+        else
+        {
+            if (operands[0]->getType() != d_type)
+                operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
+            if (operands[1]->getType() != d_type)
+                operands[1] = m_builder.CreateSIToFP(operands[1], d_type);
+            value_type f = m_builder.CreateFDiv(operands[0], operands[1]);
+            return m_builder.CreateFPToSI(f, i_type);
         }
     }
     case intrinsic::raise:

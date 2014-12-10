@@ -12,9 +12,9 @@ namespace intrinsics {
 
 template<typename T> T test_const_lhs();
 template<typename T> T test_const_rhs();
-template<> int test_const_lhs<int>() { return 2; }
+template<> int test_const_lhs<int>() { return 5; }
 template<> int test_const_rhs<int>() { return 3; }
-template<> double test_const_lhs<double>() { return 2.3; }
+template<> double test_const_lhs<double>() { return 6.2; }
 template<> double test_const_rhs<double>() { return 3.4; }
 
 template<typename T> type_ptr type_for();
@@ -31,9 +31,10 @@ struct intrinsic_test;
 template<>
 struct intrinsic_test<polyhedral::intrinsic::add>
 {
-    template<typename A, typename B, typename R>
-    static
-    R perform(A a, B b) { return a + b; }
+    static int perform(int a, int b) { return a + b; }
+    static double perform(int a, double b) { return a + b; }
+    static double perform(double a, int b) { return a + b; }
+    static double perform(double a, double b) { return a + b; }
 
     static
     string code(const string & a, const string & b) { return a + " + " + b; }
@@ -42,12 +43,34 @@ struct intrinsic_test<polyhedral::intrinsic::add>
 template<>
 struct intrinsic_test<polyhedral::intrinsic::raise>
 {
-    template<typename A, typename B, typename R>
-    static
-    R perform(A a, B b) { return std::pow(a,b); }
+    static int perform(int a, int b) { return std::pow(a,b); }
+    static double perform(int a, double b) { return std::pow(a,b); }
+    static double perform(double a, int b) { return std::pow(a,b); }
+    static double perform(double a, double b) { return std::pow(a,b); }
 
     static
     string code(const string & a, const string & b) { return "pow(" + a + "," + b + ")"; }
+};
+
+template<>
+struct intrinsic_test<polyhedral::intrinsic::divide>
+{
+    static double perform(double a, double b) { return a / b; }
+
+    static
+    string code(const string & a, const string & b) { return a + " / " + b; }
+};
+
+template<>
+struct intrinsic_test<polyhedral::intrinsic::divide_integer>
+{
+    static int perform(int a, int b) { return a / b; }
+    static int perform(double a, int b) { return a / b; }
+    static int perform(int a, double b) { return a / b; }
+    static int perform(double a, double b) { return a / b; }
+
+    static
+    string code(const string & a, const string & b) { return a + " : " + b; }
 };
 
 template <polyhedral::intrinsic::of_kind I, typename A, typename B, typename R>
@@ -55,7 +78,7 @@ result test_intrinsic_const()
 {
     A lhs = test_const_lhs<A>();
     B rhs = test_const_rhs<B>();
-    R result = intrinsic_test<I>::template perform<A,B,R>(lhs, rhs);
+    R result = intrinsic_test<I>::perform(lhs, rhs);
 
     std::stringstream code;
     code << "result = " << intrinsic_test<I>::code(to_string(lhs), to_string(rhs));
@@ -104,7 +127,6 @@ result add_int_int_const()
 {
     return test_intrinsic_const<polyhedral::intrinsic::add,int,int,int>();
 }
-
 
 result add_int_real_const()
 {
@@ -401,6 +423,74 @@ result power_stream_int()
     }
 
     return run(t, code, "result", { stream_type(4,5,6) });
+}
+
+result div_int_int_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::divide,int,int,double>();
+}
+result div_int_real_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::divide,int,double,double>();
+}
+result div_real_int_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::divide,double,int,double>();
+}
+result div_real_real_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::divide,double,double,double>();
+}
+
+result div_int_int()
+{
+    return test_intrinsic<polyhedral::intrinsic::divide,int,int,double>();
+}
+result div_int_real()
+{
+    return test_intrinsic<polyhedral::intrinsic::divide,int,double,double>();
+}
+result div_real_int()
+{
+    return test_intrinsic<polyhedral::intrinsic::divide,double,int,double>();
+}
+result div_real_real()
+{
+    return test_intrinsic<polyhedral::intrinsic::divide,double,double,double>();
+}
+
+result i_div_int_int_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::divide_integer,int,int,int>();
+}
+result i_div_int_real_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::divide_integer,int,double,int>();
+}
+result i_div_real_int_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::divide_integer,double,int,int>();
+}
+result i_div_real_real_const()
+{
+    return test_intrinsic_const<polyhedral::intrinsic::divide_integer,double,double,int>();
+}
+
+result i_div_int_int()
+{
+    return test_intrinsic<polyhedral::intrinsic::divide_integer,int,int,int>();
+}
+result i_div_int_real()
+{
+    return test_intrinsic<polyhedral::intrinsic::divide_integer,int,double,int>();
+}
+result i_div_real_int()
+{
+    return test_intrinsic<polyhedral::intrinsic::divide_integer,double,int,int>();
+}
+result i_div_real_real()
+{
+    return test_intrinsic<polyhedral::intrinsic::divide_integer,double,double,int>();
 }
 
 }

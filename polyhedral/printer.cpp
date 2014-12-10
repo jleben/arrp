@@ -16,6 +16,7 @@ vector<string> make_intrinsic_name_table()
     table[intrinsic::subtract] = "-";
     table[intrinsic::multiply] = "*";
     table[intrinsic::divide] = "/";
+    table[intrinsic::divide_integer] = ":";
     table[intrinsic::raise] = "^";
     table[intrinsic::exp] = "exp";
     table[intrinsic::exp2] = "exp2";
