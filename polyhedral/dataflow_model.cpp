@@ -88,7 +88,7 @@ void model::compute_channels()
         actor & sink = actor_record.second;
 
         if (debug::is_enabled())
-            cout << "Channels for: " << sink.stmt << "..." << endl;
+            cout << "Channels for: " << sink.stmt->name << "..." << endl;
 
         vector<stmt_access*> accesses;
         sink.stmt->expr->find<stmt_access>(accesses);
@@ -102,7 +102,7 @@ void model::compute_channels()
             {
                 if (debug::is_enabled())
                 {
-                    cout << "-- " << access->target
+                    cout << "-- " << access->target->name
                          << ": Non-actor access; not making a channel." << endl;
                 }
                 continue;
@@ -129,7 +129,7 @@ void model::compute_channels()
 
             if (debug::is_enabled())
             {
-                cout << "-- " << ch.source->stmt << ": "
+                cout << "-- " << ch.source->stmt->name << ": "
                      << ch.push << " -> "
                      << ch.peek << "/" << ch.pop
                      << endl;
