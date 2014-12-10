@@ -26,6 +26,8 @@ add_library(streamc-lib ${lib_mode}
   ../interface/cpp-intf-gen.cpp
 )
 
+add_dependencies(streamc-lib parser)
+
 set_property( TARGET streamc-lib PROPERTY OUTPUT_NAME streamc )
 
 #set_property( TARGET streamc-lib APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )

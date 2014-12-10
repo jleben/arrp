@@ -33,3 +33,5 @@ add_custom_command(
 )
 
 endif(PARSER_REGENERATE)
+
+add_custom_target(parser DEPENDS lex.cc parse.cc)
