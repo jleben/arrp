@@ -127,14 +127,14 @@ llvm_from_model::llvm_from_model
         {
             vector<value_type> address = { value((int32_t)0), value((int32_t)1) };
             value_type int_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
-            value_type buf = malloc(int32_type(), real_buf_idx * 4);
+            value_type buf = malloc(int32_type(), int_buf_idx * 4);
             m_builder.CreateStore(buf, int_buf_ptr);
         }
         if (phase_buf_idx)
         {
             vector<value_type> address = { value((int32_t)0), value((int32_t)2) };
             value_type phase_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
-            value_type buf = malloc(int64_type(), real_buf_idx * 8);
+            value_type buf = malloc(int64_type(), phase_buf_idx * 8);
             m_builder.CreateStore(buf, phase_buf_ptr);
         }
 
