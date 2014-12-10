@@ -1,8 +1,10 @@
 ## Introduction
 
-This projects implements a compiler for a new language for stream processing
-in continuation referred to as *The Language*. The specification of the
-syntax and semantics of the language is provided in this document.
+This project implements a compiler for a new programming language
+for stream processing.
+
+This document provides instructions for building the project, as well
+as the syntactical and semantical specification of the language.
 
 ### Author
 
@@ -45,18 +47,9 @@ The standard building procedure is:
     cmake ..
     make
 
-This will produce the executable:
+This will produce the compiler executable:
 
-    build/frontend/frontend
-
-Optionally, a tester program for the matrix multiplication example may be built
-using the `test-matrix-mult' target:
-
-    make test-matrix-mult
-
-...which will produce the executable:
-
-    build/test/test-matrix-mult
+    build/compiler/streamc
 
 **NOTE:** You may need to adjust compiler and linker flags to enable C++11
 support for your compiler. Please refer to the documentation of CMake and your
@@ -69,74 +62,56 @@ The CMake build system provides the following options:
 - `PARSER_REGENERATE` - Regenerate parser using flexc++ and bisonc++.
 - `PARSER_PRINT_TOKENS` - Compile parser so as to enabled the option to print all parsed tokens.
 - `BISON_VERBOSE` - Let bisonc++ produce detailed parser information in the file `frontend/parser.y.output`.
+- `BUILD_TESTING` - Build tests.
+
+When the project has been built with the option `BUILD_TESTING` enabled,
+the tests can be run using the command:
+
+    make test
 
 ## Usage
 
 The building procedure desrcibed above will produce the language compiler
-frontend executable: `build/frontend/frontend`.
+frontend executable: `build/compiler/streamc`.
 
 The frontend takes a file with code in The Language as input and produces
-a file with intermediate representation in form of the LLVM IR as output, for a
-selection of functions. Additional information about the translation process
-is printed on standard output, some of it optionally:
-
-- Any syntactical or semantical errors in input code.
-- Each token produced by the lexical scanner (if the `PARSER_PRINT_TOKENS`
-  CMake option was enabled)
-- The abstract syntax tree (AST).
-- A list of the top-level symbol declarations (functions and constant expressions).
+a file with intermediate representation in form of the LLVM IR as output,
+for a selected function or constant symbol.
 
 Invoking the compiler with the `-h` option will print information about
 its usage and available options:
 
-    frontent -h
+    streamc -h
 
 Simply invoking the compiler with an input file will perform syntactical
 analysis and limited semantical analysis of input code, reporting any errors,
 but otherwise not producing any output:
 
-    frontend <input file>
+    streamc <input file>
 
-Intermediate code is generated for a selected expression or function
+LLVM IR is generated for a selected function or constant
 symbol using the `-g` option. For function symbols, argument types must
 be provided:
 
-    frontend <input file> -g <symbol name> <arg type>
+    streamc <input file> -g <symbol name> [<arg type> ...]
 
-For each selected symbol, the following useful information is printed:
+In addition, a C++ header file providing an interface to the produced
+code can be generated usign the `--cpp` option:
 
-- its type
-- required memory for internal buffers, in bytes
+    streamc <input file> -g <symbol name> [<arg type> ...] --cpp <header file>
 
-For each selected symbol, a function is generated with the same name.
-The function obeys the C calling convention and has the following C signature:
+The generated intermediate code can be compiled into an object file
+(for example using the `llc` program) and linked with a hosting C or C++
+program for execution.
 
-    void <symbol name> (void**)
+### Example
 
-The function parameter is a pointer to an array of pointers to data
-that must be provided for the function to be able to execute:
+Example code files are provided in the `examples` folder.
 
-- If symbol is a function, then one pointer to allocated and initialized
-  memory for each of the function arguments, according to its type:
-      - int : pointer to a single `int`
-      - real : pointer to a single `double`
-      - stream : pointer to an array of `double` of size equal to
-        the product of sizes of the stream in all dimensions
-- A pointer to allocated memory for the resulting value of the symbol, according to its type as specified above.
-- A pointer to allocated memory for buffers required internally,
-  of size reported by the compiler at function generation (see explanation above).
+The following command will generate LLVM IR code and a C++ header for the
+`matrix_multiply` function defined in the `matrix-multiply.in` example file:
 
-The generated intermediate code can thus be compiled into an object file
-(for example using the `llc` program) and linked with a hosting C or C++ program for
-execution.
-
-## Example Usage
-
-Example code files are provided in the `examples` folder. For example,
-the following command will use the compiler to generate code for the
-`matrix_multiply` function defined in the `matrix-multiply.in` file:
-
-    build/frontend/frontend examples/matrix-mult.in -g matrix_multiply "[5,2,3]" "[5,3,2]" -o mm.ll
+    streamc matrix-mult.in -g matrix_multiply "[5,2,3]" "[5,3,2]" -o mm.ll --cpp matrix-mult.h
 
 The function `matrix_multiply` multiplies two sequences of matrices, producing
 a new sequence of matrix products. Hence, the above command will report
@@ -150,48 +125,15 @@ provided by the LLVM project:
 
     llc -filetype=obj mm.ll -o mm.o
 
-This will produce the objec file `mm.o`, which can be linked with the hosting
+This will produce the object file `mm.o`, which can be linked with the hosting
 C++ program to test the generated code for matrix multiplication provided in
-`test/test-matrix-mult.cpp`:
+`test/integration/`:
 
-    g++ -std=c++11 mm.o test/test-matrix-mult.cpp -o mm
+    g++ -std=c++11 -I. mm.o test-matrix-mult.cpp -o mm
 
-This will produce the final executable `mm`. The executable executes the
+This will produce the final executable `mm`. It executes the
 matrix multiplication function once and than compares the result with
 equal computation implemented independently in C++, reporting any discrepancy.
-
-**NOTE:** At present, some language constructs required by the code in the
-`autocorrelation.in` example file are not yet fully implemented.
-
-## Filesystem
-
-- `frontend` - Contains code for the frontend (lexer + parser).
-    - `scanner.l` - Input file for lexer generator flexc++.
-    - `parser.y` - Input file for parser generator bisonc++.
-    - `ast.hpp` - Abstract Syntax Tree (AST) representation.
-    - `ast_printer.hpp` - AST printing.
-    - `environment.*` - Gloal symbolic environment construction and symbolic checking.
-    - `types.hpp` - Type representation.
-    - `type_checker.*` - Type checking and other semantical analysis.
-    - `ir-generator.*` - LLVM IR generation.
-    - `frontend.cpp` - Frontend executable.
-
-- `examples` - Contains example code in The Language.
-    - `matrix-mult.in` - Multiplication of two sequences of matrices.
-    - `autocorrelation.in` - Autocorrelation of a 1D sequence.
-    - `spectral-flux.in` - Computes "spectral flux" of a sequence of spectrums (results of DFT).
-
-**NOTE:**
-
-This project includes output files of the lexer and parser generators.
-The reason is that the functionality of the flexc++ and bisonc++ input files
-is limited in comparison to the mainstream flex and bison.
-In contrast, part of that functionality may be achieved by modification of
-*some* files generated by flexc++ and bisonc++ which are only generated the
-first time (if they don't exist) and otherwise not overridden.
-This is the approach intended and suggested by the authors of flexc++ and
-bisonc++.
-
 
 ## The Language
 
@@ -209,15 +151,6 @@ efficiently:
 
 ### Type System
 
-The Language has the following types:
-
-- `int`: Integer number. Current implementation uses 32 bit integers to represent values of this type.
-- `real`: Real number. Current implementation uses 64 bit floating points to represent values of this type.
-- `range[<start>,<end>]`: Sequence of integer numbers defined by a pair of start and end numbers.
-- `stream[<x>,<y>,<z>...]`:
-  Multi-dimensional sequence of real numbers.
-  Each number in brackets defines size in a dimension.
-
 Typing is:
 
 - Strong: A type of a value can never be changed.
@@ -233,6 +166,16 @@ Fully implicit typing means:
   rules.
 - The result type of a function call is the result type of the
   function with parameter types matching types of function call arguments.
+
+The Language has the following types:
+
+- `int`: Integer number. Current implementation uses 32 bit integers to represent values of this type.
+- `real`: Real number. Current implementation uses 64 bit floating points to represent values of this type.
+- `range[<start>,<end>]`: Sequence of integer numbers defined by a pair of start and end numbers.
+- `stream[<x>,<y>,<z>...]`:
+  Multi-dimensional sequence of real numbers.
+  Each number in brackets defines size in a dimension.
+  A stream may also be infinite in one dimension.
 
 
 ### Syntax and Semantics
