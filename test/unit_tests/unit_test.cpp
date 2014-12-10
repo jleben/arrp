@@ -17,6 +17,15 @@ namespace unit_testing {
 
 void test::run(istream &code, const string & symbol_name, const arg_list &args)
 {
+    m_symbol = symbol_name;
+    m_args = args;
+}
+
+void test::run(istream &code)
+{
+    if (m_symbol.empty())
+        throw failure("No target symbol specified.");
+
     // Parse
 
     Parser parser(code);
@@ -31,11 +40,11 @@ void test::run(istream &code, const string & symbol_name, const arg_list &args)
     if (!env_builder.process(ast_root))
         throw failure("Symbolic error.");
 
-    auto sym_iter = env.find(symbol_name);
+    auto sym_iter = env.find(m_symbol);
     if (sym_iter == env.end())
     {
         ostringstream text;
-        text << "No symbol '" << symbol_name << "' available." << endl;
+        text << "No symbol '" << m_symbol << "' available." << endl;
         throw failure(text.str());
     }
 
@@ -43,7 +52,7 @@ void test::run(istream &code, const string & symbol_name, const arg_list &args)
 
     semantic::type_checker type_checker(env);
     semantic::type_ptr result_type =
-            type_checker.check(sym, args);
+            type_checker.check(sym, m_args);
 
     if (!result_type)
     {
@@ -60,9 +69,25 @@ void test::run(istream &code, const string & symbol_name, const arg_list &args)
     }
 
     polyhedral::translator poly(env);
-    poly.translate(sym, args);
+    poly.translate(sym, m_args);
 
     test_polyhedral_model(poly.statements());
+}
+
+result test::try_run(istream & code)
+{
+    try {
+        run(code);
+    }
+    catch (failure & e)
+    {
+        cerr << "FAILURE:" << endl;
+        cerr << e.reason << endl;
+        return unit_testing::failed;
+    }
+
+    cerr << "SUCCESS." << endl;
+    return unit_testing::succeeded;
 }
 
 result run( test & t, istream & code,

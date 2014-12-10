@@ -453,6 +453,36 @@ result transpose_and_slice_by_scalar()
     return run(t, code, "f", { stream_type(9,11,13,15) });
 }
 
+result stream2_map_and_slice()
+{
+    std::istringstream code("f(x) = for each (y in x) y[3]");
+
+    test t;
+    t.set_target("f", { stream_type(9,11) });
+    t.expect_type(stream_type(9));
+
+    {
+        using namespace polyhedral;
+
+        statement *x = new statement;
+        x->domain = {9,11};
+        x->expr = new input_access(polyhedral::real, 0);
+
+        stmt_access *xx = new stmt_access(x);
+        xx->pattern = mapping(1,2);
+        xx->pattern.coefficient(0,0) = 1;
+        xx->pattern.constant(1) = 2;
+
+        statement *out = new statement;
+        out->domain = {9};
+        out->expr = xx;
+
+        t.expect_polyhedral_model({x,out});
+    }
+
+    return t.try_run(code);
+}
+
 }
 
 }

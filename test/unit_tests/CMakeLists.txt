@@ -107,6 +107,7 @@ set(transform_tests
 "transpose::stream4_to_dim4_dim2"
 "transform::slice_by_scalar_and_transpose"
 "transform::transpose_and_slice_by_scalar"
+"transform::stream2_map_and_slice"
 )
 
 add_unit_tests(transform test_transform.hpp ${transform_tests})

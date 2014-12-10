@@ -64,6 +64,10 @@ public:
 
     test(): do_test_type(false), do_test_polyhedral_model(false) {}
 
+    result try_run(istream & code);
+
+    void run(istream & code);
+
     void run(istream & code, const string & symbol, const arg_list & args = arg_list());
 
     void expect_type( const semantic::type_ptr & t )
@@ -78,7 +82,16 @@ public:
         m_expected_polyhedral_model = m;
     }
 
+    void set_target( const string & symbol, const test::arg_list & args = test::arg_list() )
+    {
+        m_symbol = symbol;
+        m_args = args;
+    }
+
 private:
+    string m_symbol;
+    arg_list m_args;
+
     bool do_test_type;
     bool do_test_polyhedral_model;
 
