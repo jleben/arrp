@@ -11,78 +11,94 @@ namespace testing {
 using std::vector;
 using std::string;
 
-struct buffer
-{
-    double *data;
-    std::uint32_t phase;
-};
-
-buffer alloc_buffer( int size, int phase = 0 )
-{
-    buffer b;
-    b.data = new double[size];
-    b.phase = phase;
-    for (int i = 0; i < size; ++i)
-        b.data[i] = 0;
-    return b;
-}
-
-buffer init_buffer( double *data, int phase = 0 )
-{
-    buffer b;
-    b.data = data;
-    b.phase = 0;
-    return b;
-}
-
-#if 0
-void print( double *d,
-            const vector<int> & size,
-            const vector<int> & index = vector<int>() )
-{
-    using namespace std;
-
-    if (index.size() == size.size())
-    {
-        int factor = 1;
-        int flat_index = 0;
-        int dim = size.size();
-        while(dim--)
-        {
-            flat_index += index[dim] * factor;
-            factor *= size[dim];
-        }
-        cout << d[flat_index] << endl;
-        //printf("%f\n", d[flat_index]);
-    }
-    else
-    {
-        int dim = index.size();
-        vector<int> next_index = index;
-        next_index.push_back(1);
-
-        int level = dim+1;
-        cout << string(level * 2, '*') << level << endl;
-        //for (int d = 0; d < dim; ++d)
-            //printf("-");
-        //printf("\n");
-
-        for (int i = 0; i < size[dim]; ++i)
-        {
-            next_index[dim] = i;
-            print(d, size, next_index);
-        }
-
-        cout << string(level * 2, '*') << level << endl;
-    }
-}
-#endif
 int outcome(bool correct)
 {
     using namespace std;
     cout << (correct ? "CORRECT" : "INCORRECT") << endl;
     return correct ? 0 : 1;
 }
+
+template<int h> int volume()
+{
+    return h;
+}
+
+template<int h, int t0, int ...t> int volume()
+{
+    return h * volume<t0,t...>();
+}
+
+template<typename T, int ...S>
+struct multi_array
+{
+    multi_array()
+    {
+        m_data = new T[volume()];
+        m_owner = true;
+    }
+
+    ~multi_array()
+    {
+        if (m_owner)
+            delete m_data;
+    }
+
+    multi_array(T* d): m_data(d), m_owner(false) {}
+
+    T* data() { return m_data; }
+    bool is_owner() { return m_owner; }
+
+    static constexpr int volume() { return testing::volume<S...>(); }
+
+    bool operator==(const multi_array<T,S...> & other)
+    {
+        int vol = volume();
+        for (int i = 0; i < vol; ++i)
+        {
+            if (m_data[i] != other.m_data[i])
+                return false;
+        }
+        return true;
+    }
+
+    template<int size_head, int ...size_tail>
+    struct indexer
+    {
+        template<typename ...int_type>
+        static
+        int index(int base, int idx_head, int_type ... idx_tail)
+        {
+            return indexer<size_tail...>::index(idx_head + base * size_head, idx_tail...);
+        }
+    };
+    template<int size_head>
+    struct indexer<size_head>
+    {
+        static
+        int index(int base, int idx_head)
+        {
+            return idx_head + base * size_head;
+        }
+    };
+
+    template<typename ...int_type>
+    T & operator()(int_type ...idxs)
+    {
+        int idx = indexer<S...>::index(0,idxs...);
+        return m_data[idx];
+    }
+
+    template<typename ...int_type>
+    const T & operator()(int_type ...idxs) const
+    {
+        int idx = indexer<S...>::index(0,idxs...);
+        return m_data[idx];
+    }
+
+private:
+    T * m_data;
+    bool m_owner;
+};
 
 }
 }

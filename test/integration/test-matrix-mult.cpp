@@ -1,44 +1,12 @@
 #include "matrix-mult.h"
+#include "test.hpp"
 
 #include <iostream>
 #include <array>
 
 using namespace std;
 
-template<typename T, int ...S>
-struct multi_array
-{
-    multi_array(T* d): data(d) {}
-
-    template<int size_head, int ...size_tail>
-    struct indexer
-    {
-        template<typename ...int_type>
-        static
-        int index(int base, int idx_head, int_type ... idx_tail)
-        {
-            return indexer<size_tail...>::index(idx_head + base * size_head, idx_tail...);
-        }
-    };
-    template<int size_head>
-    struct indexer<size_head>
-    {
-        static
-        int index(int base, int idx_head)
-        {
-            return idx_head + base * size_head;
-        }
-    };
-
-    template<typename ...int_type>
-    T operator()(int_type ...idxs)
-    {
-        int idx = indexer<S...>::index(0,idxs...);
-        return data[idx];
-    }
-
-    T * data;
-};
+using stream::testing::multi_array;
 
 int main()
 {
