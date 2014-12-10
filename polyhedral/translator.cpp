@@ -305,6 +305,11 @@ expression * translator::do_identifier(const ast::node_ptr &node)
 {
     string id = node->as_leaf<string>()->value;
 
+    if (debug::is_enabled())
+    {
+        cout << "[poly] identifier: " << id << endl;
+    }
+
     auto context_item = m_context.find(id);
     if (context_item)
         return context_item.value().source;
@@ -518,7 +523,7 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
     if (result_type->is(semantic::type::stream))
         slice_dimension = result_type->as<semantic::stream>().dimensionality();
     else
-        slice_dimension = 1;
+        slice_dimension = 0;
 
     mapping slicing =
             mapping(slice_dimension,
@@ -547,18 +552,17 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
         }
         case type::range:
         {
-            // FIXME: do not assume range size > 1 !
             semantic::range &r = selector_type->as<semantic::range>();
-            if (!r.start)
-                offset = 0;
-            else
-            {
-                assert(r.start_is_constant());
-                offset = r.const_start() - 1;
-            }
+            assert(r.is_constant());
 
-            slicing.coefficients(out_dim, in_dim) = 1;
-            ++in_dim;
+            offset = r.const_start() - 1;
+            int size = r.const_size();
+            assert(size > 0);
+            if (size > 1)
+            {
+                slicing.coefficients(out_dim, in_dim) = 1;
+                ++in_dim;
+            }
 
             break;
         }
@@ -908,12 +912,19 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
     }
     if (auto view = dynamic_cast<stmt_view*>(expr))
     {
-        //cout << "Applying map:" << endl << map;
+        if (debug_transform::is_enabled())
+        {
+            cout << "[poly] applying map:" << endl << map;
+            cout << "[poly] ..onto:" << endl << view->pattern;
+        }
 
-        int d = view->pattern.input_dimension() - map.output_dimension();
-        assert(d >= 0);
-        mapping m2 = mapping::identity(map.input_dimension() + d,
-                                       map.output_dimension() + d);
+        assert(map.output_dimension() ==
+               view->pattern.input_dimension() - view->current_iteration);
+
+        int d = view->current_iteration;
+
+        mapping m2 = mapping::identity(d + map.input_dimension(),
+                                       d + map.output_dimension());
 
         for (int out = 0; out < map.output_dimension(); ++out)
         {
@@ -925,16 +936,24 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
                 m2.coefficient(in2, out2) = map.coefficient(in,out);
             }
         }
+        if (debug_transform::is_enabled())
+        {
+            cout << "[poly] ..via:" << endl << m2;
+        }
 
-        //cout << "Transform:" << endl << m2;
-        //cout << "Base:" << endl << view->pattern;
+        auto new_pattern = view->pattern * m2;
+        if (!new_pattern.input_dimension())
+            new_pattern.resize(1, new_pattern.output_dimension());
 
         // FIXME: Only duplicate if shared (avoid memory leak).
 
         auto new_view = new stmt_view(view->target);
-        new_view->pattern = view->pattern * m2;
+        new_view->pattern = new_pattern;
         new_view->current_iteration = view->current_iteration;
-        //cout << "Result: " << endl  << new_view->pattern;
+
+        if (debug_transform::is_enabled())
+            cout << "[poly] ..result: " << endl  << new_view->pattern;
+
         return new_view;
     }
     if ( dynamic_cast<constant<int>*>(expr) ||

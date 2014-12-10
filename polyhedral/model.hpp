@@ -86,6 +86,12 @@ public:
     int input_dimension() const { return coefficients.columns(); }
     int output_dimension() const { return coefficients.rows(); }
 
+    void resize(int in_dim, int out_dim)
+    {
+        coefficients = coefficients.resized(out_dim, in_dim);
+        constants.resize(out_dim, 0);
+    }
+
     matrix<int> coefficients;
     vector<int> constants;
 };

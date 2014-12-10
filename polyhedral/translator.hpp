@@ -7,6 +7,7 @@
 #include "../frontend/context.hpp"
 #include "../frontend/environment.hpp"
 #include "../utility/matrix.hpp"
+#include "../utility/debug.hpp"
 
 #include <deque>
 #include <vector>
@@ -23,6 +24,11 @@ using utility::matrix;
 class translator
 {
 public:
+    struct debug : public stream::debug::topic<debug, polyhedral::debug>
+    { static string id() { return "model"; } };
+    struct debug_transform : public stream::debug::topic<debug_transform, debug>
+    { static string id() { return "transform"; } };
+
     translator(const semantic::environment &);
 
     void translate(const semantic::symbol &,
