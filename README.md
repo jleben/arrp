@@ -30,6 +30,13 @@ The entire project code is available online at:
 
 **NOTE:** The project requires a compiler with a good support for C++11.
 
+#### Submodules
+
+This project uses git submodules; make sure to get/update all of them:
+
+    git submodule init
+    git submodule update
+
 #### isl (Integer Set Library)
 
 1. Get git repository: https://github.com/jleben/isl.
@@ -50,10 +57,6 @@ described above.
 4. Install to `extra/cloog` within this project's source.
 
 Project website: [http://www.bastoul.net/cloog](http://www.bastoul.net/cloog)
-
-#### Submodules
-
-This project uses git submodules, make sure to get/update all of them.
 
 #### Optional
 
