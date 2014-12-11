@@ -40,9 +40,14 @@ Project website: [http://isl.gforge.inria.fr](http://isl.gforge.inria.fr/)
 
 #### CLooG (Polyhedral Code Generator)
 
+**NOTE:** CLooG itself depends on *isl*, so you have to configure its
+build process to use the *isl* that you have just built and installed as
+described above.
+
 1. Get git repository: http://repo.or.cz/r/cloog.git
 2. Use branch: **master**
-3. Build and install to `extra/cloog` within this project's source.
+3. Build using the installation of *isl* as described above.
+4. Install to `extra/cloog` within this project's source.
 
 Project website: [http://www.bastoul.net/cloog](http://www.bastoul.net/cloog)
 
