@@ -341,12 +341,12 @@ as well as the type of operation.
 
 The following following tables provide type relations for scalar types:
 
- `<lhs>`   `<rhs>`    `+`   `-`   `*`   `^`   `/`   `:`
---------- ---------  ----- ----- ----- ----- ----- -----
- int       int        int   int   int   int   real  int
- real      int        real  real  real  real  real  int
- int       real       real  real  real  real  real  int
- real      real       real  real  real  real  real  int
+ `<lhs>` | `<rhs>` | `+`  |  `-` | `*`  | `^`  | `/`  | `:`
+:-------:|:-------:|:----:|:----:|:----:|:----:|:----:|:----:
+ int     |  int    | int  | int  | int  | int  | real | int
+ real    |  int    | real | real | real | real | real | int
+ int     |  real   | real | real | real | real | real | int
+ real    |  real   | real | real | real | real | real | int
 
 Note that `/` is common division which always results in a real value,
 whereas `:` is integer division, which always results in an integer.
