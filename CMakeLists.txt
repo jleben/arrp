@@ -23,8 +23,6 @@ endif()
 # Discover isl
 
 find_package(isl REQUIRED)
-message(STATUS "isl include dir: ${ISL_INCLUDE_DIR}")
-message(STATUS "isl lib: ${ISL_LIBRARY}")
 
 # Discover LLVM dependencies
 
