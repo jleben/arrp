@@ -67,11 +67,13 @@ Information about these two programs is available online:
 - http://flexcpp.sourceforge.net/
 - http://bisoncpp.sourceforge.net/
 
-### Procedure
+### Building This Project
 
 This project has a CMake build system.
 
-The standard building procedure on LINUX and Mac OS X is:
+After all the prerequisits are in place as described above, you can
+build this project using the standard building procedure
+on LINUX and Mac OS X:
 
     mkdir build
     cd build
