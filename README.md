@@ -336,10 +336,10 @@ Syntax:
     <binary operation> = <lhs:expr> <binary operator> <rhs:expr>
     <binary operator> = "+" | "-" | "*" | "/" | ":" | "^"
 
-The type of the result value depends on the types of the operands `<lhs>` and `<rhs>`
+The type of result value depends on the types of operands `<lhs>` and `<rhs>`
 as well as the type of operation.
 
-The following following tables provide type relations for scalar types:
+This table provides type relations for scalar types:
 
  `<lhs>` | `<rhs>` | `+`  |  `-` | `*`  | `^`  | `/`  | `:`
 :-------:|:-------:|:----:|:----:|:----:|:----:|:----:|:----:
