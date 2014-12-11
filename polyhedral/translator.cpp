@@ -39,6 +39,8 @@ void translator::translate(const semantic::symbol & sym,
 
     assert(m_context.level() == 0);
     context::scope_holder root_scope(m_context);
+    if (debug::is_enabled())
+        cout << "[poly] Entering root scope." << endl;
 
     expression * result = nullptr;
 
@@ -46,11 +48,22 @@ void translator::translate(const semantic::symbol & sym,
     {
     case semantic::symbol::expression:
     {
+        if (debug::is_enabled())
+            cout << "[poly] Entering expression scope: " << sym.name << endl;
+
+        context::scope_holder expr_scope(m_context);
+
         result = do_block( sym.source_expression() );
+
+        if (debug::is_enabled())
+            cout << "[poly] Exiting expression scope: "  << sym.name << endl;
+
         break;
     }
     case semantic::symbol::function:
     {
+        if (debug::is_enabled())
+            cout << "[poly] Entering function scope: " << sym.name << endl;
         context::scope_holder func_scope(m_context);
 
         assert(sym.parameter_names.size() == args.size());
@@ -60,6 +73,10 @@ void translator::translate(const semantic::symbol & sym,
         }
 
         result = do_block( sym.source_expression() );
+
+        if (debug::is_enabled())
+            cout << "[poly] Exiting function scope: "  << sym.name << endl;
+
         break;
     }
     }
@@ -97,6 +114,9 @@ void translator::translate(const semantic::symbol & sym,
 
     result = iterate(result, result_type);
     auto stmt = make_statement(result, result_domain);
+
+    if (debug::is_enabled())
+        cout << "[poly] Exiting root scope." << endl;
 }
 
 expression * translator::translate_input(const semantic::type_ptr & type,
@@ -130,7 +150,11 @@ expression * translator::translate_input(const semantic::type_ptr & type,
 void translator::do_statement_list(const ast::node_ptr &node)
 {
     for ( const sp<ast::node> & stmt : node->as_list()->elements )
+    {
         do_statement(stmt);
+        if (stmt->semantic_type->is(semantic::type::function))
+            m_context.enter_scope();
+    }
 }
 
 expression* translator::do_statement(const ast::node_ptr &node)
@@ -140,12 +164,16 @@ expression* translator::do_statement(const ast::node_ptr &node)
     const auto & params_node = stmt->elements[1];
     const auto & body_node = stmt->elements[2];
 
-    // Skip function definitions -
-    // They are given as semantic types at function calls
-    if (params_node)
-        return nullptr;
-
     const string & id = id_node->as_leaf<string>()->value;
+
+    if (params_node)
+    {
+        // Function definition is obtained as semantic type at function call
+        m_context.bind(id, symbol(nullptr));
+        if (debug::is_enabled())
+            cout << "[poly] Binding: " << id << endl;
+        return nullptr;
+    }
 
     expression *expr = do_block(body_node);
 
@@ -186,6 +214,11 @@ expression* translator::do_statement(const ast::node_ptr &node)
         }
     }
 
+    if (debug::is_enabled())
+    {
+        cout << "[poly] Binding: " << id << endl;
+    }
+
     m_context.bind(id, expr);
 
     return expr;
@@ -196,9 +229,27 @@ expression * translator::do_block(const ast::node_ptr &node)
     ast::list_node *expr_block = node->as_list();
     const auto & stmt_list = expr_block->elements[0];
     const auto & expr = expr_block->elements[1];
+
+    int base_ctx_level = m_context.level();
+
     if (stmt_list)
-        do_statement_list(stmt_list);
-    return do_expression(expr);
+    {
+        try
+        {
+            do_statement_list(stmt_list);
+        }
+        catch(...)
+        {
+            m_context.roll_back_to(base_ctx_level);
+            throw;
+        }
+    }
+
+    expression *result = do_expression(expr);
+
+    m_context.roll_back_to(base_ctx_level);
+
+    return result;
 }
 
 expression * translator::do_expression(const ast::node_ptr &node)
@@ -310,12 +361,17 @@ expression * translator::do_identifier(const ast::node_ptr &node)
 
     if (debug::is_enabled())
     {
-        cout << "[poly] identifier: " << id << endl;
+        cout << "[poly] Identifier: " << id << endl;
     }
 
     auto context_item = m_context.find(id);
     if (context_item)
         return context_item.value().source;
+
+    if (debug::is_enabled())
+        cout << "[poly] Entering root scope for id: " << id << endl;
+
+    context::scope_holder root_scope(m_context, m_context.root_scope());
 
     // Clear domain
     vector<int> local_domain;
@@ -328,6 +384,9 @@ expression * translator::do_identifier(const ast::node_ptr &node)
 
     // Restore domain
     std::swap(m_domain, local_domain);
+
+    if (debug::is_enabled())
+        cout << "[poly] Exiting root scope for id: " << id << endl;
 
     return result;
 }
@@ -393,9 +452,17 @@ expression * translator::do_call(const ast::node_ptr &node)
 
     context::scope_iterator parent_scope;
     if (context::item local_func = m_context.find(id))
+    {
         parent_scope = local_func.scope();
+        if (debug::is_enabled())
+            cout << "[poly] Entering local scope for call to: " << id << endl;
+    }
     else
+    {
         parent_scope = m_context.root_scope();
+        if (debug::is_enabled())
+            cout << "[poly] Entering root scope for call to: " << id << endl;
+    }
 
     context::scope_holder func_scope(m_context, parent_scope);
 
@@ -403,6 +470,9 @@ expression * translator::do_call(const ast::node_ptr &node)
         m_context.bind(func->parameters[a], args[a]);
 
     expression * result = do_block(func->expression());
+
+    if (debug::is_enabled())
+        cout << "[poly] Exiting scope for call to: " << id << endl;
 
     return result;
 }
@@ -928,7 +998,7 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
     {
         if (debug_transform::is_enabled())
         {
-            cout << "[poly] applying map:" << endl << map;
+            cout << "[poly] Applying map:" << endl << map;
             cout << "[poly] ..onto:" << endl << view->pattern;
         }
 

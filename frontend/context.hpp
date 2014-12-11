@@ -124,6 +124,13 @@ public:
         return m_stack.size();
     }
 
+    void roll_back_to(int level)
+    {
+        assert(level >= 0);
+        while(m_stack.size() > level)
+            m_stack.pop_front();
+    }
+
     void enter_scope()
     {
         if (m_stack.empty())

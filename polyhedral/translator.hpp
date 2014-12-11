@@ -26,7 +26,8 @@ class translator
 public:
     struct debug : public stream::debug::topic<debug, polyhedral::debug>
     { static string id() { return "model"; } };
-    struct debug_transform : public stream::debug::topic<debug_transform, debug>
+    struct debug_transform : public stream::debug::topic
+            <debug_transform, debug, stream::debug::disabled>
     { static string id() { return "transform"; } };
 
     translator(const semantic::environment &);

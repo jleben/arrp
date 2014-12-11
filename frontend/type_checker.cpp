@@ -186,7 +186,7 @@ type_ptr type_checker::symbol_type( const symbol & sym )
     {
     case symbol::expression:
     {
-        context_type::scope_holder(m_ctx, m_ctx.root_scope());
+        context_type::scope_holder expr_scope(m_ctx, m_ctx.root_scope());
         type_ptr t = process_block(sym.source->as_list()->elements[2]);
         sym.source->semantic_type = t;
         return t;
@@ -306,7 +306,13 @@ type_checker::process_function( const func_type_ptr & func_type,
         else
         {
             f2.statement_list = f.statement_list;
-            f2.statement_list->as_list()->append( f2.statement );
+            ast::list_node *stmt_list = f2.statement_list->as_list();
+            auto pos = std::find(stmt_list->elements.begin(),
+                                 stmt_list->elements.end(),
+                                 f.statement);
+            assert(pos != stmt_list->elements.end());
+            stmt_list->elements.insert(++pos, f2.statement);
+
             scope->emplace(f2.name, f2_type);
         }
 
@@ -349,11 +355,26 @@ type_ptr type_checker::process_block( const sp<ast::node> & root )
     const auto & stmts = expr_block->elements[0];
     const auto & expr = expr_block->elements[1];
 
+    int base_ctx_level = m_ctx.level();
+
     if (stmts)
-        process_stmt_list( stmts );
+    {
+        try
+        {
+            process_stmt_list( stmts );
+        }
+        catch(...)
+        {
+            m_ctx.roll_back_to(base_ctx_level);
+            throw;
+        }
+    }
 
     type_ptr t = process_expression( expr );
     root->semantic_type = t;
+
+    m_ctx.roll_back_to(base_ctx_level);
+
     return t;
 }
 
@@ -364,6 +385,8 @@ void type_checker::process_stmt_list( const ast::node_ptr & root )
     for ( const sp<ast::node> & stmt : stmts->elements )
     {
         process_stmt(stmt, root);
+        if (stmt->semantic_type->is(semantic::type::function))
+            m_ctx.enter_scope();
     }
 }
 
