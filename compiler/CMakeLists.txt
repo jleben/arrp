@@ -38,7 +38,7 @@ else()
   target_link_libraries( streamc-lib ${llvm-link-libs} ${llvm-link-flags}  )
 endif()
 
-target_link_libraries( streamc-lib ${ISL_LIBRARY} isl-cpp cloog-isl json )
+target_link_libraries( streamc-lib ${ISL_LIBRARY} isl-cpp ${CLOOG_LIBRARY} json )
 
 # Executable
 
