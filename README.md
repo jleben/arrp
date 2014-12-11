@@ -28,19 +28,42 @@ The entire project code is available online at:
 
 ### Prerequisits
 
-This project requires flexc++ and bisonc++ lexer and parser generators.
+**NOTE:** The project requires a compiler with a good support for C++11.
+
+#### isl (Integer Set Library)
+
+1. Get git repository: https://github.com/jleben/isl.
+2. Use branch: **topic/constraint-map**.
+3. Build and install to `extra/isl` within this project's source.
+
+Project website: [http://isl.gforge.inria.fr](http://isl.gforge.inria.fr/)
+
+#### CLooG (Polyhedral Code Generator)
+
+1. Get git repository: http://repo.or.cz/r/cloog.git
+2. Use branch: **master**
+3. Build and install to `extra/cloog` within this project's source.
+
+Project website: [http://www.bastoul.net/cloog](http://www.bastoul.net/cloog)
+
+#### Submodules
+
+This project uses git submodules, make sure to get/update all of them.
+
+#### Optional
+
+Optionally, you may want to re-generate lexer and parser.
+This requires the flexc++ lexer generator and the bisonc++ parser generator.
 Information about these two programs is available online:
 
 - http://flexcpp.sourceforge.net/
 - http://bisoncpp.sourceforge.net/
 
-**NOTE:** The project requires a compiler with a good support for C++11.
-
 ### Procedure
 
-This project provides a CMake build system.
+This project has a CMake build system.
 
-The standard building procedure is:
+The standard building procedure on LINUX and Mac OS X is:
 
     mkdir build
     cd build
