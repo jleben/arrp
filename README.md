@@ -294,7 +294,7 @@ Syntax:
       | <mapping>
       | <reduction>
 
-The value of an expression is inferred from the values of its constituents
+The type of an expression is inferred from the types of its constituents
 and the expression type.
 
 #### Identifier
