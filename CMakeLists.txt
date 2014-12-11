@@ -20,6 +20,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w44267 /w44244")
 endif()
 
+# Discover isl
+
+find_package(isl REQUIRED)
+message(STATUS "isl include dir: ${ISL_INCLUDE_DIR}")
+message(STATUS "isl lib: ${ISL_LIBRARY}")
+
 # Discover LLVM dependencies
 
 if(WIN32)
@@ -67,10 +73,6 @@ link_directories(
   ${CMAKE_SOURCE_DIR}/extra/isl/lib
   ${CMAKE_SOURCE_DIR}/extra/cloog/lib
 )
-
-# For isl-cpp:
-set(isl_include_dir ${CMAKE_SOURCE_DIR}/extra/isl/include)
-set(isl_library_dir ${CMAKE_SOURCE_DIR}/extra/isl/lib)
 
 # Global compile options
 
