@@ -37,6 +37,9 @@ void translator::translate(const semantic::symbol & sym,
 {
     using namespace semantic;
 
+    assert(m_context.level() == 0);
+    context::scope_holder root_scope(m_context);
+
     expression * result = nullptr;
 
     switch(sym.type)
@@ -388,7 +391,13 @@ expression * translator::do_call(const ast::node_ptr &node)
     auto func = dynamic_cast<semantic::function*>(id_node->semantic_type.get());
     assert(func->parameters.size() == args.size());
 
-    context::scope_holder func_scope(m_context);
+    context::scope_iterator parent_scope;
+    if (context::item local_func = m_context.find(id))
+        parent_scope = local_func.scope();
+    else
+        parent_scope = m_context.root_scope();
+
+    context::scope_holder func_scope(m_context, parent_scope);
 
     for (int a = 0; a < args.size(); ++a)
         m_context.bind(func->parameters[a], args[a]);
@@ -758,23 +767,28 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
         iterator->pattern = iterator->pattern * offset;
     }
 
-    string accum_id = accum_node->as_leaf<string>()->value;
-    string iter_id = iter_node->as_leaf<string>()->value;
-    m_context.bind( accum_id, accumulator );
-    m_context.bind( iter_id, iterator );
+    statement *reduction_stmt;
+    {
+        context::scope_holder reduction_scope(m_context);
 
-    // Expand domain
-    int original_domain_size = m_domain.size();
-    m_domain.push_back(source_type.size.front() - 1);
+        string accum_id = accum_node->as_leaf<string>()->value;
+        string iter_id = iter_node->as_leaf<string>()->value;
+        m_context.bind( accum_id, accumulator );
+        m_context.bind( iter_id, iterator );
 
-    expression *reduction_expr = do_block(body_node);
-    statement *reduction_stmt = make_statement(reduction_expr, m_domain);
-    accumulator->reductor = reduction_stmt;
+        // Expand domain
+        int original_domain_size = m_domain.size();
+        m_domain.push_back(source_type.size.front() - 1);
 
-    assert(init_stmt->expr->type == reduction_stmt->expr->type);
+        expression *reduction_expr = do_block(body_node);
+        reduction_stmt = make_statement(reduction_expr, m_domain);
+        accumulator->reductor = reduction_stmt;
 
-    // Restore domain
-    m_domain.resize(original_domain_size);
+        assert(init_stmt->expr->type == reduction_stmt->expr->type);
+
+        // Restore domain
+        m_domain.resize(original_domain_size);
+    }
 
     // Create a view with fixed mapping to last element of reduction:
     auto result = new stmt_view(reduction_stmt);
