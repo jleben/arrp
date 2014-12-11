@@ -115,8 +115,10 @@ void model::compute_channels()
 
             vector<int> sink_index = sink.stmt->domain;
             sink_index[sink.flow_dimension] = 0;
+
             vector<int> source_index = access->pattern * sink_index;
-            int peek_rate = std::max(1, source_index[source.flow_dimension]);
+
+            int peek_rate = source_index[source.flow_dimension] + 1;
 
             channel ch;
             ch.source = &source;
