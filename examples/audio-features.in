@@ -1,0 +1,47 @@
+// general
+
+sum(x) = reduce(a,b in x) a + b;
+
+product(x) = reduce(a,b in x) a * b;
+
+peak(x) = reduce(a,b in x) max(a,b);
+
+moment(m,x,center) = sum ( (x - center) ^ m ) / #x;
+
+mean(x) = moment(1,x,0);
+
+geometric_mean(x) = pow( product(x), #x );
+
+variance(x) = moment(2,x,mean(x));
+
+stdev(x) = sqrt(variance(x));
+
+std_moment(m,x) = moment(m,x,mean(x)) / stdev(x) ^ m;
+
+// special
+
+rms(x) = sqrt(mean(x^2));
+
+crest_factor(x) = peak(abs(x)) / rms(x);
+
+skewness(x) = std_moment(3,x);
+
+kurtosis(x) = (std_moment(4,x) / variance(x) ^ 2) - 3;
+
+flatness(x) = geometric_mean(x) / mean(x);
+
+centroid(x) = sum( x * 0..(#x-1) ) / sum(x);
+
+// TODO: rolloff(x)
+// Need efficient cumulative sum!
+
+// TODO: spread
+
+is_positive(x) = ceil(max(0, min(1, x)));
+
+width(x, threshold_db) =
+{
+  let threshold = peak(x) * 10 ^ (threshold_db / 10);
+  sum ( is_positive(x - threshold) )
+};
+
