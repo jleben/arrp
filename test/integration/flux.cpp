@@ -65,15 +65,20 @@ int main()
     constexpr int N=10;
     multi_array<double,T,N> in = input<T,N>();
     multi_array<double,T-1> ex = expected(in);
+    multi_array<double,T-1> out;
 
     cout << "in:" << endl;
     print(in);
     cout << "expected:" << endl;
     print(ex);
 
-    flux::initialize(in.data(), & buf);
+    flux::initialize(in.data(), &buf);
 
-    multi_array<double,T-1> out(flux::get_output(&buf));
+    for(int t = 0; t < T-1; ++t)
+    {
+        flux::process(in.data() + (t+1)*N, &buf);
+        out(t) = *flux::get_output(&buf);
+    }
 
     cout << "out:" << endl;
     print(out);

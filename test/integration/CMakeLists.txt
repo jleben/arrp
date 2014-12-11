@@ -39,6 +39,6 @@ add_integration_test(matrix-mult
 
 add_integration_test(flux
   ${CMAKE_SOURCE_DIR}/examples/spectral-flux.in
-  flux "[10,10]"
+  flux "[inf,10]"
   flux.cpp
 )
