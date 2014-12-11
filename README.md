@@ -334,25 +334,31 @@ and `<e>` must both be int.
 Syntax:
 
     <binary operation> = <lhs:expr> <binary operator> <rhs:expr>
-    <binary operator> = "+" | "-" | "*" | "/"
+    <binary operator> = "+" | "-" | "*" | "/" | ":" | "^"
 
-The type of the result value depends on the types of the operands `<lhs>` and `<rhs>`:
+The type of the result value depends on the types of the operands `<lhs>` and `<rhs>`
+as well as the type of operation.
 
-`<lhs>` | `<rhs>` | `result`
---- | --- | ---
-int | int | int
-real | int | real
-int| real | real
-real | real | real
-stream | real | stream
-real | stream | stream
-stream | stream | stream
+The following following tables provide type relations for scalar types:
 
-The result of an operation between a stream and a scalar (real or int) is
+ `<lhs>`   `<rhs>`    `+`   `-`   `*`   `^`   `/`   `:`
+--------- ---------  ----- ----- ----- ----- ----- -----
+ int       int        int   int   int   int   real  int
+ real      int        real  real  real  real  real  int
+ int       real       real  real  real  real  real  int
+ real      real       real  real  real  real  real  int
+
+Note that `/` is common division which always results in a real value,
+whereas `:` is integer division, which always results in an integer.
+
+When an operand is a stream, the operation will be performed once for each
+element of the stream. The elements are considered to be of type `real`.
+
+The result of an operation between a stream and a scalar is
 an equal-sized stream computed by performing the operation on each value of
-the operand stream and the same operand scalar.
+the stream and the same scalar.
 
-If both operands are streams, they must be of the same sizes and will result in
+If both operands are streams, they must be of the same size and will result in
 a stream of the same size.
 
 #### Transposition
