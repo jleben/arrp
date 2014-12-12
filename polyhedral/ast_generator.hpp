@@ -3,7 +3,6 @@
 
 #include "model.hpp"
 #include "dataflow_model.hpp"
-#include "../utility/isl_printer.hpp"
 #include "../utility/debug.hpp"
 
 #include <isl/set.h>
