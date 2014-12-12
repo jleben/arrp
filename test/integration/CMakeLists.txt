@@ -31,10 +31,10 @@ add_integration_test(rms
   rms.cpp
 )
 
-add_integration_test(matrix-mult
+add_integration_test(mat-mul
   ${CMAKE_SOURCE_DIR}/examples/matrix-mult.in
   matrix_multiply "[5,2,3];[5,3,2]"
-  test-matrix-mult.cpp
+  mat-mul.cpp
 )
 
 add_integration_test(flux
