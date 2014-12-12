@@ -49,7 +49,7 @@ int main()
 
         cout << endl;
 
-        ok |= result == ex;
+        ok &= result == ex;
     }
 
     return stream::testing::outcome(ok);
