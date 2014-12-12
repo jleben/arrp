@@ -3,86 +3,139 @@
 
 #include <cmath>
 #include <iomanip>
+#include <thread>
+#include <chrono>
 
 using stream::testing::multi_array;
 using namespace std;
+using namespace std::chrono;
 
-template<int T, int N>
-multi_array<double,T,N> input()
+inline double map(double in)
 {
-    multi_array<double,T,N> in;
-    for(int t = 0; t < T; ++t)
-        for(int n = 0; n < N; ++n)
-            in(t,n) = t * 10 + n;
-    return in;
+#ifndef NO_LOGARITHM
+    return std::log(1000 * in + 1);
+#else
+    return 1000 * in + 1;
+#endif
 }
 
 template<int T, int N>
-multi_array<double,T-1> expected( const multi_array<double,T,N> & in )
+void expected_best( const multi_array<double,T,N> & in,
+                    multi_array<double,T-1> & out,
+                    multi_array<double,N> & buf )
 {
-    multi_array<double,T-1> out;
-
-    auto map = [](double in) -> double
+    for(int n = 0; n < N; ++n)
     {
-        return std::log(1000 * in + 1);
-    };
+        buf(n) = map(in(0,n));
+    }
 
     for(int t = 0; t < T-1; ++t)
     {
         double sum = 0;
         for(int n = 0; n < N; ++n)
-            sum += std::max(0.0, map(in(t+1,n)) - map(in(t,n)));
+        {
+            double in2 = map(in(t+1,n));
+            sum += std::max(0.0, in2 - buf(n));
+            buf(n) = in2;
+        }
         out(t) = sum;
     }
-
-    return out;
-}
-
-template<int T>
-void print( const multi_array<double,T> & a )
-{
-    for (int t = 0; t < T; ++t)
-        cout << a(t) << endl;
 }
 
 template<int T, int N>
-void print( const multi_array<double,T,N> & a )
+void expected_typical( const multi_array<double,T,N> & in,
+                     multi_array<double,T-1> & out )
 {
-    for (int t = 0; t < T; ++t)
+    for(int t = 0; t < T-1; ++t)
     {
-        for (int n = 0; n < N; ++n)
-            cout << std::setw(4) << a(t,n) << ' ';
-        cout << endl;
+        double sum = 0;
+        for(int n = 0; n < N; ++n)
+        {
+            double in1 = map(in(t,n));
+            double in2 = map(in(t+1,n));
+            sum += std::max(0.0, in2 - in1);
+        }
+        out(t) = sum;
     }
 }
 
 int main()
 {
-    flux::buffer buf;
-    flux::allocate(&buf);
+    constexpr int T=1000;
+    constexpr int N=1000;
 
-    constexpr int T=10;
-    constexpr int N=10;
-    multi_array<double,T,N> in = input<T,N>();
-    multi_array<double,T-1> ex = expected(in);
+    multi_array<double,T-1> ex;
+    multi_array<double,N> ex_buf;
     multi_array<double,T-1> out;
 
-    cout << "in:" << endl;
-    print(in);
-    cout << "expected:" << endl;
-    print(ex);
+    uint32_t seeds[] = {91827376, 74653985, 17629356};
 
-    flux::initialize(in.data(), &buf);
-
-    for(int t = 0; t < T-1; ++t)
+    bool ok = true;
+    int run = 0;
+    for (auto seed : seeds)
     {
-        flux::process(in.data() + (t+1)*N, &buf);
-        out(t) = *flux::get_output(&buf);
+        cout << endl;
+        cout << "## Run " << ++run << " ##" << endl;
+
+        multi_array<double,T,N> in = multi_array<double,T,N>::random(0,100,seed);
+
+        auto ex_best_start_time = high_resolution_clock::now();
+        expected_best(in, ex, ex_buf);
+        auto ex_best_end_time = high_resolution_clock::now();
+
+        auto ex_typical_start_time = high_resolution_clock::now();
+        expected_typical(in, ex);
+        auto ex_typical_end_time = high_resolution_clock::now();
+
+        flux::buffer buf;
+        flux::allocate(&buf);
+
+        auto test_start_time = high_resolution_clock::now();
+
+        flux::initialize(in.data(), &buf);
+
+#ifdef STREAMING
+        for(int t = 0; t < T-1; ++t)
+        {
+            flux::process(in.data() + (t+1)*N, &buf);
+            out(t) = *flux::get_output(&buf);
+        }
+#endif
+
+        auto test_end_time = high_resolution_clock::now();
+
+        duration<double, std::micro> c_best_time =
+                ex_best_end_time - ex_best_start_time;
+        duration<double, std::micro> c_typical_time =
+                ex_typical_end_time - ex_typical_start_time;
+        duration<double, std::micro> stream_time =
+                test_end_time - test_start_time;
+
+        cout << "C best time: " << c_best_time.count() << endl;
+        cout << "C typical time: " << c_typical_time.count() << endl;
+        cout << "lang time: " << stream_time.count() << endl;
+        cout << "lang / C best ratio: "
+             << (stream_time.count() / c_best_time.count()) << endl;
+        cout << "lang / C typical ratio: "
+             << (stream_time.count() / c_typical_time.count()) << endl;
+
+#ifndef STREAMING
+        out = multi_array<double,T-1>(flux::get_output(&buf));
+#endif
+
+#if 0
+        cout << "-- in:" << endl;
+        cout << in;
+        cout << "-- expected:" << endl;
+        cout << ex;
+        cout << "-- out:" << endl;
+        cout << out;
+#endif
+        ok &= out == ex;
+        stream::testing::outcome(ok);
     }
 
-    cout << "out:" << endl;
-    print(out);
+    cout << endl << "## Summary:" << endl;
 
-
-    return stream::testing::outcome(out == ex);
+    return stream::testing::outcome(ok);
 }
