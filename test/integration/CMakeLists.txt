@@ -31,6 +31,12 @@ add_integration_test(rms
   rms.cpp
 )
 
+add_integration_test(centroid
+  ${CMAKE_SOURCE_DIR}/examples/audio-features.in
+  centroid "[100]"
+  centroid.cpp
+)
+
 add_integration_test(mat-mul
   ${CMAKE_SOURCE_DIR}/examples/matrix-mult.in
   matrix_multiply "[5,2,3];[5,3,2]"
