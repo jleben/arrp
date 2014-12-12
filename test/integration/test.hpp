@@ -54,7 +54,7 @@ struct multi_array
     multi_array(const multi_array && other)
     {
         m_data = other.m_data;
-        m_owner = true;
+        m_owner = other.m_owner;
         other.m_owner = false;
     }
 
@@ -77,7 +77,7 @@ struct multi_array
             delete m_data;
 
         m_data = other.m_data;
-        m_owner = true;
+        m_owner = other.m_owner;
         other.m_owner = false;
     }
 
