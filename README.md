@@ -429,6 +429,42 @@ bound to the name `<f>` while the function's paremeters are assigned values of
 the function call arguments `<a>`, by matching positions. The number of
 arguments must be equal to the number of parameters.
 
+#### Intrinsic Functions
+
+The following table shows available intrinsic functions and the
+type of their result given the types of arguments.
+
+If argument types do not match exactly one of the variants of the function
+listed below, then a match is attempted by promoting `int` arguments to `real`.
+
+  func. |  arg.1 | arg.2  |  result
+:------:|:------:|:------:|:-------
+  min   |  int   |  int   |  int
+  min   | real   | real   | real
+  max   |  int   |  int   |  int
+  max   | real   | real   | real
+  pow   |  int   |  int   |  int
+  pow   | real   | real   | real
+  exp   |  real  |   -    | real
+  exp2  |  real  |   -    | real
+  log   |  real  |   -    | real
+  log2  |  real  |   -    | real
+  log10 |  real  |   -    | real
+  sqrt  |  real  |   -    | real
+  sin   |  real  |   -    | real
+  cos   |  real  |   -    | real
+  tan   |  real  |   -    | real
+  asin  |  real  |   -    | real
+  acos  |  real  |   -    | real
+  atan  |  real  |   -    | real
+  abs   |  int   |   -    | int
+  abs   |  real  |   -    | real
+  ceil  |  int   |   -    | int
+  ceil  |  real  |   -    | int
+  floor |  int   |   -    | int
+  floor |  real  |   -    | int
+
+
 #### Mapping
 
 Syntax:
