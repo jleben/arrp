@@ -324,10 +324,14 @@ A `<real>` represents a real number, and its type is real, for example `123.456`
 
 Syntax:
 
-    <range> = <s:expr> ... <e:expr>
+    <range> = <s:expr> .. <e:expr>
 
 A `<range>` represents a value of type `range[<s>,<e>]`. The types of `<s>`
 and `<e>` must both be int.
+
+Example:
+
+    a = 1..10 * 5; // A range between 1 and 10 multiplied by 5.
 
 #### Binary Operation
 
@@ -351,15 +355,17 @@ This table provides type relations for scalar types:
 Note that `/` is common division which always results in a real value,
 whereas `:` is integer division, which always results in an integer.
 
-When an operand is a stream, the operation will be performed once for each
-element of the stream. The elements are considered to be of type `real`.
+An operation between a stream or range and a scalar is performed
+once for each element in the stream or range as one operand, and
+every time the same scalar as the second operand. The result is a
+stream of the same size as the operand stream or range.
 
-The result of an operation between a stream and a scalar is
-an equal-sized stream computed by performing the operation on each value of
-the stream and the same scalar.
+When both operands are streams or ranges, they must be of the same size.
+The operation is performed for each pair of elements in one and the other
+stream or range at an equal position.
 
-If both operands are streams, they must be of the same size and will result in
-a stream of the same size.
+Elements of a stream are of type `real` and
+elements of a range are of type `int`.
 
 #### Transposition
 
