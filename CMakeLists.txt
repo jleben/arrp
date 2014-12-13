@@ -27,36 +27,10 @@ find_package(cloog REQUIRED)
 
 # Discover LLVM dependencies
 
-if(WIN32)
+find_package(llvm REQUIRED)
 
-  find_package(llvm REQUIRED)
-  include_directories(${LLVM_INCLUDE_DIRS})
-  link_directories(${LLVM_LIBRARY_DIRS})
-
-else()
-
-#if (NOT DEFINED llvm-compile-flags)
-  execute_process(
-    COMMAND llvm-config --cxxflags
-    OUTPUT_VARIABLE llvm-compile-flags
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-#endif()
-
-#if (NOT DEFINED llvm-link-flags)
-  execute_process(
-    COMMAND llvm-config --ldflags
-    OUTPUT_VARIABLE llvm-link-flags
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-  execute_process(
-    COMMAND llvm-config --libs core
-    OUTPUT_VARIABLE llvm-link-libs
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-#endif()
-
-endif() # Windowz
+include_directories(${LLVM_INCLUDE_DIRS})
+link_directories(${LLVM_LIBRARY_DIRS})
 
 find_program(llc_program llc HINTS ${LLVM_TOOLS_BINARY_DIR})
 

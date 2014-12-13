@@ -30,12 +30,10 @@ add_dependencies(streamc-lib parser)
 
 set_property( TARGET streamc-lib PROPERTY OUTPUT_NAME streamc )
 
-#set_property( TARGET streamc-lib APPEND PROPERTY COMPILE_FLAGS ${llvm-compile-flags} )
-
 if(WIN32)
   llvm_config(streamc-lib core)
 else()
-  target_link_libraries( streamc-lib ${llvm-link-libs} ${llvm-link-flags}  )
+  target_link_libraries( streamc-lib ${LLVM_LINK_FLAGS} ${LLVM_LIBRARIES}  )
 endif()
 
 target_link_libraries( streamc-lib ${ISL_LIBRARY} isl-cpp ${CLOOG_LIBRARY} json )
