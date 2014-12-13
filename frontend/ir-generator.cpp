@@ -3,7 +3,7 @@
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/GlobalAlias.h>
-#include <llvm/Analysis/Verifier.h>
+#include LLVM_VERIFIER_HEADER
 #include <llvm/Support/raw_os_ostream.h>
 #include <algorithm>
 

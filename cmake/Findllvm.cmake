@@ -24,6 +24,7 @@ function(llvm_find what variable description)
   message("${variable} = ${${variable}}")
 endfunction()
 
+llvm_find(--version LLVM_VERSION "LLVM version.")
 llvm_find(--includedir LLVM_INCLUDE_DIRS "LLVM include directories.")
 llvm_find(--cxxflags LLVM_COMPILE_FLAGS "LLVM compile flags.")
 llvm_find(--libdir LLVM_LINK_DIRS "LLVM link directories.")

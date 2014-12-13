@@ -1,6 +1,5 @@
 #include "llvm_ir_generator.hpp"
-
-#include <llvm/Analysis/Verifier.h>
+#include LLVM_VERIFIER_HEADER
 #include <llvm/Support/raw_os_ostream.h>
 
 #include <iostream>

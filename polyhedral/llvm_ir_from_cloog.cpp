@@ -1,6 +1,6 @@
 #include "llvm_ir_from_cloog.hpp"
 
-#include <llvm/Analysis/Verifier.h>
+#include LLVM_VERIFIER_HEADER
 #include <llvm/Support/raw_os_ostream.h>
 #include <llvm/IR/Intrinsics.h>
 
