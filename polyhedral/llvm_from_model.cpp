@@ -965,9 +965,12 @@ llvm_from_model::mapped_index
         value_type out_value = value((int64_t) map.constant(out_dim));
         for (int in_dim = 0; in_dim < map.input_dimension(); ++in_dim)
         {
-            value_type coefficient =
-                    value((int64_t) map.coefficient(in_dim, out_dim));
-            value_type term = m_builder.CreateMul(index[in_dim], coefficient);
+            int coefficient = map.coefficient(in_dim, out_dim);
+            if (coefficient == 0)
+                continue;
+            value_type term = index[in_dim];
+            if (coefficient != 1)
+                term = m_builder.CreateMul(term, value((int64_t)coefficient));
             out_value = m_builder.CreateAdd(out_value, term);
         }
         target_index.push_back(out_value);
