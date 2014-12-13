@@ -25,7 +25,8 @@ int volume( vector<int> extent )
 llvm_from_model::llvm_from_model
 (llvm::Module *module,
  const vector<statement*> & statements,
- const dataflow::model *dataflow ):
+ const dataflow::model *dataflow,
+ const options &opt):
     m_module(module),
     m_builder(module->getContext()),
     m_statements(statements),
@@ -33,29 +34,19 @@ llvm_from_model::llvm_from_model
 {
     // Analyze buffer requirements
 
-    int int_buf_idx = 0;
-    int real_buf_idx = 0;
-    int phase_buf_idx = 0;
+    std::vector<int> buffers_on_stack;
+    std::vector<int> buffers_in_memory;
+
+    int phase_buf_size = 0;
+    int int_buf_size = 0;
+    int real_buf_size = 0;
+    int stack_buf_idx = 0;
 
     for (statement *stmt : statements)
     {
         buffer buf;
-
         buf.type = stmt->expr->type;
-
-        switch(stmt->expr->type)
-        {
-        case integer:
-            buf.index = int_buf_idx;
-            int_buf_idx += volume(stmt->buffer);
-            break;
-        case real:
-            buf.index = real_buf_idx;
-            real_buf_idx += volume(stmt->buffer);
-            break;
-        default:
-            throw std::runtime_error("Unexpected expression type.");
-        }
+        buf.size = volume(stmt->buffer);
 
         const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
         if (actor)
@@ -66,7 +57,7 @@ llvm_from_model::llvm_from_model
                     actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
 
             buf.has_phase = period_overlaps || init_overlaps;
-            buf.phase_index = phase_buf_idx++;
+            buf.phase_index = phase_buf_size++;
         }
         else
         {
@@ -75,6 +66,49 @@ llvm_from_model::llvm_from_model
         }
 
         m_stmt_buffers.push_back(buf);
+
+        int buf_idx = m_stmt_buffers.size() - 1;
+        if (stmt->inter_period_dependency || stmt == statements.back())
+            buffers_in_memory.push_back(buf_idx);
+        else
+            buffers_on_stack.push_back(buf_idx);
+    }
+
+    auto buffer_size_is_smaller = [&](int a, int b) -> bool
+    { return m_stmt_buffers[a].size < m_stmt_buffers[b].size; };
+
+    std::sort(buffers_on_stack.begin(), buffers_on_stack.end(), buffer_size_is_smaller);
+
+    int stack_size = 0;
+
+    {
+        for(int idx = 0; idx < buffers_on_stack.size(); ++idx)
+        {
+            int buf_idx = buffers_on_stack[idx];
+            buffer & b = m_stmt_buffers[buf_idx];
+            int elem_size = b.type == integer ? 4 : 8;
+            int buf_size = elem_size * b.size;
+            if (stack_size + buf_size < opt.max_stack_size)
+            {
+                b.on_stack = true;
+                b.index = stack_buf_idx++;
+                stack_size += buf_size;
+            }
+            else
+            {
+                buffers_in_memory.push_back(buf_idx);
+            }
+        }
+
+        for(int idx = 0; idx < buffers_in_memory.size(); ++idx)
+        {
+            int buf_idx = buffers_in_memory[idx];
+            buffer & b = m_stmt_buffers[buf_idx];
+            b.on_stack = false;
+            int & buf_size = b.type == integer ? int_buf_size : real_buf_size;
+            b.index = buf_size;
+            buf_size += b.size;
+        }
     }
 
     //
@@ -116,25 +150,25 @@ llvm_from_model::llvm_from_model
                 = llvm::BasicBlock::Create(llvm_context(), "", func);
         m_builder.SetInsertPoint(block);
 
-        if (real_buf_idx)
+        if (real_buf_size)
         {
             vector<value_type> address = { value((int32_t)0), value((int32_t)0) };
             value_type real_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
-            value_type buf = malloc(double_type(), real_buf_idx * 8);
+            value_type buf = malloc(double_type(), real_buf_size * 8);
             m_builder.CreateStore(buf, real_buf_ptr);
         }
-        if (int_buf_idx)
+        if (int_buf_size)
         {
             vector<value_type> address = { value((int32_t)0), value((int32_t)1) };
             value_type int_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
-            value_type buf = malloc(int32_type(), int_buf_idx * 4);
+            value_type buf = malloc(int32_type(), int_buf_size * 4);
             m_builder.CreateStore(buf, int_buf_ptr);
         }
-        if (phase_buf_idx)
+        if (phase_buf_size)
         {
             vector<value_type> address = { value((int32_t)0), value((int32_t)2) };
             value_type phase_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
-            value_type buf = malloc(int64_type(), phase_buf_idx * 8);
+            value_type buf = malloc(int64_type(), phase_buf_size * 8);
             m_builder.CreateStore(buf, phase_buf_ptr);
         }
 
@@ -147,6 +181,7 @@ llvm_from_model::llvm_from_model
 
     {
         const buffer & buf_info = m_stmt_buffers.back();
+        assert(buf_info.on_stack == false);
 
         type_type ret_type;
 
@@ -264,6 +299,7 @@ llvm_from_model::create_process_function
     ctx.start_block = llvm::BasicBlock::Create(llvm_context(), "", ctx.func);
     m_builder.SetInsertPoint(ctx.start_block);
 
+    // Load dynamic buffer addresses
     {
         vector<value_type> address = { value((int32_t)0), value((int32_t)0) };
         ctx.real_buffer = m_builder.CreateLoad(
@@ -278,6 +314,26 @@ llvm_from_model::create_process_function
         vector<value_type> address = { value((int32_t)0), value((int32_t)2) };
         ctx.phase_buffer = m_builder.CreateLoad(
                     m_builder.CreateGEP(buffer_info_ptr, address), "phase_buf");
+    }
+
+    // Allocate stack buffers
+
+    int stack_buffer_count = 0;
+    for (const buffer & buf : m_stmt_buffers)
+    {
+        if (buf.on_stack)
+            ++stack_buffer_count;
+    }
+    ctx.stack_buffers.resize(stack_buffer_count);
+    for (const buffer & buf : m_stmt_buffers)
+    {
+        if (!buf.on_stack)
+            continue;
+
+        type_type elem_type = buf.type == integer ? int32_type() : double_type();
+        value_type buf_ptr =
+                m_builder.CreateAlloca(elem_type, value((int32_t) buf.size));
+        ctx.stack_buffers[buf.index] = buf_ptr;
     }
 
     // End block
@@ -634,28 +690,29 @@ llvm_from_model::generate_buffer_access
 ( statement *stmt, const index_type & index, const context & ctx )
 {
     value_type flat_index = flat_buffer_index(stmt, index, ctx);
-    value_type stmt_index = value( (int32_t) statement_index(stmt) );
-    value_type buffer;
+
+    value_type buffer_ptr;
+
+    const buffer & buf_info = m_stmt_buffers[statement_index(stmt)];
+    if (buf_info.on_stack)
     {
-        switch(stmt->expr->type)
-        {
-        case integer:
-        {
-            buffer = ctx.int_buffer;
-            break;
-        }
-        case real:
-        {
-            buffer = ctx.real_buffer;
-            break;
-        }
-        default:
-            throw string("Unexpected expression type.");
-        }
+        buffer_ptr = ctx.stack_buffers[buf_info.index];
+    }
+    else
+    {
+        // Add statement offset:
+        if (buf_info.index != 0)
+            flat_index =  m_builder.CreateAdd(flat_index,
+                                              value((int64_t)buf_info.index));
+
+        if (buf_info.type == integer)
+            buffer_ptr = ctx.int_buffer;
+        else
+            buffer_ptr = ctx.real_buffer;
     }
 
     value_type buffer_element_ptr =
-            m_builder.CreateGEP(buffer, flat_index);
+            m_builder.CreateGEP(buffer_ptr, flat_index);
 
     return buffer_element_ptr;
 }
@@ -873,10 +930,6 @@ llvm_from_model::flat_buffer_index
     }
 
     value_type flat_index = this->flat_index(the_index, the_buffer_size);
-
-    // Add statement offset:
-    if (buf.index != 0)
-        flat_index = m_builder.CreateAdd(flat_index, value((int64_t)buf.index));
 
     return flat_index;
 }

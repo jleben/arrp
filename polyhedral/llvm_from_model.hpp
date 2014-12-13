@@ -29,6 +29,14 @@ class llvm_from_model
     using block_type = llvm::BasicBlock*;
 
 public:
+    struct options
+    {
+        options():
+            max_stack_size(4096)
+        {}
+        int max_stack_size;
+    };
+
     struct context
     {
         context(schedule_type mode): mode(mode) {}
@@ -41,13 +49,15 @@ public:
         value_type int_buffer;
         value_type real_buffer;
         value_type phase_buffer;
+        vector<value_type> stack_buffers;
     };
 
     typedef vector<value_type> index_type;
 
     llvm_from_model(llvm::Module *module,
                     const vector<statement*> &,
-                    const dataflow::model * );
+                    const dataflow::model *,
+                    const options & = options());
 
     context create_process_function(schedule_type mode,
                                     const vector<semantic::type_ptr> & args);
@@ -66,9 +76,11 @@ private:
     struct buffer
     {
         polyhedral::numerical_type type;
-        int index;
         bool has_phase;
         int phase_index;
+        int size;
+        bool on_stack;
+        int index;
     };
 
     value_type generate_expression( expression *, const index_type &, const context & );

@@ -826,6 +826,25 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
         else if (buffer_size[dim] > max_buffer_size[dim])
             max_buffer_size[dim] = buffer_size[dim];
     }
+
+    // Compute largest re-use distance in number of periods
+
+    {
+        int time_dim_count = time_space.dimension(isl::space::variable);
+        map time_dep = dependency;
+        time_dep.map_domain_through(src_sched);
+        time_dep.map_range_through(sink_sched);
+        auto time_dep_set = time_dep.wrapped();
+        auto expr_space = isl::local_space(time_dep_set.get_space());
+        auto src_period = expr_space(isl::space::variable, 0);
+        auto sink_period = expr_space(isl::space::variable, time_dim_count);
+        auto distance = sink_period - src_period;
+        auto max_distance = time_dep_set.maximum(distance).integer();
+        if (debug_buffer_size::is_enabled())
+            cout << ".. max period distance = " << max_distance << endl;
+        assert(max_distance >= 0);
+        source_stmt->inter_period_dependency = max_distance > 0;
+    }
 }
 
 struct clast_stmt *ast_generator::make_ast( const isl::union_map & isl_schedule )

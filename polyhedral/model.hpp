@@ -207,10 +207,11 @@ public:
 class statement
 {
 public:
-    statement(): expr(nullptr) {}
+    statement(): expr(nullptr), inter_period_dependency(true) {}
     string name;
     vector<int> domain;
     vector<int> buffer;
+    bool inter_period_dependency;
     expression * expr;
 
     vector<int> infinite_dimensions()
