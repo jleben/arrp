@@ -689,11 +689,12 @@ llvm_from_model::value_type
 llvm_from_model::generate_buffer_access
 ( statement *stmt, const index_type & index, const context & ctx )
 {
-    value_type flat_index = flat_buffer_index(stmt, index, ctx);
+    const buffer & buf_info = m_stmt_buffers[statement_index(stmt)];
+    bool possibly_non_zero_index = buf_info.size > 1;
 
+    value_type flat_index = flat_buffer_index(stmt, index, ctx);
     value_type buffer_ptr;
 
-    const buffer & buf_info = m_stmt_buffers[statement_index(stmt)];
     if (buf_info.on_stack)
     {
         buffer_ptr = ctx.stack_buffers[buf_info.index];
@@ -702,8 +703,11 @@ llvm_from_model::generate_buffer_access
     {
         // Add statement offset:
         if (buf_info.index != 0)
+        {
             flat_index =  m_builder.CreateAdd(flat_index,
                                               value((int64_t)buf_info.index));
+            possibly_non_zero_index = true;
+        }
 
         if (buf_info.type == integer)
             buffer_ptr = ctx.int_buffer;
@@ -711,10 +715,13 @@ llvm_from_model::generate_buffer_access
             buffer_ptr = ctx.real_buffer;
     }
 
-    value_type buffer_element_ptr =
-            m_builder.CreateGEP(buffer_ptr, flat_index);
+    if (possibly_non_zero_index)
+    {
+        buffer_ptr =
+                m_builder.CreateGEP(buffer_ptr, flat_index);
+    }
 
-    return buffer_element_ptr;
+    return buffer_ptr;
 }
 
 llvm_from_model::value_type
