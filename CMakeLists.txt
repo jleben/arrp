@@ -28,10 +28,6 @@ find_package(cloog REQUIRED)
 # Discover LLVM dependencies
 
 find_package(llvm REQUIRED)
-
-include_directories(${LLVM_INCLUDE_DIRS})
-link_directories(${LLVM_LIBRARY_DIRS})
-
 find_program(llc_program llc HINTS ${LLVM_TOOLS_BINARY_DIR})
 
 # Dependencies
@@ -40,7 +36,10 @@ include_directories(
   extra   # for isl-cpp
   ${ISL_INCLUDE_DIR}
   ${CLOOG_INCLUDE_DIR}
+  ${LLVM_INCLUDE_DIRS}
 )
+
+link_directories(${LLVM_LIBRARY_DIRS})
 
 # Global compile options
 
