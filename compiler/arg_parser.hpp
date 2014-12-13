@@ -7,6 +7,7 @@
 #include <iostream>
 #include <vector>
 #include <memory>
+#include <array>
 
 namespace stream {
 namespace compiler {
@@ -27,24 +28,46 @@ void print_help()
     using namespace std;
 
     cout << "Usage:" << endl
-         << "  streamc <input file> [<parameter>...]" << endl;
+         << "  streamc <input file> [<option>...]" << endl;
 
-    cout << "Parameters:" << endl;
+    cout << "Options:" << endl;
 
-    cout << "  --output or -o : LLVM IR output file name (default: 'out.ll')." << endl;
-    cout << "  --print-tokens or -t : Print all tokens produced by lexical scanner." << endl;
-    cout << "  --print-ast or -s : Print abstract syntax tree (AST) produced by parser." << endl;
-    cout << "  --list-symbols or -l : List all top-level declarations." << endl;
     cout << "  --generate or --gen or -g <symbol> [<type>...] :" << endl
-         << "  \tGenerate output for top-level function or expression <symbol> with given argument types." << endl
-         << "  \tEach following argument <type> is used as the type of a function parameter in "
-         "generic function instantiation." << endl
+         << "  \tGenerate output for top-level function or expression <symbol>" << endl
+         << "  \twith given argument types." << endl
+         << "  \tEach following argument <type> is used as the type of" << endl
+         << "  \ta function parameter in generic function instantiation." << endl
          << "  \tA <type> can be one of the following:" << endl
          << "  \t- \"int\" - integer number," << endl
          << "  \t- \"real\" - real number," << endl
          << "  \t- a stream, e.g. \"[10,4,5]\""
          << " - each number represents size in one dimension." << endl
-         ;
+            ;
+
+    cout << "  --output or -o <name>: Generate LLVM IR output file with <name>"
+            " (default: 'out.ll')." << endl;
+
+    cout << "  --cpp <name> : Generate C++ header file with <name>." << endl;
+
+    cout << "  --meta or -m <name> : Generate JSON description file with <name>." << endl;
+
+    cout << "  --print or -p <topic> : Enable printing of <topic>." << endl
+         << "  \tAvailable topics:" << endl;
+    cout << "  \t- tokens = Lexical tokens (if enabled at compiler build time)." << endl;
+    cout << "  \t- ast = Abstract syntax tree." << endl;
+    cout << "  \t- symbols = Top-level symbols in the environment." << endl;
+    cout << "  \t- poly = Polyhedral model." << endl;
+
+    cout << "  --debug or -d <topic> : Enable debugging output for <topic>." << endl
+         << "  \tAvailable topics:" << endl
+         << "  \t- polyhedral" << endl
+         << "  \t- polyhedral.model" << endl
+         << "  \t- polyhedral.model.transform" << endl
+         << "  \t- polyhedral.ast" << endl
+         << "  \t- polyhedral.ast.buffer-size" << endl
+         << "  \t- dataflow" << endl
+            ;
+    cout << "  --no-debug or -D <topic> : Disable debugging output for <topic>." << endl;
 }
 
 class arguments
@@ -97,16 +120,22 @@ public:
 
     struct abortion {};
 
+    enum output_topic
+    {
+        tokens_output = 0,
+        ast_output,
+        symbols_output,
+        polyhedral_model_output,
 
-    bool print_tokens = false;
-    bool print_ast = false;
-    bool print_symbols = false;
-    bool print_polyhedral_model = false;
+        output_topic_count
+    };
+
     string input_filename;
     string output_filename;
     string meta_output_filename;
     string cpp_output_filename;
     target_info target;
+    std::array<bool,output_topic_count> print;
     vector<string> debug_topics;
     vector<string> no_debug_topics;
 
@@ -121,7 +150,10 @@ public:
         m_args(argv),
         output_filename("out.ll"),
         meta_output_filename("out.meta")
-    {}
+    {
+        for (int i = 0; i < print.size(); ++i)
+            print[i] = false;
+    }
 
     void parse()
     {
@@ -145,21 +177,22 @@ private:
             print_help();
             throw abortion();
         }
-        else if (opt == "--print-tokens" || opt == "-t")
+        else if (opt == "--print" || opt == "-p")
         {
-            print_tokens = true;
-        }
-        else if (opt == "--print-ast" || opt == "-s")
-        {
-            print_ast = true;
-        }
-        else if (opt == "--print-poly")
-        {
-            print_polyhedral_model = true;
-        }
-        else if (opt == "--list-symbols" || opt == "-l")
-        {
-            print_symbols = true;
+            string topic_name;
+            parse_argument(topic_name, "topic to print");
+            output_topic topic;
+            if (topic_name == "tokens")
+                topic = tokens_output;
+            else if (topic_name == "ast")
+                topic = ast_output;
+            else if (topic_name == "symbols")
+                topic = symbols_output;
+            else if (topic_name == "poly")
+                topic = polyhedral_model_output;
+            else
+                throw error(string("Invalid print topic: ") + topic_name);
+            print[topic] = true;
         }
         else if (opt == "--generate" || opt == "--gen" || opt == "-g")
         {
@@ -179,13 +212,13 @@ private:
         {
             parse_argument(cpp_output_filename, "C++ interface output file");
         }
-        else if (opt == "--debug")
+        else if (opt == "--debug" || opt == "-d")
         {
             string topic;
             parse_argument(topic, "topic");
             debug_topics.push_back(topic);
         }
-        else if (opt == "--no-debug")
+        else if (opt == "--no-debug" || opt == "-D")
         {
             string topic;
             parse_argument(topic, "topic");

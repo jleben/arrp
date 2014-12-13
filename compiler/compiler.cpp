@@ -72,9 +72,9 @@ int main(int argc, char *argv[])
     }
 
     stream::Parser parser(input_file);
-    parser.setPrintsTokens(args.print_tokens);
+    parser.setPrintsTokens(args.print[arguments::tokens_output]);
 
-    if (args.print_tokens)
+    if (args.print[arguments::tokens_output])
         cout << "== Tokens ==" << endl;
 
     int success = parser.parse();
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 
     const ast::node_ptr & ast_root = parser.ast();
 
-    if (args.print_ast)
+    if (args.print[arguments::ast_output])
     {
         cout << endl;
         cout << "== Abstract Syntax Tree ==" << endl;
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
     if (!env_builder.process(ast_root))
         return result::symbolic_error;
 
-    if (args.print_symbols)
+    if (args.print[arguments::symbols_output])
     {
         cout << endl;
         cout << "== Environment ==" << endl;
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
 
     poly.translate( sym_iter->second, target.args );
 
-    if (args.print_polyhedral_model)
+    if (args.print[arguments::polyhedral_model_output])
     {
         cout << endl << "== Polyhedral Model ==" << endl;
         for( polyhedral::statement * stmt : poly.statements() )
