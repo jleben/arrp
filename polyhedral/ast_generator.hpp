@@ -73,6 +73,11 @@ public:
 
     pair<struct clast_stmt*,struct clast_stmt*> generate();
 
+    void set_print_ast_enabled(bool flag)
+    {
+        m_print_ast = flag;
+    }
+
 private:
 
     // Translation to ISL representation:
@@ -121,6 +126,8 @@ private:
     // AST generation
 
     struct clast_stmt *make_ast( const isl::union_map & schedule );
+
+    bool m_print_ast;
 
     isl::context m_ctx;
     isl::printer m_printer;

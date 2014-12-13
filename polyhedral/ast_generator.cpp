@@ -32,6 +32,7 @@ statement *statement_for( const isl::identifier & id )
 
 ast_generator::ast_generator( const vector<statement*> & statements,
                               const dataflow::model * dataflow ):
+    m_print_ast(false),
     m_printer(m_ctx),
     m_statements(statements),
     m_dataflow(dataflow)
@@ -79,15 +80,20 @@ ast_generator::generate()
 
     compute_buffer_sizes(combined_schedule, periodic_dependencies, domain_map);
 
-#if 1
+    if(m_print_ast)
+        cout << endl << "== Output AST ==" << endl;
+
+    if(m_print_ast)
+        cout << endl << "-- Finite --" << endl;
     struct clast_stmt *init_ast
             = make_ast( init_schedule.in_domain(init_domains) );
 
+    if(m_print_ast)
+        cout << endl << "-- Periodic --" << endl;
     struct clast_stmt *period_ast
             = make_ast( period_schedule.in_domain(period_domains) );
 
     return std::make_pair(init_ast, period_ast);
-#endif
 }
 
 void ast_generator::polyhedral_model
@@ -848,11 +854,8 @@ struct clast_stmt *ast_generator::make_ast( const isl::union_map & isl_schedule 
 
     clast_stmt *ast = cloog_clast_create_from_input(input, options);
 
-    if(debug::is_enabled())
-    {
-        cout << endl << "--- Cloog AST:" << endl;
+    if(m_print_ast)
         clast_pprint(stdout, ast, 0, options);
-    }
 
     return ast;
 }

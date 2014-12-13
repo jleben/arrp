@@ -54,9 +54,10 @@ void print_help()
     cout << "  --print or -p <topic> : Enable printing of <topic>." << endl
          << "  \tAvailable topics:" << endl;
     cout << "  \t- tokens = Lexical tokens (if enabled at compiler build time)." << endl;
-    cout << "  \t- ast = Abstract syntax tree." << endl;
+    cout << "  \t- ast = Abstract syntax tree of input code." << endl;
     cout << "  \t- symbols = Top-level symbols in the environment." << endl;
     cout << "  \t- poly = Polyhedral model." << endl;
+    cout << "  \t- out-ast = Abstract syntax tree of output code." << endl;
 
     cout << "  --debug or -d <topic> : Enable debugging output for <topic>." << endl
          << "  \tAvailable topics:" << endl
@@ -126,6 +127,7 @@ public:
         ast_output,
         symbols_output,
         polyhedral_model_output,
+        target_ast_output,
 
         output_topic_count
     };
@@ -190,6 +192,8 @@ private:
                 topic = symbols_output;
             else if (topic_name == "poly")
                 topic = polyhedral_model_output;
+            else if (topic_name == "out-ast")
+                topic = target_ast_output;
             else
                 throw error(string("Invalid print topic: ") + topic_name);
             print[topic] = true;

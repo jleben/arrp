@@ -174,6 +174,8 @@ int main(int argc, char *argv[])
 
     polyhedral::ast_generator poly_ast_gen( poly.statements(),
                                             &dataflow_model );
+    poly_ast_gen.set_print_ast_enabled(args.print[arguments::target_ast_output]);
+
     auto ast = poly_ast_gen.generate();
     if (!ast.first && !ast.second)
     {
