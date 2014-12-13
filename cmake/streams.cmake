@@ -8,6 +8,13 @@ function(compile_stream_func target_name source_file sym_name args options)
     DEPENDS ${source_file} streamc
   )
 
+  set(llvm_opt_file ${target_name}-opt.ll)
+  add_custom_command(OUTPUT ${llvm_opt_file}
+    COMMAND opt
+    ARGS -S -std-compile-opts ${llvm_file} -o ${llvm_opt_file}
+    DEPENDS ${llvm_file}
+  )
+
   set(object_file ${target_name}.o)
 
   if(CMAKE_CL_64)
@@ -16,8 +23,8 @@ function(compile_stream_func target_name source_file sym_name args options)
 
   add_custom_command(OUTPUT ${object_file}
     COMMAND ${llc_program}
-    ARGS ${arch} -filetype=obj -o ${object_file} ${llvm_file} $<$<CONFIG:Release>:-O=3>
-    DEPENDS ${llvm_file}
+    ARGS ${arch} -filetype=obj -o ${object_file} ${llvm_opt_file} $<$<CONFIG:Release>:-O=3>
+    DEPENDS ${llvm_opt_file}
   )
 
   set(${target_name}_object ${object_file} PARENT_SCOPE)
