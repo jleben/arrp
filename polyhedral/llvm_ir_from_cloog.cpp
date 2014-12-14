@@ -1,9 +1,16 @@
 #include "llvm_ir_from_cloog.hpp"
 
-#include LLVM_VERIFIER_HEADER
+#include <llvm/Config/llvm-config.h>
+#define LLVM_VERSION_GREATER_THAN_3_4 \
+    (LLVM_VERSION_MAJOR > 3) || ((LLVM_VERSION_MAJOR == 3) && (LLVM_VERSION_MINOR > 4))
+
 #include <llvm/Support/raw_os_ostream.h>
 #include <llvm/IR/Intrinsics.h>
-#include <llvm/Config/config.h>
+#if LLVM_VERSION_GREATER_THAN_3_4
+# include <llvm/IR/Verifier.h>
+#else
+# include <llvm/Analysis/Verifier.h>
+#endif
 
 #include <iostream>
 
@@ -282,7 +289,7 @@ void llvm_from_cloog::process( clast_user_stmt* stmt )
 
 bool llvm_from_cloog::verify()
 {
-#if (LLVM_VERSION_MAJOR > 3) || ((LLVM_VERSION_MAJOR == 3) && (LLVM_VERSION_MINOR > 4))
+#if LLVM_VERSION_GREATER_THAN_3_4
     llvm::raw_os_ostream llvm_ostream(cerr);
     return !llvm::verifyModule(*m_module, &llvm_ostream);
 #else
