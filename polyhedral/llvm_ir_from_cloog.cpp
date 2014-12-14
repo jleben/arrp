@@ -3,6 +3,7 @@
 #include LLVM_VERIFIER_HEADER
 #include <llvm/Support/raw_os_ostream.h>
 #include <llvm/IR/Intrinsics.h>
+#include <llvm/Config/config.h>
 
 #include <iostream>
 
@@ -281,6 +282,10 @@ void llvm_from_cloog::process( clast_user_stmt* stmt )
 
 bool llvm_from_cloog::verify()
 {
+#if (LLVM_VERSION_MAJOR > 3) || ((LLVM_VERSION_MAJOR == 3) && (LLVM_VERSION_MINOR > 4))
+    llvm::raw_os_ostream llvm_ostream(cerr);
+    return llvm::verifyModule(*m_module, &llvm_ostream);
+#else
     string verifier_msg;
     bool failure = llvm::verifyModule(*m_module, llvm::ReturnStatusAction,
                                       &verifier_msg);
@@ -290,6 +295,7 @@ bool llvm_from_cloog::verify()
         cerr << verifier_msg;
     }
     return !failure;
+#endif
 }
 
 void llvm_from_cloog::output( std::ostream & out )
