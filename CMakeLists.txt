@@ -7,6 +7,7 @@ enable_testing()
 # Options
 
 option(BUILD_TESTING "Build tests" ON)
+set(TEST_BUILD_TYPE Release CACHE STRING "Build type for tests (affects performance evaluations).")
 
 # CMake setup
 
