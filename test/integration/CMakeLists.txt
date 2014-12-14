@@ -43,7 +43,7 @@ add_integration_test(test-centroid
 
 add_integration_test(test-mat-mul
   ${CMAKE_SOURCE_DIR}/examples/matrix-mult.in
-  matrix_multiply "[5,2,3];[5,3,2]"
+  matrix_multiply "[10,128,256];[10,256,128]"
   mat-mul.cpp
 )
 

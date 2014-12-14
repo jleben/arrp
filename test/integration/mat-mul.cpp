@@ -3,67 +3,98 @@
 
 #include <iostream>
 #include <array>
+#include <chrono>
 
 using namespace std;
+using namespace std::chrono;
 
 using stream::testing::multi_array;
 
-int main()
+constexpr int T = 10;
+constexpr int A = 128;
+constexpr int B = 256;
+constexpr int C = 128;
+
+using in1_type = multi_array<double,T,A,B>;
+using in2_type = multi_array<double,T,B,C>;
+using out_type = multi_array<double,T,A,C>;
+
+void compute_expected(const in1_type & in1,
+                      const in2_type & in2,
+                      out_type & out)
 {
-    matrix_multiply::buffer buf;
-    matrix_multiply::allocate(&buf);
-
-    double m1[5][2][3];
-    double m2[5][3][2];
-
-    for (int x=0; x<5; ++x)
+    for (int t=0; t<T; ++t)
     {
-        m1[x][0][0] = 1 + x;
-        m1[x][0][1] = 2 + x;
-        m1[x][0][2] = 3 + x;
-        m1[x][1][0] = 4 + x;
-        m1[x][1][1] = 5 + x;
-        m1[x][1][2] = 6 + x;
-
-        m2[x][0][0] = 1 + x;
-        m2[x][0][1] = 2 + x;
-        m2[x][1][0] = 3 + x;
-        m2[x][1][1] = 4 + x;
-        m2[x][2][0] = 5 + x;
-        m2[x][2][1] = 6 + x;
-    }
-
-    matrix_multiply::initialize((double*)m1, (double*)m2, &buf);
-
-    multi_array<double,5,2,2> output(matrix_multiply::get_output(&buf));
-
-    for (int x=0; x<5; ++x)
-    {
-        cout << output(x,0,0) << "  " << output(x,0,1) << endl;
-        cout << output(x,1,0) << "  " << output(x,1,1) << endl;
-        cout << "---" << endl;
-    }
-
-    int correct_count = 0;
-    for (int x=0; x<5; ++x)
-    {
-        for (int r = 0; r < 2; ++r)
+        for (int a = 0; a < A; ++a)
         {
-            for (int c = 0; c < 2; ++c)
+            for (int c = 0; c < C; ++c)
             {
                 double sum = 0;
-                for(int i = 0; i < 3; ++i)
+                for(int b = 0; b < B; ++b)
                 {
-                    sum += m1[x][r][i] * m2[x][i][c];
+                    sum += in1(t,a,b) * in2(t,b,c);
                 }
-                if (output(x,r,c) == sum)
-                    ++correct_count;
+                out(t,a,c) = sum;
             }
         }
     }
+}
 
-    cout << ">> " << ((double) correct_count * 100 / (5*2*2)) << "% CORRECT" << endl;
+int main()
+{
+    std::random_device rand;
 
-    return 0;
+    bool all_ok = true;
+
+    for(int rep = 0; rep < 3; ++rep)
+    {
+        cout << endl;
+        cout << "## Run " << rep << " ##" << endl;
+
+       in1_type in1 = in1_type::random(-10,10,rand());
+       in2_type in2 = in2_type::random(-10,10,rand());
+       out_type expected;
+
+       // Run expected
+
+       auto c_start_time = high_resolution_clock::now();
+       compute_expected(in1, in2, expected);
+       auto c_end_time = high_resolution_clock::now();
+
+       // Run lang
+
+       matrix_multiply::buffer state;
+       matrix_multiply::allocate(&state);
+
+       auto lang_start_time = high_resolution_clock::now();
+       matrix_multiply::initialize(in1.data(), in2.data(), &state);
+       auto lang_end_time = high_resolution_clock::now();
+
+       // Compare
+
+       out_type actual(matrix_multiply::get_output(&state));
+
+       bool ok = actual == expected;
+       stream::testing::outcome(ok);
+
+       all_ok &= ok;
+
+       // Report
+
+       duration<double, std::micro> c_time =
+               c_end_time - c_start_time;
+       duration<double, std::micro> lang_time =
+               lang_end_time - lang_start_time;
+
+       cout << "C time: " << c_time.count() << endl;
+       cout << "lang time: " << lang_time.count() << endl;
+       cout << "lang / C ratio: "
+            << (lang_time.count() / c_time.count()) << endl;
+       cout << "lang / C ratio: "
+            << (lang_time.count() / c_time.count()) << endl;
+    }
+
+    cout << endl << "## Summary:" << endl;
+    return stream::testing::outcome(all_ok);
 }
 
