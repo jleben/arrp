@@ -478,6 +478,8 @@ isl::union_map ast_generator::make_schedule
     // FIXME: statements with no dependencies
     // seem to always end up with an empty schedule.
 
+    //isl_options_set_schedule_fuse(m_ctx.get(), ISL_SCHEDULE_FUSE_MAX);
+
     isl::union_map proximities( dependencies.get_space() );
 
     isl_union_set *dom = domains.copy();
