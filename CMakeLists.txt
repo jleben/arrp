@@ -28,15 +28,9 @@ find_package(cloog REQUIRED)
 
 # Discover LLVM dependencies
 
-find_package(llvm REQUIRED)
+find_package(llvm-internal REQUIRED)
 
 find_program(llc_program llc HINTS ${LLVM_TOOLS_BINARY_DIR})
-
-if(DEFINED LLVM_VERSION AND LLVM_VERSION VERSION_LESS 3.5)
-  add_definitions("-DLLVM_VERIFIER_HEADER=<llvm/Analysis/Verifier.h>")
-else()
-  add_definitions("-DLLVM_VERIFIER_HEADER=<llvm/IR/Verifier.h>")
-endif()
 
 # Dependencies
 

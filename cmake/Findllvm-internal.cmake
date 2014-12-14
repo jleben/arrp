@@ -1,18 +1,16 @@
+
+find_package(LLVM QUIET)
+
+if(LLVM_FOUND)
+  message(STATUS "Found LLVM version: ${LLVM_VERSION}")
+  return()
+endif()
+
 find_program(llvm_config_program llvm-config)
 
 if (NOT llvm_config_program)
   message(FATAL_ERROR "Could not find the \"llvm-config\" program.")
 endif()
-
-if(WIN32)
-
-  if (llvm_FIND_REQUIRED)
-    find_package(llvm REQUIRED)
-  else()
-    find_package(llvm)
-  endif()
-
-else()
 
 function(llvm_find what variable description)
   if(DEFINED ${variable})
@@ -35,5 +33,3 @@ llvm_find(--cxxflags LLVM_COMPILE_FLAGS "LLVM compile flags.")
 llvm_find(--libdir LLVM_LINK_DIRS "LLVM link directories.")
 llvm_find(--ldflags LLVM_LINK_FLAGS "LLVM link flags.")
 llvm_find("--libs;core" LLVM_LIBRARIES "LLVM libraries.")
-
-endif() # NOT WIN32
