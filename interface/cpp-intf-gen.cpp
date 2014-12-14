@@ -50,18 +50,9 @@ func_decl_node *decl_get_output_func(polyhedral::statement *output_stmt)
 {
     auto buf_ptr_type = new pointer_type_node(new basic_type_node("buffer"));
 
-    type_node *ret_type;
-    switch(output_stmt->expr->type)
-    {
-    case polyhedral::integer:
-        ret_type = int32_ptr_type();
-        break;
-    case polyhedral::real:
-        ret_type = double_ptr_type();
-        break;
-    default:
-        assert(false);
-    }
+    type_node *ret_type =
+            output_stmt->expr->type == polyhedral::integer ?
+                int32_ptr_type() : double_ptr_type();
 
     func_signature_node *sig = new func_signature_node;
     sig->name = "get_output";

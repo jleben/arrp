@@ -170,7 +170,7 @@ private:
     block_type add_block( const string & name )
     {
         auto parent = m_builder.GetInsertBlock()->getParent();
-        llvm::BasicBlock::Create(llvm_context(), name, parent);
+        return llvm::BasicBlock::Create(llvm_context(), name, parent);
     }
 
     value_type malloc( type_type t, std::uint64_t size );

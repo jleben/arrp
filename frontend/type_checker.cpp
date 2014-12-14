@@ -510,6 +510,7 @@ type_checker::process_identifier( const sp<ast::node> & root )
             type_ptr sym_type = symbol_type(sym);
             auto success = m_ctx.root_scope()->emplace(id, sym_type);
             assert(success.second);
+            (void) success;
             return make_pair(sym_type, m_ctx.root_scope());
         }
     }
@@ -1160,6 +1161,7 @@ T const_val(const type_ptr & type)
         return type->as<real_num>().constant_value();
     default:
         assert(false);
+        throw error("Type has no constant value.");
     }
 }
 
@@ -1300,7 +1302,6 @@ type_ptr type_checker::constant_for( const builtin_function & func,
     }
 
     type_ptr result;
-    bool ok;
     switch(func.intrinsic_type)
     {
     case intrinsic::add:

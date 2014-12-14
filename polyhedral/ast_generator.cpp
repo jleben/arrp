@@ -118,8 +118,6 @@ isl::basic_set ast_generator::polyhedral_domain( statement *stmt )
 
     assert(stmt->domain.size());
 
-    const string & name = stmt->name;
-
     auto space = isl::space( m_ctx,
                              isl::set_tuple( isl::identifier(stmt->name, stmt),
                                              stmt->domain.size() ) );
@@ -215,7 +213,6 @@ isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
 
             int coef_count = initializer->domain.size() + dependent->domain.size() + 1;
             int dep_coef = initializer->domain.size();
-            int const_coef = coef_count - 1;
             int reduction_dim = initializer->domain.size();
             if (reduction_dim > dependent->domain.size() - 1)
                 --reduction_dim;

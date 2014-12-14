@@ -185,19 +185,8 @@ llvm_from_model::llvm_from_model
         const buffer & buf_info = m_stmt_buffers.back();
         assert(buf_info.on_stack == false);
 
-        type_type ret_type;
-
-        switch(buf_info.type)
-        {
-        case integer:
-            ret_type = pointer(int32_type());
-            break;
-        case real:
-            ret_type = pointer(double_type());
-            break;
-        default:
-            assert(false);
-        }
+        type_type ret_type = buf_info.type == integer ?
+                    pointer(int32_type()) : pointer(double_type());
 
         type_type buffer_struct_ptr_type =
                 llvm::PointerType::get(m_buffer_struct_type, 0);
@@ -268,14 +257,8 @@ llvm_from_model::create_process_function
                                     param_types,
                                     false);
 
-    const char *func_name;
-    switch(mode)
-    {
-    case initial_schedule:
-        func_name = "initialize"; break;
-    case periodic_schedule:
-        func_name = "process"; break;
-    }
+    const char *func_name =
+            mode == initial_schedule ? "initialize" : "process";
 
     ctx.func =
             llvm::Function::Create(func_type,
@@ -400,7 +383,7 @@ llvm_from_model::generate_statement
 
     value_type value;
 
-    if (auto input = dynamic_cast<input_access*>(stmt->expr))
+    if (dynamic_cast<input_access*>(stmt->expr))
     {
         value = generate_input_access(stmt, index, ctx);
     }

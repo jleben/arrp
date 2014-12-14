@@ -112,7 +112,7 @@ void translator::translate(const semantic::symbol & sym,
     }
 
     result = iterate(result, result_type);
-    auto stmt = make_statement(result, result_domain);
+    make_statement(result, result_domain);
 
     if (debug::is_enabled())
         cout << "[poly] Exiting root scope." << endl;
@@ -700,7 +700,7 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
                 iter.domain->semantic_type->as<semantic::stream>();
 
         stmt_view *source_stream;
-        if (source_stream = dynamic_cast<stmt_view*>(source_expr))
+        if ((source_stream = dynamic_cast<stmt_view*>(source_expr)))
         {
             stmt_view *copy = new stmt_view(source_stream->target);
             copy->pattern = access(source_stream);
@@ -788,7 +788,7 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
     expression *source_expr = do_expression(source_node);
 
     stmt_view *source_stmt_view;
-    if (source_stmt_view = dynamic_cast<stmt_view*>(source_expr))
+    if ((source_stmt_view = dynamic_cast<stmt_view*>(source_expr)))
     {
         stmt_view *copy = new stmt_view(source_stmt_view->target);
         copy->pattern = access(source_stmt_view);
@@ -921,9 +921,8 @@ expression *translator::iterate (expression *expr, const semantic::type_ptr & re
 
 iterator_access * translator::iterate( range *r )
 {
-    constant<int> *start, *end;
-    assert(start = dynamic_cast<constant<int>*>(r->start));
-    assert(end = dynamic_cast<constant<int>*>(r->end));
+    constant<int> *start = dynamic_cast<constant<int>*>(r->start);
+    assert(start);
 
     iterator_access *it = new iterator_access(r->type);
     it->dimension = current_dimension();

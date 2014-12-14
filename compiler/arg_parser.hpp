@@ -132,6 +132,12 @@ public:
         output_topic_count
     };
 
+private:
+    int m_arg_count;
+    char **m_args;
+    string m_current_opt;
+
+public:
     string input_filename;
     string output_filename;
     string meta_output_filename;
@@ -140,11 +146,6 @@ public:
     std::array<bool,output_topic_count> print;
     vector<string> debug_topics;
     vector<string> no_debug_topics;
-
-private:
-    int m_arg_count;
-    char **m_args;
-    string m_current_opt;
 
 public:
     arguments(int argc, char *argv[]):

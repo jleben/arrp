@@ -2,7 +2,7 @@
 #include "../frontend/parser.h"
 #include "../frontend/ast_printer.hpp"
 #include "../frontend/type_checker.hpp"
-#include "../frontend/ir-generator.hpp"
+//#include "../frontend/ir-generator.hpp"
 #include "../polyhedral/translator.hpp"
 #include "../polyhedral/printer.hpp"
 #include "../polyhedral/ast_generator.hpp"

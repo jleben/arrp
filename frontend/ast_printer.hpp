@@ -95,6 +95,8 @@ public:
             }
             break;
         }
+        default:
+            break;
         }
     }
 
