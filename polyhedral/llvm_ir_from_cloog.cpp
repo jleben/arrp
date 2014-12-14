@@ -284,7 +284,7 @@ bool llvm_from_cloog::verify()
 {
 #if (LLVM_VERSION_MAJOR > 3) || ((LLVM_VERSION_MAJOR == 3) && (LLVM_VERSION_MINOR > 4))
     llvm::raw_os_ostream llvm_ostream(cerr);
-    return llvm::verifyModule(*m_module, &llvm_ostream);
+    return !llvm::verifyModule(*m_module, &llvm_ostream);
 #else
     string verifier_msg;
     bool failure = llvm::verifyModule(*m_module, llvm::ReturnStatusAction,
