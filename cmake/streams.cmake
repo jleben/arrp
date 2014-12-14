@@ -11,7 +11,7 @@ function(compile_stream_func target_name source_file sym_name args options)
   set(llvm_opt_file ${target_name}-opt.ll)
   add_custom_command(OUTPUT ${llvm_opt_file}
     COMMAND opt
-    ARGS -S -std-compile-opts ${llvm_file} -o ${llvm_opt_file}
+    ARGS -S -scalarrepl -std-compile-opts ${llvm_file} -o ${llvm_opt_file}
     DEPENDS ${llvm_file}
   )
 
