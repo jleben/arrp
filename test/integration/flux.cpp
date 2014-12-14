@@ -68,16 +68,15 @@ int main()
     multi_array<double,N> ex_buf;
     multi_array<double,T-1> out;
 
-    uint32_t seeds[] = {91827376, 74653985, 17629356};
+    std::random_device rand;
 
     bool all_ok = true;
-    int run = 0;
-    for (auto seed : seeds)
+    for (int rep = 0; rep < 3; ++rep)
     {
         cout << endl;
-        cout << "## Run " << ++run << " ##" << endl;
+        cout << "## Run " << rep << " ##" << endl;
 
-        multi_array<double,T,N> in = multi_array<double,T,N>::random(0,100,seed);
+        multi_array<double,T,N> in = multi_array<double,T,N>::random(0,100,rand());
 
         auto ex_best_start_time = high_resolution_clock::now();
         expected_best(in, ex, ex_buf);
