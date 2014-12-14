@@ -70,7 +70,7 @@ int main()
 
     uint32_t seeds[] = {91827376, 74653985, 17629356};
 
-    bool ok = true;
+    bool all_ok = true;
     int run = 0;
     for (auto seed : seeds)
     {
@@ -131,11 +131,13 @@ int main()
         cout << "-- out:" << endl;
         cout << out;
 #endif
-        ok &= out == ex;
+        bool ok = out == ex;
         stream::testing::outcome(ok);
+
+        all_ok &= ok;
     }
 
     cout << endl << "## Summary:" << endl;
 
-    return stream::testing::outcome(ok);
+    return stream::testing::outcome(all_ok);
 }
