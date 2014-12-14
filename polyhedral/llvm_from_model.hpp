@@ -79,6 +79,7 @@ private:
         bool has_phase;
         int phase_index;
         int size;
+        vector<int> domain;
         bool on_stack;
         int index;
     };
@@ -97,9 +98,15 @@ private:
     vector<value_type> mapped_index( const vector<value_type> & index,
                                      const mapping & );
 
+    vector<value_type> buffer_index( statement * stmt,
+                                     const index_type &,
+                                     const context & );
     value_type flat_buffer_index( statement * stmt,
                                   const index_type &,
                                   const context & );
+
+    type_type buffer_ptr_type(const buffer &);
+    type_type array_type(type_type elem_type, const vector<int> domain);
 
     value_type flat_index( const vector<value_type> & index,
                            const vector<int> & domain );

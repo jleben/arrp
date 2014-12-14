@@ -47,6 +47,7 @@ llvm_from_model::llvm_from_model
         buffer buf;
         buf.type = stmt->expr->type;
         buf.size = volume(stmt->buffer);
+        buf.domain = stmt->buffer;
 
         const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
         if (actor)
@@ -58,6 +59,7 @@ llvm_from_model::llvm_from_model
 
             buf.has_phase = period_overlaps || init_overlaps;
             buf.phase_index = phase_buf_size++;
+            transpose(buf.domain, actor->flow_dimension);
         }
         else
         {
@@ -331,8 +333,18 @@ llvm_from_model::create_process_function
             continue;
 
         type_type elem_type = buf.type == integer ? int32_type() : double_type();
-        value_type buf_ptr =
-                m_builder.CreateAlloca(elem_type, value((int32_t) buf.size));
+        value_type buf_ptr;
+        if (buf.size > 1)
+        {
+            type_type array_type = this->array_type(elem_type, buf.domain);
+            buf_ptr = m_builder.CreateAlloca(array_type);
+        }
+        else
+        {
+            assert(buf.size == 1);
+            buf_ptr = m_builder.CreateAlloca(elem_type);
+        }
+
         ctx.stack_buffers[buf.index] = buf_ptr;
     }
 
@@ -690,9 +702,7 @@ llvm_from_model::generate_buffer_access
 ( statement *stmt, const index_type & index, const context & ctx )
 {
     const buffer & buf_info = m_stmt_buffers[statement_index(stmt)];
-    bool possibly_non_zero_index = buf_info.size > 1;
 
-    value_type flat_index = flat_buffer_index(stmt, index, ctx);
     value_type buffer_ptr;
 
     if (buf_info.on_stack)
@@ -701,24 +711,29 @@ llvm_from_model::generate_buffer_access
     }
     else
     {
-        // Add statement offset:
-        if (buf_info.index != 0)
-        {
-            flat_index =  m_builder.CreateAdd(flat_index,
-                                              value((int64_t)buf_info.index));
-            possibly_non_zero_index = true;
-        }
-
         if (buf_info.type == integer)
             buffer_ptr = ctx.int_buffer;
         else
             buffer_ptr = ctx.real_buffer;
+
+        if (buf_info.index != 0)
+        {
+            buffer_ptr = m_builder.CreateGEP(buffer_ptr, value((int64_t)buf_info.index));
+        }
+        if (buf_info.size > 1)
+        {
+            buffer_ptr = m_builder.CreateBitCast(buffer_ptr, buffer_ptr_type(buf_info));
+        }
     }
 
-    if (possibly_non_zero_index)
+    if (buf_info.size > 1)
     {
-        buffer_ptr =
-                m_builder.CreateGEP(buffer_ptr, flat_index);
+        vector<value_type> elem_idx = buffer_index(stmt, index, ctx);
+        vector<value_type> access_idx(elem_idx.size() + 1);
+        access_idx[0] = value((int32_t)0);
+        std::copy(elem_idx.begin(), elem_idx.end(), ++access_idx.begin());
+
+        buffer_ptr = m_builder.CreateGEP(buffer_ptr, access_idx);
     }
 
     return buffer_ptr;
@@ -864,8 +879,8 @@ void llvm_from_model::advance_buffers(const context & ctx)
     }
 }
 
-llvm_from_model::value_type
-llvm_from_model::flat_buffer_index
+vector<llvm_from_model::value_type>
+llvm_from_model::buffer_index
 ( statement * stmt, const index_type & index, const context & ctx )
 {
     // Get basic info about accessed statement
@@ -928,17 +943,32 @@ llvm_from_model::flat_buffer_index
         }
     }
 
-    // Flatten index
-
     if (actor)
     {
         transpose(the_index, actor->flow_dimension);
-        transpose(the_buffer_size, actor->flow_dimension);
     }
 
-    value_type flat_index = this->flat_index(the_index, the_buffer_size);
+    return the_index;
+}
 
-    return flat_index;
+llvm_from_model::type_type
+llvm_from_model::buffer_ptr_type(const buffer &buf)
+{
+    type_type elem_type = buf.type == integer ? int32_type() : double_type();
+    type_type array_type = this->array_type(elem_type, buf.domain);
+    return pointer(array_type);
+}
+
+llvm_from_model::type_type
+llvm_from_model::array_type(type_type elem_type, const vector<int> domain)
+{
+    type_type result_type = elem_type;
+    for (int i = domain.size() - 1; i >= 0; --i)
+    {
+        assert(domain[i] >= 0);
+        result_type = llvm::ArrayType::get(result_type, (uint64_t)domain[i]);
+    }
+    return result_type;
 }
 
 template <typename T>
