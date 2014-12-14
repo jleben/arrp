@@ -1,3 +1,8 @@
+find_program(llvm_config_program llvm-config)
+
+if (NOT llvm_config_program)
+  message(FATAL_ERROR "Could not find the \"llvm-config\" program.")
+endif()
 
 if(WIN32)
 
@@ -15,7 +20,7 @@ function(llvm_find what variable description)
   endif()
 
   execute_process(
-    COMMAND llvm-config ${what}
+    COMMAND ${llvm_config_program} ${what}
     OUTPUT_VARIABLE ${variable}
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
