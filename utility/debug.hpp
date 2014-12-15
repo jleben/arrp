@@ -23,6 +23,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <unordered_map>
 #include <string>
+#include <stdexcept>
 
 namespace stream {
 namespace debug {
@@ -133,6 +134,8 @@ struct topic
             return (subtopic_status == disabled) ? disabled : enabled;
         case disabled:
             return disabled;
+        default:
+            throw std::runtime_error("Unexpected debug topic status.");
         }
     }
 
