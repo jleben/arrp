@@ -23,7 +23,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../../frontend/parser.h"
 #include "../../frontend/environment.hpp"
 #include "../../frontend/type_checker.hpp"
-#include "../../frontend/ir-generator.hpp"
 #include "../../polyhedral/translator.hpp"
 #include "../../frontend/types.hpp"
 
