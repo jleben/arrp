@@ -1,5 +1,5 @@
 
-find_package(LLVM QUIET)
+find_package(LLVM QUIET CONFIG)
 
 if(LLVM_FOUND)
   message(STATUS "Found LLVM version: ${LLVM_VERSION}")
