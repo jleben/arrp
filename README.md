@@ -333,7 +333,7 @@ Example:
 
     a = 1..10 * 5; // A range between 1 and 10 multiplied by 5.
 
-#### Binary Operation
+#### Binary Operations
 
 Syntax:
 
@@ -431,11 +431,26 @@ arguments must be equal to the number of parameters.
 
 #### Intrinsic Functions
 
-The following table shows available intrinsic functions and the
-type of their result given the types of arguments.
+The table below shows available intrinsic (built-in) functions.
 
-If argument types do not match exactly one of the variants of the function
-listed below, then a match is attempted by promoting `int` arguments to `real`.
+Just like the
+operands of [binary operations](#binary-operations),
+arguments to intrinsic functions can be streams or ranges.
+If multiple arguments are streams, they must all be of the same size.
+Ranges are treated as one-dimensional streams.
+The function is performed once for each set of corresponding elements
+of the stream or range arguments, and each time using the same values
+of scalar arguments.
+The result is a stream of the same size as the stream
+or range arguments.
+The type of elements of a stream is `real` and the
+type of elements of a range is `int`.
+
+The following table shows the relation between the scalar argument types
+and the result type for each available function. Some functions have
+multiple variants. If argument types do not match exactly one of the variants of
+the functions listed below, then a match is attempted by promoting `int`
+arguments to `real`.
 
   func. |  arg.1 | arg.2  |  result
 :------:|:------:|:------:|:-------
