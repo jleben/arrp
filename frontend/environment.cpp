@@ -241,6 +241,7 @@ void environment_builder::process_expr( const sp<ast::node> & root )
     {
     case ast::integer_num:
     case ast::real_num:
+    case ast::boolean:
         return;
     case ast::identifier:
     {
@@ -253,6 +254,7 @@ void environment_builder::process_expr( const sp<ast::node> & root )
         }
         return;
     }
+    case ast::oppose:
     case ast::negate:
     {
         ast::list_node * list = root->as_list();
@@ -325,6 +327,13 @@ void environment_builder::process_expr( const sp<ast::node> & root )
         ast::list_node *arg_list = args->as_list();
         for (const auto & arg : arg_list->elements)
             process_expr(arg);
+        return;
+    }
+    case ast::if_expression:
+    {
+        process_expr(root->as_list()->elements[0]);
+        process_block(root->as_list()->elements[1]);
+        process_block(root->as_list()->elements[2]);
         return;
     }
     case ast::for_expression:

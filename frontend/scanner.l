@@ -32,6 +32,7 @@
 , { return ','; }
 ; { return ';'; }
 : { return ':'; }
+\? { return '?'; }
 \+ { return '+'; }
 \- { return '-'; }
 \* { return '*'; }
@@ -39,11 +40,19 @@
 \^ { return '^'; }
 = { return '='; }
 # { return '#'; }
+"!" { return '!'; }
 "==" { return Parser::EQ; }
 "!=" { return Parser::NEQ; }
 "<" { return Parser::LESS; }
 ">" { return Parser::MORE; }
+"<=" { return Parser::LESS_EQ; }
+">=" { return Parser::MORE_EQ; }
 
+"true" { return Parser::TRUE; }
+"false" { return Parser::FALSE; }
+"if" { return Parser::IF; }
+"then" { return Parser::THEN; }
+"else" { return Parser::ELSE; }
 "let" { return Parser::LET; }
 "reduce" { return Parser::REDUCE; }
 "for" { return Parser::FOR; }

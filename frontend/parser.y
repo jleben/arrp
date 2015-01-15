@@ -6,14 +6,15 @@
 
 %token SCANNER_ERROR
 %token INT REAL ID
-%token LET REDUCE FOR EACH TAKES EVERY IN
+%token TRUE FALSE IF THEN ELSE REDUCE FOR EACH TAKES EVERY IN LET
 
 %left '='
-%left EQ NEQ LESS MORE
+%left EQ NEQ LESS MORE LESS_EQ MORE_EQ
 %left '+' '-'
 %left '*' '/' ':'
 %left '^'
 %left DOTDOT
+%right '!'
 %right UMINUS '#'
 %left '[' '{' '('
 
@@ -169,6 +170,9 @@ let: LET { $$ = new ast::node( ast::kwd_let, d_scanner.lineNr() ); }
 ;
 
 expr:
+  '!' expr
+  { $$ = new ast::list_node( ast::oppose, $2->line, {$2} ); }
+  |
   expr EQ expr
   { $$ = new ast::binary_op_expression( $1, ast::equal, $3 ); }
   |
@@ -178,8 +182,14 @@ expr:
   expr LESS expr
   { $$ = new ast::binary_op_expression( $1, ast::lesser, $3 ); }
   |
+  expr LESS_EQ expr
+  { $$ = new ast::binary_op_expression( $1, ast::lesser_or_equal, $3 ); }
+  |
   expr MORE expr
   { $$ = new ast::binary_op_expression( $1, ast::greater, $3 ); }
+  |
+  expr MORE_EQ expr
+  { $$ = new ast::binary_op_expression( $1, ast::greater_or_equal, $3 ); }
   |
   expr '+' expr
   { $$ = new ast::binary_op_expression( $1, ast::add, $3 ); }
@@ -218,6 +228,8 @@ expr:
   id
   |
   number
+  |
+  boolean
 ;
 
 hash:
@@ -237,6 +249,8 @@ simple_expr:
 
 complex_expr:
   simple_expr
+  |
+  if_expr
   |
   for_expr
   |
@@ -307,6 +321,13 @@ simple_expr_list:
   {
     $$ = $1;
     $$.as<ast::list_node>()->append( $3 );
+  }
+;
+
+if_expr:
+  IF expr THEN expr_block ELSE expr_block
+  {
+    $$ = new ast::list_node( ast::if_expression, $2->line, {$2, $4,$6} );
   }
 ;
 
@@ -413,6 +434,13 @@ real: REAL
     std::stod( d_scanner.matched() )
   );
 }
+;
+
+boolean:
+  TRUE
+  { $$ = new ast::leaf_node<bool>( ast::boolean, d_scanner.lineNr(), true ); }
+| FALSE
+  { $$ = new ast::leaf_node<bool>( ast::boolean, d_scanner.lineNr(), false ); }
 ;
 
 id: ID

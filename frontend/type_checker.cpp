@@ -92,6 +92,67 @@ private:
     }
 };
 
+type_ptr promote(const type_ptr & in, type::tag promotion)
+{
+    switch(promotion)
+    {
+    case type::boolean:
+        if (!in->is(type::boolean))
+            throw type_error("Invalid type promotion.");
+        return in;
+    case type::integer_num:
+        if (!in->is(type::integer_num))
+            throw type_error("Invalid type promotion.");
+        return in;
+    case type::real_num:
+        if (in->is(type::real_num))
+            return in;
+        if (in->is(type::integer_num))
+        {
+            const integer_num & i = in->as<integer_num>();
+            if (i.is_constant())
+                return make_shared<real_num>(i.constant_value());
+            else
+                return make_shared<real_num>();
+        }
+        throw type_error("Invalid type promotion.");
+    default:
+        throw type_error("Invalid type promotion.");
+    }
+}
+
+type::tag max_type(const vector<type::tag> & ins)
+{
+    if (ins.empty())
+        throw error("Empty type list.");
+
+    type::tag max_type_tag = ins[0];
+
+    for (const type::tag & in : ins)
+    {
+        switch(in)
+        {
+        case type::boolean:
+            if (max_type_tag != type::boolean)
+                throw type_error("Incompatible types.");
+            break;
+        case type::integer_num:
+            if (max_type_tag == type::boolean)
+                throw type_error("Incompatible types.");
+            break;
+        case type::real_num:
+            if (max_type_tag == type::boolean)
+                throw type_error("Incompatible types.");
+            max_type_tag = type::real_num;
+            break;
+        default:
+            throw error("Unexpected type.");
+        }
+    }
+
+    return max_type_tag;
+}
+
 type_checker::type_checker(environment &env):
     m_env(env),
     m_func_counter(0),
@@ -454,6 +515,9 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     type_ptr expr_type;
     switch(root->type)
     {
+    case ast::boolean:
+        expr_type = make_shared<boolean>(root->as_leaf<bool>()->value);
+        break;
     case ast::integer_num:
         expr_type = make_shared<integer_num>(root->as_leaf<int>()->value);
         break;
@@ -463,6 +527,7 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::identifier:
         expr_type =  process_identifier(root).first;
         break;
+    case ast::oppose:
     case ast::negate:
     {
         expr_type = process_negate(root);
@@ -496,6 +561,9 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
         break;
     case ast::call_expression:
         expr_type =  process_call(root);
+        break;
+    case ast::if_expression:
+        expr_type = process_conditional(root);
         break;
     case ast::for_expression:
         expr_type =  process_iteration(root);
@@ -544,8 +612,18 @@ type_ptr type_checker::process_negate( const sp<ast::node> & root )
 
     builtin_function_group func;
     func.intrinsic_type = intrinsic::negate;
-    func.overloads.push_back(function_signature({type::integer_num}, type::integer_num));
-    func.overloads.push_back(function_signature({type::real_num}, type::real_num));
+    switch(root->type)
+    {
+    case ast::negate:
+        func.overloads.push_back(function_signature({type::integer_num}, type::integer_num));
+        func.overloads.push_back(function_signature({type::real_num}, type::real_num));
+        break;
+    case ast::oppose:
+        func.overloads.push_back(function_signature({type::boolean}, type::boolean));
+        break;
+    default:
+        throw error("Unexpected AST node type.");
+    }
 
     auto result = process_intrinsic(func, {operand_type});
 
@@ -564,12 +642,29 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
                            type::real_num);
     function_signature rri({type::real_num, type::real_num},
                            type::integer_num);
-
+    function_signature iib({type::integer_num, type::integer_num},
+                           type::boolean);
+    function_signature rrb({type::real_num, type::real_num},
+                           type::boolean);
+    function_signature bbb({type::boolean, type::boolean},
+                           type::boolean);
 
     builtin_function_group func;
 
     switch(root->type)
     {
+    case ast::equal:
+        func.intrinsic_type = intrinsic::compare_eq; break;
+    case ast::not_equal:
+        func.intrinsic_type = intrinsic::compare_neq; break;
+    case ast::lesser:
+        func.intrinsic_type = intrinsic::compare_l; break;
+    case ast::greater:
+        func.intrinsic_type = intrinsic::compare_g; break;
+    case ast::lesser_or_equal:
+        func.intrinsic_type = intrinsic::compare_leq; break;
+    case ast::greater_or_equal:
+        func.intrinsic_type = intrinsic::compare_geq; break;
     case ast::add:
         func.intrinsic_type = intrinsic::add;
         func.overloads.push_back(iii);
@@ -601,6 +696,25 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
         break;
     default:
         throw error("Unexpected AST node type.");
+    }
+
+    switch(func.intrinsic_type)
+    {
+    case intrinsic::compare_eq:
+    case intrinsic::compare_neq:
+        func.overloads.push_back(iib);
+        func.overloads.push_back(rrb);
+        func.overloads.push_back(bbb);
+        break;
+    case intrinsic::compare_g:
+    case intrinsic::compare_l:
+    case intrinsic::compare_geq:
+    case intrinsic::compare_leq:
+        func.overloads.push_back(iib);
+        func.overloads.push_back(rrb);
+        break;
+    default:
+        break;
     }
 
     auto result = process_intrinsic(func, {lhs_type, rhs_type});
@@ -851,6 +965,45 @@ type_ptr type_checker::process_call( const sp<ast::node> & root )
 
     return result_type;
 }
+
+type_ptr type_checker::process_conditional( const ast::node_ptr & root )
+{
+    assert(root->type == ast::if_expression);
+    const auto & condition_node = root->as_list()->elements[0];
+    const auto & true_node = root->as_list()->elements[1];
+    const auto & false_node = root->as_list()->elements[2];
+
+    auto condition_type = process_expression(condition_node);
+    auto true_type = process_block(true_node);
+    auto false_type = process_block(false_node);
+
+    if (condition_type->get_tag() != type::boolean)
+        throw source_error("Condition expression not a boolean.", condition_node->line);
+
+    auto true_type_structure = inner_type(true_type);
+    auto false_type_structure = inner_type(false_type);
+
+    if (true_type_structure.second != false_type_structure.second)
+        throw source_error("Results of true and false parts have unequal sizes.", root->line);
+
+    auto size = true_type_structure.second;
+    if (!size.empty())
+        return make_shared<stream>(size);
+
+    type::tag result_type = max_type({true_type->get_tag(), false_type->get_tag()});
+    switch(result_type)
+    {
+    case type::integer_num:
+        return make_shared<integer_num>();
+    case type::real_num:
+        return make_shared<real_num>();
+    case type::boolean:
+        return make_shared<boolean>();
+    default:
+        throw error("Unexpected type.");
+    }
+}
+
 
 type_ptr type_checker::process_iteration( const sp<ast::node> & root )
 {
@@ -1134,6 +1287,9 @@ type_checker::process_intrinsic( const builtin_function_group & group,
         {
             switch(signature.result)
             {
+            case type::boolean:
+                result_type = make_shared<boolean>();
+                break;
             case type::integer_num:
                 result_type = make_shared<integer_num>();
                 break;
@@ -1152,13 +1308,25 @@ type_checker::process_intrinsic( const builtin_function_group & group,
 template<typename T> type::tag type_tag_for();
 template<> type::tag type_tag_for<int>() { return type::integer_num; }
 template<> type::tag type_tag_for<double>() { return type::real_num; }
+template<> type::tag type_tag_for<bool>() { return type::boolean; }
 
-type_ptr type_for(int value)
+template<typename T>
+type_ptr type_for(const T & value);
+
+template<>
+type_ptr type_for<bool>(const bool & value)
+{
+    return make_shared<boolean>(value);
+}
+
+template<>
+type_ptr type_for<int>(const int & value)
 {
     return make_shared<integer_num>(value);
 }
 
-type_ptr type_for(double value)
+template<>
+type_ptr type_for<double>(const double & value)
 {
     return make_shared<real_num>(value);
 }
@@ -1179,6 +1347,8 @@ T const_val(const type_ptr & type)
         return type->as<integer_num>().constant_value();
     case type::real_num:
         return type->as<real_num>().constant_value();
+    case type::boolean:
+        return type->as<boolean>().constant_value();
     default:
         assert(false);
         throw error("Type has no constant value.");
@@ -1225,6 +1395,7 @@ struct intrinsic_processor<intrinsic::raise>
 template<>
 struct intrinsic_processor<intrinsic::negate>
 {
+    static bool process(bool a) { return !a; }
     static int process(int a) { return -a; }
     static double process(double a) { return -a; }
 };
@@ -1250,6 +1421,50 @@ struct intrinsic_processor<intrinsic::min>
     static double process(double a, double b) { return std::min(a, b); }
 };
 
+template<>
+struct intrinsic_processor<intrinsic::compare_eq>
+{
+    static bool process(int a, int b) { return a == b; }
+    static bool process(double a, double b) { return a == b; }
+    static bool process(bool a, bool b) { return a == b; }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::compare_neq>
+{
+    static bool process(int a, int b) { return a != b; }
+    static bool process(double a, double b) { return a != b; }
+    static bool process(bool a, bool b) { return a != b; }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::compare_l>
+{
+    static bool process(int a, int b) { return a < b; }
+    static bool process(double a, double b) { return a < b; }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::compare_leq>
+{
+    static bool process(int a, int b) { return a <= b; }
+    static bool process(double a, double b) { return a <= b; }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::compare_g>
+{
+    static bool process(int a, int b) { return a > b; }
+    static bool process(double a, double b) { return a > b; }
+};
+
+template<>
+struct intrinsic_processor<intrinsic::compare_geq>
+{
+    static bool process(int a, int b) { return a >= b; }
+    static bool process(double a, double b) { return a >= b; }
+};
+
 template<intrinsic::type I, typename R, typename ...A>
 struct intrinsic_for
 {
@@ -1271,7 +1486,7 @@ struct intrinsic_for
     type_ptr compute(const T & ...args)
     {
         R result = intrinsic_processor<I>::process(const_val<A>(args)...);
-        return type_for(result);
+        return type_for<R>(result);
     }
 };
 
@@ -1295,8 +1510,33 @@ type_ptr const_unary_arithmetic( const function_signature & func,
                                  const type_ptr & arg)
 {
     type_ptr result;
-    intrinsic_for<I,int,int>::try_compute(result, func, arg) ||
+    intrinsic_for<I,bool,bool>::try_compute(result, func, arg) ||
+            intrinsic_for<I,int,int>::try_compute(result, func, arg) ||
             intrinsic_for<I,double,double>::try_compute(result, func, arg);
+    return result;
+}
+
+template<intrinsic::type I>
+type_ptr const_compare_eq( const function_signature & func,
+                           const vector<type_ptr> & args )
+{
+    type_ptr result;
+    intrinsic_for<I,bool,bool,bool>
+            ::try_compute(result, func, args[0], args[1]) ||
+            intrinsic_for<I,bool,int,int>
+            ::try_compute(result, func,  args[0], args[1]) ||
+            intrinsic_for<I,bool,double,double>
+            ::try_compute(result, func,  args[0], args[1]);
+    return result;
+}
+
+template<intrinsic::type I>
+type_ptr const_compare_arithmetic( const function_signature & func,
+                                   const vector<type_ptr> & args )
+{
+    type_ptr result;
+    intrinsic_for<I,bool,int,int>::try_compute(result, func, args[0], args[1]) ||
+            intrinsic_for<I,bool,double,double>::try_compute(result, func, args[0], args[1]);
     return result;
 }
 
@@ -1305,18 +1545,10 @@ type_ptr type_checker::constant_for( const builtin_function & func,
 {
     for (const auto  & arg : args)
     {
-        bool is_constant;
-        switch(arg->get_tag())
-        {
-        case type::integer_num:
-            is_constant = arg->as<integer_num>().is_constant();
-            break;
-        case type::real_num:
-            is_constant = arg->as<real_num>().is_constant();
-            break;
-        default:
-            is_constant = false;
-        }
+
+        bool is_constant = arg->is_scalar() &&
+                arg->as<basic_scalar>().is_constant();
+
         if (!is_constant)
             return type_ptr();
     }
@@ -1324,6 +1556,18 @@ type_ptr type_checker::constant_for( const builtin_function & func,
     type_ptr result;
     switch(func.intrinsic_type)
     {
+    case intrinsic::compare_eq:
+        return const_compare_eq<intrinsic::compare_eq>(func.signature, args);
+    case intrinsic::compare_neq:
+        return const_compare_eq<intrinsic::compare_neq>(func.signature, args);
+    case intrinsic::compare_g:
+        return const_compare_arithmetic<intrinsic::compare_g>(func.signature, args);
+    case intrinsic::compare_geq:
+        return const_compare_arithmetic<intrinsic::compare_geq>(func.signature, args);
+    case intrinsic::compare_l:
+        return const_compare_arithmetic<intrinsic::compare_l>(func.signature, args);
+    case intrinsic::compare_leq:
+        return const_compare_arithmetic<intrinsic::compare_leq>(func.signature, args);
     case intrinsic::add:
         return const_arithmetic<intrinsic::add>(func.signature, args);
     case intrinsic::subtract:

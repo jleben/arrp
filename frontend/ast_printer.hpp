@@ -58,6 +58,9 @@ public:
 
         switch (n->type)
         {
+        case boolean:
+            cout << ": " << (static_cast<leaf_node<bool>*>(n)->value ? "true" : "false");
+            break;
         case integer_num:
             cout << ": " << static_cast<leaf_node<int>*>(n)->value;
             break;
@@ -67,6 +70,7 @@ public:
         case identifier:
             cout << ": \"" << static_cast<leaf_node<string>*>(n)->value << "\"";
             break;
+        case oppose:
         case negate:
         case add:
         case subtract:
@@ -81,6 +85,7 @@ public:
         case not_equal:
         case range:
         case call_expression:
+        case if_expression:
         case for_expression:
         case for_iteration:
         case for_iteration_list:
@@ -126,6 +131,7 @@ private:
         m_type_names[kwd_let] = "'let'";
         m_type_names[kwd_for] = "'for'";
         m_type_names[kwd_reduce] = "'reduce'";
+        m_type_names[oppose] = "!";
         m_type_names[negate] = "-";
         m_type_names[add] = "+";
         m_type_names[subtract] = "-";
@@ -145,6 +151,7 @@ private:
         m_type_names[transpose_expression] = "transpose";
         m_type_names[slice_expression] = "slice";
         m_type_names[call_expression] = "call";
+        m_type_names[if_expression] = "if";
         m_type_names[for_expression] = "for";
         m_type_names[for_iteration] = "for-iter";
         m_type_names[for_iteration_list] = "for-iter-list";

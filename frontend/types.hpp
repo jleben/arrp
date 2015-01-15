@@ -56,6 +56,7 @@ struct type
 {
     enum tag
     {
+        boolean,
         integer_num,
         real_num,
         range,
@@ -72,6 +73,11 @@ struct type
     tag get_tag() const { return m_tag; }
 
     bool is(tag t) const { return m_tag == t; }
+
+    bool is_scalar() const
+    {
+        return m_tag == tag::boolean || m_tag == tag::integer_num || m_tag == real_num;
+    }
 
     template<typename T>
     T & as() { return static_cast<T&>(*this); }
@@ -104,19 +110,32 @@ public:
     {}
 };
 
-template<typename T>
-struct scalar
+struct basic_scalar : public type
 {
-    scalar():
-        m_is_constant(false)
-    {}
-
-    scalar( const T & value ):
-        m_is_constant(true),
-        m_value(value)
+    basic_scalar(type::tag tag, bool is_constant):
+        type(tag),
+        m_is_constant(is_constant)
     {}
 
     bool is_constant() const { return m_is_constant; }
+
+protected:
+    bool m_is_constant;
+};
+
+template<typename T, type::tag TAG>
+struct scalar : public basic_scalar
+{
+    using basic_scalar::m_is_constant;
+
+    scalar():
+        basic_scalar(TAG, false)
+    {}
+
+    scalar( const T & value ):
+        basic_scalar(TAG, true),
+        m_value(value)
+    {}
 
     T constant_value() const
     {
@@ -131,11 +150,23 @@ struct scalar
     }
 
 private:
-    bool m_is_constant;
     T m_value;
 };
 
-struct integer_num : public scalar<int>, public tagged_type<type::integer_num>
+struct boolean : public scalar<bool, type::boolean>
+{
+    boolean() {}
+    boolean(bool b): scalar(b) {}
+    virtual void print_on( ostream & s ) const
+    {
+        if (is_constant())
+            s << "<b:" << (constant_value() ? "true" : "false") << ">";
+        else
+            s << "<b>";
+    }
+};
+
+struct integer_num : public scalar<int, type::integer_num>
 {
     integer_num() {}
     integer_num(int v): scalar(v) {}
@@ -148,7 +179,7 @@ struct integer_num : public scalar<int>, public tagged_type<type::integer_num>
     }
 };
 
-struct real_num : public scalar<double>, public tagged_type<type::real_num>
+struct real_num : public scalar<double, type::real_num>
 {
     real_num() {}
     real_num(double v): scalar(v) {}
@@ -304,6 +335,12 @@ struct intrinsic
     enum type
     {
         negate,
+        compare_eq,
+        compare_neq,
+        compare_l,
+        compare_g,
+        compare_leq,
+        compare_geq,
         add,
         subtract,
         multiply,

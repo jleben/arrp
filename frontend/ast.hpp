@@ -79,9 +79,11 @@ enum node_type
     greater_or_equal,
     equal,
     not_equal,
+    oppose,
 
     integer_num,
     real_num,
+    boolean,
     identifier,
     range,
 
@@ -91,6 +93,7 @@ enum node_type
     slice_expression,
     hash_expression,
 
+    if_expression,
     for_expression,
     for_iteration,
     for_iteration_list,

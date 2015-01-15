@@ -80,6 +80,7 @@ private:
     type_ptr process_transpose( const sp<ast::node> & );
     type_ptr process_slice( const sp<ast::node> & );
     type_ptr process_call( const sp<ast::node> & );
+    type_ptr process_conditional( const ast::node_ptr & );
     type_ptr process_iteration( const sp<ast::node> & );
     type_ptr process_iterator( const sp<ast::node> & );
     type_ptr process_reduction( const sp<ast::node> & );
