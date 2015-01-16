@@ -41,6 +41,7 @@ enum
 
 enum numerical_type
 {
+    boolean,
     integer,
     real
 };
@@ -48,10 +49,12 @@ enum numerical_type
 template <numerical_type> struct cpp_type;
 template<> struct cpp_type<integer> { typedef int type; };
 template<> struct cpp_type<real> { typedef double type; };
+template<> struct cpp_type<boolean> { typedef bool type; };
 
 template <typename T> struct expr_type;
 template<> struct expr_type<int> { static constexpr numerical_type type = integer; };
 template<> struct expr_type<double> { static constexpr numerical_type type = real; };
+template<> struct expr_type<bool> { static constexpr numerical_type type = boolean; };
 
 class statement;
 
@@ -188,6 +191,15 @@ public:
         abs,
         min,
         max,
+
+        compare_eq,
+        compare_neq,
+        compare_l,
+        compare_g,
+        compare_leq,
+        compare_geq,
+
+        conditional,
 
         count
     };

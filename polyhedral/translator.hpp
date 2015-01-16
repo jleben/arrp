@@ -111,6 +111,7 @@ private:
     expression * do_binary_op(const ast::node_ptr &node);
     expression * do_transpose(const ast::node_ptr &node);
     expression * do_slicing(const  ast::node_ptr &node);
+    expression * do_conditional(const  ast::node_ptr &node);
     expression * do_mapping(const  ast::node_ptr &node);
     expression * do_reduction(const  ast::node_ptr &node);
 

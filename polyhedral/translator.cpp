@@ -32,6 +32,8 @@ numerical_type expr_type_for( const semantic::type_ptr t )
 {
     switch(t->get_tag())
     {
+    case semantic::type::boolean:
+        return boolean;
     case semantic::type::integer_num:
         return integer;
     case semantic::type::real_num:
@@ -106,29 +108,31 @@ void translator::translate(const semantic::symbol & sym,
 
     vector<int> result_domain;
 
-    switch(result_type->get_tag())
+    if (result_type->is_scalar())
     {
-    case type::integer_num:
-    case type::real_num:
         result_domain.resize(1,1);
-        break;
-    case type::stream:
-    {
-        result_domain = result_type->as<stream>().size;
-        break;
     }
-    case type::range:
+    else
     {
-        const semantic::range & range_type =
-                result_type->as<semantic::range>();
-        if (!range_type.is_constant())
-            throw error("Non-constant range not supported as result type.");
-        result_domain = { range_type.const_size() };
-        break;
-    }
-
-    default:
-        throw runtime_error("Unexpected type.");
+        switch(result_type->get_tag())
+        {
+        case type::stream:
+        {
+            result_domain = result_type->as<stream>().size;
+            break;
+        }
+        case type::range:
+        {
+            const semantic::range & range_type =
+                    result_type->as<semantic::range>();
+            if (!range_type.is_constant())
+                throw error("Non-constant range not supported as result type.");
+            result_domain = { range_type.const_size() };
+            break;
+        }
+        default:
+            throw runtime_error("Unexpected type.");
+        }
     }
 
     result = iterate(result, result_type);
@@ -143,6 +147,8 @@ expression * translator::translate_input(const semantic::type_ptr & type,
 {
     switch(type->get_tag())
     {
+    case semantic::type::boolean:
+        return new input_access(boolean, index);
     case semantic::type::integer_num:
         return new input_access(integer, index);
     case semantic::type::real_num:
@@ -201,22 +207,32 @@ expression* translator::do_statement(const ast::node_ptr &node)
         using namespace semantic;
 
         vector<int> domain = m_domain;
-        switch(node->semantic_type->get_tag())
+
+        if (!node->semantic_type->is_scalar())
         {
-        case type::integer_num:
-        case type::real_num:
-            break;
-        case type::stream:
-        {
-            vector<int> expr_domain =
-                    node->semantic_type->as<stream>().size;
-            domain.insert(domain.end(),
-                          expr_domain.begin(), expr_domain.end());
-            break;
+            switch(node->semantic_type->get_tag())
+            {
+            case type::stream:
+            {
+                vector<int> expr_domain =
+                        node->semantic_type->as<stream>().size;
+                domain.insert(domain.end(),
+                              expr_domain.begin(), expr_domain.end());
+                break;
+            }
+            case type::range:
+            {
+                const semantic::range & r = node->semantic_type->as<semantic::range>();
+                assert(r.is_constant());
+                domain.push_back(r.const_size());
+                break;
+            }
+            default:
+                throw runtime_error("Unexpected type.");
+            };
         }
-        default:
-            throw runtime_error("Unexpected type.");
-        };
+
+        expr = iterate(expr, node->semantic_type);
 
         if (!domain.empty())
         {
@@ -273,6 +289,8 @@ expression * translator::do_block(const ast::node_ptr &node)
 
 expression * translator::do_expression(const ast::node_ptr &node)
 {
+    // Make use of propagated constants:
+
     switch(node->semantic_type->get_tag())
     {
     case semantic::type::integer_num:
@@ -287,6 +305,13 @@ expression * translator::do_expression(const ast::node_ptr &node)
         const semantic::real_num &num = node->semantic_type->as<semantic::real_num>();
         if (num.is_constant())
             return  new constant<double>(num.constant_value());
+        break;
+    }
+    case semantic::type::boolean:
+    {
+        const semantic::boolean & b = node->semantic_type->as<semantic::boolean>();
+        if (b.is_constant())
+            return  new constant<bool>(b.constant_value());
         break;
     }
     default:;
@@ -307,6 +332,11 @@ expression * translator::do_expression(const ast::node_ptr &node)
     {
         double value = node->as_leaf<double>()->value;
         return new constant<double>(value);
+    }
+    case ast::boolean:
+    {
+        bool value = node->as_leaf<bool>()->value;
+        return new constant<bool>(value);
     }
     case ast::range:
     {
@@ -330,6 +360,7 @@ expression * translator::do_expression(const ast::node_ptr &node)
         return r;
     }
     case ast::negate:
+    case ast::oppose:
     {
         return do_unary_op(node);
     }
@@ -339,6 +370,12 @@ expression * translator::do_expression(const ast::node_ptr &node)
     case ast::divide:
     case ast::divide_integer:
     case ast::raise:
+    case ast::greater:
+    case ast::greater_or_equal:
+    case ast::lesser:
+    case ast::lesser_or_equal:
+    case ast::equal:
+    case ast::not_equal:
     {
         return do_binary_op(node);
     }
@@ -359,6 +396,10 @@ expression * translator::do_expression(const ast::node_ptr &node)
         assert(node->semantic_type->is(semantic::type::integer_num));
         const auto & integer = node->semantic_type->as<semantic::integer_num>();
         return new constant<int>(integer.constant_value());
+    }
+    case ast::if_expression:
+    {
+        return do_conditional(node);
     }
     case ast::for_expression:
     {
@@ -512,6 +553,7 @@ expression * translator::do_unary_op(const ast::node_ptr &node)
     switch(node->type)
     {
     case ast::negate:
+    case ast::oppose:
         operation_result->kind = intrinsic::negate;
         break;
     default:
@@ -555,6 +597,24 @@ expression * translator::do_binary_op(const ast::node_ptr &node)
         break;
     case ast::raise:
         operation_result->kind = intrinsic::raise;
+        break;
+    case ast::lesser:
+        operation_result->kind = intrinsic::compare_l;
+        break;
+    case ast::lesser_or_equal:
+        operation_result->kind = intrinsic::compare_leq;
+        break;
+    case ast::greater:
+        operation_result->kind = intrinsic::compare_g;
+        break;
+    case ast::greater_or_equal:
+        operation_result->kind = intrinsic::compare_geq;
+        break;
+    case ast::equal:
+        operation_result->kind = intrinsic::compare_eq;
+        break;
+    case ast::not_equal:
+        operation_result->kind = intrinsic::compare_neq;
         break;
     default:
         throw runtime_error("Unexpected AST node type.");
@@ -683,6 +743,28 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
     object = update_accesses(object, slicing);
 
     return object;
+}
+
+expression * translator::do_conditional(const  ast::node_ptr &node)
+{
+    const auto & condition_node = node->as_list()->elements[0];
+    const auto & true_node = node->as_list()->elements[1];
+    const auto & false_node = node->as_list()->elements[2];
+
+    assert(condition_node->semantic_type->is_scalar());
+
+    // TODO: might wanna make a statement for the condition, to avoid
+    // evaluating it for every item of true/false expression streams
+
+    expression *condition = iterate(do_expression(condition_node), node->semantic_type);
+    expression *true_expr = iterate(do_block(true_node), node->semantic_type);
+    expression *false_expr = iterate(do_block(false_node), node->semantic_type);
+
+    auto result = new intrinsic(expr_type_for(node->semantic_type));
+    result->operands = { condition, true_expr, false_expr };
+    result->kind = intrinsic::conditional;
+
+    return result;
 }
 
 expression * translator::do_mapping(const  ast::node_ptr &node)

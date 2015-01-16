@@ -55,6 +55,7 @@ vector<string> make_intrinsic_name_table()
     table[intrinsic::abs] = "abs";
     table[intrinsic::min] = "min";
     table[intrinsic::max] = "max";
+    table[intrinsic::conditional] = "if";
     return table;
 }
 
@@ -79,6 +80,9 @@ void printer::print(const numerical_type t, ostream &s)
         break;
     case real:
         s << "real";
+        break;
+    case boolean:
+        s << "boolean";
         break;
     }
 }
