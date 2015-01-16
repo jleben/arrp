@@ -70,9 +70,17 @@ func_decl_node *decl_get_output_func(polyhedral::statement *output_stmt)
 {
     auto buf_ptr_type = new pointer_type_node(new basic_type_node("buffer"));
 
-    type_node *ret_type =
-            output_stmt->expr->type == polyhedral::integer ?
-                int32_ptr_type() : double_ptr_type();
+    type_node *ret_type = nullptr;
+    switch(output_stmt->expr->type)
+    {
+    case polyhedral::boolean:
+        ret_type = int32_ptr_type(); break;
+    case polyhedral::integer:
+        ret_type = int32_ptr_type(); break;
+    case polyhedral::real:
+        ret_type = double_ptr_type(); break;
+    }
+    assert(ret_type);
 
     func_signature_node *sig = new func_signature_node;
     sig->name = "get_output";
@@ -93,6 +101,9 @@ func_decl_node *decl_process_func(const string & name,
         variable_decl_node *param;
         switch(arg->get_tag())
         {
+        case semantic::type::boolean:
+            param = new variable_decl_node(int32_type());
+            break;
         case semantic::type::integer_num:
             param = new variable_decl_node(int32_type());
             break;
@@ -131,9 +142,11 @@ cpp_gen::program * create
     class_node *buffer_struct = new class_node(struct_class, "buffer");
     class_section_node *buffer_section = new class_section_node;
     buffer_section->members.push_back(
-                new data_field_decl_node(double_ptr_type(), "real_buffer") );
+                new data_field_decl_node(int32_ptr_type(), "bool_buffer") );
     buffer_section->members.push_back(
                 new data_field_decl_node(int32_ptr_type(), "int_buffer") );
+    buffer_section->members.push_back(
+                new data_field_decl_node(double_ptr_type(), "real_buffer") );
     buffer_section->members.push_back(
                 new data_field_decl_node(int64_ptr_type(), "phase_buffer") );
     buffer_struct->sections.push_back(buffer_section);

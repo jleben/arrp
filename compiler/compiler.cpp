@@ -294,6 +294,10 @@ int main(int argc, char *argv[])
 
     if (!args.meta_output_filename.empty())
     {
+        cerr << "WARNING: meta-info output currently disabled." << endl;
+
+        // FIXME: Broken input info
+#if 0
         JSON::Object description;
 
         JSON::Array inputs;
@@ -314,8 +318,11 @@ int main(int argc, char *argv[])
             case polyhedral::real:
                 input["type"] = "real";
                 break;
+            case polyhedral::boolean:
+                input["type"] = "boolean";
+                break;
             default:
-                assert(false);
+                input["type"] = "unknown";
             }
 
             if (actor)
@@ -357,8 +364,11 @@ int main(int argc, char *argv[])
             case polyhedral::real:
                 buffer["type"] = "real";
                 break;
+            case polyhedral::boolean:
+                buffer["type"] = "boolean";
+                break;
             default:
-                assert(false);
+                buffer["type"] = "unknown";
             }
 
             if (stmt->buffer.empty())
@@ -392,8 +402,11 @@ int main(int argc, char *argv[])
             case polyhedral::real:
                 output["type"] = "real";
                 break;
+            case polyhedral::boolean:
+                output["type"] = "boolean";
+                break;
             default:
-                assert(false);
+                output["type"] = "unknown";
             }
 
             if (actor)
@@ -431,6 +444,7 @@ int main(int argc, char *argv[])
         }
 
         output_file << description;
+#endif
     }
 
     // Output LLVM IR

@@ -171,8 +171,7 @@ public:
     arguments(int argc, char *argv[]):
         m_arg_count(argc),
         m_args(argv),
-        output_filename("out.ll"),
-        meta_output_filename("out.meta")
+        output_filename("out.ll")
     {
         for (int i = 0; i < print.size(); ++i)
             print[i] = false;
@@ -324,7 +323,9 @@ private:
 
     semantic::type_ptr parse_target_scalar_arg(const string & arg)
     {
-        if (arg == "int")
+        if (arg == "bool")
+            return std::make_shared<semantic::boolean>();
+        else if (arg == "int")
             return std::make_shared<semantic::integer_num>();
         else if (arg == "real")
             return std::make_shared<semantic::real_num>();
