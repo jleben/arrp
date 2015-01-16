@@ -173,7 +173,7 @@ public:
         multiply,
         divide,
         divide_integer,
-        remainder,
+        modulo,
         raise,
         exp,
         exp2,

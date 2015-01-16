@@ -218,7 +218,7 @@ expr:
   { $$ = new ast::binary_op_expression( $1, ast::divide_integer, $3 ); }
   |
   expr '%' expr
-  { $$ = new ast::binary_op_expression( $1, ast::remainder, $3 ); }
+  { $$ = new ast::binary_op_expression( $1, ast::modulo, $3 ); }
   |
   expr '^' expr
   { $$ = new ast::binary_op_expression( $1, ast::raise, $3 ); }

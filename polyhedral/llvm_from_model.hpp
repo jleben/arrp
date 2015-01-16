@@ -220,6 +220,8 @@ private:
     value_type convert_to_integer( value_type v );
     value_type convert_to_boolean( value_type v );
 
+    value_type floor( value_type );
+
     block_type add_block( const string & name )
     {
         auto parent = m_builder.GetInsertBlock()->getParent();

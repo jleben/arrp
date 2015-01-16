@@ -651,14 +651,31 @@ llvm_from_model::generate_intrinsic
             return m_builder.CreateFPToSI(f, i_type);
         }
     }
-    case intrinsic::remainder:
+    case intrinsic::modulo:
     {
-        value_type l = operands[0];
-        value_type r = operands[1];
-        if (l->getType() == i_type && r->getType() == i_type)
-            return m_builder.CreateSRem(l, r);
+        value_type x = operands[0];
+        value_type y = operands[1];
+        if (x->getType() == i_type && y->getType() == i_type)
+        {
+            // FIXME: handle floating point exception when divisor is 0
+            value_type m = m_builder.CreateSRem(x,y);
+            value_type m_not_zero = m_builder.CreateICmpNE(m, value((int32_t)0));
+            value_type m_neg = m_builder.CreateICmpSLT(m, value((int32_t)0));
+            value_type y_neg = m_builder.CreateICmpSLT(y, value((int32_t)0));
+            value_type sign_m_not_y = m_builder.CreateICmpNE(m_neg, y_neg);
+            value_type do_correct =
+                    m_builder.CreateAnd(m_not_zero, sign_m_not_y);
+            value_type m_corrected =
+                    m_builder.CreateAdd(m, y);
+            return m_builder.CreateSelect(do_correct, m_corrected, m);
+        }
         else
-            return m_builder.CreateFRem(convert_to_real(l), convert_to_real(r));
+        {
+            x = convert_to_real(x);
+            y = convert_to_real(y);
+            value_type q = floor(m_builder.CreateFDiv(x,y));
+            return m_builder.CreateFSub(x, m_builder.CreateFMul(y,q));
+        }
     }
     case intrinsic::raise:
     {
@@ -1290,6 +1307,15 @@ llvm_from_model::convert_to_boolean( value_type v )
         return v;
     else
         throw runtime_error("LLVM generator: can not convert value to boolean.");
+}
+
+llvm_from_model::value_type
+llvm_from_model::floor( value_type v )
+{
+    llvm::Function *f =
+            llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::floor, v->getType());
+
+    return m_builder.CreateCall(f, v);
 }
 
 }

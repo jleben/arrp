@@ -539,7 +539,7 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::multiply:
     case ast::divide:
     case ast::divide_integer:
-    case ast::remainder:
+    case ast::modulo:
     case ast::raise:
     case ast::lesser:
     case ast::greater:
@@ -713,8 +713,8 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
         func.overloads.push_back(iii);
         func.overloads.push_back(rri);
         break;
-    case ast::remainder:
-        func.intrinsic_type = intrinsic::remainder;
+    case ast::modulo:
+        func.intrinsic_type = intrinsic::modulo;
         func.overloads.push_back(iii);
         func.overloads.push_back(rrr);
         break;
@@ -1617,20 +1617,23 @@ type_ptr type_checker::constant_for( const builtin_function & func,
             return type_for((const_val<int>(args[0]) / const_val<int>(args[1])));
         else
             return type_for((int)(const_val<double>(args[0]) / const_val<double>(args[1])));
-    case intrinsic::remainder:
+    case intrinsic::modulo:
     {
-        // FIXME: handle floating point exception when divisior is 0
         if (signature_is<int,int,int>(func.signature))
         {
-            int l = const_val<int>(args[0]);
-            int r = const_val<int>(args[1]);
-            return type_for(l % r);
+            // FIXME: handle floating point exception when divisor is 0
+            int x = const_val<int>(args[0]);
+            int y = const_val<int>(args[1]);
+            int m = x%y;
+            if ((m!=0) && ((m<0) != (y<0))) { m += y; }
+            return type_for(m);
         }
         else // real % real -> real
         {
             double l = const_val<double>(args[0]);
             double r = const_val<double>(args[1]);
-            return type_for(std::fmod(l,r));
+            double q = std::floor(l/r);
+            return type_for(l - r * q);
         }
     }
     case intrinsic::raise:

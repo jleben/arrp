@@ -72,7 +72,7 @@ enum node_type
     multiply,
     divide,
     divide_integer,
-    remainder,
+    modulo,
     raise,
     lesser,
     greater,
