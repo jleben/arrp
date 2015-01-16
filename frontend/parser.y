@@ -9,10 +9,11 @@
 %token TRUE FALSE IF THEN ELSE REDUCE FOR EACH TAKES EVERY IN LET
 
 %left '='
-%left LOGIC_OR LOGIC_AND
+%left LOGIC_OR
+%left LOGIC_AND
 %left EQ NEQ LESS MORE LESS_EQ MORE_EQ
 %left '+' '-'
-%left '*' '/' ':'
+%left '*' '/' ':' '%'
 %left '^'
 %left DOTDOT
 %right LOGIC_NOT
@@ -215,6 +216,9 @@ expr:
   |
   expr ':' expr
   { $$ = new ast::binary_op_expression( $1, ast::divide_integer, $3 ); }
+  |
+  expr '%' expr
+  { $$ = new ast::binary_op_expression( $1, ast::remainder, $3 ); }
   |
   expr '^' expr
   { $$ = new ast::binary_op_expression( $1, ast::raise, $3 ); }

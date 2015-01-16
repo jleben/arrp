@@ -651,6 +651,15 @@ llvm_from_model::generate_intrinsic
             return m_builder.CreateFPToSI(f, i_type);
         }
     }
+    case intrinsic::remainder:
+    {
+        value_type l = operands[0];
+        value_type r = operands[1];
+        if (l->getType() == i_type && r->getType() == i_type)
+            return m_builder.CreateSRem(l, r);
+        else
+            return m_builder.CreateFRem(convert_to_real(l), convert_to_real(r));
+    }
     case intrinsic::raise:
     {
         llvm::Intrinsic::ID id =

@@ -38,6 +38,7 @@
 \* { return '*'; }
 \/ { return '/'; }
 \^ { return '^'; }
+\% { return '%'; }
 = { return '='; }
 # { return '#'; }
 "==" { return Parser::EQ; }

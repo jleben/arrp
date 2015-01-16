@@ -266,6 +266,7 @@ void environment_builder::process_expr( const sp<ast::node> & root )
     case ast::multiply:
     case ast::divide:
     case ast::divide_integer:
+    case ast::remainder:
     case ast::raise:
     case ast::lesser:
     case ast::greater:

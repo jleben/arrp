@@ -23,6 +23,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <stdexcept>
 #include <sstream>
+#include <cmath>
 
 using namespace std;
 
@@ -538,6 +539,7 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::multiply:
     case ast::divide:
     case ast::divide_integer:
+    case ast::remainder:
     case ast::raise:
     case ast::lesser:
     case ast::greater:
@@ -710,6 +712,11 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
         func.intrinsic_type = intrinsic::divide_integer;
         func.overloads.push_back(iii);
         func.overloads.push_back(rri);
+        break;
+    case ast::remainder:
+        func.intrinsic_type = intrinsic::remainder;
+        func.overloads.push_back(iii);
+        func.overloads.push_back(rrr);
         break;
     case ast::raise:
         func.intrinsic_type = intrinsic::raise;
@@ -1610,6 +1617,22 @@ type_ptr type_checker::constant_for( const builtin_function & func,
             return type_for((const_val<int>(args[0]) / const_val<int>(args[1])));
         else
             return type_for((int)(const_val<double>(args[0]) / const_val<double>(args[1])));
+    case intrinsic::remainder:
+    {
+        // FIXME: handle floating point exception when divisior is 0
+        if (signature_is<int,int,int>(func.signature))
+        {
+            int l = const_val<int>(args[0]);
+            int r = const_val<int>(args[1]);
+            return type_for(l % r);
+        }
+        else // real % real -> real
+        {
+            double l = const_val<double>(args[0]);
+            double r = const_val<double>(args[1]);
+            return type_for(std::fmod(l,r));
+        }
+    }
     case intrinsic::raise:
         return const_arithmetic<intrinsic::raise>(func.signature, args);
     case intrinsic::negate:
