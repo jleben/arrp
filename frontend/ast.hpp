@@ -80,6 +80,8 @@ enum node_type
     equal,
     not_equal,
     oppose,
+    logic_or,
+    logic_and,
 
     integer_num,
     real_num,

@@ -9,12 +9,13 @@
 %token TRUE FALSE IF THEN ELSE REDUCE FOR EACH TAKES EVERY IN LET
 
 %left '='
+%left LOGIC_OR LOGIC_AND
 %left EQ NEQ LESS MORE LESS_EQ MORE_EQ
 %left '+' '-'
 %left '*' '/' ':'
 %left '^'
 %left DOTDOT
-%right '!'
+%right LOGIC_NOT
 %right UMINUS '#'
 %left '[' '{' '('
 
@@ -170,8 +171,14 @@ let: LET { $$ = new ast::node( ast::kwd_let, d_scanner.lineNr() ); }
 ;
 
 expr:
-  '!' expr
+  LOGIC_NOT expr
   { $$ = new ast::list_node( ast::oppose, $2->line, {$2} ); }
+  |
+  expr LOGIC_OR expr
+  { $$ = new ast::binary_op_expression( $1, ast::logic_or, $3 ); }
+  |
+  expr LOGIC_AND expr
+  { $$ = new ast::binary_op_expression( $1, ast::logic_and, $3 ); }
   |
   expr EQ expr
   { $$ = new ast::binary_op_expression( $1, ast::equal, $3 ); }

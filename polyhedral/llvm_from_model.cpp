@@ -474,6 +474,20 @@ llvm_from_model::generate_intrinsic
 {
     switch(op->kind)
     {
+    case intrinsic::logic_and:
+    {
+        // TODO: would branching to avoid unnecessary evaluation speed things up?
+        value_type lhs = generate_expression(op->operands[0], index, ctx);
+        value_type rhs = generate_expression(op->operands[1], index, ctx);
+        return m_builder.CreateAnd(lhs, rhs);
+    }
+    case intrinsic::logic_or:
+    {
+        // TODO: would branching to avoid unnecessary evaluation speed things up?
+        value_type lhs = generate_expression(op->operands[0], index, ctx);
+        value_type rhs = generate_expression(op->operands[1], index, ctx);
+        return m_builder.CreateOr(lhs, rhs);
+    }
     case intrinsic::conditional:
     {
         block_type after_block = add_block("if.after");

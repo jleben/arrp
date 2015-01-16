@@ -40,13 +40,15 @@
 \^ { return '^'; }
 = { return '='; }
 # { return '#'; }
-"!" { return '!'; }
 "==" { return Parser::EQ; }
 "!=" { return Parser::NEQ; }
 "<" { return Parser::LESS; }
 ">" { return Parser::MORE; }
 "<=" { return Parser::LESS_EQ; }
 ">=" { return Parser::MORE_EQ; }
+"not" { return Parser::LOGIC_NOT; }
+"or" { return Parser::LOGIC_OR; }
+"and" { return Parser::LOGIC_AND; }
 
 "true" { return Parser::TRUE; }
 "false" { return Parser::FALSE; }

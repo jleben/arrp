@@ -376,6 +376,8 @@ expression * translator::do_expression(const ast::node_ptr &node)
     case ast::lesser_or_equal:
     case ast::equal:
     case ast::not_equal:
+    case ast::logic_and:
+    case ast::logic_or:
     {
         return do_binary_op(node);
     }
@@ -615,6 +617,12 @@ expression * translator::do_binary_op(const ast::node_ptr &node)
         break;
     case ast::not_equal:
         operation_result->kind = intrinsic::compare_neq;
+        break;
+    case ast::logic_and:
+        operation_result->kind = intrinsic::logic_and;
+        break;
+    case ast::logic_or:
+        operation_result->kind = intrinsic::logic_or;
         break;
     default:
         throw runtime_error("Unexpected AST node type.");

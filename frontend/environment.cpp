@@ -273,6 +273,8 @@ void environment_builder::process_expr( const sp<ast::node> & root )
     case ast::greater_or_equal:
     case ast::equal:
     case ast::not_equal:
+    case ast::logic_and:
+    case ast::logic_or:
     {
         ast::list_node * list = root->as_list();
         process_expr(list->elements[0]);

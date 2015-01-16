@@ -199,6 +199,9 @@ public:
         compare_leq,
         compare_geq,
 
+        logic_and,
+        logic_or,
+
         conditional,
 
         count

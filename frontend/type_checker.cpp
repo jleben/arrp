@@ -545,6 +545,8 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::greater_or_equal:
     case ast::equal:
     case ast::not_equal:
+    case ast::logic_and:
+    case ast::logic_or:
         expr_type =  process_binop(root);
         break;
     case ast::range:
@@ -654,6 +656,22 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     switch(root->type)
     {
     case ast::equal:
+    case ast::not_equal:
+    case ast::lesser:
+    case ast::greater:
+    case ast::lesser_or_equal:
+    case ast::greater_or_equal:
+    case ast::logic_and:
+    case ast::logic_or:
+        if (!lhs_type->is_scalar() || !rhs_type->is_scalar())
+            throw source_error("Operands to logical operator are not both scalars.", root->line);
+    default:
+        break;
+    }
+
+    switch(root->type)
+    {
+    case ast::equal:
         func.intrinsic_type = intrinsic::compare_eq; break;
     case ast::not_equal:
         func.intrinsic_type = intrinsic::compare_neq; break;
@@ -665,6 +683,10 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
         func.intrinsic_type = intrinsic::compare_leq; break;
     case ast::greater_or_equal:
         func.intrinsic_type = intrinsic::compare_geq; break;
+    case ast::logic_and:
+        func.intrinsic_type = intrinsic::logic_and; break;
+    case ast::logic_or:
+        func.intrinsic_type = intrinsic::logic_or; break;
     case ast::add:
         func.intrinsic_type = intrinsic::add;
         func.overloads.push_back(iii);
@@ -713,6 +735,9 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
         func.overloads.push_back(iib);
         func.overloads.push_back(rrb);
         break;
+    case intrinsic::logic_and:
+    case intrinsic::logic_or:
+        func.overloads.push_back(bbb);
     default:
         break;
     }
@@ -1568,6 +1593,10 @@ type_ptr type_checker::constant_for( const builtin_function & func,
         return const_compare_arithmetic<intrinsic::compare_l>(func.signature, args);
     case intrinsic::compare_leq:
         return const_compare_arithmetic<intrinsic::compare_leq>(func.signature, args);
+    case intrinsic::logic_and:
+        return type_for(const_val<bool>(args[0]) && const_val<bool>(args[1]));
+    case intrinsic::logic_or:
+        return type_for(const_val<bool>(args[0]) || const_val<bool>(args[1]));
     case intrinsic::add:
         return const_arithmetic<intrinsic::add>(func.signature, args);
     case intrinsic::subtract:

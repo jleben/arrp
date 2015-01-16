@@ -341,6 +341,8 @@ struct intrinsic
         compare_g,
         compare_leq,
         compare_geq,
+        logic_and,
+        logic_or,
         add,
         subtract,
         multiply,

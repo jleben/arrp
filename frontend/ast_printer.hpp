@@ -70,38 +70,12 @@ public:
         case identifier:
             cout << ": \"" << static_cast<leaf_node<string>*>(n)->value << "\"";
             break;
-        case oppose:
-        case negate:
-        case add:
-        case subtract:
-        case multiply:
-        case divide:
-        case divide_integer:
-        case lesser:
-        case greater:
-        case lesser_or_equal:
-        case greater_or_equal:
-        case equal:
-        case not_equal:
-        case range:
-        case call_expression:
-        case if_expression:
-        case for_expression:
-        case for_iteration:
-        case for_iteration_list:
-        case reduce_expression:
-        case hash_expression:
-        case transpose_expression:
-        case slice_expression:
-        case expression_block:
-        case statement:
-        case id_list:
-        case int_list:
-        case expression_list:
-        case statement_list:
-        case program:
+        default:
         {
-            list_node *parent = static_cast<list_node*>(n);
+            list_node *parent = dynamic_cast<list_node*>(n);
+            if (!parent)
+                break;
+
             if (!parent->elements.empty())
             {
                 cout << ": { " << endl;
@@ -120,8 +94,6 @@ public:
             }
             break;
         }
-        default:
-            break;
         }
     }
 
@@ -131,7 +103,9 @@ private:
         m_type_names[kwd_let] = "'let'";
         m_type_names[kwd_for] = "'for'";
         m_type_names[kwd_reduce] = "'reduce'";
-        m_type_names[oppose] = "!";
+        m_type_names[oppose] = "not";
+        m_type_names[logic_or] = "or";
+        m_type_names[logic_and] = "and";
         m_type_names[negate] = "-";
         m_type_names[add] = "+";
         m_type_names[subtract] = "-";
@@ -146,6 +120,7 @@ private:
         m_type_names[not_equal] = "!=";
         m_type_names[integer_num] = "int";
         m_type_names[real_num] = "real";
+        m_type_names[boolean] = "bool";
         m_type_names[identifier] = "id";
         m_type_names[range] = "range";
         m_type_names[transpose_expression] = "transpose";
