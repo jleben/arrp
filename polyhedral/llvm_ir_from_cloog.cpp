@@ -50,15 +50,7 @@ void llvm_from_cloog::generate
 {
     m_builder.SetInsertPoint(start_block);
 
-    try
-    {
-        process(root);
-    }
-    catch (std::exception & e)
-    {
-        cout << "ERROR: " << e.what() << endl;
-        return;
-    }
+    process(root);
 
     m_builder.CreateBr(end_block);
 }

@@ -499,10 +499,12 @@ llvm_from_model::generate_intrinsic
 
         m_builder.SetInsertPoint(true_block);
         value_type true_value = generate_expression(op->operands[1], index, ctx);
+        true_value = convert(true_value, op->type);
         m_builder.CreateBr(after_block);
 
         m_builder.SetInsertPoint(false_block);
         value_type false_value = generate_expression(op->operands[2], index, ctx);
+        false_value = convert(false_value, op->type);
         m_builder.CreateBr(after_block);
 
         m_builder.SetInsertPoint(after_block);
@@ -558,10 +560,6 @@ llvm_from_model::generate_intrinsic
                 return m_builder.CreateSub(operands[0], operands[1]);
             case intrinsic::multiply:
                 return m_builder.CreateMul(operands[0], operands[1]);
-            case intrinsic::compare_eq:
-                return m_builder.CreateICmpEQ(operands[0], operands[1]);
-            case intrinsic::compare_neq:
-                return m_builder.CreateICmpNE(operands[0], operands[1]);
             case intrinsic::compare_g:
                 return m_builder.CreateICmpSGT(operands[0], operands[1]);
             case intrinsic::compare_geq:
@@ -587,10 +585,6 @@ llvm_from_model::generate_intrinsic
                 return m_builder.CreateFSub(operands[0], operands[1]);
             case intrinsic::multiply:
                 return m_builder.CreateFMul(operands[0], operands[1]);
-            case intrinsic::compare_eq:
-                return m_builder.CreateFCmpUEQ(operands[0], operands[1]);
-            case intrinsic::compare_neq:
-                return m_builder.CreateFCmpUNE(operands[0], operands[1]);
             case intrinsic::compare_g:
                 return m_builder.CreateFCmpUGT(operands[0], operands[1]);
             case intrinsic::compare_geq:
@@ -615,6 +609,22 @@ llvm_from_model::generate_intrinsic
                 return m_builder.CreateICmpEQ(operands[0], operands[1]);
             else
                 return m_builder.CreateICmpNE(operands[0], operands[1]);
+        }
+        if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
+        {
+            if (op->kind == intrinsic::compare_eq)
+                return m_builder.CreateICmpEQ(operands[0], operands[1]);
+            else
+                return m_builder.CreateICmpNE(operands[0], operands[1]);
+        }
+        else
+        {
+            value_type lhs = convert_to_real(operands[0]);
+            value_type rhs = convert_to_real(operands[1]);
+            if (op->kind == intrinsic::compare_eq)
+                return m_builder.CreateFCmpUEQ(lhs, rhs);
+            else
+                return m_builder.CreateFCmpUNE(lhs, rhs);
         }
     }
     case intrinsic::divide:
