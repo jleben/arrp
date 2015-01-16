@@ -57,9 +57,24 @@ llvm_from_model::llvm_from_model
     std::vector<int> buffers_on_stack;
     std::vector<int> buffers_in_memory;
 
-    int phase_buf_size = 0;
-    int int_buf_size = 0;
-    int real_buf_size = 0;
+    int buf_sizes[buffer_kind_count] = {0,0,0,0};
+
+    type_type buf_elem_types[buffer_kind_count] =
+    {
+        buffer_elem_type(polyhedral::boolean),
+        buffer_elem_type(polyhedral::integer),
+        buffer_elem_type(polyhedral::real),
+        int64_type(),
+    };
+
+    int buf_elem_sizes[buffer_kind_count] =
+    {
+        buffer_elem_size(polyhedral::boolean),
+        buffer_elem_size(polyhedral::integer),
+        buffer_elem_size(polyhedral::real),
+        8
+    };
+
     int stack_buf_idx = 0;
 
     for (statement *stmt : statements)
@@ -78,7 +93,7 @@ llvm_from_model::llvm_from_model
                     actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
 
             buf.has_phase = period_overlaps || init_overlaps;
-            buf.phase_index = phase_buf_size++;
+            buf.phase_index = buf_sizes[phase_buffer]++;
             transpose(buf.domain, actor->flow_dimension);
         }
         else
@@ -108,8 +123,7 @@ llvm_from_model::llvm_from_model
         {
             int buf_idx = buffers_on_stack[idx];
             buffer & b = m_stmt_buffers[buf_idx];
-            int elem_size = b.type == integer ? 4 : 8;
-            int buf_size = elem_size * b.size;
+            int buf_size = buffer_elem_size(b.type) * b.size;
             if (stack_size + buf_size < opt.max_stack_size)
             {
                 b.on_stack = true;
@@ -127,7 +141,7 @@ llvm_from_model::llvm_from_model
             int buf_idx = buffers_in_memory[idx];
             buffer & b = m_stmt_buffers[buf_idx];
             b.on_stack = false;
-            int & buf_size = b.type == integer ? int_buf_size : real_buf_size;
+            int & buf_size = buf_sizes[buffer_kind_for(b.type)];
             b.index = buf_size;
             buf_size += b.size;
         }
@@ -135,16 +149,9 @@ llvm_from_model::llvm_from_model
 
     //
 
-    type_type i32_ptr_type = llvm::PointerType::get(int32_type(), 0);
-    type_type i64_ptr_type = llvm::PointerType::get(int64_type(), 0);
-    type_type double_ptr_type = llvm::PointerType::get(double_type(), 0);
-
-    vector<type_type> buffer_struct_member_types =
-    {
-        double_ptr_type,
-        i32_ptr_type,
-        i64_ptr_type
-    };
+    vector<type_type> buffer_struct_member_types;
+    for(int idx = 0; idx < buffer_kind_count; ++idx)
+        buffer_struct_member_types.push_back(pointer(buf_elem_types[idx]));
 
     m_buffer_struct_type =
             llvm::StructType::create(buffer_struct_member_types);
@@ -172,26 +179,14 @@ llvm_from_model::llvm_from_model
                 = llvm::BasicBlock::Create(llvm_context(), "", func);
         m_builder.SetInsertPoint(block);
 
-        if (real_buf_size)
+        for(int buf_idx = 0; buf_idx < buffer_kind_count; ++buf_idx)
         {
-            vector<value_type> address = { value((int32_t)0), value((int32_t)0) };
-            value_type real_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
-            value_type buf = malloc(double_type(), real_buf_size * 8);
-            m_builder.CreateStore(buf, real_buf_ptr);
-        }
-        if (int_buf_size)
-        {
-            vector<value_type> address = { value((int32_t)0), value((int32_t)1) };
-            value_type int_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
-            value_type buf = malloc(int32_type(), int_buf_size * 4);
-            m_builder.CreateStore(buf, int_buf_ptr);
-        }
-        if (phase_buf_size)
-        {
-            vector<value_type> address = { value((int32_t)0), value((int32_t)2) };
-            value_type phase_buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
-            value_type buf = malloc(int64_type(), phase_buf_size * 8);
-            m_builder.CreateStore(buf, phase_buf_ptr);
+            vector<value_type> address = { value((int32_t)0), value((int32_t)buf_idx) };
+            value_type buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
+            int elem_count = buf_sizes[buf_idx];
+            int elem_size = buf_elem_sizes[buf_idx];
+            value_type buf = malloc(buf_elem_types[buf_idx], elem_count * elem_size);
+            m_builder.CreateStore(buf, buf_ptr);
         }
 
         m_builder.CreateRetVoid();
@@ -205,8 +200,7 @@ llvm_from_model::llvm_from_model
         const buffer & buf_info = m_stmt_buffers.back();
         assert(buf_info.on_stack == false);
 
-        type_type ret_type = buf_info.type == integer ?
-                    pointer(int32_type()) : pointer(double_type());
+        type_type ret_type = pointer(buffer_elem_type(buf_info.type));
 
         type_type buffer_struct_ptr_type =
                 llvm::PointerType::get(m_buffer_struct_type, 0);
@@ -228,7 +222,7 @@ llvm_from_model::llvm_from_model
                 = llvm::BasicBlock::Create(llvm_context(), "", func);
         m_builder.SetInsertPoint(block);
 
-        int data_field = buf_info.type == real ? 0 : 1;
+        int data_field = buffer_kind_for(buf_info.type);
         vector<value_type> address = { value((int)0),
                                        value(data_field) };
         value_type buf_ptr = m_builder.CreateGEP(buf_struct_ptr, address);
@@ -254,20 +248,27 @@ llvm_from_model::create_process_function
 
     for(const auto & arg : args)
     {
+        type_type param_type;
+
         switch(arg->get_tag())
         {
+        case semantic::type::boolean:
+            param_type = buffer_elem_type(polyhedral::boolean);
+            break;
         case semantic::type::integer_num:
-            param_types.push_back(int32_type());
+            param_type = buffer_elem_type(polyhedral::integer);
             break;
         case semantic::type::real_num:
-            param_types.push_back(double_type());
+            param_type = buffer_elem_type(polyhedral::real);
             break;
         case semantic::type::stream:
-            param_types.push_back(llvm::PointerType::get(double_type(),0));
+            param_type = pointer(buffer_elem_type(polyhedral::real));
             break;
         default:
             throw string("Unexpected argument type.");
         }
+
+        param_types.push_back(param_type);
     }
 
     param_types.push_back(buffer_ptr_type);
@@ -305,20 +306,12 @@ llvm_from_model::create_process_function
     m_builder.SetInsertPoint(ctx.start_block);
 
     // Load dynamic buffer addresses
+    for (int buf_idx = 0; buf_idx < buffer_kind_count; ++buf_idx)
     {
-        vector<value_type> address = { value((int32_t)0), value((int32_t)0) };
-        ctx.real_buffer = m_builder.CreateLoad(
-                    m_builder.CreateGEP(buffer_info_ptr, address), "real_buf");
-    }
-    {
-        vector<value_type> address = { value((int32_t)0), value((int32_t)1) };
-        ctx.int_buffer = m_builder.CreateLoad(
-                    m_builder.CreateGEP(buffer_info_ptr, address), "int_buf");
-    }
-    {
-        vector<value_type> address = { value((int32_t)0), value((int32_t)2) };
-        ctx.phase_buffer = m_builder.CreateLoad(
-                    m_builder.CreateGEP(buffer_info_ptr, address), "phase_buf");
+        vector<value_type> address = { value((int32_t)0), value((int32_t)buf_idx) };
+        value_type buf =
+                m_builder.CreateLoad(m_builder.CreateGEP(buffer_info_ptr, address));
+        ctx.mem_buffers.push_back(buf);
     }
 
     // Allocate stack buffers
@@ -335,7 +328,7 @@ llvm_from_model::create_process_function
         if (!buf.on_stack)
             continue;
 
-        type_type elem_type = buf.type == integer ? int32_type() : double_type();
+        type_type elem_type = buffer_elem_type(buf.type);
         value_type buf_ptr;
         if (buf.size > 1)
         {
@@ -413,12 +406,7 @@ llvm_from_model::generate_statement
     }
 
     value_type dst = generate_buffer_access(stmt, global_index, ctx);
-
-#if 0
-    if (value->getType() != double_type())
-        value = m_builder.CreateSIToFP(value, double_type());
-#endif
-    m_builder.CreateStore(value, dst);
+    store_buffer_elem(value, dst, stmt->expr->type);
 
     return m_builder.GetInsertBlock();
 }
@@ -452,7 +440,7 @@ llvm_from_model::generate_expression
     {
         vector<value_type> target_index = mapped_index(index, read->pattern);
         value_type address = generate_buffer_access(read->target, target_index, ctx);
-        result = m_builder.CreateLoad(address);
+        result = load_buffer_elem(address, expr->type);
     }
     else if (auto access = dynamic_cast<reduction_access*>(expr))
     {
@@ -466,19 +454,16 @@ llvm_from_model::generate_expression
     {
         result = value(const_double->value);
     }
+    else if ( auto const_bool = dynamic_cast<constant<bool>*>(expr) )
+    {
+        result = value(const_bool->value);
+    }
     else
     {
         throw std::runtime_error("Unexpected expression type.");
     }
 
-    if (result->getType() == int32_type() && expr->type == polyhedral::real)
-    {
-        result = m_builder.CreateSIToFP(result, double_type());
-    }
-    else if (result->getType() == double_type() && expr->type == polyhedral::integer)
-    {
-        result = m_builder.CreateFPToSI(result, int32_type());
-    }
+    result = convert(result, expr->type);
 
     return result;
 }
@@ -487,6 +472,36 @@ llvm_from_model::value_type
 llvm_from_model::generate_intrinsic
 ( intrinsic *op, const index_type & index, const context & ctx )
 {
+    switch(op->kind)
+    {
+    case intrinsic::conditional:
+    {
+        block_type after_block = add_block("if.after");
+        block_type true_block = add_block("if.true");
+        block_type false_block = add_block("if.false");
+
+        value_type condition = generate_expression(op->operands[0], index, ctx);
+        m_builder.CreateCondBr(condition, true_block, false_block);
+
+        m_builder.SetInsertPoint(true_block);
+        value_type true_value = generate_expression(op->operands[1], index, ctx);
+        m_builder.CreateBr(after_block);
+
+        m_builder.SetInsertPoint(false_block);
+        value_type false_value = generate_expression(op->operands[2], index, ctx);
+        m_builder.CreateBr(after_block);
+
+        m_builder.SetInsertPoint(after_block);
+        auto result = m_builder.CreatePHI(true_value->getType(), 2);
+        result->addIncoming(true_value, true_block);
+        result->addIncoming(false_value, false_block);
+
+        return result;
+    }
+    default:
+        break;
+    }
+
     vector<value_type> operands;
     operands.reserve(op->operands.size());
     for (expression * expr : op->operands)
@@ -496,20 +511,28 @@ llvm_from_model::generate_intrinsic
 
     type_type d_type = double_type();
     type_type i_type = int32_type();
+    type_type b_type = bool_type();
 
     switch(op->kind)
     {
     case intrinsic::negate:
     {
         value_type operand = operands[0];
-        if (operand->getType() == i_type)
+        type_type operand_type = operand->getType();
+        if (operand_type == i_type)
             return m_builder.CreateSub(value((int32_t)0), operand);
-        else
+        else if (operand_type == d_type)
             return m_builder.CreateFSub(value((double)0), operand);
+        else if (operand_type == b_type)
+            return m_builder.CreateNot(operand);
     }
     case intrinsic::add:
     case intrinsic::subtract:
     case intrinsic::multiply:
+    case intrinsic::compare_g:
+    case intrinsic::compare_geq:
+    case intrinsic::compare_l:
+    case intrinsic::compare_leq:
     {
         if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
         {
@@ -521,6 +544,18 @@ llvm_from_model::generate_intrinsic
                 return m_builder.CreateSub(operands[0], operands[1]);
             case intrinsic::multiply:
                 return m_builder.CreateMul(operands[0], operands[1]);
+            case intrinsic::compare_eq:
+                return m_builder.CreateICmpEQ(operands[0], operands[1]);
+            case intrinsic::compare_neq:
+                return m_builder.CreateICmpNE(operands[0], operands[1]);
+            case intrinsic::compare_g:
+                return m_builder.CreateICmpSGT(operands[0], operands[1]);
+            case intrinsic::compare_geq:
+                return m_builder.CreateICmpSGE(operands[0], operands[1]);
+            case intrinsic::compare_l:
+                return m_builder.CreateICmpSLT(operands[0], operands[1]);
+            case intrinsic::compare_leq:
+                return m_builder.CreateICmpSLE(operands[0], operands[1]);
             default: assert(false);
             }
         }
@@ -538,8 +573,34 @@ llvm_from_model::generate_intrinsic
                 return m_builder.CreateFSub(operands[0], operands[1]);
             case intrinsic::multiply:
                 return m_builder.CreateFMul(operands[0], operands[1]);
+            case intrinsic::compare_eq:
+                return m_builder.CreateFCmpUEQ(operands[0], operands[1]);
+            case intrinsic::compare_neq:
+                return m_builder.CreateFCmpUNE(operands[0], operands[1]);
+            case intrinsic::compare_g:
+                return m_builder.CreateFCmpUGT(operands[0], operands[1]);
+            case intrinsic::compare_geq:
+                return m_builder.CreateFCmpUGE(operands[0], operands[1]);
+            case intrinsic::compare_l:
+                return m_builder.CreateFCmpULT(operands[0], operands[1]);
+            case intrinsic::compare_leq:
+                return m_builder.CreateFCmpULE(operands[0], operands[1]);
             default: assert(false);
             }
+        }
+    }
+    case intrinsic::compare_eq:
+    case intrinsic::compare_neq:
+    {
+        type_type lhs_type = operands[0]->getType();
+        type_type rhs_type = operands[1]->getType();
+        if (lhs_type == b_type || rhs_type == b_type)
+        {
+            assert(lhs_type == b_type && rhs_type == b_type);
+            if (op->kind == intrinsic::compare_eq)
+                return m_builder.CreateICmpEQ(operands[0], operands[1]);
+            else
+                return m_builder.CreateICmpNE(operands[0], operands[1]);
         }
     }
     case intrinsic::divide:
@@ -714,11 +775,10 @@ llvm_from_model::generate_buffer_access
     }
     else
     {
-        if (buf_info.type == integer)
-            buffer_ptr = ctx.int_buffer;
-        else
-            buffer_ptr = ctx.real_buffer;
+        buffer_ptr = ctx.mem_buffers[buffer_kind_for(buf_info.type)];
 
+        // Avoid creating a GEP for single-element buffers,
+        // so they can be optimized away.
         if (buf_info.index != 0)
         {
             buffer_ptr = m_builder.CreateGEP(buffer_ptr, value((int64_t)buf_info.index));
@@ -772,7 +832,7 @@ llvm_from_model::generate_input_access
     value_type input = ctx.inputs[input_num];
     assert(input->getType()->isPointerTy());
     input = m_builder.CreateGEP(input, flat_index);
-    input = m_builder.CreateLoad(input);
+    input = load_buffer_elem(input, stmt->expr->type);
 
     return input;
 }
@@ -781,7 +841,10 @@ llvm_from_model::value_type
 llvm_from_model::generate_scalar_input_access( input_access *access, const context & ctx )
 {
     int input_num = access->index;
-    return ctx.inputs[input_num];
+    value_type val = ctx.inputs[input_num];
+    if (access->type == polyhedral::boolean)
+        val = m_builder.CreateTrunc(val, type(polyhedral::boolean));
+    return val;
 }
 
 llvm_from_model::value_type
@@ -820,7 +883,7 @@ llvm_from_model::generate_reduction_access
         }
         assert(access->initializer->domain.size() == init_index.size());
         value_type init_ptr = generate_buffer_access(access->initializer, init_index, ctx);
-        init_value = m_builder.CreateLoad(init_ptr);
+        init_value = load_buffer_elem(init_ptr, access->initializer->expr->type);
 
         m_builder.CreateBr(after_block);
     }
@@ -837,7 +900,7 @@ llvm_from_model::generate_reduction_access
                                     value((int64_t) 1));
         value_type recall_ptr = generate_buffer_access(access->reductor,
                                                        reductor_index, ctx);
-        recall_value = m_builder.CreateLoad(recall_ptr);
+        recall_value = load_buffer_elem(recall_ptr, access->reductor->expr->type);
 
         m_builder.CreateBr(after_block);
     }
@@ -872,7 +935,7 @@ void llvm_from_model::advance_buffers(const context & ctx)
         int buffer_size = stmt->buffer[actor->flow_dimension];
 
         value_type phase_ptr =
-                m_builder.CreateGEP(ctx.phase_buffer, value(buf.phase_index));
+                m_builder.CreateGEP(ctx.mem_buffers[phase_buffer], value(buf.phase_index));
         value_type phase_val = m_builder.CreateLoad(phase_ptr);
         value_type offset_val = value(phase_val->getType(), offset);
         value_type buf_size_val = value(phase_val->getType(), buffer_size);
@@ -912,7 +975,7 @@ llvm_from_model::buffer_index
         if (buf.has_phase)
         {
             value_type phase_ptr =
-                    m_builder.CreateGEP(ctx.phase_buffer, value(buf.phase_index));
+                    m_builder.CreateGEP(ctx.mem_buffers[phase_buffer], value(buf.phase_index));
             value_type phase =
                     m_builder.CreateLoad(phase_ptr);
 
@@ -954,12 +1017,63 @@ llvm_from_model::buffer_index
     return the_index;
 }
 
+llvm_from_model::value_type
+llvm_from_model::load_buffer_elem(value_type ptr, polyhedral::numerical_type t)
+{
+    value_type val = m_builder.CreateLoad(ptr);
+    if (t == polyhedral::boolean)
+        return m_builder.CreateTrunc(val, type(polyhedral::boolean));
+    else
+        return val;
+}
+
+void
+llvm_from_model::store_buffer_elem(value_type val, value_type ptr, polyhedral::numerical_type t)
+{
+    if (t == polyhedral::boolean)
+        val = m_builder.CreateZExt(val, buffer_elem_type(polyhedral::boolean));
+    m_builder.CreateStore(val, ptr);
+}
+
+int llvm_from_model::buffer_elem_size(polyhedral::numerical_type t)
+{
+    switch(t)
+    {
+    case polyhedral::boolean:
+        return 4;
+    case polyhedral::integer:
+        return 4;
+    case polyhedral::real:
+        return 8;
+    }
+    throw false;
+}
+
+llvm_from_model::type_type
+llvm_from_model::buffer_elem_type(polyhedral::numerical_type t)
+{
+    switch(t)
+    {
+    case polyhedral::boolean:
+        return int32_type();
+    case polyhedral::integer:
+        return int32_type();
+    case polyhedral::real:
+        return double_type();
+    }
+    throw false;
+}
+
+llvm_from_model::type_type
+llvm_from_model::buffer_type(const buffer &buf)
+{
+    return array_type(buffer_elem_type(buf.type), buf.domain);
+}
+
 llvm_from_model::type_type
 llvm_from_model::buffer_ptr_type(const buffer &buf)
 {
-    type_type elem_type = buf.type == integer ? int32_type() : double_type();
-    type_type array_type = this->array_type(elem_type, buf.domain);
-    return pointer(array_type);
+    return pointer(buffer_type(buf));
 }
 
 llvm_from_model::type_type
@@ -1068,6 +1182,81 @@ llvm_from_model::malloc( type_type t, std::uint64_t size )
     value_type ptr = m_builder.CreateCall(malloc_func, value(size));
 
     return m_builder.CreateBitCast(ptr, t_ptr_type);
+}
+
+llvm_from_model::type_type
+llvm_from_model::type(polyhedral::numerical_type t)
+{
+    switch(t)
+    {
+    case polyhedral::boolean:
+        return bool_type();
+    case polyhedral::integer:
+        return int32_type();
+    case polyhedral::real:
+        return double_type();
+    }
+    throw false;
+}
+
+llvm_from_model::value_type
+llvm_from_model::convert( value_type v,
+                          polyhedral::numerical_type t )
+{
+    switch(t)
+    {
+    case polyhedral::real:
+    {
+        return convert_to_real(v);
+    }
+    case polyhedral::integer:
+    {
+        return convert_to_integer(v);
+    }
+    case polyhedral::boolean:
+    {
+        return convert_to_boolean(v);
+    }
+    }
+    throw false;
+}
+
+llvm_from_model::value_type
+llvm_from_model::convert_to_real( value_type v )
+{
+    type_type t = v->getType();
+
+    if (t == bool_type())
+        return m_builder.CreateUIToFP(v, double_type());
+    else if (t == int32_type())
+        return m_builder.CreateSIToFP(v, double_type());
+
+    return v;
+}
+
+llvm_from_model::value_type
+llvm_from_model::convert_to_integer( value_type v )
+{
+    type_type t = v->getType();
+
+    if (t == bool_type())
+        return m_builder.CreateZExt(v, int32_type());
+    else if (t == double_type())
+        return m_builder.CreateFPToSI(v, int32_type());
+
+    return v;
+}
+
+
+llvm_from_model::value_type
+llvm_from_model::convert_to_boolean( value_type v )
+{
+    type_type t = v->getType();
+
+    if (t == type(polyhedral::boolean))
+        return v;
+    else
+        throw runtime_error("LLVM generator: can not convert value to boolean.");
 }
 
 }

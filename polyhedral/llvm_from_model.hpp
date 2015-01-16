@@ -66,9 +66,7 @@ public:
         block_type start_block;
         block_type end_block;
         vector<value_type> inputs;
-        value_type int_buffer;
-        value_type real_buffer;
-        value_type phase_buffer;
+        vector<value_type> mem_buffers;
         vector<value_type> stack_buffers;
     };
 
@@ -104,6 +102,29 @@ private:
         int index;
     };
 
+    enum buffer_kind
+    {
+        bool_buffer = 0,
+        int_buffer,
+        real_buffer,
+        phase_buffer,
+        buffer_kind_count
+    };
+
+    buffer_kind buffer_kind_for(polyhedral::numerical_type t)
+    {
+        switch(t)
+        {
+        case polyhedral::boolean:
+            return bool_buffer;
+        case polyhedral::integer:
+            return int_buffer;
+        case polyhedral::real:
+            return real_buffer;
+        }
+        throw false;
+    }
+
     value_type generate_expression( expression *, const index_type &, const context & );
     value_type generate_intrinsic( intrinsic *, const index_type &, const context &  );
     value_type generate_buffer_access( statement *, const index_type &, const context &  );
@@ -125,6 +146,12 @@ private:
                                   const index_type &,
                                   const context & );
 
+    value_type load_buffer_elem(value_type ptr, polyhedral::numerical_type);
+    void store_buffer_elem(value_type val, value_type ptr, polyhedral::numerical_type);
+
+    int buffer_elem_size(polyhedral::numerical_type t);
+    type_type buffer_elem_type(polyhedral::numerical_type t);
+    type_type buffer_type(const buffer &);
     type_type buffer_ptr_type(const buffer &);
     type_type array_type(type_type elem_type, const vector<int> domain);
 
@@ -186,6 +213,12 @@ private:
     {
         return llvm::ConstantInt::get(t,v);
     }
+
+    type_type type(polyhedral::numerical_type);
+    value_type convert( value_type v, polyhedral::numerical_type );
+    value_type convert_to_real( value_type v );
+    value_type convert_to_integer( value_type v );
+    value_type convert_to_boolean( value_type v );
 
     block_type add_block( const string & name )
     {
