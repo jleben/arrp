@@ -347,6 +347,22 @@ isl::matrix ast_generator::constraint_matrix( const mapping & map )
     return matrix;
 }
 
+/*
+  Notation:
+    c_i = number of init iterations
+    c_s = number of steady iterations
+    df = flow dimension
+
+  Create domain mappings:
+    M_i = D[d1,d2,df,...] -> D[-1,d1,d2,df...] : 0 <= df < c_i
+    M_s = D[d1,d2,df,...] -> D[d0',d1,d2,df'...] : df = d0' * c_s + df' + c_i
+  Map domains:
+    D_i = M_i(D)
+    D_s = M_s(D)
+  Map dependencies:
+    Dep_i+s = (M_i U M_s)(Dep)
+*/
+
 void ast_generator::periodic_model
 ( const isl::union_set & domains,
   const isl::union_map & dependencies,
