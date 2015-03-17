@@ -24,6 +24,7 @@ add_library(streamc-lib ${lib_mode}
   ../polyhedral/llvm_ir_from_cloog.cpp
   ../polyhedral/llvm_from_model.cpp
   ../interface/cpp-intf-gen.cpp
+  compiler.cpp
 )
 
 add_dependencies(streamc-lib parser)
@@ -42,5 +43,5 @@ target_link_libraries( streamc-lib ${ISL_LIBRARY} isl-cpp ${CLOOG_LIBRARY} json 
 
 # Executable
 
-add_executable(streamc compiler.cpp)
+add_executable(streamc main.cpp)
 target_link_libraries(streamc streamc-lib)

@@ -19,6 +19,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "arg_parser.hpp"
+#include "compiler.hpp"
 #include "../frontend/parser.h"
 #include "../frontend/ast_printer.hpp"
 #include "../frontend/type_checker.hpp"
@@ -37,39 +38,11 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 using namespace std;
 
-using namespace stream;
-using namespace stream::compiler;
+namespace stream {
+namespace compiler {
 
-namespace result {
-enum code
+result::code compile(const arguments & args)
 {
-    ok = 0,
-    command_line_error,
-    io_error,
-    syntactic_error,
-    symbolic_error,
-    semantic_error,
-    generator_error
-};
-}
-
-int main(int argc, char *argv[])
-{
-    arguments args(argc-1, argv+1);
-
-    try {
-        args.parse();
-    }
-    catch (arguments::abortion &)
-    {
-        return result::ok;
-    }
-    catch (arguments::error & e)
-    {
-        cerr << e.msg() << endl;
-        return result::command_line_error;
-    }
-
     for(const string & topic : args.debug_topics)
         debug::set_status_for_id(topic, debug::enabled);
     for(const string & topic : args.no_debug_topics)
@@ -89,7 +62,12 @@ int main(int argc, char *argv[])
         return result::io_error;
     }
 
-    stream::Parser parser(input_file);
+    return compile_source(input_file, args);
+}
+
+result::code compile_source(istream & source, const arguments & args)
+{
+    stream::Parser parser(source);
     parser.setPrintsTokens(args.print[arguments::tokens_output]);
 
     if (args.print[arguments::tokens_output])
@@ -127,16 +105,6 @@ int main(int argc, char *argv[])
 
     semantic::type_checker type_checker(env);
 
-    //IR::generator gen(args.input_filename, env);
-
-    polyhedral::translator poly(env);
-    polyhedral::printer poly_printer;
-
-    llvm::Module *module = new llvm::Module(args.input_filename,
-                                            llvm::getGlobalContext());
-    //polyhedral::llvm_ir_generator poly_llvm_gen(args.input_filename);
-    polyhedral::llvm_from_cloog llvm_cloog(module);
-
     const target_info & target = args.target;
 
     cout << endl;
@@ -172,10 +140,13 @@ int main(int argc, char *argv[])
         assert(sym_iter != env.end());
     }
 
+
+    polyhedral::translator poly(env);
     poly.translate( sym_iter->second, target.args );
 
     if (args.print[arguments::polyhedral_model_output])
     {
+        polyhedral::printer poly_printer;
         cout << endl << "== Polyhedral Model ==" << endl;
         for( polyhedral::statement * stmt : poly.statements() )
         {
@@ -184,13 +155,21 @@ int main(int argc, char *argv[])
         }
     }
 
+    return compile_polyhedral_model(poly.statements(), target, args);
+}
+
+
+result::code compile_polyhedral_model
+(const vector<stream::polyhedral::statement*> & statements,
+ const target_info & target, const arguments & args)
+{
     // Construct dataflow model
 
-    dataflow::model dataflow_model(poly.statements());
+    dataflow::model dataflow_model(statements);
 
     // Construct AST from polyhedral and dataflow models
 
-    polyhedral::ast_generator poly_ast_gen( poly.statements(),
+    polyhedral::ast_generator poly_ast_gen( statements,
                                             &dataflow_model );
     poly_ast_gen.set_print_ast_enabled(args.print[arguments::target_ast_output]);
 
@@ -203,8 +182,13 @@ int main(int argc, char *argv[])
 
     // Generate LLVM IR
 
+    llvm::Module *module = new llvm::Module(args.input_filename,
+                                            llvm::getGlobalContext());
+
+    polyhedral::llvm_from_cloog llvm_cloog(module);
+
     polyhedral::llvm_from_model llvm_from_model
-            (module, poly.statements(), &dataflow_model);
+            (module, statements, &dataflow_model);
 
     // Generate LLVM IR for finite part
 
@@ -266,7 +250,7 @@ int main(int argc, char *argv[])
         cpp_output_file << "#include <cstdint>" << endl;
 
         auto program = cpp_interface::create(target.name, target.args,
-                                           poly.statements(),
+                                           statements,
                                            dataflow_model);
         cpp_gen::options opt;
         cpp_gen::state state(opt);
@@ -307,7 +291,7 @@ int main(int argc, char *argv[])
             JSON::Object input;
             JSON::Array size;
 
-            polyhedral::statement *stmt = poly.statements()[in_idx];
+            polyhedral::statement *stmt = statements[in_idx];
             const dataflow::actor *actor = dataflow_model.find_actor_for(stmt);
 
             switch (stmt->expr->type )
@@ -352,7 +336,7 @@ int main(int argc, char *argv[])
 
         JSON::Array buffers;
 
-        for(polyhedral::statement *stmt : poly.statements())
+        for(polyhedral::statement *stmt : statements)
         {
             JSON::Object buffer;
 
@@ -384,12 +368,12 @@ int main(int argc, char *argv[])
             buffers.push_back(buffer);
         }
 
-        assert(poly.statements().size() > 0);
+        assert(statements.size() > 0);
 
         JSON::Object output;
 
         {
-            polyhedral::statement *stmt = poly.statements().back();
+            polyhedral::statement *stmt = statements.back();
             const dataflow::actor *actor = dataflow_model.find_actor_for(stmt);
 
             JSON::Array size;
@@ -463,3 +447,6 @@ int main(int argc, char *argv[])
 
     return result::ok;
 }
+
+} // namespace compiler
+} // namespace stream
