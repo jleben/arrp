@@ -206,6 +206,29 @@ void model::compute_schedule()
     // Number of tokens produced should be at least number of tokens consumed
     // after the initial epoch + one steady period.
 
+    /*
+      Notation:
+        c_init(s) = init count of statement s
+        c_steady(s) = steady count of statement s
+        push(s) = push rate of statement s along an anonymous channel
+        pop(s) = pop rate of statement s along an anonymous channel
+        peek(s) = peek rate of statement s along an anonymous channel
+
+      Purpose:
+        Determine appropriate c_init(s) for all s.
+
+      Optimization problem:
+      Minimize:
+        c_init(s1) + c_init(s2) + ... + c_init(sn)
+      Such that:
+        For each sx:
+          c_init(sx) >= 0
+        For each channel (sa,sb):
+          buffer_after_init(sa,sb) >= peek_ahead(sb)
+            buffer_after_init(sa,sb) = c_init(sa) * push(sa) - c_init(sb) * pop(sb);
+            peek_ahead(sb) = peek(sb) - pop(sb);
+    */
+
     isl::space statement_space(isl_ctx, isl::set_tuple(m_actors.size()));
     auto init_counts = isl::set::universe(statement_space);
     auto init_cost = isl::expression::value(statement_space, 0);
@@ -223,14 +246,10 @@ void model::compute_schedule()
         auto sink = isl::expression::variable(statement_space,
                                               isl::space::variable,
                                               chan.sink->id);
-        int source_steady = steady_counts(chan.source->id,0).value().numerator();
-        int sink_steady = steady_counts(chan.sink->id,0).value().numerator();
-
-        // p(a)*i(a) - o(b)*i(b) + [p(a)*s(a) - o(b)*s(b) - e(b) + o(b)] >= 0
 
         auto constraint =
                 chan.push * source - chan.pop * sink
-                + (chan.push * source_steady - chan.pop * sink_steady - chan.peek + chan.pop)
+                - chan.peek + chan.pop
                 >= 0;
 
         init_counts.add_constraint(constraint);
