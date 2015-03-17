@@ -90,6 +90,9 @@ private:
     void compute_channels();
     void compute_schedule();
 
+    vector<int> steady_counts();
+    vector<int> initial_counts();
+
     unordered_map<statement*, actor> m_actors;
     vector<channel> m_channels;
 };

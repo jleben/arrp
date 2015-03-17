@@ -160,15 +160,19 @@ void model::compute_channels()
     }
 }
 
-void model::compute_schedule()
+/*
+  Steady-state counts:
+
+  Number of executions of actors in the steady (periodic) schedule
+  = the minimal nullspace of the flow matrix.
+
+  Flow matrix F is m*n matrix,
+  where m is number of channels and n is number of actors,
+  and F(i,j) = push(c_i, a_j) - pop(c_i, a_j).
+*/
+vector<int> model::steady_counts()
 {
-    //using namespace isl;
-
-    assert(!m_actors.empty());
-    assert(!m_channels.empty());
-
     isl::context isl_ctx;
-    isl::printer isl_printer(isl_ctx);
 
     int rows = m_channels.size();
     int cols = m_actors.size();
@@ -193,41 +197,60 @@ void model::compute_schedule()
         isl::print(flow_matrix);
     }
 
-    isl::matrix steady_counts = flow_matrix.nullspace();
+    isl::matrix nullspace = flow_matrix.nullspace();
+
+    assert(nullspace.column_count() == 1);
+    assert(nullspace.row_count() == m_actors.size());
+
+    vector<int> counts;
+    counts.reserve(m_actors.size());
+
+    for(unsigned int i = 0; i < m_actors.size(); ++i)
+    {
+        counts.push_back( nullspace(i,0).value().numerator() );
+    }
 
     if (debug::is_enabled())
     {
         cout << "Steady Counts:" << endl;
-        isl::print(steady_counts);
+        for(int c : counts)
+            cout << c << " ";
     }
 
-    // Initialization counts:
+    return counts;
+}
 
-    // Number of tokens produced should be at least number of tokens consumed
-    // after the initial epoch + one steady period.
+/*
+  Initialization counts:
 
-    /*
-      Notation:
-        c_init(s) = init count of statement s
-        c_steady(s) = steady count of statement s
-        push(s) = push rate of statement s along an anonymous channel
-        pop(s) = pop rate of statement s along an anonymous channel
-        peek(s) = peek rate of statement s along an anonymous channel
+  Number of tokens produced should be at least number of tokens consumed
+  after the initial epoch + one steady period.
 
-      Purpose:
-        Determine appropriate c_init(s) for all s.
+  Notation:
+    c_init(s) = init count of statement s
+    c_steady(s) = steady count of statement s
+    push(s) = push rate of statement s along an anonymous channel
+    pop(s) = pop rate of statement s along an anonymous channel
+    peek(s) = peek rate of statement s along an anonymous channel
 
-      Optimization problem:
-      Minimize:
-        c_init(s1) + c_init(s2) + ... + c_init(sn)
-      Such that:
-        For each sx:
-          c_init(sx) >= 0
-        For each channel (sa,sb):
-          buffer_after_init(sa,sb) >= peek_ahead(sb)
-            buffer_after_init(sa,sb) = c_init(sa) * push(sa) - c_init(sb) * pop(sb);
-            peek_ahead(sb) = peek(sb) - pop(sb);
-    */
+  Purpose:
+    Determine appropriate c_init(s) for all s.
+
+  Optimization problem:
+  Minimize:
+    c_init(s1) + c_init(s2) + ... + c_init(sn)
+  Such that:
+    For each sx:
+      c_init(sx) >= 0
+    For each channel (sa,sb):
+      buffer_after_init(sa,sb) >= peek_ahead(sb)
+        buffer_after_init(sa,sb) = c_init(sa) * push(sa) - c_init(sb) * pop(sb);
+        peek_ahead(sb) = peek(sb) - pop(sb);
+*/
+vector<int> model::initial_counts()
+{
+    isl::context isl_ctx;
+    isl::printer isl_printer(isl_ctx);
 
     isl::space statement_space(isl_ctx, isl::set_tuple(m_actors.size()));
     auto init_counts = isl::set::universe(statement_space);
@@ -271,16 +294,36 @@ void model::compute_schedule()
         isl_printer.print(init_optimum_point); cout << endl;
     }
 
-    assert(steady_counts.column_count() == 1);
-    assert(steady_counts.row_count() == m_actors.size());
+    vector<int> init_counts_vec;
+    init_counts_vec.reserve(m_actors.size());
+
+    for(unsigned int i = 0; i < m_actors.size(); ++i)
+    {
+        int count = (int) init_optimum_point(isl::space::variable, i).numerator();
+        init_counts_vec.push_back(count);
+    }
+
+    return init_counts_vec;
+}
+
+void model::compute_schedule()
+{
+    //using namespace isl;
+
+    assert(!m_actors.empty());
+    assert(!m_channels.empty());
+
+    vector<int> steady_counts = this->steady_counts();
+    vector<int> init_counts = this->initial_counts();
+
+    assert(steady_counts.size() == m_actors.size());
+    assert(init_counts.size() == m_actors.size());
 
     for (auto & actor_record : m_actors)
     {
         actor & a = actor_record.second;
-        a.init_count =
-                (int) init_optimum_point(isl::space::variable, a.id).numerator();
-        a.steady_count =
-                steady_counts(a.id, 0).value().numerator();
+        a.init_count = init_counts[a.id];
+        a.steady_count = steady_counts[a.id];
     }
 }
 
