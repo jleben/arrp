@@ -230,6 +230,13 @@ result::code compile_polyhedral_model
         return result::generator_error;
     }
 
+    // Print buffers
+
+    if (args.print[arguments::buffer_size_output])
+    {
+        print_buffer_sizes(statements);
+    }
+
     // Generate LLVM IR
 
     llvm::Module *module = new llvm::Module(args.input_filename,
@@ -496,6 +503,23 @@ result::code compile_polyhedral_model
         return result::generator_error;
 
     return result::ok;
+}
+
+void print_buffer_sizes(const vector<stream::polyhedral::statement*> & stmts)
+{
+    cout << endl << "== Buffer sizes ==" << endl;
+    for (polyhedral::statement *stmt : stmts)
+    {
+        int flat_size = 1;
+        cout << stmt->name << ": ";
+        for (auto b : stmt->buffer)
+        {
+            cout << b << " ";
+            flat_size *= b;
+        }
+        cout << "[" << flat_size << "]";
+        cout << endl;
+    }
 }
 
 } // namespace compiler

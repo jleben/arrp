@@ -32,6 +32,8 @@ result::code compile_polyhedral_model
 (const vector<stream::polyhedral::statement*> &,
  const arguments &);
 
+void print_buffer_sizes(const vector<stream::polyhedral::statement*> &);
+
 }
 }
 

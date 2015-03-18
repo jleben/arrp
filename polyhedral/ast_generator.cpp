@@ -726,9 +726,6 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
 
     delete time_space;
 
-    if (debug_buffer_size::is_enabled())
-        cout << endl << "Buffer sizes:" << endl;
-
     for (statement *stmt : m_statements)
     {
         if (stmt->buffer.empty())
@@ -742,19 +739,6 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
                     stmt->buffer.push_back(stmt->domain[dim]);
                 assert(stmt->buffer.back() >= 0);
             }
-        }
-
-        if (debug_buffer_size::is_enabled())
-        {
-            int flat_size = 1;
-            cout << stmt->name << ": ";
-            for (auto b : stmt->buffer)
-            {
-                cout << b << " ";
-                flat_size *= b;
-            }
-            cout << "[" << flat_size << "]";
-            cout << endl;
         }
     }
 }

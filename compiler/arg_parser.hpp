@@ -101,6 +101,7 @@ public:
         ast_output,
         symbols_output,
         polyhedral_model_output,
+        buffer_size_output,
         target_ast_output,
 
         output_topic_count
@@ -166,6 +167,8 @@ private:
                 topic = symbols_output;
             else if (topic_name == "poly")
                 topic = polyhedral_model_output;
+            else if (topic_name == "buffers")
+                topic = buffer_size_output;
             else if (topic_name == "out-ast")
                 topic = target_ast_output;
             else
