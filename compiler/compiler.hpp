@@ -30,7 +30,7 @@ result::code compile_source(istream &, const arguments &);
 
 result::code compile_polyhedral_model
 (const vector<stream::polyhedral::statement*> &,
- const target_info &, const arguments &);
+ const arguments &);
 
 }
 }

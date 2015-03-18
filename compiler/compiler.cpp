@@ -41,6 +41,54 @@ using namespace std;
 namespace stream {
 namespace compiler {
 
+void print_help()
+{
+    using namespace std;
+
+    cout << "Usage:" << endl
+         << "  streamc <input file> [<option>...]" << endl;
+
+    cout << "Options:" << endl;
+
+    cout << "  --generate or --gen or -g <symbol> [<type>...] :" << endl
+         << "  \tGenerate output for top-level function or expression <symbol>" << endl
+         << "  \twith given argument types." << endl
+         << "  \tEach following argument <type> is used as the type of" << endl
+         << "  \ta function parameter in generic function instantiation." << endl
+         << "  \tA <type> can be one of the following:" << endl
+         << "  \t- \"int\" - integer number," << endl
+         << "  \t- \"real\" - real number," << endl
+         << "  \t- a stream, e.g. \"[10,4,5]\""
+         << " - each number represents size in one dimension." << endl
+            ;
+
+    cout << "  --output or -o <name>: Generate LLVM IR output file with <name>"
+            " (default: 'out.ll')." << endl;
+
+    cout << "  --cpp <name> : Generate C++ header file with <name>." << endl;
+
+    cout << "  --meta or -m <name> : Generate JSON description file with <name>." << endl;
+
+    cout << "  --print or -p <topic> : Enable printing of <topic>." << endl
+         << "  \tAvailable topics:" << endl;
+    cout << "  \t- tokens = Lexical tokens (if enabled at compiler build time)." << endl;
+    cout << "  \t- ast = Abstract syntax tree of input code." << endl;
+    cout << "  \t- symbols = Top-level symbols in the environment." << endl;
+    cout << "  \t- poly = Polyhedral model." << endl;
+    cout << "  \t- out-ast = Abstract syntax tree of output code." << endl;
+
+    cout << "  --debug or -d <topic> : Enable debugging output for <topic>." << endl
+         << "  \tAvailable topics:" << endl
+         << "  \t- polyhedral" << endl
+         << "  \t- polyhedral.model" << endl
+         << "  \t- polyhedral.model.transform" << endl
+         << "  \t- polyhedral.ast" << endl
+         << "  \t- polyhedral.ast.buffer-size" << endl
+         << "  \t- dataflow" << endl
+            ;
+    cout << "  --no-debug or -D <topic> : Disable debugging output for <topic>." << endl;
+}
+
 result::code compile(const arguments & args)
 {
     for(const string & topic : args.debug_topics)
@@ -155,14 +203,16 @@ result::code compile_source(istream & source, const arguments & args)
         }
     }
 
-    return compile_polyhedral_model(poly.statements(), target, args);
+    return compile_polyhedral_model(poly.statements(), args);
 }
 
 
 result::code compile_polyhedral_model
 (const vector<stream::polyhedral::statement*> & statements,
- const target_info & target, const arguments & args)
+ const arguments & args)
 {
+    const target_info & target = args.target;
+
     // Construct dataflow model
 
     dataflow::model dataflow_model(statements);
