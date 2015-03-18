@@ -224,6 +224,7 @@ vector<int> model::steady_counts()
         cout << "Steady Counts:" << endl;
         for(int c : counts)
             cout << c << " ";
+        cout << endl;
     }
 
     return counts;
