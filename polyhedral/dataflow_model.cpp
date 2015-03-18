@@ -195,8 +195,17 @@ vector<int> model::steady_counts()
     int row = 0;
     for (const auto & chan: m_channels)
     {
-        flow_matrix(row, chan.source->id) = chan.push;
-        flow_matrix(row, chan.sink->id) = - chan.pop;
+        if (chan.source != chan.sink)
+        {
+            flow_matrix(row, chan.source->id) = chan.push;
+            flow_matrix(row, chan.sink->id) = - chan.pop;
+        }
+        else
+        {
+            // In a consistent model, this should always be 0.
+            // Nevertheless...
+            flow_matrix(row, chan.sink->id) = chan.push - chan.pop;
+        }
         ++row;
     }
 
