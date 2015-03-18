@@ -1038,24 +1038,31 @@ llvm_from_model::buffer_index
 
     for (int dim = 0; dim < the_index.size(); ++dim)
     {
-        int domain = the_domain[dim];
-        int buffer = the_buffer_size[dim];
+        int domain_size = the_domain[dim];
+        int buffer_size = the_buffer_size[dim];
 
-        if (buffer < 2)
+        if (buffer_size < 2)
         {
             the_index[dim] = value((int64_t) 0);
             continue;
         }
 
         bool may_wrap =
-                domain > buffer ||
+                domain_size > buffer_size ||
                 (actor && dim == actor->flow_dimension && buf.has_phase);
 
         if (may_wrap)
         {
             value_type & dim_index = the_index[dim];
             dim_index = m_builder.CreateSRem( dim_index,
-                                              value((int64_t)buffer) );
+                                              value((int64_t)buffer_size) );
+            // FIXME: Avoid correction when possible
+            value_type idx_is_pos =
+                    m_builder.CreateICmpSGE(dim_index, value((int64_t)0));
+            value_type correct_dim_index =
+                    m_builder.CreateAdd(dim_index, value((int64_t)buffer_size));
+            dim_index =
+                    m_builder.CreateSelect(idx_is_pos, dim_index, correct_dim_index);
         }
     }
 
