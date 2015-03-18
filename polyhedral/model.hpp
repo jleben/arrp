@@ -244,6 +244,11 @@ class statement
 {
 public:
     statement(): expr(nullptr), inter_period_dependency(true) {}
+    statement(const string & name):
+        name(name),
+        expr(nullptr),
+        inter_period_dependency(true)
+    {}
     string name;
     expression * expr;
     vector<int> domain;
@@ -265,6 +270,9 @@ class stmt_access : public expression
 public:
     stmt_access(statement *target):
         expression(target->expr->type),
+        target(target) {}
+    stmt_access(statement *target, numerical_type t):
+        expression(t),
         target(target) {}
     statement * target;
     mapping pattern;
