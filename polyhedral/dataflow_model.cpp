@@ -130,8 +130,17 @@ void model::compute_channels()
 
             actor & source = source_record->second;
 
-            int pop_rate = access->pattern.coefficients(source.flow_dimension, sink.flow_dimension);
+            // pop(source,sink) = M_source,sink[d_flow(source), d_flow(sink)]
+
+            int pop_rate = access->pattern.coefficients(source.flow_dimension,
+                                                        sink.flow_dimension);
             assert(pop_rate != 0);
+
+            // peek(source,sink) = single-token-volume(source,sink)[d_flow(sink)] :
+            //    single-token-volume(source,sink) =
+            //        M_source,sink * [d_1, d_2, d_flow,...]
+            //    d_x = D_sink(x)
+            //    d_flow = 0
 
             vector<int> sink_index = sink.stmt->domain;
             sink_index[sink.flow_dimension] = 0;
