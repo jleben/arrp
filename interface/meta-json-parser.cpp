@@ -18,11 +18,11 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "cpp-interface.hpp"
+#include "meta-json-parser.hpp"
 #include <json++/json.hh>
 
 namespace stream {
-namespace interface {
+namespace meta_json {
 
 numerical_type parse_type(const JSON::Value & data)
 {

@@ -17,8 +17,6 @@ function(add_integration_test target_name source func args driver)
 
   add_executable( ${target_name} ${driver} ${${kernel_target_name}_object} )
 
-  target_link_libraries( ${target_name} streamc-interface-cpp )
-
   add_test(NAME ${target_name} COMMAND $<TARGET_FILE:${target_name}>)
 endfunction()
 

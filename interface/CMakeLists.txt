@@ -1,2 +1,2 @@
-add_library(streamc-interface-cpp STATIC cpp-interface.cpp)
-target_link_libraries(streamc-interface-cpp json)
+add_library(streamc-meta-json STATIC meta-json-parser.cpp)
+target_link_libraries(streamc-meta-json json)

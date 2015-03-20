@@ -23,7 +23,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <string>
 
 namespace stream {
-namespace interface {
+namespace meta_json {
 
 using std::vector;
 using std::string;
