@@ -19,7 +19,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "ast_generator.hpp"
-#include "dataflow_model.hpp"
 
 #include <cloog/cloog.h>
 #include <cloog/isl/cloog.h>

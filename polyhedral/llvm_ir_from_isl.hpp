@@ -21,7 +21,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_LLVM_IR_GENERATOR_INCLUDED
 #define STREAM_POLYHEDRAL_LLVM_IR_GENERATOR_INCLUDED
 
-#include "model.hpp"
+#include "../common/polyhedral_model.hpp"
 #include "../frontend/context.hpp"
 
 #include <isl/set.h>

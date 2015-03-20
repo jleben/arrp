@@ -19,6 +19,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "translator.hpp"
+#include "../common/error.hpp"
 
 #include <stdexcept>
 #include <algorithm>

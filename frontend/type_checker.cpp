@@ -19,7 +19,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "type_checker.hpp"
-#include "types.hpp"
 
 #include <stdexcept>
 #include <sstream>

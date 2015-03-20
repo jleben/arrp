@@ -18,28 +18,43 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "model.hpp"
+#ifndef STREAM_LANG_ERROR_INCLUDED
+#define STREAM_LANG_ERROR_INCLUDED
 
-#include <iomanip>
+#include <exception>
+#include <sstream>
+#include <string>
 
-using namespace std;
+// FIXME: Enable on later versions of MS compiler:
+#ifdef _MSC_VER
+#define NOEXCEPT
+#else
+#define NOEXCEPT noexcept
+#endif
 
 namespace stream {
-namespace polyhedral {
 
-ostream & operator<<(ostream &s, const mapping & m)
+using std::string;
+
+struct abort_error {};
+
+struct error : public std::exception
 {
-    for (int row = 0; row < m.output_dimension(); ++row)
+public:
+    error(const string & what):
+        m_msg(what)
+    {}
+
+    virtual const char *what() const NOEXCEPT
     {
-        for (int col = 0; col < m.input_dimension(); ++col)
-        {
-            s << std::setw(4) << m.coefficients(row,col);
-        }
-        s << " | " << m.constants[row];
-        s << endl;
+        return m_msg.c_str();
     }
-    return s;
-}
+
+private:
+    string m_msg;
+};
 
 }
-}
+
+#endif // STREAM_LANG_ERROR_INCLUDED
+

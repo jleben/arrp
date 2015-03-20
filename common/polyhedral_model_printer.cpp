@@ -19,7 +19,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "../common/primitives.hpp"
-#include "printer.hpp"
+#include "polyhedral_model_printer.hpp"
 
 #include <iomanip>
 #include <vector>

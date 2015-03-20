@@ -8,7 +8,7 @@
 #include <iostream>
 
 // $insert preincludes
-#include "ast.hpp"
+#include "../common/ast.hpp"
 
 namespace // anonymous
 {

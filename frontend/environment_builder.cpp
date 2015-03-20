@@ -18,10 +18,10 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "environment.hpp"
+#include "environment_builder.hpp"
 #include "error.hpp"
 
-#include <sstream>
+#include <iostream>
 
 using namespace std;
 
@@ -57,34 +57,6 @@ private:
         return text.str();
     }
 };
-
-environment::environment()
-{}
-
-std::ostream & operator<<(std::ostream & s, const environment & env)
-{
-    for (const auto & mapping : env)
-    {
-        const string & name = mapping.first;
-        const semantic::symbol &sym = mapping.second;
-        s << name;
-        if (!sym.parameter_names.empty())
-        {
-            s << "(";
-            int i = 0;
-            for(const string & param : sym.parameter_names)
-            {
-                ++i;
-                s << param;
-                if (i < sym.parameter_names.size())
-                    s << ", ";
-            }
-            s << ")";
-        }
-        s << std::endl;
-    }
-    return s;
-}
 
 environment_builder::environment_builder(environment &env):
     m_env(env),

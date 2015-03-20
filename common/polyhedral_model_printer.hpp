@@ -21,7 +21,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_PRINTER_INCLUDED
 #define STREAM_POLYHEDRAL_PRINTER_INCLUDED
 
-#include "model.hpp"
+#include "polyhedral_model.hpp"
 
 #include <iostream>
 #include <string>

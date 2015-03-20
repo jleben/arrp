@@ -21,9 +21,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_CPP_INTERFACE_GENERATOR_INCLUDED
 #define STREAM_LANG_CPP_INTERFACE_GENERATOR_INCLUDED
 
-#include "../polyhedral/dataflow_model.hpp"
-#include "../polyhedral/model.hpp"
-#include "../frontend/types.hpp"
+#include "../common/dataflow_model.hpp"
+#include "../common/polyhedral_model.hpp"
+#include "../common/types.hpp"
 #include "../utility/cpp-gen.hpp"
 
 #include <vector>

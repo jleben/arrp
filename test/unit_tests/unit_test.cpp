@@ -20,11 +20,12 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "unit_test.hpp"
 
+#include "../../common/environment.hpp"
+#include "../../common/types.hpp"
 #include "../../frontend/parser.h"
-#include "../../frontend/environment.hpp"
+#include "../../frontend/environment_builder.hpp"
 #include "../../frontend/type_checker.hpp"
 #include "../../polyhedral/translator.hpp"
-#include "../../frontend/types.hpp"
 
 #include <sstream>
 #include <memory>

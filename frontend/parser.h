@@ -8,8 +8,6 @@
 // $insert scanner.h
 #include "scanner.h"
 
-#include "ast.hpp"
-
 // $insert namespace-open
 namespace stream
 {

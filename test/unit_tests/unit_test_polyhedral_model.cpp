@@ -20,8 +20,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "unit_test.hpp"
 
-#include "../../polyhedral/model.hpp"
-#include "../../polyhedral/printer.hpp"
+#include "../../common/polyhedral_model.hpp"
+#include "../../common/polyhedral_model_printer.hpp"
 
 #include <sstream>
 #include <memory>

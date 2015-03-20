@@ -18,28 +18,28 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#ifndef STREAM_LANG_FRONTEND_ERROR_INCLUDED
-#define STREAM_LANG_FRONTEND_ERROR_INCLUDED
+#include "polyhedral_model.hpp"
 
-#include "../common/error.hpp"
+#include <iomanip>
+
+using namespace std;
 
 namespace stream {
+namespace polyhedral {
 
-struct source_error : public error
+ostream & operator<<(ostream &s, const mapping & m)
 {
-    source_error(const string & what, int line):
-        error(msg(what, line))
-    {}
-
-private:
-    static string msg(const string & what, int line)
+    for (int row = 0; row < m.output_dimension(); ++row)
     {
-        std::ostringstream text;
-        text << "[line " << line << "] " << what;
-        return text.str();
+        for (int col = 0; col < m.input_dimension(); ++col)
+        {
+            s << std::setw(4) << m.coefficients(row,col);
+        }
+        s << " | " << m.constants[row];
+        s << endl;
     }
-};
-
+    return s;
 }
 
-#endif // STREAM_LANG_FRONTEND_ERROR_INCLUDED
+}
+}

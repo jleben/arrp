@@ -21,9 +21,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_LLVM_FROM_MODEL_INCLUDED
 #define STREAM_POLYHEDRAL_LLVM_FROM_MODEL_INCLUDED
 
-#include "model.hpp"
-#include "dataflow_model.hpp"
-#include "../frontend/types.hpp"
+#include "../common/dataflow_model.hpp"
+#include "../common/types.hpp"
+#include "../common/polyhedral_model.hpp"
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>

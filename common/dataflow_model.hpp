@@ -21,8 +21,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_DATAFLOW_MODEL_INCLUDED
 #define STREAM_LANG_DATAFLOW_MODEL_INCLUDED
 
-#include "model.hpp"
-#include "../utility/debug.hpp"
+#include "polyhedral_model.hpp"
 
 #include <vector>
 #include <unordered_map>
@@ -54,12 +53,18 @@ struct actor
     int steady_count;
 };
 
+struct channel
+{
+    actor *source;
+    actor *sink;
+    int push;
+    int peek;
+    int pop;
+};
+
 class model
 {
 public:
-    struct debug : public stream::debug::topic<debug, stream::debug::all>
-    { static string id() { return "dataflow"; } };
-
     model( const vector<statement*> & );
 
     bool empty() { return m_actors.empty(); }
@@ -72,21 +77,13 @@ public:
         else
             return nullptr;
     }
+
     const dataflow::actor & actor_for( statement * stmt ) const
     {
         return m_actors.at(stmt);
     }
 
 private:
-    struct channel
-    {
-        actor *source;
-        actor *sink;
-        int push;
-        int peek;
-        int pop;
-    };
-
     void compute_channels();
     void compute_schedule();
 

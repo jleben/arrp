@@ -21,10 +21,10 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_UNIT_TEST_INCLUDED
 #define STREAM_LANG_UNIT_TEST_INCLUDED
 
-#include "../../frontend/types.hpp"
-#include "../../frontend/ast.hpp"
-#include "../../frontend/environment.hpp"
-#include "../../polyhedral/model.hpp"
+#include "../../common/types.hpp"
+#include "../../common/ast.hpp"
+#include "../../common/environment.hpp"
+#include "../../common/polyhedral_model.hpp"
 
 #include <iostream>
 #include <sstream>

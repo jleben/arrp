@@ -21,8 +21,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_AST_GENERATOR_INCLUDED
 #define STREAM_POLYHEDRAL_AST_GENERATOR_INCLUDED
 
-#include "model.hpp"
-#include "dataflow_model.hpp"
+#include "../common/dataflow_model.hpp"
+#include "../common/polyhedral_model.hpp"
 #include "../utility/debug.hpp"
 
 #include <isl/set.h>

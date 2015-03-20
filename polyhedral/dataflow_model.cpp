@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "dataflow_model.hpp"
+#include "../common/dataflow_model.hpp"
 
 #include <isl-cpp/context.hpp>
 #include <isl-cpp/set.hpp>
@@ -36,6 +36,9 @@ using namespace std;
 
 namespace stream {
 namespace dataflow {
+
+struct debug : public stream::debug::topic<debug, stream::debug::all>
+{ static string id() { return "dataflow"; } };
 
 model::model( const vector<statement*> & statements )
 {

@@ -21,7 +21,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_COMPILER_ARG_PARSER
 #define STREAM_LANG_COMPILER_ARG_PARSER
 
-#include "../frontend/types.hpp"
+#include "../common/types.hpp"
 
 #include <sstream>
 #include <iostream>

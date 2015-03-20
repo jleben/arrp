@@ -21,11 +21,11 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_TRANSLATOR_INCLUDED
 #define STREAM_POLYHEDRAL_TRANSLATOR_INCLUDED
 
-#include "model.hpp"
-#include "../frontend/ast.hpp"
-#include "../frontend/types.hpp"
-#include "../frontend/context.hpp"
-#include "../frontend/environment.hpp"
+#include "../common/polyhedral_model.hpp"
+#include "../common/ast.hpp"
+#include "../common/types.hpp"
+#include "../common/environment.hpp"
+#include "../utility/context.hpp"
 #include "../utility/matrix.hpp"
 #include "../utility/debug.hpp"
 

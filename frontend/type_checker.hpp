@@ -21,11 +21,11 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_TYPE_CHECKER_INCLUDED
 #define STREAM_LANG_TYPE_CHECKER_INCLUDED
 
-#include "ast.hpp"
-#include "environment.hpp"
 #include "error.hpp"
-#include "context.hpp"
-#include "types.hpp"
+#include "../common/ast.hpp"
+#include "../common/environment.hpp"
+#include "../common/types.hpp"
+#include "../utility/context.hpp"
 
 #include <unordered_map>
 #include <string>

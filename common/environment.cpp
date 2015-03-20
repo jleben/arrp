@@ -18,28 +18,42 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#ifndef STREAM_LANG_FRONTEND_ERROR_INCLUDED
-#define STREAM_LANG_FRONTEND_ERROR_INCLUDED
+#include "environment.hpp"
 
-#include "../common/error.hpp"
+#include <sstream>
+
+using namespace std;
 
 namespace stream {
+namespace semantic {
 
-struct source_error : public error
+environment::environment()
+{}
+
+std::ostream & operator<<(std::ostream & s, const environment & env)
 {
-    source_error(const string & what, int line):
-        error(msg(what, line))
-    {}
-
-private:
-    static string msg(const string & what, int line)
+    for (const auto & mapping : env)
     {
-        std::ostringstream text;
-        text << "[line " << line << "] " << what;
-        return text.str();
+        const string & name = mapping.first;
+        const semantic::symbol &sym = mapping.second;
+        s << name;
+        if (!sym.parameter_names.empty())
+        {
+            s << "(";
+            int i = 0;
+            for(const string & param : sym.parameter_names)
+            {
+                ++i;
+                s << param;
+                if (i < sym.parameter_names.size())
+                    s << ", ";
+            }
+            s << ")";
+        }
+        s << std::endl;
     }
-};
-
+    return s;
 }
 
-#endif // STREAM_LANG_FRONTEND_ERROR_INCLUDED
+}
+}

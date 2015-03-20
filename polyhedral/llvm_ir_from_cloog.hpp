@@ -21,8 +21,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_LLVM_IR_CLOOG_TRANSLATOR_INCLUDED
 #define STREAM_POLYHEDRAL_LLVM_IR_CLOOG_TRANSLATOR_INCLUDED
 
-#include "model.hpp"
-#include "../frontend/context.hpp"
+//#include "../common/polyhedral/model.hpp"
+#include "../utility/context.hpp"
 
 #include <cloog/cloog.h>
 #include <llvm/IR/LLVMContext.h>

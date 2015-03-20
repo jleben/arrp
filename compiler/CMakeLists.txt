@@ -10,15 +10,16 @@ add_library(streamc-lib ${lib_mode}
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../common/primitives.cpp
+  ../common/types.cpp
+  ../common/environment.cpp
+  ../common/polyhedral_model.cpp
+  ../common/polyhedral_model_printer.cpp
   ../frontend/lex.cc
   ../frontend/parse.cc
-  ../frontend/environment.cpp
-  ../frontend/types.cpp
+  ../frontend/environment_builder.cpp
   ../frontend/type_checker.cpp
-  ../polyhedral/model.cpp
   ../polyhedral/translator.cpp
   ../polyhedral/dataflow_model.cpp
-  ../polyhedral/printer.cpp
   ../polyhedral/ast_generator.cpp
   ../polyhedral/llvm_ir_from_cloog.cpp
   ../polyhedral/llvm_from_model.cpp
