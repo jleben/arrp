@@ -43,10 +43,10 @@ namespace polyhedral {
 using std::unordered_map;
 using std::string;
 
-class llvm_ir_generator
+class llvm_from_isl
 {
 public:
-    llvm_ir_generator(const string & module_name);
+    llvm_from_isl(const string & module_name);
 
     void generate( isl_ast_node *ast,
                    const unordered_map<string, statement*> & source );

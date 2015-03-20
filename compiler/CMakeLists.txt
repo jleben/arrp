@@ -15,13 +15,11 @@ add_library(streamc-lib ${lib_mode}
   ../frontend/environment.cpp
   ../frontend/types.cpp
   ../frontend/type_checker.cpp
-  #../frontend/ir-generator.cpp
   ../polyhedral/model.cpp
   ../polyhedral/translator.cpp
   ../polyhedral/dataflow_model.cpp
   ../polyhedral/printer.cpp
   ../polyhedral/ast_generator.cpp
-  #../polyhedral/llvm_ir_generator.cpp
   ../polyhedral/llvm_ir_from_cloog.cpp
   ../polyhedral/llvm_from_model.cpp
   ../interface/cpp-intf-gen.cpp

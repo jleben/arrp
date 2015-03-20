@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "llvm_ir_generator.hpp"
+#include "llvm_ir_from_isl.hpp"
 #include LLVM_VERIFIER_HEADER
 #include <llvm/Support/raw_os_ostream.h>
 
@@ -32,14 +32,14 @@ namespace polyhedral {
 using value_type = llvm::Value*;
 using type_type = llvm::Type*;
 
-llvm_ir_generator::llvm_ir_generator(const string & module_name):
+llvm_from_isl::llvm_from_isl(const string & module_name):
     m_module(module_name, llvm::getGlobalContext()),
     m_builder(llvm::getGlobalContext())
 {
 
 }
 
-void llvm_ir_generator::generate
+void llvm_from_isl::generate
 ( isl_ast_node *ast, const unordered_map<string, statement*> & source )
 {
     m_statements = &source;
@@ -72,7 +72,7 @@ void llvm_ir_generator::generate
     m_builder.CreateRetVoid();
 }
 
-void llvm_ir_generator::process_node(isl_ast_node * node)
+void llvm_from_isl::process_node(isl_ast_node * node)
 {
     isl_ast_node_type node_type = isl_ast_node_get_type(node);
 
@@ -95,21 +95,21 @@ void llvm_ir_generator::process_node(isl_ast_node * node)
     }
 }
 
-int llvm_ir_generator::process_block_element(isl_ast_node * node, void * data)
+int llvm_from_isl::process_block_element(isl_ast_node * node, void * data)
 {
-    llvm_ir_generator *generator = (llvm_ir_generator*) data;
+    llvm_from_isl *generator = (llvm_from_isl*) data;
     generator->process_node(node);
     return 0;
 }
 
-void llvm_ir_generator::process_block(isl_ast_node* node)
+void llvm_from_isl::process_block(isl_ast_node* node)
 {
     isl_ast_node_list *children = isl_ast_node_block_get_children(node);
     isl_ast_node_list_foreach(children,
-                              &llvm_ir_generator::process_block_element, this);
+                              &llvm_from_isl::process_block_element, this);
 }
 
-void llvm_ir_generator::process_if(isl_ast_node* node)
+void llvm_from_isl::process_if(isl_ast_node* node)
 {
     bool has_else = isl_ast_node_if_has_else(node);
     auto cond_expr = isl_ast_node_if_get_cond(node);
@@ -139,7 +139,7 @@ void llvm_ir_generator::process_if(isl_ast_node* node)
     m_builder.SetInsertPoint(after_block);
 }
 
-void llvm_ir_generator::process_for(isl_ast_node* node)
+void llvm_from_isl::process_for(isl_ast_node* node)
 {
     //isl_ast_node_for_is_degenerate
 
@@ -193,7 +193,7 @@ void llvm_ir_generator::process_for(isl_ast_node* node)
     m_builder.SetInsertPoint(end_block);
 }
 
-value_type llvm_ir_generator::process_expression(isl_ast_expr* expr)
+value_type llvm_from_isl::process_expression(isl_ast_expr* expr)
 {
     isl_ast_expr_type expr_type = isl_ast_expr_get_type(expr);
     switch(expr_type)
@@ -219,7 +219,7 @@ value_type llvm_ir_generator::process_expression(isl_ast_expr* expr)
     }
 }
 
-value_type llvm_ir_generator::process_op(isl_ast_expr* expr)
+value_type llvm_from_isl::process_op(isl_ast_expr* expr)
 {
     isl_ast_op_type op_type = isl_ast_expr_get_op_type(expr);
     int arg_count = isl_ast_expr_get_op_n_arg(expr);
@@ -365,7 +365,7 @@ value_type llvm_ir_generator::process_op(isl_ast_expr* expr)
     return nullptr;
 }
 
-void llvm_ir_generator::process_conditional
+void llvm_from_isl::process_conditional
 (isl_ast_expr * expr, block_type true_block, block_type false_block )
 {
     assert(isl_ast_expr_get_type(expr) == isl_ast_expr_op);
@@ -406,7 +406,7 @@ void llvm_ir_generator::process_conditional
     }
 }
 
-void llvm_ir_generator::process_statement(isl_ast_node* node)
+void llvm_from_isl::process_statement(isl_ast_node* node)
 {
     auto expr = isl_ast_node_user_get_expr(node);
     assert(isl_ast_expr_get_type(expr) == isl_ast_expr_op);
@@ -438,7 +438,7 @@ void llvm_ir_generator::process_statement(isl_ast_node* node)
     m_builder.CreateAlloca(double_type(), nullptr, stmt_info->first);
 }
 
-bool llvm_ir_generator::verify()
+bool llvm_from_isl::verify()
 {
     string verifier_msg;
     bool failure = llvm::verifyModule(m_module, llvm::ReturnStatusAction,
@@ -451,7 +451,7 @@ bool llvm_ir_generator::verify()
     return !failure;
 }
 
-void llvm_ir_generator::output( std::ostream & out )
+void llvm_from_isl::output( std::ostream & out )
 {
     llvm::raw_os_ostream llvm_ostream(out);
     m_module.print( llvm_ostream, nullptr );
