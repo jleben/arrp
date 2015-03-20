@@ -21,7 +21,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_LLVM_IR_CLOOG_TRANSLATOR_INCLUDED
 #define STREAM_POLYHEDRAL_LLVM_IR_CLOOG_TRANSLATOR_INCLUDED
 
-//#include "../common/polyhedral/model.hpp"
 #include "../utility/context.hpp"
 
 #include <cloog/cloog.h>
@@ -36,7 +35,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <functional>
 
 namespace stream {
-namespace polyhedral {
+namespace llvm_gen {
 
 using std::unordered_map;
 using std::string;

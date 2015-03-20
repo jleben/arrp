@@ -37,7 +37,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 using namespace std;
 
 namespace stream {
-namespace polyhedral {
+namespace llvm_gen {
 
 llvm_from_cloog::llvm_from_cloog(llvm::Module *module):
     m_module(module),

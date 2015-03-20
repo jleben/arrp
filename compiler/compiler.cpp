@@ -27,8 +27,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/type_checker.hpp"
 #include "../polyhedral/translator.hpp"
 #include "../polyhedral/ast_generator.hpp"
-#include "../polyhedral/llvm_ir_from_cloog.hpp"
-#include "../polyhedral/llvm_from_model.hpp"
+#include "../llvm/llvm_ir_from_cloog.hpp"
+#include "../llvm/llvm_from_polyhedral.hpp"
 #include "../interface/cpp-intf-gen.hpp"
 
 #include <json++/json.hh>
@@ -243,24 +243,24 @@ result::code compile_polyhedral_model
     llvm::Module *module = new llvm::Module(args.input_filename,
                                             llvm::getGlobalContext());
 
-    polyhedral::llvm_from_cloog llvm_cloog(module);
+    llvm_gen::llvm_from_cloog llvm_cloog(module);
 
-    polyhedral::llvm_from_model llvm_from_model
+    llvm_gen::llvm_from_polyhedral llvm_from_polyhedral
             (module, statements, &dataflow_model);
 
     // Generate LLVM IR for finite part
 
     if (ast.first)
     {
-        auto ctx = llvm_from_model.create_process_function
-                (polyhedral::initial_schedule, target.args);
+        auto ctx = llvm_from_polyhedral.create_process_function
+                (llvm_gen::initial_schedule, target.args);
 
         auto stmt_func = [&]
                 ( const string & name,
                 const vector<llvm::Value*> & index,
                 llvm::BasicBlock * block ) -> llvm::BasicBlock*
         {
-            return llvm_from_model.generate_statement(name, index, ctx, block);
+            return llvm_from_polyhedral.generate_statement(name, index, ctx, block);
         };
 
         llvm_cloog.set_stmt_func(stmt_func);
@@ -273,15 +273,15 @@ result::code compile_polyhedral_model
 
     if (ast.second)
     {
-        auto ctx = llvm_from_model.create_process_function
-                (polyhedral::periodic_schedule, target.args);
+        auto ctx = llvm_from_polyhedral.create_process_function
+                (llvm_gen::periodic_schedule, target.args);
 
         auto stmt_func = [&]
                 ( const string & name,
                 const vector<llvm::Value*> & index,
                 llvm::BasicBlock * block ) -> llvm::BasicBlock*
         {
-            return llvm_from_model.generate_statement(name, index, ctx, block);
+            return llvm_from_polyhedral.generate_statement(name, index, ctx, block);
         };
 
         llvm_cloog.set_stmt_func(stmt_func);

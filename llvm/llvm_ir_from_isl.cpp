@@ -27,7 +27,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 using namespace std;
 
 namespace stream {
-namespace polyhedral {
+namespace llvm_gen {
 
 using value_type = llvm::Value*;
 using type_type = llvm::Type*;

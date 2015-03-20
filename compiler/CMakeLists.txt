@@ -21,8 +21,8 @@ add_library(streamc-lib ${lib_mode}
   ../polyhedral/translator.cpp
   ../polyhedral/dataflow_model.cpp
   ../polyhedral/ast_generator.cpp
-  ../polyhedral/llvm_ir_from_cloog.cpp
-  ../polyhedral/llvm_from_model.cpp
+  ../llvm/llvm_ir_from_cloog.cpp
+  ../llvm/llvm_from_polyhedral.cpp
   ../interface/cpp-intf-gen.cpp
   compiler.cpp
 )

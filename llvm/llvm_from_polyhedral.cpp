@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "llvm_from_model.hpp"
+#include "llvm_from_polyhedral.hpp"
 
 #include <llvm/IR/Intrinsics.h>
 
@@ -30,7 +30,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 using namespace std;
 
 namespace stream {
-namespace polyhedral {
+namespace llvm_gen {
 
 int volume( vector<int> extent )
 {
@@ -42,7 +42,7 @@ int volume( vector<int> extent )
     return v;
 }
 
-llvm_from_model::llvm_from_model
+llvm_from_polyhedral::llvm_from_polyhedral
 (llvm::Module *module,
  const vector<statement*> & statements,
  const dataflow::model *dataflow,
@@ -236,8 +236,8 @@ llvm_from_model::llvm_from_model
     }
 }
 
-llvm_from_model::context
-llvm_from_model::create_process_function
+llvm_from_polyhedral::context
+llvm_from_polyhedral::create_process_function
 (schedule_type mode, const vector<semantic::type_ptr> & args)
 {
     context ctx(mode);
@@ -357,8 +357,8 @@ llvm_from_model::create_process_function
     return ctx;
 }
 
-llvm_from_model::block_type
-llvm_from_model::generate_statement( const string & name,
+llvm_from_polyhedral::block_type
+llvm_from_polyhedral::generate_statement( const string & name,
                                      const index_type & index,
                                      const context & ctx,
                                      block_type block )
@@ -369,8 +369,8 @@ llvm_from_model::generate_statement( const string & name,
     return generate_statement(*stmt_ref, index, ctx, block);
 }
 
-llvm_from_model::block_type
-llvm_from_model::generate_statement
+llvm_from_polyhedral::block_type
+llvm_from_polyhedral::generate_statement
 ( statement *stmt, const index_type & ctx_index,
   const context & ctx, block_type block )
 {
@@ -411,8 +411,8 @@ llvm_from_model::generate_statement
     return m_builder.GetInsertBlock();
 }
 
-llvm_from_model::value_type
-llvm_from_model::generate_expression
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::generate_expression
 ( expression *expr, const index_type & index, const context & ctx )
 {
     value_type result;
@@ -468,8 +468,8 @@ llvm_from_model::generate_expression
     return result;
 }
 
-llvm_from_model::value_type
-llvm_from_model::generate_primitive
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::generate_primitive
 (primitive_expr *expr, const index_type & index, const context & ctx )
 {
     switch(expr->op)
@@ -811,8 +811,8 @@ llvm_from_model::generate_primitive
     }
 }
 
-llvm_from_model::value_type
-llvm_from_model::generate_buffer_access
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::generate_buffer_access
 ( statement *stmt, const index_type & index, const context & ctx )
 {
     const buffer & buf_info = m_stmt_buffers[statement_index(stmt)];
@@ -852,8 +852,8 @@ llvm_from_model::generate_buffer_access
     return buffer_ptr;
 }
 
-llvm_from_model::value_type
-llvm_from_model::generate_input_access
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::generate_input_access
 ( statement *stmt, const index_type & index, const context & ctx)
 {
     vector<value_type> the_index(index);
@@ -887,8 +887,8 @@ llvm_from_model::generate_input_access
     return input;
 }
 
-llvm_from_model::value_type
-llvm_from_model::generate_scalar_input_access( input_access *access, const context & ctx )
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::generate_scalar_input_access( input_access *access, const context & ctx )
 {
     int input_num = access->index;
     value_type val = ctx.inputs[input_num];
@@ -897,8 +897,8 @@ llvm_from_model::generate_scalar_input_access( input_access *access, const conte
     return val;
 }
 
-llvm_from_model::value_type
-llvm_from_model::generate_reduction_access
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::generate_reduction_access
 ( reduction_access *access, const index_type & index, const context & ctx)
 {
     int reduction_dim = access->reductor->domain.size() - 1;
@@ -964,7 +964,7 @@ llvm_from_model::generate_reduction_access
     return value;
 }
 
-void llvm_from_model::advance_buffers(const context & ctx)
+void llvm_from_polyhedral::advance_buffers(const context & ctx)
 {
     int buf_idx = -1;
     for (statement * stmt : m_statements)
@@ -995,8 +995,8 @@ void llvm_from_model::advance_buffers(const context & ctx)
     }
 }
 
-vector<llvm_from_model::value_type>
-llvm_from_model::buffer_index
+vector<llvm_from_polyhedral::value_type>
+llvm_from_polyhedral::buffer_index
 ( statement * stmt, const index_type & index, const context & ctx )
 {
     // Get basic info about accessed statement
@@ -1074,8 +1074,8 @@ llvm_from_model::buffer_index
     return the_index;
 }
 
-llvm_from_model::value_type
-llvm_from_model::load_buffer_elem(value_type ptr, polyhedral::numerical_type t)
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::load_buffer_elem(value_type ptr, polyhedral::numerical_type t)
 {
     value_type val = m_builder.CreateLoad(ptr);
     if (t == polyhedral::boolean)
@@ -1085,14 +1085,14 @@ llvm_from_model::load_buffer_elem(value_type ptr, polyhedral::numerical_type t)
 }
 
 void
-llvm_from_model::store_buffer_elem(value_type val, value_type ptr, polyhedral::numerical_type t)
+llvm_from_polyhedral::store_buffer_elem(value_type val, value_type ptr, polyhedral::numerical_type t)
 {
     if (t == polyhedral::boolean)
         val = m_builder.CreateZExt(val, buffer_elem_type(polyhedral::boolean));
     m_builder.CreateStore(val, ptr);
 }
 
-int llvm_from_model::buffer_elem_size(polyhedral::numerical_type t)
+int llvm_from_polyhedral::buffer_elem_size(polyhedral::numerical_type t)
 {
     switch(t)
     {
@@ -1106,8 +1106,8 @@ int llvm_from_model::buffer_elem_size(polyhedral::numerical_type t)
     throw false;
 }
 
-llvm_from_model::type_type
-llvm_from_model::buffer_elem_type(polyhedral::numerical_type t)
+llvm_from_polyhedral::type_type
+llvm_from_polyhedral::buffer_elem_type(polyhedral::numerical_type t)
 {
     switch(t)
     {
@@ -1121,20 +1121,20 @@ llvm_from_model::buffer_elem_type(polyhedral::numerical_type t)
     throw false;
 }
 
-llvm_from_model::type_type
-llvm_from_model::buffer_type(const buffer &buf)
+llvm_from_polyhedral::type_type
+llvm_from_polyhedral::buffer_type(const buffer &buf)
 {
     return array_type(buffer_elem_type(buf.type), buf.domain);
 }
 
-llvm_from_model::type_type
-llvm_from_model::buffer_ptr_type(const buffer &buf)
+llvm_from_polyhedral::type_type
+llvm_from_polyhedral::buffer_ptr_type(const buffer &buf)
 {
     return pointer(buffer_type(buf));
 }
 
-llvm_from_model::type_type
-llvm_from_model::array_type(type_type elem_type, const vector<int> domain)
+llvm_from_polyhedral::type_type
+llvm_from_polyhedral::array_type(type_type elem_type, const vector<int> domain)
 {
     type_type result_type = elem_type;
     for (int i = domain.size() - 1; i >= 0; --i)
@@ -1146,7 +1146,7 @@ llvm_from_model::array_type(type_type elem_type, const vector<int> domain)
 }
 
 template <typename T>
-void llvm_from_model::transpose( vector<T> & index, int first_dim )
+void llvm_from_polyhedral::transpose( vector<T> & index, int first_dim )
 {
     assert(first_dim < index.size());
     T tmp = index[first_dim];
@@ -1155,8 +1155,8 @@ void llvm_from_model::transpose( vector<T> & index, int first_dim )
     index[0] = tmp;
 }
 
-vector<llvm_from_model::value_type>
-llvm_from_model::mapped_index
+vector<llvm_from_polyhedral::value_type>
+llvm_from_polyhedral::mapped_index
 ( const vector<value_type> & index, const mapping & map )
 {
     assert(index.size() == map.input_dimension());
@@ -1183,8 +1183,8 @@ llvm_from_model::mapped_index
     return target_index;
 }
 
-llvm_from_model::value_type
-llvm_from_model::flat_index
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::flat_index
 ( const vector<value_type> & index, const vector<int> & domain )
 {
     assert(index.size() > 0);
@@ -1216,15 +1216,15 @@ llvm_from_model::flat_index
     return flat_index;
 }
 
-int llvm_from_model::statement_index( statement * stmt )
+int llvm_from_polyhedral::statement_index( statement * stmt )
 {
     auto stmt_ref = std::find(m_statements.begin(), m_statements.end(), stmt);
     assert(stmt_ref != m_statements.end());
     return (int) std::distance(m_statements.begin(), stmt_ref);
 }
 
-llvm_from_model::value_type
-llvm_from_model::malloc( type_type t, std::uint64_t size )
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::malloc( type_type t, std::uint64_t size )
 {
     // FIXME: determine size_t type!
 
@@ -1241,8 +1241,8 @@ llvm_from_model::malloc( type_type t, std::uint64_t size )
     return m_builder.CreateBitCast(ptr, t_ptr_type);
 }
 
-llvm_from_model::type_type
-llvm_from_model::type(polyhedral::numerical_type t)
+llvm_from_polyhedral::type_type
+llvm_from_polyhedral::type(polyhedral::numerical_type t)
 {
     switch(t)
     {
@@ -1256,8 +1256,8 @@ llvm_from_model::type(polyhedral::numerical_type t)
     throw false;
 }
 
-llvm_from_model::value_type
-llvm_from_model::convert( value_type v,
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::convert( value_type v,
                           polyhedral::numerical_type t )
 {
     switch(t)
@@ -1278,8 +1278,8 @@ llvm_from_model::convert( value_type v,
     throw false;
 }
 
-llvm_from_model::value_type
-llvm_from_model::convert_to_real( value_type v )
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::convert_to_real( value_type v )
 {
     type_type t = v->getType();
 
@@ -1291,8 +1291,8 @@ llvm_from_model::convert_to_real( value_type v )
     return v;
 }
 
-llvm_from_model::value_type
-llvm_from_model::convert_to_integer( value_type v )
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::convert_to_integer( value_type v )
 {
     type_type t = v->getType();
 
@@ -1305,8 +1305,8 @@ llvm_from_model::convert_to_integer( value_type v )
 }
 
 
-llvm_from_model::value_type
-llvm_from_model::convert_to_boolean( value_type v )
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::convert_to_boolean( value_type v )
 {
     type_type t = v->getType();
 
@@ -1316,8 +1316,8 @@ llvm_from_model::convert_to_boolean( value_type v )
         throw runtime_error("LLVM generator: can not convert value to boolean.");
 }
 
-llvm_from_model::value_type
-llvm_from_model::floor( value_type v )
+llvm_from_polyhedral::value_type
+llvm_from_polyhedral::floor( value_type v )
 {
     llvm::Function *f =
             llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::floor, v->getType());

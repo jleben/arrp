@@ -21,9 +21,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_LLVM_FROM_MODEL_INCLUDED
 #define STREAM_POLYHEDRAL_LLVM_FROM_MODEL_INCLUDED
 
-#include "../common/dataflow_model.hpp"
 #include "../common/types.hpp"
 #include "../common/polyhedral_model.hpp"
+#include "../common/dataflow_model.hpp"
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -32,8 +32,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <vector>
 
 namespace stream {
-namespace polyhedral {
+namespace llvm_gen {
 
+using namespace polyhedral;
 using std::vector;
 
 enum schedule_type
@@ -42,7 +43,7 @@ enum schedule_type
     periodic_schedule
 };
 
-class llvm_from_model
+class llvm_from_polyhedral
 {
     using value_type = llvm::Value*;
     using type_type = llvm::Type*;
@@ -72,7 +73,7 @@ public:
 
     typedef vector<value_type> index_type;
 
-    llvm_from_model(llvm::Module *module,
+    llvm_from_polyhedral(llvm::Module *module,
                     const vector<statement*> &,
                     const dataflow::model *,
                     const options & = options());
