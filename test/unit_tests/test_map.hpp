@@ -75,7 +75,7 @@ result stream1_add_scalar()
 
         statement *out = new statement;
         out->domain = {9};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::add, {y, new constant<int>(3)});
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::add, {y, new constant<int>(3)});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -105,7 +105,7 @@ result stream1_mul_range()
 
         statement *out = new statement;
         out->domain = {9,3};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::multiply, {y, r});
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::multiply, {y, r});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -141,7 +141,7 @@ result stream1_add_stream1()
 
         statement *out = new statement;
         out->domain = {9,5};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::add, {a_elem, b_elem});
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::add, {a_elem, b_elem});
 
         t.expect_polyhedral_model({a,b,out});
     }
@@ -201,7 +201,7 @@ result stream1_take_n_raise_int()
 
         statement *out = new statement;
         out->domain = {6,4};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::raise, {y, new constant<int>(5)});
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::raise, {y, new constant<int>(5)});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -233,7 +233,7 @@ result stream1_take_n_sub_range()
 
         statement *out = new statement;
         out->domain = {6,4};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::subtract, {y, r});
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::subtract, {y, r});
 
         t.expect_polyhedral_model({in,out});
     }
@@ -319,7 +319,7 @@ result stream3_max_double()
 
         statement *out = new statement;
         out->domain = {9,11,13};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::max,
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::max,
         {y, new constant<double>(100.5)});
 
         t.expect_polyhedral_model({in,out});
@@ -430,7 +430,7 @@ result range_add_int()
 
         statement *out = new statement;
         out->domain = {5};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {y, new constant<int>(123)});
 
         t.expect_polyhedral_model({out});
@@ -455,7 +455,7 @@ result range_add_range()
 
         statement *out = new statement;
         out->domain = {5,3};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::add, {y, r});
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::add, {y, r});
 
         t.expect_polyhedral_model({out});
     }

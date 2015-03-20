@@ -171,7 +171,7 @@ public:
         {
             compare_expr_type<constant<int>>(found, expected);
             compare_expr_type<constant<double>>(found, expected);
-            compare_expr_type<intrinsic>(found, expected);
+            compare_expr_type<primitive_expr>(found, expected);
             compare_expr_type<iterator_access>(found, expected);
             compare_expr_type<stmt_access>(found, expected);
             compare_expr_type<reduction_access>(found, expected);
@@ -207,12 +207,12 @@ public:
                       found->value, expected->value);
     }
 
-    void compare_expr(const intrinsic *found, const intrinsic * expected)
+    void compare_expr(const primitive_expr *found, const primitive_expr * expected)
     {
-        compare_value("intrinsic type",
-                      found->kind, expected->kind);
+        compare_value("primitive operation",
+                      found->op, expected->op);
 
-        compare_value("intrinsic operand count",
+        compare_value("primitive operand count",
                       found->operands.size(), expected->operands.size());
 
         for (int i = 0; i < found->operands.size(); ++i)

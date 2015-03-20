@@ -61,7 +61,7 @@ result stream1_add()
         b->pattern = mapping::identity(1,1);
         b->pattern.constant(0) = 1;
 
-        reductor->expr = new intrinsic(polyhedral::real, intrinsic::add,{a,b});
+        reductor->expr = new primitive_expr(polyhedral::real, primitive_op::add,{a,b});
 
         // result
         stmt_access *out_expr = new stmt_access(reductor);
@@ -112,7 +112,7 @@ result map_range_by_stream1_reduction()
         b->pattern.coefficient(1,0) = 1;
         b->pattern.constant(0) = 1;
 
-        reductor->expr = new intrinsic(polyhedral::real, intrinsic::add,{a,b});
+        reductor->expr = new primitive_expr(polyhedral::real, primitive_op::add,{a,b});
 
         // result
         stmt_access *out_expr = new stmt_access(reductor);
@@ -164,7 +164,7 @@ result map_stream2_by_substream_reduction()
         b->pattern = mapping::identity(2,2);
         b->pattern.constant(1) = 1;
 
-        reductor->expr = new intrinsic(polyhedral::real, intrinsic::add,{a,b});
+        reductor->expr = new primitive_expr(polyhedral::real, primitive_op::add,{a,b});
 
         // result
         stmt_access *out_expr = new stmt_access(reductor);

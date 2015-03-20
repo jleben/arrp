@@ -21,11 +21,13 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_MODEL_INCLUDED
 #define STREAM_POLYHEDRAL_MODEL_INCLUDED
 
+#include "../common/primitives.hpp"
+#include "../utility/matrix.hpp"
+#include "../utility/debug.hpp"
+
 #include <vector>
 #include <string>
 #include <iostream>
-#include "../utility/matrix.hpp"
-#include "../utility/debug.hpp"
 
 namespace stream {
 namespace polyhedral {
@@ -162,59 +164,16 @@ public:
     T value;
 };
 
-class intrinsic : public expression
+class primitive_expr : public expression
 {
 public:
-    enum of_kind
-    {
-        negate,
-        add,
-        subtract,
-        multiply,
-        divide,
-        divide_integer,
-        modulo,
-        raise,
-        exp,
-        exp2,
-        log,
-        log2,
-        log10,
-        sqrt,
-        sin,
-        cos,
-        tan,
-        asin,
-        acos,
-        atan,
-        ceil,
-        floor,
-        abs,
-        min,
-        max,
-
-        compare_eq,
-        compare_neq,
-        compare_l,
-        compare_g,
-        compare_leq,
-        compare_geq,
-
-        logic_and,
-        logic_or,
-
-        conditional,
-
-        count
-    };
-
-    intrinsic(numerical_type t): expression(t) {}
-    intrinsic(numerical_type t, of_kind k, const vector<expression*> & operands):
+    primitive_expr(numerical_type t): expression(t) {}
+    primitive_expr(numerical_type t, primitive_op k, const vector<expression*> & operands):
         expression(t),
-        kind(k), operands(operands)
+        op(k), operands(operands)
     {}
 
-    of_kind kind;
+    primitive_op op;
     vector<expression*> operands;
 };
 
@@ -294,7 +253,7 @@ void expression::find( vector<T*> & container )
         container.push_back(node);
     }
 
-    if (auto operation = dynamic_cast<intrinsic*>(this))
+    if (auto operation = dynamic_cast<primitive_expr*>(this))
     {
         for (auto sub_expr : operation->operands)
             sub_expr->find<T>(container);

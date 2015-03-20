@@ -456,26 +456,26 @@ expression * translator::do_identifier(const ast::node_ptr &node)
 
 expression * translator::do_call(const ast::node_ptr &node)
 {
-    static unordered_map<string,intrinsic::of_kind> intrinsics =
+    static unordered_map<string, primitive_op> primitive_ops =
     {
-        {"log", intrinsic::log},
-        {"log2", intrinsic::log2},
-        {"log10", intrinsic::log10},
-        {"exp", intrinsic::exp},
-        {"exp2", intrinsic::exp2},
-        {"pow", intrinsic::raise},
-        {"sqrt", intrinsic::sqrt},
-        {"sin", intrinsic::sin},
-        {"cos", intrinsic::cos},
-        {"tan", intrinsic::tan},
-        {"asin", intrinsic::asin},
-        {"acos", intrinsic::acos},
-        {"atan", intrinsic::atan},
-        {"ceil", intrinsic::ceil},
-        {"floor", intrinsic::floor},
-        {"abs", intrinsic::abs},
-        {"min", intrinsic::min},
-        {"max", intrinsic::max}
+        {"log", primitive_op::log},
+        {"log2", primitive_op::log2},
+        {"log10", primitive_op::log10},
+        {"exp", primitive_op::exp},
+        {"exp2", primitive_op::exp2},
+        {"pow", primitive_op::raise},
+        {"sqrt", primitive_op::sqrt},
+        {"sin", primitive_op::sin},
+        {"cos", primitive_op::cos},
+        {"tan", primitive_op::tan},
+        {"asin", primitive_op::asin},
+        {"acos", primitive_op::acos},
+        {"atan", primitive_op::atan},
+        {"ceil", primitive_op::ceil},
+        {"floor", primitive_op::floor},
+        {"abs", primitive_op::abs},
+        {"min", primitive_op::min},
+        {"max", primitive_op::max}
     };
 
     ast::list_node * call = node->as_list();
@@ -493,18 +493,18 @@ expression * translator::do_call(const ast::node_ptr &node)
         args.push_back( do_expression(arg_node) );
     }
 
-    // Try intrinsic
-    auto intrinsic_map = intrinsics.find(id);
-    if (intrinsic_map != intrinsics.end())
+    // Try primitive
+    auto primitive_op_mapping = primitive_ops.find(id);
+    if (primitive_op_mapping != primitive_ops.end())
     {
         for (expression *& arg : args)
             arg = iterate(arg, node->semantic_type);
 
-        intrinsic::of_kind intrinsic_kind = intrinsic_map->second;
+        primitive_op op = primitive_op_mapping->second;
 
-        intrinsic *expr = new intrinsic
+        primitive_expr *expr = new primitive_expr
                 ( expr_type_for(node->semantic_type),
-                  intrinsic_kind, args );
+                  op, args );
 
         return expr;
     }
@@ -549,7 +549,7 @@ expression * translator::do_unary_op(const ast::node_ptr &node)
     // create operation
 
     auto operation_result =
-            new intrinsic(expr_type_for(node->semantic_type));
+            new primitive_expr(expr_type_for(node->semantic_type));
 
     operation_result->operands.push_back(operand);
 
@@ -557,7 +557,7 @@ expression * translator::do_unary_op(const ast::node_ptr &node)
     {
     case ast::negate:
     case ast::oppose:
-        operation_result->kind = intrinsic::negate;
+        operation_result->op = primitive_op::negate;
         break;
     default:
         throw runtime_error("Unexpected AST node type.");
@@ -576,7 +576,7 @@ expression * translator::do_binary_op(const ast::node_ptr &node)
     // create operation
 
     auto operation_result =
-            new intrinsic(expr_type_for(node->semantic_type));
+            new primitive_expr(expr_type_for(node->semantic_type));
 
     operation_result->operands.push_back(operand1);
     operation_result->operands.push_back(operand2);
@@ -584,49 +584,49 @@ expression * translator::do_binary_op(const ast::node_ptr &node)
     switch(node->type)
     {
     case ast::add:
-        operation_result->kind = intrinsic::add;
+        operation_result->op = primitive_op::add;
         break;
     case ast::subtract:
-        operation_result->kind = intrinsic::subtract;
+        operation_result->op = primitive_op::subtract;
         break;
     case ast::multiply:
-        operation_result->kind = intrinsic::multiply;
+        operation_result->op = primitive_op::multiply;
         break;
     case ast::divide:
-        operation_result->kind = intrinsic::divide;
+        operation_result->op = primitive_op::divide;
         break;
     case ast::divide_integer:
-        operation_result->kind = intrinsic::divide_integer;
+        operation_result->op = primitive_op::divide_integer;
         break;
     case ast::modulo:
-        operation_result->kind = intrinsic::modulo;
+        operation_result->op = primitive_op::modulo;
         break;
     case ast::raise:
-        operation_result->kind = intrinsic::raise;
+        operation_result->op = primitive_op::raise;
         break;
     case ast::lesser:
-        operation_result->kind = intrinsic::compare_l;
+        operation_result->op = primitive_op::compare_l;
         break;
     case ast::lesser_or_equal:
-        operation_result->kind = intrinsic::compare_leq;
+        operation_result->op = primitive_op::compare_leq;
         break;
     case ast::greater:
-        operation_result->kind = intrinsic::compare_g;
+        operation_result->op = primitive_op::compare_g;
         break;
     case ast::greater_or_equal:
-        operation_result->kind = intrinsic::compare_geq;
+        operation_result->op = primitive_op::compare_geq;
         break;
     case ast::equal:
-        operation_result->kind = intrinsic::compare_eq;
+        operation_result->op = primitive_op::compare_eq;
         break;
     case ast::not_equal:
-        operation_result->kind = intrinsic::compare_neq;
+        operation_result->op = primitive_op::compare_neq;
         break;
     case ast::logic_and:
-        operation_result->kind = intrinsic::logic_and;
+        operation_result->op = primitive_op::logic_and;
         break;
     case ast::logic_or:
-        operation_result->kind = intrinsic::logic_or;
+        operation_result->op = primitive_op::logic_or;
         break;
     default:
         throw runtime_error("Unexpected AST node type.");
@@ -772,9 +772,9 @@ expression * translator::do_conditional(const  ast::node_ptr &node)
     expression *true_expr = iterate(do_block(true_node), node->semantic_type);
     expression *false_expr = iterate(do_block(false_node), node->semantic_type);
 
-    auto result = new intrinsic(expr_type_for(node->semantic_type));
+    auto result = new primitive_expr(expr_type_for(node->semantic_type));
     result->operands = { condition, true_expr, false_expr };
-    result->kind = intrinsic::conditional;
+    result->op = primitive_op::conditional;
 
     return result;
 }
@@ -1089,7 +1089,7 @@ translator::make_current_view( statement * stmt )
 
 expression * translator::update_accesses(expression *expr, const mapping & map )
 {
-    if (auto operation = dynamic_cast<intrinsic*>(expr))
+    if (auto operation = dynamic_cast<primitive_expr*>(expr))
     {
         for (auto & sub_expr : operation->operands)
         {

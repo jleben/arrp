@@ -9,6 +9,7 @@ endif()
 add_library(streamc-lib ${lib_mode}
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
+  ../common/primitives.cpp
   ../frontend/lex.cc
   ../frontend/parse.cc
   ../frontend/environment.cpp

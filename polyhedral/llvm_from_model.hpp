@@ -126,7 +126,7 @@ private:
     }
 
     value_type generate_expression( expression *, const index_type &, const context & );
-    value_type generate_intrinsic( intrinsic *, const index_type &, const context &  );
+    value_type generate_primitive( primitive_expr *, const index_type &, const context &  );
     value_type generate_buffer_access( statement *, const index_type &, const context &  );
     value_type generate_input_access( statement *, const index_type &, const context &  );
     value_type generate_scalar_input_access( input_access *, const context & );

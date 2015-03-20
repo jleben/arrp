@@ -21,6 +21,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_TYPES_INCLUDED
 #define STREAM_LANG_TYPES_INCLUDED
 
+#include "../common/primitives.hpp"
+
 #include <string>
 #include <vector>
 #include <list>
@@ -330,58 +332,18 @@ struct function_signature
     vector<type::tag> parameters;
 };
 
-struct intrinsic
-{
-    enum type
-    {
-        negate,
-        compare_eq,
-        compare_neq,
-        compare_l,
-        compare_g,
-        compare_leq,
-        compare_geq,
-        logic_and,
-        logic_or,
-        add,
-        subtract,
-        multiply,
-        divide,
-        divide_integer,
-        modulo,
-        raise,
-        exp,
-        exp2,
-        log,
-        log2,
-        log10,
-        sqrt,
-        sin,
-        cos,
-        tan,
-        asin,
-        acos,
-        atan,
-        ceil,
-        floor,
-        abs,
-        min,
-        max
-    };
-};
-
 struct builtin_function : public abstract_function
 {
     builtin_function(): abstract_function(type::builtin_function) {}
     function_signature signature;
-    intrinsic::type intrinsic_type;
+    primitive_op op;
 };
 
 struct builtin_function_group : public abstract_function
 {
     builtin_function_group(): abstract_function(type::builtin_function_group) {}
     vector<function_signature> overloads;
-    intrinsic::type intrinsic_type;
+    primitive_op op;
 };
 
 using func_type_ptr = std::shared_ptr<abstract_function>;

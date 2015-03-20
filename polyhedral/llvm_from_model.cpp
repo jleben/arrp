@@ -417,9 +417,9 @@ llvm_from_model::generate_expression
 {
     value_type result;
 
-    if (auto operation = dynamic_cast<intrinsic*>(expr))
+    if (auto operation = dynamic_cast<primitive_expr*>(expr))
     {
-        result = generate_intrinsic(operation, index, ctx);
+        result = generate_primitive(operation, index, ctx);
     }
     else if (auto input = dynamic_cast<input_access*>(expr))
     {
@@ -469,42 +469,42 @@ llvm_from_model::generate_expression
 }
 
 llvm_from_model::value_type
-llvm_from_model::generate_intrinsic
-( intrinsic *op, const index_type & index, const context & ctx )
+llvm_from_model::generate_primitive
+(primitive_expr *expr, const index_type & index, const context & ctx )
 {
-    switch(op->kind)
+    switch(expr->op)
     {
-    case intrinsic::logic_and:
+    case primitive_op::logic_and:
     {
         // TODO: would branching to avoid unnecessary evaluation speed things up?
-        value_type lhs = generate_expression(op->operands[0], index, ctx);
-        value_type rhs = generate_expression(op->operands[1], index, ctx);
+        value_type lhs = generate_expression(expr->operands[0], index, ctx);
+        value_type rhs = generate_expression(expr->operands[1], index, ctx);
         return m_builder.CreateAnd(lhs, rhs);
     }
-    case intrinsic::logic_or:
+    case primitive_op::logic_or:
     {
         // TODO: would branching to avoid unnecessary evaluation speed things up?
-        value_type lhs = generate_expression(op->operands[0], index, ctx);
-        value_type rhs = generate_expression(op->operands[1], index, ctx);
+        value_type lhs = generate_expression(expr->operands[0], index, ctx);
+        value_type rhs = generate_expression(expr->operands[1], index, ctx);
         return m_builder.CreateOr(lhs, rhs);
     }
-    case intrinsic::conditional:
+    case primitive_op::conditional:
     {
         block_type after_block = add_block("if.after");
         block_type true_block = add_block("if.true");
         block_type false_block = add_block("if.false");
 
-        value_type condition = generate_expression(op->operands[0], index, ctx);
+        value_type condition = generate_expression(expr->operands[0], index, ctx);
         m_builder.CreateCondBr(condition, true_block, false_block);
 
         m_builder.SetInsertPoint(true_block);
-        value_type true_value = generate_expression(op->operands[1], index, ctx);
-        true_value = convert(true_value, op->type);
+        value_type true_value = generate_expression(expr->operands[1], index, ctx);
+        true_value = convert(true_value, expr->type);
         m_builder.CreateBr(after_block);
 
         m_builder.SetInsertPoint(false_block);
-        value_type false_value = generate_expression(op->operands[2], index, ctx);
-        false_value = convert(false_value, op->type);
+        value_type false_value = generate_expression(expr->operands[2], index, ctx);
+        false_value = convert(false_value, expr->type);
         m_builder.CreateBr(after_block);
 
         m_builder.SetInsertPoint(after_block);
@@ -519,19 +519,19 @@ llvm_from_model::generate_intrinsic
     }
 
     vector<value_type> operands;
-    operands.reserve(op->operands.size());
-    for (expression * expr : op->operands)
+    operands.reserve(expr->operands.size());
+    for (expression * operand_expr : expr->operands)
     {
-        operands.push_back( generate_expression(expr, index, ctx) );
+        operands.push_back( generate_expression(operand_expr, index, ctx) );
     }
 
     type_type d_type = double_type();
     type_type i_type = int32_type();
     type_type b_type = bool_type();
 
-    switch(op->kind)
+    switch(expr->op)
     {
-    case intrinsic::negate:
+    case primitive_op::negate:
     {
         value_type operand = operands[0];
         type_type operand_type = operand->getType();
@@ -542,31 +542,31 @@ llvm_from_model::generate_intrinsic
         else if (operand_type == b_type)
             return m_builder.CreateNot(operand);
     }
-    case intrinsic::add:
-    case intrinsic::subtract:
-    case intrinsic::multiply:
-    case intrinsic::compare_g:
-    case intrinsic::compare_geq:
-    case intrinsic::compare_l:
-    case intrinsic::compare_leq:
+    case primitive_op::add:
+    case primitive_op::subtract:
+    case primitive_op::multiply:
+    case primitive_op::compare_g:
+    case primitive_op::compare_geq:
+    case primitive_op::compare_l:
+    case primitive_op::compare_leq:
     {
         if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
         {
-            switch(op->kind)
+            switch(expr->op)
             {
-            case intrinsic::add:
+            case primitive_op::add:
                 return m_builder.CreateAdd(operands[0], operands[1]);
-            case intrinsic::subtract:
+            case primitive_op::subtract:
                 return m_builder.CreateSub(operands[0], operands[1]);
-            case intrinsic::multiply:
+            case primitive_op::multiply:
                 return m_builder.CreateMul(operands[0], operands[1]);
-            case intrinsic::compare_g:
+            case primitive_op::compare_g:
                 return m_builder.CreateICmpSGT(operands[0], operands[1]);
-            case intrinsic::compare_geq:
+            case primitive_op::compare_geq:
                 return m_builder.CreateICmpSGE(operands[0], operands[1]);
-            case intrinsic::compare_l:
+            case primitive_op::compare_l:
                 return m_builder.CreateICmpSLT(operands[0], operands[1]);
-            case intrinsic::compare_leq:
+            case primitive_op::compare_leq:
                 return m_builder.CreateICmpSLE(operands[0], operands[1]);
             default: assert(false);
             }
@@ -577,42 +577,42 @@ llvm_from_model::generate_intrinsic
                 operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
             if (operands[1]->getType() != d_type)
                 operands[1] = m_builder.CreateSIToFP(operands[1], d_type);
-            switch(op->kind)
+            switch(expr->op)
             {
-            case intrinsic::add:
+            case primitive_op::add:
                 return m_builder.CreateFAdd(operands[0], operands[1]);
-            case intrinsic::subtract:
+            case primitive_op::subtract:
                 return m_builder.CreateFSub(operands[0], operands[1]);
-            case intrinsic::multiply:
+            case primitive_op::multiply:
                 return m_builder.CreateFMul(operands[0], operands[1]);
-            case intrinsic::compare_g:
+            case primitive_op::compare_g:
                 return m_builder.CreateFCmpUGT(operands[0], operands[1]);
-            case intrinsic::compare_geq:
+            case primitive_op::compare_geq:
                 return m_builder.CreateFCmpUGE(operands[0], operands[1]);
-            case intrinsic::compare_l:
+            case primitive_op::compare_l:
                 return m_builder.CreateFCmpULT(operands[0], operands[1]);
-            case intrinsic::compare_leq:
+            case primitive_op::compare_leq:
                 return m_builder.CreateFCmpULE(operands[0], operands[1]);
             default: assert(false);
             }
         }
     }
-    case intrinsic::compare_eq:
-    case intrinsic::compare_neq:
+    case primitive_op::compare_eq:
+    case primitive_op::compare_neq:
     {
         type_type lhs_type = operands[0]->getType();
         type_type rhs_type = operands[1]->getType();
         if (lhs_type == b_type || rhs_type == b_type)
         {
             assert(lhs_type == b_type && rhs_type == b_type);
-            if (op->kind == intrinsic::compare_eq)
+            if (expr->op == primitive_op::compare_eq)
                 return m_builder.CreateICmpEQ(operands[0], operands[1]);
             else
                 return m_builder.CreateICmpNE(operands[0], operands[1]);
         }
         if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
         {
-            if (op->kind == intrinsic::compare_eq)
+            if (expr->op == primitive_op::compare_eq)
                 return m_builder.CreateICmpEQ(operands[0], operands[1]);
             else
                 return m_builder.CreateICmpNE(operands[0], operands[1]);
@@ -621,13 +621,13 @@ llvm_from_model::generate_intrinsic
         {
             value_type lhs = convert_to_real(operands[0]);
             value_type rhs = convert_to_real(operands[1]);
-            if (op->kind == intrinsic::compare_eq)
+            if (expr->op == primitive_op::compare_eq)
                 return m_builder.CreateFCmpUEQ(lhs, rhs);
             else
                 return m_builder.CreateFCmpUNE(lhs, rhs);
         }
     }
-    case intrinsic::divide:
+    case primitive_op::divide:
     {
         if (operands[0]->getType() != d_type)
             operands[0] = m_builder.CreateSIToFP(operands[0], d_type);
@@ -635,7 +635,7 @@ llvm_from_model::generate_intrinsic
             operands[1] = m_builder.CreateSIToFP(operands[1], d_type);
         return m_builder.CreateFDiv(operands[0], operands[1]);
     }
-    case intrinsic::divide_integer:
+    case primitive_op::divide_integer:
     {
         if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
         {
@@ -651,7 +651,7 @@ llvm_from_model::generate_intrinsic
             return m_builder.CreateFPToSI(f, i_type);
         }
     }
-    case intrinsic::modulo:
+    case primitive_op::modulo:
     {
         value_type x = operands[0];
         value_type y = operands[1];
@@ -677,7 +677,7 @@ llvm_from_model::generate_intrinsic
             return m_builder.CreateFSub(x, m_builder.CreateFMul(y,q));
         }
     }
-    case intrinsic::raise:
+    case primitive_op::raise:
     {
         llvm::Intrinsic::ID id =
                 (operands[1]->getType() == i_type) ?
@@ -691,15 +691,15 @@ llvm_from_model::generate_intrinsic
 
         return m_builder.CreateCall(func, operands);
     }
-    case intrinsic::floor:
-    case intrinsic::ceil:
+    case primitive_op::floor:
+    case primitive_op::ceil:
     {
         value_type operand = operands[0];
 
         if (operand->getType() == i_type)
             return operand;
 
-        llvm::Intrinsic::ID id = op->kind == intrinsic::floor ?
+        llvm::Intrinsic::ID id = expr->op == primitive_op::floor ?
                     llvm::Intrinsic::floor : llvm::Intrinsic::ceil;
 
         llvm::Function *func =
@@ -707,7 +707,7 @@ llvm_from_model::generate_intrinsic
 
         return m_builder.CreateCall(func, operand);
     }
-    case intrinsic::abs:
+    case primitive_op::abs:
     {
         value_type operand = operands[0];
         if (operand->getType() == d_type)
@@ -729,13 +729,13 @@ llvm_from_model::generate_intrinsic
                                           negated_operand);
         }
     }
-    case intrinsic::max:
-    case intrinsic::min:
+    case primitive_op::max:
+    case primitive_op::min:
     {
         if (operands[0]->getType() == i_type && operands[1]->getType() == i_type)
         {
             value_type condition;
-            if (op->kind == intrinsic::max)
+            if (expr->op == primitive_op::max)
                 condition = m_builder.CreateICmpSGT(operands[0], operands[1]);
             else
                 condition = m_builder.CreateICmpSLT(operands[0], operands[1]);
@@ -749,7 +749,7 @@ llvm_from_model::generate_intrinsic
                 operands[1] = m_builder.CreateSIToFP(operands[1], d_type);
 
             value_type condition;
-            if (op->kind == intrinsic::max)
+            if (expr->op == primitive_op::max)
                 condition = m_builder.CreateFCmpUGT(operands[0], operands[1]);
             else
                 condition = m_builder.CreateFCmpULT(operands[0], operands[1]);
@@ -757,7 +757,7 @@ llvm_from_model::generate_intrinsic
             return m_builder.CreateSelect(condition, operands[0], operands[1]);
 
 #if 0 // Note: maxnum and minnum not supported by LLVM on my machine
-            llvm::Intrinsic::ID id = op->kind == intrinsic::max ?
+            llvm::Intrinsic::ID id = op->op == primitive_op::max ?
                         llvm::Intrinsic::maxnum : llvm::Intrinsic::minnum;
 
             vector<type_type> arg_types = { d_type, d_type };
@@ -777,27 +777,27 @@ llvm_from_model::generate_intrinsic
     }
     default:
         llvm::Intrinsic::ID id;
-        switch(op->kind)
+        switch(expr->op)
         {
-        case intrinsic::log:
+        case primitive_op::log:
             id = llvm::Intrinsic::log; break;
-        case intrinsic::log2:
+        case primitive_op::log2:
             id = llvm::Intrinsic::log2; break;
-        case intrinsic::log10:
+        case primitive_op::log10:
             id = llvm::Intrinsic::log10; break;
-        case intrinsic::exp:
+        case primitive_op::exp:
             id = llvm::Intrinsic::exp; break;
-        case intrinsic::exp2:
+        case primitive_op::exp2:
             id = llvm::Intrinsic::exp2; break;
-        case intrinsic::sqrt:
+        case primitive_op::sqrt:
             id = llvm::Intrinsic::sqrt; break;
-        case intrinsic::sin:
+        case primitive_op::sin:
             id = llvm::Intrinsic::sin; break;
-        case intrinsic::cos:
+        case primitive_op::cos:
             id = llvm::Intrinsic::cos; break;
         default:
             ostringstream text;
-            text << "Unexpected intrinsic type: " << op->kind;
+            text << "Unexpected primitive op: " << expr->op;
             throw std::runtime_error(text.str());
         }
         value_type operand = operands[0];

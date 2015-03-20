@@ -28,7 +28,7 @@ using namespace std;
 
 namespace stream {
 namespace unit_testing {
-namespace intrinsics {
+namespace primitives {
 
 template<typename T> T test_const_lhs();
 template<typename T> T test_const_rhs();
@@ -45,11 +45,11 @@ template<typename T> type_ptr type_for(T);
 template<> type_ptr type_for<int>(int c) { return int_type(c); }
 template<> type_ptr type_for<double>(double c) { return real_type(c); }
 
-template<polyhedral::intrinsic::of_kind intrinsic_type>
-struct intrinsic_test;
+template<primitive_op>
+struct primitive_test;
 
 template<>
-struct intrinsic_test<polyhedral::intrinsic::add>
+struct primitive_test<primitive_op::add>
 {
     static int perform(int a, int b) { return a + b; }
     static double perform(int a, double b) { return a + b; }
@@ -61,7 +61,7 @@ struct intrinsic_test<polyhedral::intrinsic::add>
 };
 
 template<>
-struct intrinsic_test<polyhedral::intrinsic::raise>
+struct primitive_test<primitive_op::raise>
 {
     static int perform(int a, int b) { return std::pow(a,b); }
     static double perform(int a, double b) { return std::pow(a,b); }
@@ -73,7 +73,7 @@ struct intrinsic_test<polyhedral::intrinsic::raise>
 };
 
 template<>
-struct intrinsic_test<polyhedral::intrinsic::divide>
+struct primitive_test<primitive_op::divide>
 {
     static double perform(double a, double b) { return a / b; }
 
@@ -82,7 +82,7 @@ struct intrinsic_test<polyhedral::intrinsic::divide>
 };
 
 template<>
-struct intrinsic_test<polyhedral::intrinsic::divide_integer>
+struct primitive_test<primitive_op::divide_integer>
 {
     static int perform(int a, int b) { return a / b; }
     static int perform(double a, int b) { return a / b; }
@@ -93,15 +93,15 @@ struct intrinsic_test<polyhedral::intrinsic::divide_integer>
     string code(const string & a, const string & b) { return a + " : " + b; }
 };
 
-template <polyhedral::intrinsic::of_kind I, typename A, typename B, typename R>
-result test_intrinsic_const()
+template <primitive_op I, typename A, typename B, typename R>
+result test_primitive_const()
 {
     A lhs = test_const_lhs<A>();
     B rhs = test_const_rhs<B>();
-    R result = intrinsic_test<I>::perform(lhs, rhs);
+    R result = primitive_test<I>::perform(lhs, rhs);
 
     std::stringstream code;
-    code << "result = " << intrinsic_test<I>::code(to_string(lhs), to_string(rhs));
+    code << "result = " << primitive_test<I>::code(to_string(lhs), to_string(rhs));
     code.seekg(0);
 
     cout << "Input:" << endl;
@@ -119,11 +119,11 @@ result test_intrinsic_const()
     return run(t, code, "result");
 }
 
-template <polyhedral::intrinsic::of_kind I, typename A, typename B, typename R>
-result test_intrinsic()
+template <primitive_op I, typename A, typename B, typename R>
+result test_primitive()
 {
     std::stringstream code;
-    code << "result(a,b) = " << intrinsic_test<I>::code("a","b");
+    code << "result(a,b) = " << primitive_test<I>::code("a","b");
     code.seekg(0);
 
     cout << "Input:" << endl;
@@ -135,7 +135,7 @@ result test_intrinsic()
         using namespace polyhedral;
         statement *stmt = new statement;
         stmt->domain = {1};
-        stmt->expr = new intrinsic(polyhedral::expr_type<R>::type, I,
+        stmt->expr = new primitive_expr(polyhedral::expr_type<R>::type, I,
         {new input_access(polyhedral::expr_type<A>::type, 0),
          new input_access(polyhedral::expr_type<B>::type,1 )});
         t.expect_polyhedral_model({stmt});
@@ -145,42 +145,42 @@ result test_intrinsic()
 
 result add_int_int_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::add,int,int,int>();
+    return test_primitive_const<primitive_op::add,int,int,int>();
 }
 
 result add_int_real_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::add,int,double,double>();
+    return test_primitive_const<primitive_op::add,int,double,double>();
 }
 
 result add_real_int_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::add,double,int,double>();
+    return test_primitive_const<primitive_op::add,double,int,double>();
 }
 
 result add_real_real_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::add,double,double,double>();
+    return test_primitive_const<primitive_op::add,double,double,double>();
 }
 
 result add_int_int()
 {
-    return test_intrinsic<polyhedral::intrinsic::add,int,int,int>();
+    return test_primitive<primitive_op::add,int,int,int>();
 }
 
 result add_int_real()
 {
-    return test_intrinsic<polyhedral::intrinsic::add,int,double,double>();
+    return test_primitive<primitive_op::add,int,double,double>();
 }
 
 result add_real_int()
 {
-    return test_intrinsic<polyhedral::intrinsic::add,double,int,double>();
+    return test_primitive<primitive_op::add,double,int,double>();
 }
 
 result add_real_real()
 {
-    return test_intrinsic<polyhedral::intrinsic::add,double,double,double>();
+    return test_primitive<primitive_op::add,double,double,double>();
 }
 
 result add_int_range()
@@ -192,7 +192,7 @@ result add_int_range()
         using namespace polyhedral;
         statement *stmt = new statement;
         stmt->domain = {8};
-        stmt->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        stmt->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {new constant<int>(1), new iterator_access(polyhedral::integer,0,3)});
         t.expect_polyhedral_model({stmt});
     }
@@ -208,7 +208,7 @@ result add_real_range()
         using namespace polyhedral;
         statement *stmt = new statement;
         stmt->domain = {8};
-        stmt->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        stmt->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {new constant<double>(2.7), new iterator_access(polyhedral::integer,0,3)});
         t.expect_polyhedral_model({stmt});
     }
@@ -224,7 +224,7 @@ result add_range_int()
         using namespace polyhedral;
         statement *stmt = new statement;
         stmt->domain = {8};
-        stmt->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        stmt->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {new iterator_access(polyhedral::integer,0,3), new constant<int>(222)});
         t.expect_polyhedral_model({stmt});
     }
@@ -240,7 +240,7 @@ result add_range_real()
         using namespace polyhedral;
         statement *stmt = new statement;
         stmt->domain = {8};
-        stmt->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        stmt->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {new iterator_access(polyhedral::integer,0,3), new constant<double>(2.34)});
         t.expect_polyhedral_model({stmt});
     }
@@ -256,7 +256,7 @@ result add_range_range()
         using namespace polyhedral;
         statement *stmt = new statement;
         stmt->domain = {8};
-        stmt->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        stmt->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {new iterator_access(polyhedral::integer,0,3),
          new iterator_access(polyhedral::integer,0,4)});
         t.expect_polyhedral_model({stmt});
@@ -283,7 +283,7 @@ result add_int_stream()
 
         statement *out = new statement;
         out->domain = {4,5,6};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {new constant<int>(2), x});
 
         t.expect_polyhedral_model({in,out});
@@ -311,7 +311,7 @@ result add_stream_int()
 
         statement *out = new statement;
         out->domain = {4,5,6};
-        out->expr = new intrinsic(polyhedral::real,intrinsic::add,
+        out->expr = new primitive_expr(polyhedral::real,primitive_op::add,
         {x, new constant<int>(2)});
 
         t.expect_polyhedral_model({in,out});
@@ -340,7 +340,7 @@ result add_real_stream()
 
         statement *out = new statement;
         out->domain = {4,5,6};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {new constant<double>(3.4), x});
 
         t.expect_polyhedral_model({in,out});
@@ -368,7 +368,7 @@ result add_stream_real()
 
         statement *out = new statement;
         out->domain = {4,5,6};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::add,
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::add,
         {x, new constant<double>(3.4)});
 
         t.expect_polyhedral_model({in,out});
@@ -379,42 +379,42 @@ result add_stream_real()
 
 result power_int_int_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::raise,int,int,int>();
+    return test_primitive_const<primitive_op::raise,int,int,int>();
 }
 
 result power_real_real_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::raise,double,double,double>();
+    return test_primitive_const<primitive_op::raise,double,double,double>();
 }
 
 result power_int_real_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::raise,int,double,double>();
+    return test_primitive_const<primitive_op::raise,int,double,double>();
 }
 
 result power_real_int_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::raise,double,int,double>();
+    return test_primitive_const<primitive_op::raise,double,int,double>();
 }
 
 result power_int_int()
 {
-    return test_intrinsic<polyhedral::intrinsic::raise,int,int,int>();
+    return test_primitive<primitive_op::raise,int,int,int>();
 }
 
 result power_real_real()
 {
-    return test_intrinsic<polyhedral::intrinsic::raise,double,double,double>();
+    return test_primitive<primitive_op::raise,double,double,double>();
 }
 
 result power_int_real()
 {
-    return test_intrinsic<polyhedral::intrinsic::raise,int,double,double>();
+    return test_primitive<primitive_op::raise,int,double,double>();
 }
 
 result power_real_int()
 {
-    return test_intrinsic<polyhedral::intrinsic::raise,double,int,double>();
+    return test_primitive<primitive_op::raise,double,int,double>();
 }
 
 result power_stream_int()
@@ -436,7 +436,7 @@ result power_stream_int()
 
         statement *out = new statement;
         out->domain = {4,5,6};
-        out->expr = new intrinsic(polyhedral::real, intrinsic::raise,
+        out->expr = new primitive_expr(polyhedral::real, primitive_op::raise,
         {x, new constant<int>(3)});
 
         t.expect_polyhedral_model({in,out});
@@ -447,70 +447,70 @@ result power_stream_int()
 
 result div_int_int_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::divide,int,int,double>();
+    return test_primitive_const<primitive_op::divide,int,int,double>();
 }
 result div_int_real_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::divide,int,double,double>();
+    return test_primitive_const<primitive_op::divide,int,double,double>();
 }
 result div_real_int_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::divide,double,int,double>();
+    return test_primitive_const<primitive_op::divide,double,int,double>();
 }
 result div_real_real_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::divide,double,double,double>();
+    return test_primitive_const<primitive_op::divide,double,double,double>();
 }
 
 result div_int_int()
 {
-    return test_intrinsic<polyhedral::intrinsic::divide,int,int,double>();
+    return test_primitive<primitive_op::divide,int,int,double>();
 }
 result div_int_real()
 {
-    return test_intrinsic<polyhedral::intrinsic::divide,int,double,double>();
+    return test_primitive<primitive_op::divide,int,double,double>();
 }
 result div_real_int()
 {
-    return test_intrinsic<polyhedral::intrinsic::divide,double,int,double>();
+    return test_primitive<primitive_op::divide,double,int,double>();
 }
 result div_real_real()
 {
-    return test_intrinsic<polyhedral::intrinsic::divide,double,double,double>();
+    return test_primitive<primitive_op::divide,double,double,double>();
 }
 
 result i_div_int_int_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::divide_integer,int,int,int>();
+    return test_primitive_const<primitive_op::divide_integer,int,int,int>();
 }
 result i_div_int_real_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::divide_integer,int,double,int>();
+    return test_primitive_const<primitive_op::divide_integer,int,double,int>();
 }
 result i_div_real_int_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::divide_integer,double,int,int>();
+    return test_primitive_const<primitive_op::divide_integer,double,int,int>();
 }
 result i_div_real_real_const()
 {
-    return test_intrinsic_const<polyhedral::intrinsic::divide_integer,double,double,int>();
+    return test_primitive_const<primitive_op::divide_integer,double,double,int>();
 }
 
 result i_div_int_int()
 {
-    return test_intrinsic<polyhedral::intrinsic::divide_integer,int,int,int>();
+    return test_primitive<primitive_op::divide_integer,int,int,int>();
 }
 result i_div_int_real()
 {
-    return test_intrinsic<polyhedral::intrinsic::divide_integer,int,double,int>();
+    return test_primitive<primitive_op::divide_integer,int,double,int>();
 }
 result i_div_real_int()
 {
-    return test_intrinsic<polyhedral::intrinsic::divide_integer,double,int,int>();
+    return test_primitive<primitive_op::divide_integer,double,int,int>();
 }
 result i_div_real_real()
 {
-    return test_intrinsic<polyhedral::intrinsic::divide_integer,double,double,int>();
+    return test_primitive<primitive_op::divide_integer,double,double,int>();
 }
 
 }

@@ -162,39 +162,39 @@ type_checker::type_checker(environment &env):
     m_ctx.enter_scope();
 
     {
-        vector<pair<string,intrinsic::type>> intrinsics = {
-            {"log", intrinsic::log},
-            {"log2", intrinsic::log2},
-            {"log10", intrinsic::log10},
-            {"exp", intrinsic::exp},
-            {"exp2", intrinsic::exp2},
-            {"sqrt", intrinsic::sqrt},
-            {"sin", intrinsic::sin},
-            {"cos", intrinsic::cos},
-            {"tan", intrinsic::tan},
-            {"asin", intrinsic::asin},
-            {"acos", intrinsic::acos},
-            {"atan", intrinsic::atan}
+        vector<pair<string,primitive_op>> primitives = {
+            {"log", primitive_op::log},
+            {"log2", primitive_op::log2},
+            {"log10", primitive_op::log10},
+            {"exp", primitive_op::exp},
+            {"exp2", primitive_op::exp2},
+            {"sqrt", primitive_op::sqrt},
+            {"sin", primitive_op::sin},
+            {"cos", primitive_op::cos},
+            {"tan", primitive_op::tan},
+            {"asin", primitive_op::asin},
+            {"acos", primitive_op::acos},
+            {"atan", primitive_op::atan}
         };
-        for (const auto & intrinsic : intrinsics)
+        for (const auto & primitive : primitives)
         {
             builtin_function_group * f = new builtin_function_group;
-            f->name = intrinsic.first;
-            f->intrinsic_type = intrinsic.second;
+            f->name = primitive.first;
+            f->op = primitive.second;
             f->overloads.push_back( function_signature({type::real_num}, type::real_num) );
             m_ctx.bind(f->name, type_ptr(f));
         }
     }
     {
-        vector<pair<string,intrinsic::type>> intrinsics = {
-            {"ceil", intrinsic::ceil},
-            {"floor", intrinsic::floor}
+        vector<pair<string,primitive_op>> primitives = {
+            {"ceil", primitive_op::ceil},
+            {"floor", primitive_op::floor}
         };
-        for (const auto & intrinsic : intrinsics)
+        for (const auto & primitive : primitives)
         {
             builtin_function_group * f = new builtin_function_group;
-            f->name = intrinsic.first;
-            f->intrinsic_type = intrinsic.second;
+            f->name = primitive.first;
+            f->op = primitive.second;
             f->overloads.push_back( function_signature({type::real_num}, type::integer_num) );
             m_ctx.bind(f->name, type_ptr(f));
         }
@@ -202,22 +202,22 @@ type_checker::type_checker(environment &env):
     {
         builtin_function_group * f = new builtin_function_group;
         f->name = "abs";
-        f->intrinsic_type = intrinsic::abs;
+        f->op = primitive_op::abs;
         f->overloads.push_back( function_signature({type::integer_num}, type::integer_num) );
         f->overloads.push_back( function_signature({type::real_num}, type::real_num) );
         m_ctx.bind(f->name, type_ptr(f));
     }
     {
-        vector<pair<string,intrinsic::type>> intrinsics = {
-            {"min", intrinsic::min},
-            {"max", intrinsic::max},
-            {"pow", intrinsic::raise}
+        vector<pair<string,primitive_op>> primitives = {
+            {"min", primitive_op::min},
+            {"max", primitive_op::max},
+            {"pow", primitive_op::raise}
         };
-        for (const auto & intrinsic : intrinsics)
+        for (const auto & primitive : primitives)
         {
             builtin_function_group * f = new builtin_function_group;
-            f->name = intrinsic.first;
-            f->intrinsic_type = intrinsic.second;
+            f->name = primitive.first;
+            f->op = primitive.second;
             f->overloads.push_back( function_signature({type::integer_num, type::integer_num},
                                                        type::integer_num) );
             f->overloads.push_back( function_signature({type::real_num, type::real_num},
@@ -416,7 +416,7 @@ type_checker::process_function( const func_type_ptr & func_type,
     {
         builtin_function_group &g = func_type->as<builtin_function_group>();
 
-        auto result = process_intrinsic(g, args);
+        auto result = process_primitive(g, args);
 
         builtin_function *f = new builtin_function;
         f->name = g.name;
@@ -615,7 +615,7 @@ type_ptr type_checker::process_negate( const sp<ast::node> & root )
     type_ptr operand_type = process_expression(root->as_list()->elements[0]);
 
     builtin_function_group func;
-    func.intrinsic_type = intrinsic::negate;
+    func.op = primitive_op::negate;
     switch(root->type)
     {
     case ast::negate:
@@ -629,7 +629,7 @@ type_ptr type_checker::process_negate( const sp<ast::node> & root )
         throw error("Unexpected AST node type.");
     }
 
-    auto result = process_intrinsic(func, {operand_type});
+    auto result = process_primitive(func, {operand_type});
 
     return result.first;
 }
@@ -674,52 +674,52 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     switch(root->type)
     {
     case ast::equal:
-        func.intrinsic_type = intrinsic::compare_eq; break;
+        func.op = primitive_op::compare_eq; break;
     case ast::not_equal:
-        func.intrinsic_type = intrinsic::compare_neq; break;
+        func.op = primitive_op::compare_neq; break;
     case ast::lesser:
-        func.intrinsic_type = intrinsic::compare_l; break;
+        func.op = primitive_op::compare_l; break;
     case ast::greater:
-        func.intrinsic_type = intrinsic::compare_g; break;
+        func.op = primitive_op::compare_g; break;
     case ast::lesser_or_equal:
-        func.intrinsic_type = intrinsic::compare_leq; break;
+        func.op = primitive_op::compare_leq; break;
     case ast::greater_or_equal:
-        func.intrinsic_type = intrinsic::compare_geq; break;
+        func.op = primitive_op::compare_geq; break;
     case ast::logic_and:
-        func.intrinsic_type = intrinsic::logic_and; break;
+        func.op = primitive_op::logic_and; break;
     case ast::logic_or:
-        func.intrinsic_type = intrinsic::logic_or; break;
+        func.op = primitive_op::logic_or; break;
     case ast::add:
-        func.intrinsic_type = intrinsic::add;
+        func.op = primitive_op::add;
         func.overloads.push_back(iii);
         func.overloads.push_back(rrr);
         break;
     case ast::subtract:
-        func.intrinsic_type = intrinsic::subtract;
+        func.op = primitive_op::subtract;
         func.overloads.push_back(iii);
         func.overloads.push_back(rrr);
         break;
     case ast::multiply:
-        func.intrinsic_type = intrinsic::multiply;
+        func.op = primitive_op::multiply;
         func.overloads.push_back(iii);
         func.overloads.push_back(rrr);
         break;
     case ast::divide:
-        func.intrinsic_type = intrinsic::divide;
+        func.op = primitive_op::divide;
         func.overloads.push_back(rrr);
         break;
     case ast::divide_integer:
-        func.intrinsic_type = intrinsic::divide_integer;
+        func.op = primitive_op::divide_integer;
         func.overloads.push_back(iii);
         func.overloads.push_back(rri);
         break;
     case ast::modulo:
-        func.intrinsic_type = intrinsic::modulo;
+        func.op = primitive_op::modulo;
         func.overloads.push_back(iii);
         func.overloads.push_back(rrr);
         break;
     case ast::raise:
-        func.intrinsic_type = intrinsic::raise;
+        func.op = primitive_op::raise;
         func.overloads.push_back(iii);
         func.overloads.push_back(rrr);
         break;
@@ -727,29 +727,29 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
         throw error("Unexpected AST node type.");
     }
 
-    switch(func.intrinsic_type)
+    switch(func.op)
     {
-    case intrinsic::compare_eq:
-    case intrinsic::compare_neq:
+    case primitive_op::compare_eq:
+    case primitive_op::compare_neq:
         func.overloads.push_back(iib);
         func.overloads.push_back(rrb);
         func.overloads.push_back(bbb);
         break;
-    case intrinsic::compare_g:
-    case intrinsic::compare_l:
-    case intrinsic::compare_geq:
-    case intrinsic::compare_leq:
+    case primitive_op::compare_g:
+    case primitive_op::compare_l:
+    case primitive_op::compare_geq:
+    case primitive_op::compare_leq:
         func.overloads.push_back(iib);
         func.overloads.push_back(rrb);
         break;
-    case intrinsic::logic_and:
-    case intrinsic::logic_or:
+    case primitive_op::logic_and:
+    case primitive_op::logic_or:
         func.overloads.push_back(bbb);
     default:
         break;
     }
 
-    auto result = process_intrinsic(func, {lhs_type, rhs_type});
+    auto result = process_primitive(func, {lhs_type, rhs_type});
 
     return result.first;
 }
@@ -1277,7 +1277,7 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
 }
 
 pair<type_ptr, function_signature>
-type_checker::process_intrinsic( const builtin_function_group & group,
+type_checker::process_primitive( const builtin_function_group & group,
                                  const vector<type_ptr> & args )
 {
     vector<pair<type_ptr, vector<int>>> reduced_types;
@@ -1310,7 +1310,7 @@ type_checker::process_intrinsic( const builtin_function_group & group,
     else
     {
         builtin_function f;
-        f.intrinsic_type = group.intrinsic_type;
+        f.op = group.op;
         f.signature = signature;
 
         result_type = constant_for(f, args);
@@ -1387,45 +1387,45 @@ T const_val(const type_ptr & type)
     }
 }
 
-template<intrinsic::type I>
-struct intrinsic_processor;
+template<primitive_op I>
+struct primitive_processor;
 
 template<>
-struct intrinsic_processor<intrinsic::add>
+struct primitive_processor<primitive_op::add>
 {
     static int process(int a, int b) { return a + b; }
     static double process(double a, double b) { return a + b; }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::subtract>
+struct primitive_processor<primitive_op::subtract>
 {
     static int process(int a, int b) { return a - b; }
     static double process(double a, double b) { return a - b; }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::multiply>
+struct primitive_processor<primitive_op::multiply>
 {
     static int process(int a, int b) { return a * b; }
     static double process(double a, double b) { return a * b; }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::divide>
+struct primitive_processor<primitive_op::divide>
 {
     static double process(double a, double b) { return a / b; }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::raise>
+struct primitive_processor<primitive_op::raise>
 {
     static int process(int a, int b) { return std::pow(a, b); }
     static double process(double a, double b) { return std::pow(a, b); }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::negate>
+struct primitive_processor<primitive_op::negate>
 {
     static bool process(bool a) { return !a; }
     static int process(int a) { return -a; }
@@ -1433,28 +1433,28 @@ struct intrinsic_processor<intrinsic::negate>
 };
 
 template<>
-struct intrinsic_processor<intrinsic::abs>
+struct primitive_processor<primitive_op::abs>
 {
     static int process(int a) { return std::abs(a); }
     static double process(double a) { return std::abs(a); }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::max>
+struct primitive_processor<primitive_op::max>
 {
     static int process(int a, int b) { return std::max(a, b); }
     static double process(double a, double b) { return std::max(a, b); }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::min>
+struct primitive_processor<primitive_op::min>
 {
     static int process(int a, int b) { return std::min(a, b); }
     static double process(double a, double b) { return std::min(a, b); }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::compare_eq>
+struct primitive_processor<primitive_op::compare_eq>
 {
     static bool process(int a, int b) { return a == b; }
     static bool process(double a, double b) { return a == b; }
@@ -1462,7 +1462,7 @@ struct intrinsic_processor<intrinsic::compare_eq>
 };
 
 template<>
-struct intrinsic_processor<intrinsic::compare_neq>
+struct primitive_processor<primitive_op::compare_neq>
 {
     static bool process(int a, int b) { return a != b; }
     static bool process(double a, double b) { return a != b; }
@@ -1470,35 +1470,35 @@ struct intrinsic_processor<intrinsic::compare_neq>
 };
 
 template<>
-struct intrinsic_processor<intrinsic::compare_l>
+struct primitive_processor<primitive_op::compare_l>
 {
     static bool process(int a, int b) { return a < b; }
     static bool process(double a, double b) { return a < b; }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::compare_leq>
+struct primitive_processor<primitive_op::compare_leq>
 {
     static bool process(int a, int b) { return a <= b; }
     static bool process(double a, double b) { return a <= b; }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::compare_g>
+struct primitive_processor<primitive_op::compare_g>
 {
     static bool process(int a, int b) { return a > b; }
     static bool process(double a, double b) { return a > b; }
 };
 
 template<>
-struct intrinsic_processor<intrinsic::compare_geq>
+struct primitive_processor<primitive_op::compare_geq>
 {
     static bool process(int a, int b) { return a >= b; }
     static bool process(double a, double b) { return a >= b; }
 };
 
-template<intrinsic::type I, typename R, typename ...A>
-struct intrinsic_for
+template<primitive_op I, typename R, typename ...A>
+struct primitive_for
 {
     template <typename ...T> static
     bool try_compute(type_ptr & result,
@@ -1517,58 +1517,58 @@ struct intrinsic_for
     template <typename ...T> static
     type_ptr compute(const T & ...args)
     {
-        R result = intrinsic_processor<I>::process(const_val<A>(args)...);
+        R result = primitive_processor<I>::process(const_val<A>(args)...);
         return type_for<R>(result);
     }
 };
 
 
-template<intrinsic::type I>
+template<primitive_op I>
 type_ptr const_arithmetic( const function_signature & func,
                            const vector<type_ptr> & args)
 {
     type_ptr result;
     bool ok =
-            intrinsic_for<I,int,int,int>::try_compute(result, func, args[0], args[1]) ||
-            intrinsic_for<I,double,double,double>::try_compute(result, func, args[0], args[1]);
+            primitive_for<I,int,int,int>::try_compute(result, func, args[0], args[1]) ||
+            primitive_for<I,double,double,double>::try_compute(result, func, args[0], args[1]);
     if (ok)
         return result;
     else
         return type_ptr();
 }
 
-template<intrinsic::type I>
+template<primitive_op I>
 type_ptr const_unary_arithmetic( const function_signature & func,
                                  const type_ptr & arg)
 {
     type_ptr result;
-    intrinsic_for<I,bool,bool>::try_compute(result, func, arg) ||
-            intrinsic_for<I,int,int>::try_compute(result, func, arg) ||
-            intrinsic_for<I,double,double>::try_compute(result, func, arg);
+    primitive_for<I,bool,bool>::try_compute(result, func, arg) ||
+            primitive_for<I,int,int>::try_compute(result, func, arg) ||
+            primitive_for<I,double,double>::try_compute(result, func, arg);
     return result;
 }
 
-template<intrinsic::type I>
+template<primitive_op I>
 type_ptr const_compare_eq( const function_signature & func,
                            const vector<type_ptr> & args )
 {
     type_ptr result;
-    intrinsic_for<I,bool,bool,bool>
+    primitive_for<I,bool,bool,bool>
             ::try_compute(result, func, args[0], args[1]) ||
-            intrinsic_for<I,bool,int,int>
+            primitive_for<I,bool,int,int>
             ::try_compute(result, func,  args[0], args[1]) ||
-            intrinsic_for<I,bool,double,double>
+            primitive_for<I,bool,double,double>
             ::try_compute(result, func,  args[0], args[1]);
     return result;
 }
 
-template<intrinsic::type I>
+template<primitive_op I>
 type_ptr const_compare_arithmetic( const function_signature & func,
                                    const vector<type_ptr> & args )
 {
     type_ptr result;
-    intrinsic_for<I,bool,int,int>::try_compute(result, func, args[0], args[1]) ||
-            intrinsic_for<I,bool,double,double>::try_compute(result, func, args[0], args[1]);
+    primitive_for<I,bool,int,int>::try_compute(result, func, args[0], args[1]) ||
+            primitive_for<I,bool,double,double>::try_compute(result, func, args[0], args[1]);
     return result;
 }
 
@@ -1586,38 +1586,38 @@ type_ptr type_checker::constant_for( const builtin_function & func,
     }
 
     type_ptr result;
-    switch(func.intrinsic_type)
+    switch(func.op)
     {
-    case intrinsic::compare_eq:
-        return const_compare_eq<intrinsic::compare_eq>(func.signature, args);
-    case intrinsic::compare_neq:
-        return const_compare_eq<intrinsic::compare_neq>(func.signature, args);
-    case intrinsic::compare_g:
-        return const_compare_arithmetic<intrinsic::compare_g>(func.signature, args);
-    case intrinsic::compare_geq:
-        return const_compare_arithmetic<intrinsic::compare_geq>(func.signature, args);
-    case intrinsic::compare_l:
-        return const_compare_arithmetic<intrinsic::compare_l>(func.signature, args);
-    case intrinsic::compare_leq:
-        return const_compare_arithmetic<intrinsic::compare_leq>(func.signature, args);
-    case intrinsic::logic_and:
+    case primitive_op::compare_eq:
+        return const_compare_eq<primitive_op::compare_eq>(func.signature, args);
+    case primitive_op::compare_neq:
+        return const_compare_eq<primitive_op::compare_neq>(func.signature, args);
+    case primitive_op::compare_g:
+        return const_compare_arithmetic<primitive_op::compare_g>(func.signature, args);
+    case primitive_op::compare_geq:
+        return const_compare_arithmetic<primitive_op::compare_geq>(func.signature, args);
+    case primitive_op::compare_l:
+        return const_compare_arithmetic<primitive_op::compare_l>(func.signature, args);
+    case primitive_op::compare_leq:
+        return const_compare_arithmetic<primitive_op::compare_leq>(func.signature, args);
+    case primitive_op::logic_and:
         return type_for(const_val<bool>(args[0]) && const_val<bool>(args[1]));
-    case intrinsic::logic_or:
+    case primitive_op::logic_or:
         return type_for(const_val<bool>(args[0]) || const_val<bool>(args[1]));
-    case intrinsic::add:
-        return const_arithmetic<intrinsic::add>(func.signature, args);
-    case intrinsic::subtract:
-        return const_arithmetic<intrinsic::subtract>(func.signature, args);
-    case intrinsic::multiply:
-        return const_arithmetic<intrinsic::multiply>(func.signature, args);
-    case intrinsic::divide:
+    case primitive_op::add:
+        return const_arithmetic<primitive_op::add>(func.signature, args);
+    case primitive_op::subtract:
+        return const_arithmetic<primitive_op::subtract>(func.signature, args);
+    case primitive_op::multiply:
+        return const_arithmetic<primitive_op::multiply>(func.signature, args);
+    case primitive_op::divide:
         return type_for(const_val<double>(args[0]) / const_val<double>(args[1]));
-    case intrinsic::divide_integer:
+    case primitive_op::divide_integer:
         if (signature_is<int,int,int>(func.signature))
             return type_for((const_val<int>(args[0]) / const_val<int>(args[1])));
         else
             return type_for((int)(const_val<double>(args[0]) / const_val<double>(args[1])));
-    case intrinsic::modulo:
+    case primitive_op::modulo:
     {
         if (signature_is<int,int,int>(func.signature))
         {
@@ -1636,42 +1636,42 @@ type_ptr type_checker::constant_for( const builtin_function & func,
             return type_for(l - r * q);
         }
     }
-    case intrinsic::raise:
-        return const_arithmetic<intrinsic::raise>(func.signature, args);
-    case intrinsic::negate:
-        return const_unary_arithmetic<intrinsic::negate>(func.signature, args[0]);
-    case intrinsic::log:
+    case primitive_op::raise:
+        return const_arithmetic<primitive_op::raise>(func.signature, args);
+    case primitive_op::negate:
+        return const_unary_arithmetic<primitive_op::negate>(func.signature, args[0]);
+    case primitive_op::log:
         return type_for( (double) std::log(const_val<double>(args[0])) );
-    case intrinsic::log2:
+    case primitive_op::log2:
         return type_for( (double) std::log2(const_val<double>(args[0])) );
-    case intrinsic::log10:
+    case primitive_op::log10:
         return type_for( (double) std::log10(const_val<double>(args[0])) );
-    case intrinsic::exp:
+    case primitive_op::exp:
         return type_for( (double) std::exp(const_val<double>(args[0])) );
-    case intrinsic::exp2:
+    case primitive_op::exp2:
         return type_for( (double) std::exp2(const_val<double>(args[0])) );
-    case intrinsic::sqrt:
+    case primitive_op::sqrt:
         return type_for( (double) std::sqrt(const_val<double>(args[0])) );
-    case intrinsic::cos:
+    case primitive_op::cos:
         return type_for( (double) std::cos(const_val<double>(args[0])) );
-    case intrinsic::tan:
+    case primitive_op::tan:
         return type_for( (double) std::tan(const_val<double>(args[0])) );
-    case intrinsic::asin:
+    case primitive_op::asin:
         return type_for( (double) std::asin(const_val<double>(args[0])) );
-    case intrinsic::acos:
+    case primitive_op::acos:
         return type_for( (double) std::acos(const_val<double>(args[0])) );
-    case intrinsic::atan:
+    case primitive_op::atan:
         return type_for( (double) std::atan(const_val<double>(args[0])) );
-    case intrinsic::ceil:
+    case primitive_op::ceil:
         return type_for( (int) std::ceil(const_val<double>(args[0])) );
-    case intrinsic::floor:
+    case primitive_op::floor:
         return type_for( (int) std::floor(const_val<double>(args[0])) );
-    case intrinsic::abs:
-        return const_unary_arithmetic<intrinsic::abs>(func.signature, args[0]);
-    case intrinsic::max:
-        return const_arithmetic<intrinsic::max>(func.signature, args);
-    case intrinsic::min:
-        return const_arithmetic<intrinsic::min>(func.signature, args);
+    case primitive_op::abs:
+        return const_unary_arithmetic<primitive_op::abs>(func.signature, args[0]);
+    case primitive_op::max:
+        return const_arithmetic<primitive_op::max>(func.signature, args);
+    case primitive_op::min:
+        return const_arithmetic<primitive_op::min>(func.signature, args);
     default:;
     }
 

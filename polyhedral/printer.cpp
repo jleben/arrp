@@ -18,6 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
+#include "../common/primitives.hpp"
 #include "printer.hpp"
 
 #include <iomanip>
@@ -27,47 +28,66 @@ namespace stream {
 namespace polyhedral {
 
 using namespace std;
-
-vector<string> make_intrinsic_name_table()
+#if 0
+string name_of_primitive( primitive_op op )
 {
-    vector<string> table(intrinsic::count);
-    table[intrinsic::negate] = "!";
-    table[intrinsic::add] = "+";
-    table[intrinsic::subtract] = "-";
-    table[intrinsic::multiply] = "*";
-    table[intrinsic::divide] = "/";
-    table[intrinsic::divide_integer] = ":";
-    table[intrinsic::raise] = "^";
-    table[intrinsic::exp] = "exp";
-    table[intrinsic::exp2] = "exp2";
-    table[intrinsic::log] = "log";
-    table[intrinsic::log2] = "log2";
-    table[intrinsic::log10] = "log10";
-    table[intrinsic::sqrt] = "sqrt";
-    table[intrinsic::sin] = "sin";
-    table[intrinsic::cos] = "cos";
-    table[intrinsic::tan] = "tan";
-    table[intrinsic::asin] = "asin";
-    table[intrinsic::acos] = "acos";
-    table[intrinsic::atan] = "atan";
-    table[intrinsic::ceil] = "ceil";
-    table[intrinsic::floor] = "floor";
-    table[intrinsic::abs] = "abs";
-    table[intrinsic::min] = "min";
-    table[intrinsic::max] = "max";
-    table[intrinsic::conditional] = "if";
-    return table;
+    switch(op)
+    {
+    case primitive_op::negate:
+        return "!";
+    case primitive_op::add:
+        return "+";
+    case primitive_op::subtract:
+        return "-";
+    case primitive_op::multiply:
+        return "*";
+    case primitive_op::divide:
+        return "/";
+    case primitive_op::divide_integer:
+        return ":";
+    case primitive_op::raise:
+        return "^";
+    case primitive_op::exp:
+        return "exp";
+    case primitive_op::exp2:
+        return "exp2";
+    case primitive_op::log:
+        return "log";
+    case primitive_op::log2:
+        return "log2";
+    case primitive_op::log10:
+        return "log10";
+    case primitive_op::sqrt:
+        return "sqrt";
+    case primitive_op::sin:
+        return "sin";
+    case primitive_op::cos:
+        return "cos";
+    case primitive_op::tan:
+        return "tan";
+    case primitive_op::asin:
+        return "asin";
+    case primitive_op::acos:
+        return "acos";
+    case primitive_op::atan:
+        return "atan";
+    case primitive_op::ceil:
+        return "ceil";
+    case primitive_op::floor:
+        return "floor";
+    case primitive_op::abs:
+        return "abs";
+    case primitive_op::min:
+        return "min";
+    case primitive_op::max:
+        return "max";
+    case primitive_op::conditional:
+        return "if";
+    default:
+        return "<unknown primitive op>";
+    }
 }
-
-string name_of_intrinsic( intrinsic::of_kind type )
-{
-    static vector<string> intrinsic_names = make_intrinsic_name_table();
-
-    if (type >= intrinsic_names.size())
-        return "<unknown intrinsic>";
-    else
-        return intrinsic_names[type];
-}
+#endif
 
 printer::printer(): level(0) {}
 
@@ -97,17 +117,17 @@ void printer::print(const expression *expr, ostream &s)
     {
         s << const_double->value;
     }
-    else if (auto intr = dynamic_cast<const intrinsic*>(expr))
+    else if (auto primitive = dynamic_cast<const primitive_expr*>(expr))
     {
-        s << name_of_intrinsic(intr->kind);
+        s << primitive->op;
 
         s << " (" << endl;
         indent();
-        for(expression *operand : intr->operands)
+        for(expression *operand : primitive->operands)
         {
             s << indentation();
             print(operand, s);
-            if (operand != intr->operands.back())
+            if (operand != primitive->operands.back())
                 s << ",";
             s << endl;
         }
