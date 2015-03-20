@@ -63,3 +63,23 @@ add_integration_test(flux-stream
   flux.cpp
 )
 target_compile_definitions(flux-stream PRIVATE STREAMING)
+
+
+
+# Custom-compiled
+
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(compile-equalizer equalizer-compiler.cpp)
+target_link_libraries(compile-equalizer streamc-lib)
+
+add_custom_command(OUTPUT equalizer-kernel.ll
+  COMMAND ./compile-equalizer
+  DEPENDS compile-equalizer
+)
+
+stream_kernel_opt(equalizer-kernel-opt.ll equalizer-kernel.ll)
+stream_kernel_object(equalizer-kernel.o equalizer-kernel-opt.ll)
+add_executable(test-equalizer equalizer-tester.cpp equalizer-kernel.o)
+
+add_test(NAME equalizer COMMAND $<TARGET_FILE:test-equalizer>)
