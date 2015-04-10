@@ -40,7 +40,7 @@ result stream1_by_int ()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(1,1);
@@ -69,7 +69,7 @@ result stream1_by_range ()
 
         statement *in = new statement;
         in->domain = {9};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(1,1);
@@ -99,7 +99,7 @@ result stream3_by_int ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(2,3);
@@ -130,7 +130,7 @@ result stream3_by_range ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping::identity(3,3);
@@ -159,7 +159,7 @@ result stream3_by_int2 ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(1,3);
@@ -190,7 +190,7 @@ result stream3_by_range2 ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping::identity(3,3);
@@ -220,7 +220,7 @@ result stream3_by_int3 ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(1,3);
@@ -251,7 +251,7 @@ result stream3_by_range3 ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping::identity(3,3);
@@ -282,7 +282,7 @@ result stream3_by_range_int_range ()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(2,3);
@@ -322,7 +322,7 @@ result stream3_to_dim2()
 
         statement *in = new statement;
         in->domain = {9,11,13};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(3,3);
@@ -353,7 +353,7 @@ result stream4_to_dim2_dim3()
 
         statement *in = new statement;
         in->domain = {9,11,13,15};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(4,4);
@@ -385,7 +385,7 @@ result stream4_to_dim4_dim2()
 
         statement *in = new statement;
         in->domain = {9,11,13,15};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(4,4);
@@ -422,7 +422,7 @@ result slice_by_scalar_and_transpose()
 
         statement *in = new statement;
         in->domain = {9,11,13,15};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(3,4);
@@ -454,7 +454,7 @@ result transpose_and_slice_by_scalar()
 
         statement *in = new statement;
         in->domain = {9,11,13,15};
-        in->expr = new input_access(polyhedral::real, 0);
+        in->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *x = new stmt_access(in);
         x->pattern = mapping(3,4);
@@ -486,7 +486,7 @@ result stream2_map_and_slice()
 
         statement *x = new statement;
         x->domain = {9,11};
-        x->expr = new input_access(polyhedral::real, 0);
+        x->expr = new input_access(primitive_type::real, 0);
 
         stmt_access *xx = new stmt_access(x);
         xx->pattern = mapping(1,2);

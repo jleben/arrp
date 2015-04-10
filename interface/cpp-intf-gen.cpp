@@ -73,11 +73,11 @@ func_decl_node *decl_get_output_func(polyhedral::statement *output_stmt)
     type_node *ret_type = nullptr;
     switch(output_stmt->expr->type)
     {
-    case polyhedral::boolean:
+    case primitive_type::boolean:
         ret_type = int32_ptr_type(); break;
-    case polyhedral::integer:
+    case primitive_type::integer:
         ret_type = int32_ptr_type(); break;
-    case polyhedral::real:
+    case primitive_type::real:
         ret_type = double_ptr_type(); break;
     }
     assert(ret_type);

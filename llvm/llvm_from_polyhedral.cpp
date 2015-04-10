@@ -61,17 +61,17 @@ llvm_from_polyhedral::llvm_from_polyhedral
 
     type_type buf_elem_types[buffer_kind_count] =
     {
-        buffer_elem_type(polyhedral::boolean),
-        buffer_elem_type(polyhedral::integer),
-        buffer_elem_type(polyhedral::real),
+        buffer_elem_type(primitive_type::boolean),
+        buffer_elem_type(primitive_type::integer),
+        buffer_elem_type(primitive_type::real),
         int64_type(),
     };
 
     int buf_elem_sizes[buffer_kind_count] =
     {
-        buffer_elem_size(polyhedral::boolean),
-        buffer_elem_size(polyhedral::integer),
-        buffer_elem_size(polyhedral::real),
+        buffer_elem_size(primitive_type::boolean),
+        buffer_elem_size(primitive_type::integer),
+        buffer_elem_size(primitive_type::real),
         8
     };
 
@@ -253,16 +253,16 @@ llvm_from_polyhedral::create_process_function
         switch(arg->get_tag())
         {
         case semantic::type::boolean:
-            param_type = buffer_elem_type(polyhedral::boolean);
+            param_type = buffer_elem_type(primitive_type::boolean);
             break;
         case semantic::type::integer_num:
-            param_type = buffer_elem_type(polyhedral::integer);
+            param_type = buffer_elem_type(primitive_type::integer);
             break;
         case semantic::type::real_num:
-            param_type = buffer_elem_type(polyhedral::real);
+            param_type = buffer_elem_type(primitive_type::real);
             break;
         case semantic::type::stream:
-            param_type = pointer(buffer_elem_type(polyhedral::real));
+            param_type = pointer(buffer_elem_type(primitive_type::real));
             break;
         default:
             throw string("Unexpected argument type.");
@@ -892,8 +892,8 @@ llvm_from_polyhedral::generate_scalar_input_access( input_access *access, const 
 {
     int input_num = access->index;
     value_type val = ctx.inputs[input_num];
-    if (access->type == polyhedral::boolean)
-        val = m_builder.CreateTrunc(val, type(polyhedral::boolean));
+    if (access->type == primitive_type::boolean)
+        val = m_builder.CreateTrunc(val, type(primitive_type::boolean));
     return val;
 }
 
@@ -1075,47 +1075,47 @@ llvm_from_polyhedral::buffer_index
 }
 
 llvm_from_polyhedral::value_type
-llvm_from_polyhedral::load_buffer_elem(value_type ptr, polyhedral::numerical_type t)
+llvm_from_polyhedral::load_buffer_elem(value_type ptr, primitive_type t)
 {
     value_type val = m_builder.CreateLoad(ptr);
-    if (t == polyhedral::boolean)
-        return m_builder.CreateTrunc(val, type(polyhedral::boolean));
+    if (t == primitive_type::boolean)
+        return m_builder.CreateTrunc(val, type(primitive_type::boolean));
     else
         return val;
 }
 
 void
-llvm_from_polyhedral::store_buffer_elem(value_type val, value_type ptr, polyhedral::numerical_type t)
+llvm_from_polyhedral::store_buffer_elem(value_type val, value_type ptr, primitive_type t)
 {
-    if (t == polyhedral::boolean)
-        val = m_builder.CreateZExt(val, buffer_elem_type(polyhedral::boolean));
+    if (t == primitive_type::boolean)
+        val = m_builder.CreateZExt(val, buffer_elem_type(primitive_type::boolean));
     m_builder.CreateStore(val, ptr);
 }
 
-int llvm_from_polyhedral::buffer_elem_size(polyhedral::numerical_type t)
+int llvm_from_polyhedral::buffer_elem_size(primitive_type t)
 {
     switch(t)
     {
-    case polyhedral::boolean:
+    case primitive_type::boolean:
         return 4;
-    case polyhedral::integer:
+    case primitive_type::integer:
         return 4;
-    case polyhedral::real:
+    case primitive_type::real:
         return 8;
     }
     throw false;
 }
 
 llvm_from_polyhedral::type_type
-llvm_from_polyhedral::buffer_elem_type(polyhedral::numerical_type t)
+llvm_from_polyhedral::buffer_elem_type(primitive_type t)
 {
     switch(t)
     {
-    case polyhedral::boolean:
+    case primitive_type::boolean:
         return int32_type();
-    case polyhedral::integer:
+    case primitive_type::integer:
         return int32_type();
-    case polyhedral::real:
+    case primitive_type::real:
         return double_type();
     }
     throw false;
@@ -1242,15 +1242,15 @@ llvm_from_polyhedral::malloc( type_type t, std::uint64_t size )
 }
 
 llvm_from_polyhedral::type_type
-llvm_from_polyhedral::type(polyhedral::numerical_type t)
+llvm_from_polyhedral::type(primitive_type t)
 {
     switch(t)
     {
-    case polyhedral::boolean:
+    case primitive_type::boolean:
         return bool_type();
-    case polyhedral::integer:
+    case primitive_type::integer:
         return int32_type();
-    case polyhedral::real:
+    case primitive_type::real:
         return double_type();
     }
     throw false;
@@ -1258,19 +1258,19 @@ llvm_from_polyhedral::type(polyhedral::numerical_type t)
 
 llvm_from_polyhedral::value_type
 llvm_from_polyhedral::convert( value_type v,
-                          polyhedral::numerical_type t )
+                          primitive_type t )
 {
     switch(t)
     {
-    case polyhedral::real:
+    case primitive_type::real:
     {
         return convert_to_real(v);
     }
-    case polyhedral::integer:
+    case primitive_type::integer:
     {
         return convert_to_integer(v);
     }
-    case polyhedral::boolean:
+    case primitive_type::boolean:
     {
         return convert_to_boolean(v);
     }
@@ -1310,7 +1310,7 @@ llvm_from_polyhedral::convert_to_boolean( value_type v )
 {
     type_type t = v->getType();
 
-    if (t == type(polyhedral::boolean))
+    if (t == type(primitive_type::boolean))
         return v;
     else
         throw runtime_error("LLVM generator: can not convert value to boolean.");

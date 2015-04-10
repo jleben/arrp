@@ -41,22 +41,15 @@ enum
     infinite = -1
 };
 
-enum numerical_type
-{
-    boolean,
-    integer,
-    real
-};
-
-template <numerical_type> struct cpp_type;
-template<> struct cpp_type<integer> { typedef int type; };
-template<> struct cpp_type<real> { typedef double type; };
-template<> struct cpp_type<boolean> { typedef bool type; };
+template <primitive_type> struct cpp_type;
+template<> struct cpp_type<primitive_type::integer> { typedef int type; };
+template<> struct cpp_type<primitive_type::real> { typedef double type; };
+template<> struct cpp_type<primitive_type::boolean> { typedef bool type; };
 
 template <typename T> struct expr_type;
-template<> struct expr_type<int> { static constexpr numerical_type type = integer; };
-template<> struct expr_type<double> { static constexpr numerical_type type = real; };
-template<> struct expr_type<bool> { static constexpr numerical_type type = boolean; };
+template<> struct expr_type<int> { static constexpr primitive_type type = primitive_type::integer; };
+template<> struct expr_type<double> { static constexpr primitive_type type = primitive_type::real; };
+template<> struct expr_type<bool> { static constexpr primitive_type type = primitive_type::boolean; };
 
 class statement;
 
@@ -146,14 +139,14 @@ class expression
     // (of all sub-expressions)
     // to be updated by slicing and transposition
 public:
-    expression(numerical_type t): type(t) {}
+    expression(primitive_type t): type(t) {}
 
     virtual ~expression() {}
 
     template<typename T>
     void find( vector<T*> & container );
 
-    numerical_type type;
+    primitive_type type;
 };
 
 template <typename T>
@@ -167,8 +160,8 @@ public:
 class primitive_expr : public expression
 {
 public:
-    primitive_expr(numerical_type t): expression(t) {}
-    primitive_expr(numerical_type t, primitive_op k, const vector<expression*> & operands):
+    primitive_expr(primitive_type t): expression(t) {}
+    primitive_expr(primitive_type t, primitive_op k, const vector<expression*> & operands):
         expression(t),
         op(k), operands(operands)
     {}
@@ -180,8 +173,8 @@ public:
 class iterator_access : public expression
 {
 public:
-    iterator_access(numerical_type t): expression(t) {}
-    iterator_access(numerical_type t, int dimension, int offset=0, int ratio=1):
+    iterator_access(primitive_type t): expression(t) {}
+    iterator_access(primitive_type t, int dimension, int offset=0, int ratio=1):
         expression(t),
         dimension(dimension),
         offset(offset),
@@ -195,7 +188,7 @@ public:
 class input_access : public expression
 {
 public:
-    input_access(numerical_type t, int index): expression(t), index(index) {}
+    input_access(primitive_type t, int index): expression(t), index(index) {}
     int index;
 };
 
@@ -230,7 +223,7 @@ public:
     stmt_access(statement *target):
         expression(target->expr->type),
         target(target) {}
-    stmt_access(statement *target, numerical_type t):
+    stmt_access(statement *target, primitive_type t):
         expression(t),
         target(target) {}
     statement * target;
@@ -240,7 +233,7 @@ public:
 class reduction_access : public expression
 {
 public:
-    reduction_access(numerical_type t): expression(t) {}
+    reduction_access(primitive_type t): expression(t) {}
     statement * initializer;
     statement * reductor;
 };

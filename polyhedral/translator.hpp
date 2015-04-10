@@ -83,7 +83,7 @@ private:
         int start;
         int end;
 
-        range(): expression(integer) {}
+        range(): expression(primitive_type::integer) {}
     };
 
     typedef stream::context<string,symbol> context;

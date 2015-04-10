@@ -28,23 +28,7 @@ namespace stream {
 namespace polyhedral {
 
 using namespace std;
-
-numerical_type expr_type_for( const semantic::type_ptr t )
-{
-    primitive_type pt = primitive_type_for(t);
-
-    switch(pt)
-    {
-    case primitive_type::boolean:
-        return boolean;
-    case primitive_type::integer:
-        return integer;
-    case primitive_type::real:
-        return real;
-    default:
-        throw undefined();
-    }
-}
+using semantic::primitive_type_for;
 
 translator::translator(const semantic::environment &env):
     m_env(env)
@@ -124,17 +108,17 @@ expression * translator::translate_input(const semantic::type_ptr & type,
     switch(type->get_tag())
     {
     case semantic::type::boolean:
-        return new input_access(boolean, index);
+        return new input_access(primitive_type::boolean, index);
     case semantic::type::integer_num:
-        return new input_access(integer, index);
+        return new input_access(primitive_type::integer, index);
     case semantic::type::real_num:
-        return new input_access(real, index);
+        return new input_access(primitive_type::real, index);
     case semantic::type::stream:
     {
         auto & stream_type = type->as<semantic::stream>();
 
         statement *generator =
-                make_statement(new input_access(expr_type_for(type), index), stream_type.size);
+                make_statement(new input_access(primitive_type_for(type), index), stream_type.size);
 
         int dimension = generator->domain.size();
 
@@ -462,7 +446,7 @@ expression * translator::do_call(const ast::node_ptr &node)
         primitive_op op = primitive_op_mapping->second;
 
         primitive_expr *expr = new primitive_expr
-                ( expr_type_for(node->semantic_type),
+                ( primitive_type_for(node->semantic_type),
                   op, args );
 
         return expr;
@@ -508,7 +492,7 @@ expression * translator::do_unary_op(const ast::node_ptr &node)
     // create operation
 
     auto operation_result =
-            new primitive_expr(expr_type_for(node->semantic_type));
+            new primitive_expr(primitive_type_for(node->semantic_type));
 
     operation_result->operands.push_back(operand);
 
@@ -535,7 +519,7 @@ expression * translator::do_binary_op(const ast::node_ptr &node)
     // create operation
 
     auto operation_result =
-            new primitive_expr(expr_type_for(node->semantic_type));
+            new primitive_expr(primitive_type_for(node->semantic_type));
 
     operation_result->operands.push_back(operand1);
     operation_result->operands.push_back(operand2);
@@ -751,7 +735,7 @@ expression * translator::do_conditional(const  ast::node_ptr &node)
     expression *true_expr = iterate(do_block(true_node), node->semantic_type);
     expression *false_expr = iterate(do_block(false_node), node->semantic_type);
 
-    auto result = new primitive_expr(expr_type_for(node->semantic_type));
+    auto result = new primitive_expr(primitive_type_for(node->semantic_type));
     result->operands = { condition, true_expr, false_expr };
     result->op = primitive_op::conditional;
 
@@ -847,7 +831,7 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
 
     m_domain.pop_back();
 
-    result->type = polyhedral::real;
+    result->type = result_type.element_type;
 
     return result;
 }

@@ -91,17 +91,17 @@ string name_of_primitive( primitive_op op )
 
 printer::printer(): level(0) {}
 
-void printer::print(const numerical_type t, ostream &s)
+void printer::print(const primitive_type t, ostream &s)
 {
     switch(t)
     {
-    case integer:
+    case primitive_type::integer:
         s << "integer";
         break;
-    case real:
+    case primitive_type::real:
         s << "real";
         break;
-    case boolean:
+    case primitive_type::boolean:
         s << "boolean";
         break;
     }

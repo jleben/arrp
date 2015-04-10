@@ -40,7 +40,7 @@ result stream1_add()
 
         statement *x = new statement;
         x->domain = {9};
-        x->expr = new input_access(polyhedral::real, 0);
+        x->expr = new input_access(primitive_type::real, 0);
 
         // initializer
         stmt_access *x0 = new stmt_access(x);
@@ -53,7 +53,7 @@ result stream1_add()
         statement *reductor = new statement;
         reductor->domain = {8};
 
-        reduction_access *a = new reduction_access(polyhedral::real);
+        reduction_access *a = new reduction_access(primitive_type::real);
         a->initializer = initializer;
         a->reductor = reductor;
 
@@ -61,7 +61,7 @@ result stream1_add()
         b->pattern = mapping::identity(1,1);
         b->pattern.constant(0) = 1;
 
-        reductor->expr = new primitive_expr(polyhedral::real, primitive_op::add,{a,b});
+        reductor->expr = new primitive_expr(primitive_type::real, primitive_op::add,{a,b});
 
         // result
         stmt_access *out_expr = new stmt_access(reductor);
@@ -90,7 +90,7 @@ result map_range_by_stream1_reduction()
 
         statement *x = new statement;
         x->domain = {9};
-        x->expr = new input_access(polyhedral::real, 0);
+        x->expr = new input_access(primitive_type::real, 0);
 
         // initializer
         stmt_access *x0 = new stmt_access(x);
@@ -103,7 +103,7 @@ result map_range_by_stream1_reduction()
         statement *reductor = new statement;
         reductor->domain = {100,8};
 
-        reduction_access *a = new reduction_access(polyhedral::real);
+        reduction_access *a = new reduction_access(primitive_type::real);
         a->initializer = initializer;
         a->reductor = reductor;
 
@@ -112,7 +112,7 @@ result map_range_by_stream1_reduction()
         b->pattern.coefficient(1,0) = 1;
         b->pattern.constant(0) = 1;
 
-        reductor->expr = new primitive_expr(polyhedral::real, primitive_op::add,{a,b});
+        reductor->expr = new primitive_expr(primitive_type::real, primitive_op::add,{a,b});
 
         // result
         stmt_access *out_expr = new stmt_access(reductor);
@@ -142,7 +142,7 @@ result map_stream2_by_substream_reduction()
 
         statement *x = new statement;
         x->domain = {9,13};
-        x->expr = new input_access(polyhedral::real, 0);
+        x->expr = new input_access(primitive_type::real, 0);
 
         // initializer
         stmt_access *x0 = new stmt_access(x);
@@ -156,7 +156,7 @@ result map_stream2_by_substream_reduction()
         statement *reductor = new statement;
         reductor->domain = {9,12};
 
-        reduction_access *a = new reduction_access(polyhedral::real);
+        reduction_access *a = new reduction_access(primitive_type::real);
         a->initializer = initializer;
         a->reductor = reductor;
 
@@ -164,7 +164,7 @@ result map_stream2_by_substream_reduction()
         b->pattern = mapping::identity(2,2);
         b->pattern.constant(1) = 1;
 
-        reductor->expr = new primitive_expr(polyhedral::real, primitive_op::add,{a,b});
+        reductor->expr = new primitive_expr(primitive_type::real, primitive_op::add,{a,b});
 
         // result
         stmt_access *out_expr = new stmt_access(reductor);

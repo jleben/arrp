@@ -94,7 +94,7 @@ private:
 
     struct buffer
     {
-        polyhedral::numerical_type type;
+        primitive_type type;
         bool has_phase;
         int phase_index;
         int size;
@@ -112,15 +112,15 @@ private:
         buffer_kind_count
     };
 
-    buffer_kind buffer_kind_for(polyhedral::numerical_type t)
+    buffer_kind buffer_kind_for(primitive_type t)
     {
         switch(t)
         {
-        case polyhedral::boolean:
+        case primitive_type::boolean:
             return bool_buffer;
-        case polyhedral::integer:
+        case primitive_type::integer:
             return int_buffer;
-        case polyhedral::real:
+        case primitive_type::real:
             return real_buffer;
         }
         throw false;
@@ -147,11 +147,11 @@ private:
                                   const index_type &,
                                   const context & );
 
-    value_type load_buffer_elem(value_type ptr, polyhedral::numerical_type);
-    void store_buffer_elem(value_type val, value_type ptr, polyhedral::numerical_type);
+    value_type load_buffer_elem(value_type ptr, primitive_type);
+    void store_buffer_elem(value_type val, value_type ptr, primitive_type);
 
-    int buffer_elem_size(polyhedral::numerical_type t);
-    type_type buffer_elem_type(polyhedral::numerical_type t);
+    int buffer_elem_size(primitive_type t);
+    type_type buffer_elem_type(primitive_type t);
     type_type buffer_type(const buffer &);
     type_type buffer_ptr_type(const buffer &);
     type_type array_type(type_type elem_type, const vector<int> domain);
@@ -215,8 +215,8 @@ private:
         return llvm::ConstantInt::get(t,v);
     }
 
-    type_type type(polyhedral::numerical_type);
-    value_type convert( value_type v, polyhedral::numerical_type );
+    type_type type(primitive_type);
+    value_type convert( value_type v, primitive_type );
     value_type convert_to_real( value_type v );
     value_type convert_to_integer( value_type v );
     value_type convert_to_boolean( value_type v );
