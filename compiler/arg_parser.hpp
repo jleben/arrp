@@ -275,7 +275,8 @@ private:
             throw error("Invalid stream argument.");
         }
 
-        return semantic::type_ptr( new semantic::stream(sizes) );
+        // FIXME: support all element types
+        return semantic::type_ptr( new semantic::stream(sizes, primitive_type::real) );
     }
 
     semantic::type_ptr parse_target_scalar_arg(const string & arg)

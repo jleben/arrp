@@ -31,20 +31,18 @@ using namespace std;
 
 numerical_type expr_type_for( const semantic::type_ptr t )
 {
-    switch(t->get_tag())
+    primitive_type pt = primitive_type_for(t);
+
+    switch(pt)
     {
-    case semantic::type::boolean:
+    case primitive_type::boolean:
         return boolean;
-    case semantic::type::integer_num:
+    case primitive_type::integer:
         return integer;
-    case semantic::type::real_num:
-        return real;
-    case semantic::type::range:
-        return integer;
-    case semantic::type::stream:
+    case primitive_type::real:
         return real;
     default:
-        throw string("Unexpected type.");
+        throw undefined();
     }
 }
 
@@ -106,35 +104,12 @@ void translator::translate(const semantic::symbol & sym,
     assert(result);
 
     type_ptr result_type = sym.source_expression()->semantic_type;
+    auto result_type_struct = structure(result_type);
 
-    vector<int> result_domain;
+    vector<int> result_domain = result_type_struct.size;
 
-    if (result_type->is_scalar())
-    {
-        result_domain.resize(1,1);
-    }
-    else
-    {
-        switch(result_type->get_tag())
-        {
-        case type::stream:
-        {
-            result_domain = result_type->as<stream>().size;
-            break;
-        }
-        case type::range:
-        {
-            const semantic::range & range_type =
-                    result_type->as<semantic::range>();
-            if (!range_type.is_constant())
-                throw error("Non-constant range not supported as result type.");
-            result_domain = { range_type.const_size() };
-            break;
-        }
-        default:
-            throw runtime_error("Unexpected type.");
-        }
-    }
+    if (result_domain.empty())
+        result_domain = {1};
 
     result = iterate(result, result_type);
     make_statement(result, result_domain);
@@ -159,7 +134,7 @@ expression * translator::translate_input(const semantic::type_ptr & type,
         auto & stream_type = type->as<semantic::stream>();
 
         statement *generator =
-                make_statement(new input_access(real, index), stream_type.size);
+                make_statement(new input_access(expr_type_for(type), index), stream_type.size);
 
         int dimension = generator->domain.size();
 
@@ -211,26 +186,9 @@ expression* translator::do_statement(const ast::node_ptr &node)
 
         if (!node->semantic_type->is_scalar())
         {
-            switch(node->semantic_type->get_tag())
-            {
-            case type::stream:
-            {
-                vector<int> expr_domain =
-                        node->semantic_type->as<stream>().size;
-                domain.insert(domain.end(),
-                              expr_domain.begin(), expr_domain.end());
-                break;
-            }
-            case type::range:
-            {
-                const semantic::range & r = node->semantic_type->as<semantic::range>();
-                assert(r.is_constant());
-                domain.push_back(r.const_size());
-                break;
-            }
-            default:
-                throw runtime_error("Unexpected type.");
-            };
+            assert(node->semantic_type->is(type::stream));
+            auto & s = node->semantic_type->as<stream>();
+            domain.insert(domain.end(), s.size.begin(), s.size.end());
         }
 
         expr = iterate(expr, node->semantic_type);
@@ -341,22 +299,22 @@ expression * translator::do_expression(const ast::node_ptr &node)
     }
     case ast::range:
     {
-        const semantic::range &type = node->semantic_type->as<semantic::range>();
+        const auto & start_node = node->as_list()->elements[0];
+        const auto & end_node = node->as_list()->elements[1];
+        assert(start_node);
+        assert(end_node);
+
+        assert(start_node->semantic_type->is(semantic::type::integer_num));
+        assert(end_node->semantic_type->is(semantic::type::integer_num));
+
+        auto & start_int_t = start_node->semantic_type->as<semantic::integer_num>();
+        auto & end_int_t = end_node->semantic_type->as<semantic::integer_num>();
+        assert(start_int_t.is_constant());
+        assert(end_int_t.is_constant());
+
         range *r = new range;
-
-        if (type.start_is_constant())
-            r->start = new constant<int>(type.const_start());
-        else if (node->as_list()->elements[0])
-            r->start = do_expression(node->as_list()->elements[0]);
-        else
-            r->start = nullptr;
-
-        if (type.end_is_constant())
-            r->end = new constant<int>(type.const_end());
-        else if (node->as_list()->elements[1])
-            r->end = do_expression(node->as_list()->elements[1]);
-        else
-            r->end = nullptr;
+        r->start = start_int_t.constant_value();
+        r->end = end_int_t.constant_value();
 
         return r;
     }
@@ -681,7 +639,7 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
     using namespace semantic;
 
     const auto & object_node = node->as_list()->elements[0];
-    const auto & ranges_node = node->as_list()->elements[1];
+    const auto & selectors_node = node->as_list()->elements[1];
 
     const auto & object_type =
             object_node->semantic_type->as<semantic::stream>();
@@ -703,42 +661,62 @@ expression * translator::do_slicing(const  ast::node_ptr &node)
     int in_dim = 0;
     int out_dim = 0;
 
-    for( const auto & range_node : ranges_node->as_list()->elements )
+    for( const auto & selector_node : selectors_node->as_list()->elements )
     {
         int offset;
 
         // TODO: detect affine expressions of loop indeces and parameters
         // auto selector = do_expression(range_node);
 
-        type_ptr selector_type = range_node->semantic_type;
-        switch(selector_type->get_tag())
+        switch(selector_node->type)
         {
-        case type::integer_num:
+        case ast::range:
         {
-            integer_num &int_type = selector_type->as<integer_num>();
-            if (!int_type.is_constant())
-                throw runtime_error("Non-constant slicing not supported.");
-            offset = int_type.constant_value() - 1;
-            break;
-        }
-        case type::range:
-        {
-            semantic::range &r = selector_type->as<semantic::range>();
-            assert(r.is_constant());
+            const auto & start_node = selector_node->as_list()->elements[0];
+            const auto & end_node = selector_node->as_list()->elements[1];
 
-            offset = r.const_start() - 1;
-            int size = r.const_size();
+            int start;
+            int end;
+
+            if (start_node)
+            {
+                assert(start_node->semantic_type->is(semantic::type::integer_num));
+                auto & start_int_t = start_node->semantic_type->as<semantic::integer_num>();
+                assert(start_int_t.is_constant());
+                start = start_int_t.constant_value();
+            }
+            else
+            {
+                start = 1;
+            }
+
+            if (end_node)
+            {
+                assert(end_node->semantic_type->is(semantic::type::integer_num));
+                auto & end_int_t = end_node->semantic_type->as<semantic::integer_num>();
+                assert(end_int_t.is_constant());
+                end = end_int_t.constant_value();
+            }
+            else
+            {
+                end = object_type.size[out_dim];
+            }
+
+            offset = start - 1;
+
+            int size = end - start + 1;
             assert(size > 0);
             if (size > 1)
             {
                 slicing.coefficients(out_dim, in_dim) = 1;
                 ++in_dim;
             }
-
-            break;
         }
         default:
-            throw runtime_error("Unexpected slice selector type.");
+            assert(selector_node->semantic_type->is(semantic::type::integer_num));
+            auto & offset_int_t = selector_node->semantic_type->as<semantic::integer_num>();
+            assert(offset_int_t.is_constant());
+            offset = offset_int_t.constant_value() - 1;
         }
 
         slicing.constants[out_dim] += offset;
@@ -796,20 +774,6 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
 
         expression *source_expr = do_expression(iter.domain);
 
-        if(range *r = dynamic_cast<range*>(source_expr))
-        {
-            iterator_access *it = iterate(r);
-            it->ratio = iter.hop;
-
-            if (iter.size > 1)
-            {
-                throw error("Iterating range with slice size > 1 not yet implemented.");
-            }
-
-            sources.push_back(it);
-            continue;
-        }
-
         assert(iter.domain->semantic_type->is(semantic::type::stream));
         semantic::stream & source_type =
                 iter.domain->semantic_type->as<semantic::stream>();
@@ -825,6 +789,8 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
         {
             vector<int> domain = m_domain;
             domain.insert(domain.end(), source_type.size.begin(), source_type.size.end());
+            if (auto r = dynamic_cast<range*>(source_expr))
+                source_expr = iterate(r);
             source_stream = make_current_view( make_statement(source_expr, domain) );
         }
 
@@ -893,12 +859,11 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
     const auto & source_node = node->as_list()->elements[2];
     const auto & body_node = node->as_list()->elements[3];
 
-    if (!source_node->semantic_type->is(semantic::type::stream))
-        throw runtime_error("Unsupported reduction source.");
+    assert(source_node->semantic_type->is(semantic::type::stream));
 
-    semantic::stream & source_type = source_node->semantic_type->as<semantic::stream>();
-    assert(source_type.size.size() == 1);
-    assert(source_type.size.front() > 0);
+    semantic::stream & source_stream = source_node->semantic_type->as<semantic::stream>();
+    assert(source_stream.size.size() == 1);
+    assert(source_stream.size.front() > 0);
 
     expression *source_expr = do_expression(source_node);
 
@@ -913,7 +878,9 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
     else
     {
         vector<int> domain = m_domain;
-        domain.insert(domain.end(), source_type.size.begin(), source_type.size.end());
+        domain.insert(domain.end(), source_stream.size.begin(), source_stream.size.end());
+        if (auto r = dynamic_cast<range*>(source_expr))
+            source_expr = iterate(r);
         source_stmt_view = make_current_view( make_statement(source_expr, domain) );
     }
 
@@ -962,7 +929,7 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
 
         // Expand domain
         int original_domain_size = m_domain.size();
-        m_domain.push_back(source_type.size.front() - 1);
+        m_domain.push_back(source_stream.size.front() - 1);
 
         expression *reduction_expr = do_block(body_node);
         reduction_stmt = make_statement(reduction_expr, m_domain);
@@ -1036,13 +1003,16 @@ expression *translator::iterate (expression *expr, const semantic::type_ptr & re
 
 iterator_access * translator::iterate( range *r )
 {
-    constant<int> *start = dynamic_cast<constant<int>*>(r->start);
-    assert(start);
-
     iterator_access *it = new iterator_access(r->type);
     it->dimension = current_dimension();
-    it->offset = start->value;
-    it->ratio = 1;
+    it->offset = r->start;
+    if (r->end > r->start)
+        it->ratio = 1;
+    else if (r->end < r->start)
+        it->ratio = -1;
+    else
+        it->ratio = 0;
+
     return it;
 }
 

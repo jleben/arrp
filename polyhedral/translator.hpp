@@ -80,17 +80,10 @@ private:
     class range : public expression
     {
     public:
-        expression *start;
-        expression *end;
+        int start;
+        int end;
 
         range(): expression(integer) {}
-
-        bool is_constant()
-        {
-            bool start_is_const = dynamic_cast<constant<int>*>(start);
-            bool end_is_const = dynamic_cast<constant<int>*>(end);
-            return start_is_const && end_is_const;
-        }
     };
 
     typedef stream::context<string,symbol> context;

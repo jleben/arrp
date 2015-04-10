@@ -53,6 +53,7 @@ set(primitives_tests
 "primitives::add_range_range"
 "primitives::add_int_stream"
 "primitives::add_stream_int"
+"primitives::add_istream_int"
 "primitives::add_real_stream"
 "primitives::add_stream_real"
 "primitives::power_int_int_const"

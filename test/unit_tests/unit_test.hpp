@@ -65,16 +65,22 @@ inline
 type_ptr real_type() { return std::make_shared<semantic::real_num>(); }
 inline
 type_ptr real_type(double c) { return std::make_shared<semantic::real_num>(c); }
-inline
-type_ptr range_type() { return std::make_shared<semantic::range>(); }
 
 inline
-type_ptr stream_type( int size)
-{ return std::make_shared<semantic::stream>(size); }
+type_ptr stream_type(int size)
+{ return std::make_shared<semantic::stream>(size, primitive_type::real); }
 
 template <typename ...T> inline
 type_ptr stream_type(const T & ...size)
-{ return std::make_shared<semantic::stream>( vector<int>({size...}) ); }
+{ return std::make_shared<semantic::stream>( vector<int>({size...}), primitive_type::real ); }
+
+inline
+type_ptr stream_type(primitive_type t, int size)
+{ return std::make_shared<semantic::stream>(size, t); }
+
+template <typename ...T> inline
+type_ptr stream_type(primitive_type t, const T & ...size)
+{ return std::make_shared<semantic::stream>( vector<int>({size...}), t); }
 
 
 class test

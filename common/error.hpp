@@ -38,6 +38,8 @@ using std::string;
 
 struct abort_error {};
 
+struct undefined {};
+
 struct error : public std::exception
 {
 public:

@@ -326,32 +326,10 @@ const function_signature & overload_resolution
 
     if (!selected_candidate)
     {
-        throw type_error("Invalid arguments.");
+        throw type_error("Incompatible argument types.");
     }
 
     return *selected_candidate;
-}
-
-std::pair<type_ptr, vector<int> > inner_type( const type_ptr & t )
-{
-    switch(t->get_tag())
-    {
-    case type::range:
-    {
-        range & r = t->as<range>();
-        if (!r.is_constant())
-            throw type_error("Non-constant range used where constant range required.");
-        vector<int> extent = { r.const_size() };
-        return make_pair( make_shared<integer_num>(), extent );
-    }
-    case type::stream:
-    {
-        stream & s = t->as<stream>();
-        return make_pair( make_shared<real_num>(), s.size );
-    }
-    default:
-        return make_pair( t, vector<int>() );
-    }
 }
 
 pair<type_ptr, func_type_ptr>
@@ -628,9 +606,14 @@ type_ptr type_checker::process_negate( const sp<ast::node> & root )
         throw error("Unexpected AST node type.");
     }
 
-    auto result = process_primitive(func, {operand_type});
-
-    return result.first;
+    try {
+        auto result = process_primitive(func, {operand_type});
+        return result.first;
+    }
+    catch (error & e)
+    {
+        throw source_error(string("Negate: ") + e.what(), root->line);
+    }
 }
 
 type_ptr type_checker::process_binop( const sp<ast::node> & root )
@@ -748,9 +731,15 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
         break;
     }
 
-    auto result = process_primitive(func, {lhs_type, rhs_type});
-
-    return result.first;
+    try
+    {
+        auto result = process_primitive(func, {lhs_type, rhs_type});
+        return result.first;
+    }
+    catch (error & e)
+    {
+        throw source_error(string("Binary operator: ") + e.what(), root->line);
+    }
 }
 
 type_ptr type_checker::process_range( const sp<ast::node> & root )
@@ -760,40 +749,47 @@ type_ptr type_checker::process_range( const sp<ast::node> & root )
     const auto & start_node = range_node->elements[0];
     const auto & end_node = range_node->elements[1];
 
-    range *r = new range;
+    if (!start_node || !end_node)
+    {
+        throw source_error("Range not finite.", root->line);
+    }
+
+    auto start_type = process_expression(start_node);
+    auto end_type = process_expression(end_node);
 
     bool abort = false;
-    if (start_node)
+    if (start_type->get_tag() != type::integer_num)
     {
-        r->start = process_expression(start_node);
-        if (r->start->get_tag() != type::integer_num)
-        {
-            report(source_error("Range start not an integer.", start_node->line));
-            abort = true;
-        }
+        report(source_error("Range start not an integer.", start_node->line));
+        abort = true;
     }
-    if (end_node)
+    if (end_type->get_tag() != type::integer_num)
     {
-        r->end = process_expression(end_node);
-        if (r->end->get_tag() != type::integer_num)
-        {
-            report(source_error("Range end not an integer.", start_node->line));
-            abort = true;
-        }
+        report(source_error("Range end not an integer.", end_node->line));
+        abort = true;
     }
-
     if (abort)
         throw abort_error();
 
-    return type_ptr(r);
+    integer_num & start_int = start_type->as<integer_num>();
+    integer_num & end_int = end_type->as<integer_num>();
+
+    if (!start_int.is_constant() || !end_int.is_constant())
+    {
+        throw source_error("Range bounds not constant.", root->line);
+    }
+
+    int start_value = start_int.constant_value();
+    int end_value = end_int.constant_value();
+    int size = std::abs(end_value - start_value) + 1;
+    return make_shared<stream>(size, primitive_type::integer);
 }
 
 type_ptr type_checker::process_extent( const sp<ast::node> & root )
 {
     assert(root->type == ast::hash_expression);
-    ast::list_node *range_node = root->as_list();
-    const auto & object_node = range_node->elements[0];
-    const auto & dim_node = range_node->elements[1];
+    const auto & object_node = root->as_list()->elements[0];
+    const auto & dim_node = root->as_list()->elements[1];
 
     type_ptr object_type = process_expression(object_node);
 
@@ -870,14 +866,14 @@ type_ptr type_checker::process_transpose( const sp<ast::node> & root )
             transposed_size.push_back( object.size[dim] );
     }
 
-    return make_shared<stream>( std::move(transposed_size) );
+    return make_shared<stream>( std::move(transposed_size), object.element_type );
 }
 
 type_ptr type_checker::process_slice( const sp<ast::node> & root )
 {
     assert(root->type == ast::slice_expression);
     const auto & object_node = root->as_list()->elements[0];
-    const auto & ranges_node = root->as_list()->elements[1];
+    const auto & selectors_node = root->as_list()->elements[1];
 
     type_ptr object_type = process_expression(object_node);
     if (object_type->get_tag() != type::stream)
@@ -885,51 +881,84 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
 
     const stream & source_stream = object_type->as<stream>();
 
-    ast::list_node *range_list = ranges_node->as_list();
+    ast::list_node *selector_list = selectors_node->as_list();
 
-    if (range_list->elements.size() > source_stream.dimensionality())
-        throw source_error("Too many slice dimensions.", ranges_node->line);
+    if (selector_list->elements.size() > source_stream.dimensionality())
+        throw source_error("Too many slice dimensions.", selectors_node->line);
 
     stream result_stream(source_stream);
     int dim = 0;
-    for( const auto & range_node : range_list->elements )
+    for( const auto & selector_node : selector_list->elements )
     {
         if (source_stream.size[dim] == stream::infinite)
         {
-            throw source_error("Can not slice an infinite dimension.", range_node->line);
+            throw source_error("Can not slice an infinite dimension.", selector_node->line);
         }
 
-        sp<type> selector = process_expression(range_node);
-        switch(selector->get_tag())
+        if (selector_node->type == ast::range)
         {
-        case type::integer_num:
-        {
-            // TODO: Range checking? Required a constant.
-            result_stream.size[dim] = 1;
-            break;
-        }
-        case type::range:
-        {
-            range &r = selector->as<range>();
-            if (!r.start)
-                r.start = make_shared<integer_num>(1);
-            if (!r.end)
-                r.end = make_shared<integer_num>(source_stream.size[dim]);
-            if (!r.is_constant())
-                throw source_error("Non-constant slice size not supported.", range_node->line);
-            int start = r.const_start();
-            int end = r.const_end();
+            const auto & start_node = selector_node->as_list()->elements[0];
+            const auto & end_node = selector_node->as_list()->elements[1];
+
+            int start;
+            int end;
+
+            if (start_node)
+            {
+                auto start_type = process_expression(start_node);
+                if (start_type->get_tag() != type::integer_num)
+                    throw source_error("Slice range start not an integer.", start_node->line);
+                auto & start_int = start_type->as<integer_num>();
+                if (!start_int.is_constant())
+                    throw source_error("Slice range start not constant.", start_node->line);
+                start = start_int.constant_value();
+            }
+            else
+            {
+                start = 1;
+            }
+
+            if (end_node)
+            {
+                auto end_type = process_expression(end_node);
+                if (end_type->get_tag() != type::integer_num)
+                    throw source_error("Slice range start not an integer.", end_node->line);
+                auto & end_int = end_type->as<integer_num>();
+                if (!end_int.is_constant())
+                    throw source_error("Slice range start not constant.", end_node->line);
+                end = end_int.constant_value();
+            }
+            else
+            {
+                end = source_stream.size[dim];
+            }
+
             int size = end - start + 1;
             if (size < 1)
-                throw source_error("Invalid slice range: size less than 1.", range_node->line);
+                throw source_error("Slice range size less than 1.", selector_node->line);
+
             if (start < 1 || end > source_stream.size[dim])
-                throw source_error("Invalid slice range: out of bounds.", range_node->line);
+                throw source_error("Slice range out of bounds.", selector_node->line);
+
             result_stream.size[dim] = size;
-            break;
         }
-        default:
-            throw source_error("Invalid type of slice selector.", range_node->line);
+        else
+        {
+            auto selector = process_expression(selector_node);
+            if (selector->get_tag() != type::integer_num)
+                throw source_error("Invalid type of slice selector.", selector_node->line);
+
+            auto & selector_int = selector->as<integer_num>();
+            if (!selector_int.is_constant())
+                throw source_error("Slice selector not constant.", selector_node->line);
+
+            int offset = selector_int.constant_value();
+            if (offset < 1 || offset > source_stream.size[dim])
+                throw source_error("Slice selector out of bounds.", selector_node->line);
+
+            result_stream.size[dim] = 1;
         }
+
         ++dim;
     }
 
@@ -1011,27 +1040,13 @@ type_ptr type_checker::process_conditional( const ast::node_ptr & root )
     if (condition_type->get_tag() != type::boolean)
         throw source_error("Condition expression not a boolean.", condition_node->line);
 
-    auto true_type_structure = inner_type(true_type);
-    auto false_type_structure = inner_type(false_type);
-
-    if (true_type_structure.second != false_type_structure.second)
-        throw source_error("Results of true and false parts have unequal sizes.", root->line);
-
-    auto size = true_type_structure.second;
-    if (!size.empty())
-        return make_shared<stream>(size);
-
-    type::tag result_type = max_type({true_type->get_tag(), false_type->get_tag()});
-    switch(result_type)
+    try
     {
-    case type::integer_num:
-        return make_shared<integer_num>();
-    case type::real_num:
-        return make_shared<real_num>();
-    case type::boolean:
-        return make_shared<boolean>();
-    default:
-        throw error("Unexpected type.");
+        return true_type + false_type;
+    }
+    catch (undefined)
+    {
+        throw source_error("Incompatible types of true and false parts.", root->line);
     }
 }
 
@@ -1080,30 +1095,20 @@ type_ptr type_checker::process_iteration( const sp<ast::node> & root )
         result_type = process_block(iteration->elements[1]);
     }
 
-    stream product_stream(iteration_count);
+    type_structure ts = structure(result_type);
 
-    switch(result_type->get_tag())
-    {
-    case type::stream:
-    {
-        stream &result_stream = result_type->as<stream>();
-        product_stream.size.insert( product_stream.size.end(),
-                                    result_stream.size.begin(),
-                                    result_stream.size.end() );
-        break;
-    }
-    case type::integer_num:
-    case type::real_num:
-        break;
-    default:
-        throw source_error("Unsupported iteration result type.", iteration->elements[1]->line);
-    }
+    vector<int> product_size { iteration_count };
+    product_size.insert( product_size.end(),
+                         ts.size.begin(),
+                         ts.size.end() );
+
+    type_ptr product_type = stream(product_size, ts.type).reduced();
 
     //cout << "result: " << *result_type << endl;
     //cout << "product: " << *product_type << endl;
     //cout << "--- iteration ---" << endl;
 
-    return product_stream.reduced();
+    return product_type;
 }
 
 type_ptr type_checker::process_iterator( const sp<ast::node> & root )
@@ -1174,28 +1179,6 @@ type_ptr type_checker::process_iterator( const sp<ast::node> & root )
 
         break;
     }
-    case type::range:
-    {
-        range & domain_range = domain_type->as<range>();
-        if (!domain_range.is_constant())
-            throw source_error("Non-constant range not supported as iteration domain.",
-                               domain_node->line);
-        domain_size = domain_range.const_size();
-
-        if (it.size > 1)
-        {
-            range *operand_range = new range;
-            operand_range->start.reset(new integer_num);
-            operand_range->end.reset(new integer_num);
-            it.value_type = type_ptr(operand_range);
-        }
-        else
-        {
-            it.value_type = type_ptr(new integer_num);
-        }
-
-        break;
-    }
     default:
         throw source_error("Unsupported iteration domain type.", iteration->line);
     }
@@ -1251,13 +1234,6 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
         val1 = val2 = make_shared<real_num>();
         break;
     }
-#if 0
-    case type::range:
-    {
-        val1 = val2 = make_shared<integer_num>();
-        break;
-    }
-#endif
     default:
         throw source_error("Invalid reduction domain type.", root->line);
     }
@@ -1279,23 +1255,34 @@ pair<type_ptr, function_signature>
 type_checker::process_primitive( const builtin_function_group & group,
                                  const vector<type_ptr> & args )
 {
-    vector<pair<type_ptr, vector<int>>> reduced_types;
+    vector<type_structure> type_structs;
+
     for (const auto & arg : args)
     {
-        reduced_types.push_back( inner_type(arg) );
+        type_structs.push_back( structure(arg) );
     }
 
-    vector<type::tag> reduced_type_tags;
-    for (const auto & rt : reduced_types)
-        reduced_type_tags.push_back( rt.first->get_tag() );
+    vector<type::tag> primitive_type_tags;
+    for (const auto & ts : type_structs)
+    {
+        switch(ts.type)
+        {
+        case primitive_type::boolean:
+            primitive_type_tags.push_back(type::boolean); break;
+        case primitive_type::integer:
+            primitive_type_tags.push_back(type::integer_num); break;
+        case primitive_type::real:
+            primitive_type_tags.push_back(type::real_num); break;
+        }
+    }
 
     const function_signature & signature =
-            overload_resolution(group.overloads, reduced_type_tags);
+            overload_resolution(group.overloads, primitive_type_tags);
 
     vector<int> result_size;
-    for ( const auto & rt : reduced_types )
+    for ( const auto & ts : type_structs )
     {
-        const auto & arg_size = rt.second;
+        const auto & arg_size = ts.size;
         if (result_size.empty())
             result_size = arg_size;
         else if (!arg_size.empty() && result_size != arg_size)
@@ -1305,7 +1292,11 @@ type_checker::process_primitive( const builtin_function_group & group,
     type_ptr result_type;
 
     if (!result_size.empty())
-        result_type = make_shared<stream>(result_size);
+    {
+        primitive_type result_primitive_type =
+                primitive_type_for(signature.result);
+        result_type = make_shared<stream>(result_size, result_primitive_type);
+    }
     else
     {
         builtin_function f;

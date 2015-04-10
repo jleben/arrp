@@ -9,6 +9,13 @@ namespace stream {
 using std::string;
 using std::ostream;
 
+enum class primitive_type
+{
+    boolean,
+    integer,
+    real
+};
+
 enum class primitive_op
 {
     negate = 0,

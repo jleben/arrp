@@ -52,8 +52,6 @@ bool type_matches(const type & actual, const type & expected)
         return scalar_matches<integer_num>(actual, expected);
     case type::real_num:
         return scalar_matches<real_num>(actual, expected);
-    case type::range:
-        return actual.get_tag() == expected.get_tag();
     case type::stream:
     {
         bool ok = expected.is(type::stream);

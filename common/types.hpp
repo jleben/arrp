@@ -52,7 +52,6 @@ template <typename T> using up = std::unique_ptr<T>;
 struct integer_num;
 struct real_num;
 struct stream;
-struct range;
 
 struct type
 {
@@ -61,7 +60,6 @@ struct type
         boolean,
         integer_num,
         real_num,
-        range,
         stream,
         iterator,
         function,
@@ -97,6 +95,11 @@ private:
 };
 
 using type_ptr = std::shared_ptr<type>;
+
+type_ptr type_for(primitive_type pt);
+
+primitive_type primitive_type_for(type::tag);
+primitive_type primitive_type_for(const type_ptr &);
 
 inline ostream & operator<<( ostream & s, const type & t )
 {
@@ -194,55 +197,6 @@ struct real_num : public scalar<double, type::real_num>
     }
 };
 
-struct range : public tagged_type<type::range>
-{
-    range() {}
-
-    sp<type> start;
-    sp<type> end;
-
-    bool start_is_constant() const
-    {
-        return start && start->as<semantic::integer_num>().is_constant();
-    }
-
-    bool end_is_constant() const
-    {
-        return end && end->as<semantic::integer_num>().is_constant();
-    }
-
-    bool is_constant() const
-    {
-        return start_is_constant() && end_is_constant();
-    }
-
-    int const_start() const
-    {
-        return start->as<semantic::integer_num>().constant_value();
-    }
-
-    int const_end() const
-    {
-        return end->as<semantic::integer_num>().constant_value();
-    }
-
-    int const_size() const
-    {
-        return std::abs(const_end() - const_start()) + 1;
-    }
-
-    virtual void print_on( ostream & s ) const
-    {
-        s << "[";
-        if (start)
-            s << *start;
-        s << "...";
-        if (end)
-            s << *end;
-        s << "]";
-    }
-};
-
 struct stream : public tagged_type<type::stream>
 {
     enum
@@ -250,14 +204,28 @@ struct stream : public tagged_type<type::stream>
         infinite = -1
     };
 
-    explicit stream( const vector<int> & s ) : size(s) {}
-    explicit stream( int s ) : size({s}) {}
+    explicit stream( const vector<int> & s, primitive_type et ) : size(s), element_type(et) {}
+    explicit stream( int s, primitive_type et ) : size({s}), element_type(et) {}
+
     int dimensionality() const { return size.size(); }
+
     vector<int> size;
+    primitive_type element_type;
 
     virtual void print_on( ostream & s ) const
     {
         s << "[";
+
+        switch(element_type)
+        {
+        case primitive_type::boolean:
+            s << "b:"; break;
+        case primitive_type::integer:
+            s << "i:"; break;
+        case primitive_type::real:
+            s << "r:"; break;
+        }
+
         for (int i = 0; i < size.size(); ++i)
         {
             int sz = size[i];
@@ -268,6 +236,7 @@ struct stream : public tagged_type<type::stream>
             else
                 s << sz;
         }
+
         s << "]";
     }
 
@@ -277,9 +246,9 @@ struct stream : public tagged_type<type::stream>
         new_size.erase( std::remove(new_size.begin(), new_size.end(), 1), new_size.end() );
 
         if (new_size.empty())
-            return std::make_shared<semantic::real_num>();
+            return type_for(element_type);
         else
-            return std::make_shared<semantic::stream>(new_size);
+            return std::make_shared<semantic::stream>(new_size, element_type);
     }
 };
 
@@ -372,6 +341,18 @@ using func_type_ptr = std::shared_ptr<abstract_function>;
         }
     }
 #endif
+
+struct type_structure
+{
+    vector<int> size;
+    primitive_type type;
+};
+
+type_structure structure(const type_ptr & t);
+
+primitive_type operator+ (primitive_type, primitive_type);
+
+type_ptr operator+ (const type_ptr & a, const type_ptr & b);
 
 } // namespace semantic
 } // namespace stream

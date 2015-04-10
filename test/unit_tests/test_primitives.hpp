@@ -320,6 +320,35 @@ result add_stream_int()
     return run(t, code, "result", { stream_type(4,5,6) });
 }
 
+result add_istream_int()
+{
+    test t;
+    std::istringstream code("result(x) = x + 2");
+
+    t.set_target("result", { stream_type(primitive_type::integer, 4,5,6) });
+    t.expect_type(stream_type(primitive_type::integer, 4,5,6));
+
+    {
+        using namespace polyhedral;
+
+        statement *in = new statement;
+        in->domain = {4,5,6};
+        in->expr = new input_access(polyhedral::integer,0);
+
+        stmt_access *x = new stmt_access(in);
+        x->pattern = mapping::identity(3,3);
+
+        statement *out = new statement;
+        out->domain = {4,5,6};
+        out->expr = new primitive_expr(polyhedral::integer, primitive_op::add,
+        {x, new constant<int>(2)});
+
+        t.expect_polyhedral_model({in,out});
+    }
+
+    return t.try_run(code);
+}
+
 
 result add_real_stream()
 {
