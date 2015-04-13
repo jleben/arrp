@@ -193,17 +193,6 @@ result::code compile_source(istream & source, const arguments & args)
     polyhedral::translator poly(env);
     poly.translate( sym_iter->second, target.args );
 
-    if (args.print[arguments::polyhedral_model_output])
-    {
-        polyhedral::printer poly_printer;
-        cout << endl << "== Polyhedral Model ==" << endl;
-        for( polyhedral::statement * stmt : poly.statements() )
-        {
-            cout << endl;
-            poly_printer.print(stmt, cout);
-        }
-    }
-
     return compile_polyhedral_model(poly.statements(), args);
 }
 
@@ -212,6 +201,20 @@ result::code compile_polyhedral_model
 (const vector<stream::polyhedral::statement*> & statements,
  const arguments & args)
 {
+    // Print polyhedral model
+
+    if (args.print[arguments::polyhedral_model_output])
+    {
+        polyhedral::printer poly_printer;
+        cout << endl << "== Polyhedral Model ==" << endl;
+        for( polyhedral::statement * stmt : statements )
+        {
+            cout << endl;
+            poly_printer.print(stmt, cout);
+        }
+    }
+
+
     const target_info & target = args.target;
 
     // Construct dataflow model
