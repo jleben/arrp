@@ -512,15 +512,15 @@ isl::union_map ast_generator::make_schedule
 
     //isl_options_set_schedule_fuse(m_ctx.get(), ISL_SCHEDULE_FUSE_MAX);
 
-    isl::union_map proximities( dependencies.get_space() );
+    isl_schedule_constraints *constr =
+            isl_schedule_constraints_on_domain(domains.copy());
 
-    isl_union_set *dom = domains.copy();
-    isl_union_map *dep = dependencies.copy();
-    isl_union_map *prox = isl_union_map_empty( isl_union_map_get_space(dep) );
+    constr = isl_schedule_constraints_set_validity(constr, dependencies.copy());
+    constr = isl_schedule_constraints_set_proximity(constr, dependencies.copy());
 
-    isl_schedule *sched = isl_union_set_compute_schedule(dom,dep,prox);
+    isl_schedule * sched =
+            isl_schedule_constraints_compute_schedule(constr);
     assert(sched);
-
 
     isl_union_map *sched_map = isl_schedule_get_map(sched);
 
