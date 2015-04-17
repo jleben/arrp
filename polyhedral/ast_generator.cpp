@@ -111,16 +111,36 @@ ast_generator::generate()
 
     if(m_print_ast)
         cout << endl << "-- Finite --" << endl;
+    struct clast_stmt *finite_ast
+            = make_ast( finite_schedule );
+
+    if(m_print_ast)
+        cout << endl << "-- Init --" << endl;
     struct clast_stmt *init_ast
             = make_ast( periodic_schedules.first );
 
+    // Join finite and infinite initialization schedules:
+    {
+        if (!finite_ast)
+        {
+            finite_ast = init_ast;
+        }
+        else
+        {
+            clast_stmt *s = finite_ast;
+            while(s->next)
+                s = s->next;
+            s->next = init_ast;
+        }
+    }
+
     if(m_print_ast)
-        cout << endl << "-- Periodic --" << endl;
+        cout << endl << "-- Period --" << endl;
     struct clast_stmt *period_ast
             = make_ast( periodic_schedules.second );
 
     //return pair<clast_stmt*,clast_stmt*>(nullptr, nullptr);
-    return make_pair(init_ast, period_ast);
+    return make_pair(finite_ast, period_ast);
 
 #if 0
     isl::union_set init_domains(m_ctx);
@@ -674,6 +694,9 @@ ast_generator::schedule_infinite_domains
 {
     using namespace isl;
 
+    if (infinite_domains.is_empty())
+        return make_pair(isl::union_map(m_ctx), isl::union_map(m_ctx));
+
     infinite_sched = make_schedule(infinite_domains, dependencies).in_domain(infinite_domains);
 
     if (debug::is_enabled())
@@ -684,7 +707,7 @@ ast_generator::schedule_infinite_domains
     }
 
     if (infinite_sched.is_empty())
-        throw error("Incomplete...");
+        throw error("Could not compute infinite schedule.");
 
     //auto infinite_sched_in_domain = infinite_sched.in_domain(infinite_domains);
 
