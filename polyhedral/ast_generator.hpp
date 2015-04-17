@@ -102,7 +102,8 @@ private:
 
     // Translation to ISL representation:
 
-    void polyhedral_model(isl::union_set & domains,
+    void polyhedral_model(isl::union_set & finite_domains,
+                          isl::union_set & infinite_domains,
                           isl::union_map & dependencies);
 
     isl::basic_set polyhedral_domain( statement * );
@@ -118,8 +119,8 @@ private:
 
     // Scheduling
 
-    isl::union_map make_schedule(isl::union_set & domains,
-                                 isl::union_map & dependencies);
+    isl::union_map make_schedule(const isl::union_set & domains,
+                                 const isl::union_map & dependencies);
 
     isl::union_map make_init_schedule(isl::union_set & domains,
                                       isl::union_map & dependencies);
@@ -127,19 +128,29 @@ private:
     isl::union_map make_steady_schedule(isl::union_set & domains,
                                         isl::union_map & dependencies);
 
-    isl::union_map combine_schedule(const isl::union_set & init_domains,
-                                    const isl::union_set & steady_domains,
-                                    const isl::union_map & init_schedule,
-                                    const isl::union_map & period_schedule);
+    isl::union_map schedule_finite_domains(const isl::union_set & finite_domains,
+                                           const isl::union_map & dependencies);
+
+    pair<isl::union_map, isl::union_map>
+    schedule_infinite_domains(const isl::union_set & infinite_domains,
+                              const isl::union_map & dependencies,
+                              isl::union_map & infinite_schedule);
+
+    void combine_schedules(const isl::union_map & finite_schedule,
+                           const isl::union_map & infinite_schedule,
+                           isl::union_map & combined_schedule);
+
+    vector<pair<int,int>> flow_coefficients(isl::union_map & schedule,
+                                            int & flow_dim, int & n_dims_out);
+
+    int common_offset(isl::union_map & schedule, int flow_dim);
 
     // Buffer size computation
 
     void compute_buffer_sizes( const isl::union_map & schedule,
-                               const isl::union_map & dependencies,
-                               const isl::union_map & domain_maps );
+                               const isl::union_map & dependencies);
 
     void compute_buffer_size( const isl::union_map & schedule,
-                              const isl::union_map & domain_unmap,
                               const isl::map & dependence,
                               const isl::space & time_space );
 
