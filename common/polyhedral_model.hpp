@@ -212,6 +212,8 @@ public:
     {}
     string name;
     expression * expr;
+    vector<int> iteration_domain;
+    mapping data_to_iteration;
     vector<int> domain;
     vector<int> buffer;
     int buffer_period;

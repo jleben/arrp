@@ -104,9 +104,10 @@ private:
 
     void polyhedral_model(isl::union_set & finite_domains,
                           isl::union_set & infinite_domains,
+                          isl::union_map & data_iter_map,
                           isl::union_map & dependencies);
 
-    isl::basic_set polyhedral_domain( statement * );
+    pair<isl::basic_set, isl::basic_map> polyhedral_domain( statement * );
     isl::union_map polyhedral_dependencies( statement * );
     isl::matrix constraint_matrix( const mapping & );
 
@@ -148,11 +149,13 @@ private:
     // Buffer size computation
 
     void compute_buffer_sizes( const isl::union_map & schedule,
-                               const isl::union_map & dependencies );
+                               const isl::union_map & data_dependencies,
+                               const isl::union_map & data_iter_map);
 
     void compute_buffer_size
     ( const isl::union_map & schedule,
-      const isl::union_map & dependencies,
+      const isl::union_map & data_dependencies,
+      const isl::union_map & data_iter_map,
       statement *stmt,
       const isl::space & time_space );
 
