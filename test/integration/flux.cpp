@@ -79,11 +79,26 @@ void expected_typical( const multi_array<double,T,N> & in,
     }
 }
 
+///
+
+static constexpr int T=1000;
+static constexpr int N=1000;
+
+static multi_array<double,T,N> *input = nullptr;
+static int t = 0;
+
+static void input_func(int index, double *data)
+{
+    //cout << "input: " << t << endl;
+    for(int n = 0; n < N; ++n)
+    {
+        data[n] = (*input)(t, n);
+    }
+    ++t;
+}
+
 int main()
 {
-    constexpr int T=1000;
-    constexpr int N=1000;
-
     multi_array<double,T-1> ex;
     multi_array<double,N> ex_buf;
     multi_array<double,T-1> out;
@@ -97,6 +112,8 @@ int main()
         cout << "## Run " << rep << " ##" << endl;
 
         multi_array<double,T,N> in = multi_array<double,T,N>::random(0,100,rand());
+        input = &in;
+        t = 0;
 
         auto ex_best_start_time = high_resolution_clock::now();
         expected_best(in, ex, ex_buf);
@@ -108,6 +125,7 @@ int main()
 
         flux::buffer buf;
         flux::allocate(&buf);
+        buf.input_func = (void*) &input_func;
 
         auto test_start_time = high_resolution_clock::now();
 
@@ -116,7 +134,7 @@ int main()
 #ifdef STREAMING
         for(int t = 0; t < T-1; ++t)
         {
-            flux::process(in.data() + (t+1)*N, &buf);
+            flux::process(nullptr, &buf);
             out(t) = *flux::get_output(&buf);
         }
 #endif

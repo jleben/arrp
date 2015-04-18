@@ -149,6 +149,8 @@ cpp_gen::program * create
                 new data_field_decl_node(double_ptr_type(), "real_buffer") );
     buffer_section->members.push_back(
                 new data_field_decl_node(int64_ptr_type(), "phase_buffer") );
+    buffer_section->members.push_back(
+                new data_field_decl_node(void_ptr_type(), "input_func") );
     buffer_struct->sections.push_back(buffer_section);
 
     namespc->members.push_back(buffer_struct);
