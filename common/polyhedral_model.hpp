@@ -199,12 +199,14 @@ public:
     statement(const string & name):
         name(name),
         expr(nullptr),
+        buffer_period(0),
         inter_period_dependency(true)
     {}
     string name;
     expression * expr;
     vector<int> domain;
     vector<int> buffer;
+    int buffer_period;
     bool inter_period_dependency;
 
     vector<int> infinite_dimensions()

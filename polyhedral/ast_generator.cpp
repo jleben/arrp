@@ -713,18 +713,8 @@ ast_generator::schedule_infinite_domains
 
     int flow_dim = -1;
     int n_dims = 0;
-    vector<pair<int,int>> flow_ks = flow_coefficients(infinite_sched, flow_dim, n_dims);
 
-    assert(!flow_ks.empty());
-    assert(flow_dim >= 0);
-
-    int least_common_period = 1;
-
-    for (const auto & k : flow_ks)
-    {
-        int period = k.first;
-        least_common_period = lcm(least_common_period, period);
-    }
+    int least_common_period = compute_period(infinite_sched, flow_dim, n_dims);
 
     int least_common_offset =
             common_offset(infinite_sched, flow_dim);
@@ -778,10 +768,10 @@ ast_generator::schedule_infinite_domains
     return make_pair(init_sched, period_sched);
 }
 
-vector<pair<int,int> > ast_generator::flow_coefficients
-(isl::union_map & schedule, int & flow_dim_out, int & n_dims_out)
+int ast_generator::compute_period
+(const isl::union_map & schedule, int & flow_dim_out, int & n_dims_out)
 {
-    vector<pair<int,int>> ks;
+    vector<pair<statement*,int>> ks;
 
     int sched_flow_dim = -1;
 
@@ -835,7 +825,7 @@ vector<pair<int,int> > ast_generator::flow_coefficients
                 }
             }
 
-            ks.push_back(make_pair(first_flow_k, first_flow_c));
+            ks.push_back(make_pair(stmt,first_flow_k));
 
             cout << id.name << " flow coef @ " << first_out_dim << " = " << first_flow_k << endl;
 
@@ -851,7 +841,28 @@ vector<pair<int,int> > ast_generator::flow_coefficients
 
     flow_dim_out = sched_flow_dim;
 
-    return ks;
+    int least_common_period = 1;
+    for (const auto & k : ks)
+    {
+        int period = k.second;
+        least_common_period = lcm(least_common_period, period);
+    }
+
+    // Compute span of period in statement flow dimension.
+    // This equals the offset in buffer indexes added at each period.
+    for (const auto & k : ks)
+    {
+        statement *stmt = k.first;
+        int period = k.second;
+        int span = least_common_period / period;
+        cout << "Period advances " << stmt->name << " by " << span << endl;
+        if (!stmt->buffer_period)
+            stmt->buffer_period = span;
+        if (stmt->buffer_period != span)
+            cerr << "WARNING: different period counts for the same statement!" << endl;
+    }
+
+    return least_common_period;
 }
 
 int ast_generator::common_offset(isl::union_map & schedule, int flow_dim)
