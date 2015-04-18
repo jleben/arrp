@@ -798,7 +798,39 @@ ast_generator::schedule_infinite_domains
         period_range.add_constraint(flow_var < (least_common_offset + least_common_period));
     }
 
-    auto period_sched = infinite_sched.in_range(period_range);
+    auto period_sched_part = infinite_sched.in_range(period_range);
+
+    isl::union_map period_sched(m_ctx);
+
+    period_sched_part.for_each( [&](map & m)
+    {
+        auto id = m.id(isl::space::input);
+        auto stmt = statement_for(id);
+        if (!dynamic_cast<input_access*>(stmt->expr))
+        {
+            period_sched = period_sched | m;
+            return true;
+        }
+
+        auto domain = m.domain();
+        local_space domain_space(domain.get_space());
+        auto i = domain_space(space::variable, 0);
+        auto min_i = domain.minimum(i);
+
+        auto translation = map::universe(space::from(domain.get_space(), domain.get_space()));
+        local_space xl_space(translation.get_space());
+        auto i0 = xl_space(space::input, 0);
+        auto i1 = xl_space(space::output, 0);
+        translation.add_constraint(i1 == i0 - min_i);
+
+        m.map_domain_through(translation);
+
+        period_sched = period_sched | m;
+
+        stmt->buffer_period_offset = min_i.integer();
+
+        return true;
+    });
 
     if (debug::is_enabled())
     {

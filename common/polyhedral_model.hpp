@@ -208,6 +208,7 @@ public:
         name(name),
         expr(nullptr),
         buffer_period(0),
+        buffer_period_offset(0),
         inter_period_dependency(true)
     {}
     string name;
@@ -217,6 +218,7 @@ public:
     vector<int> domain;
     vector<int> buffer;
     int buffer_period;
+    int buffer_period_offset;
     bool inter_period_dependency;
 
     vector<int> infinite_dimensions()
