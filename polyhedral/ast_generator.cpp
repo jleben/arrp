@@ -114,6 +114,36 @@ ast_generator::generate()
     isl::union_map iter_dependencies = data_dependencies;
     iter_dependencies.map_domain_through(data_iter_map);
 
+    // FIXME: belongs somewhere else...
+    // Add additional constraints for infinite inputs:
+    // each input iteration must be after the previous one.
+    for (statement * stmt : m_statements)
+    {
+        const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
+        if ( actor && dynamic_cast<input_access*>(stmt->expr) )
+        {
+            assert(stmt->iteration_domain.size() == 1);
+            auto iter_space = isl::space( m_ctx,
+                                          isl::set_tuple(isl::identifier(stmt->name, stmt), 1) );
+            auto iter_dep_space = isl::space::from(iter_space, iter_space);
+            auto dep = isl::basic_map::universe(iter_dep_space);
+            isl::local_space cnstr_space(iter_dep_space);
+            auto in = cnstr_space(isl::space::input, 0);
+            auto out = cnstr_space(isl::space::output, 0);
+            dep.add_constraint(out == in + 1);
+
+            if (debug::is_enabled())
+            {
+                cout << "Input sequence constraint: ";
+                m_printer.print(dep);
+                cout << endl;
+            }
+
+            iter_dependencies = iter_dependencies | dep;
+        }
+    }
+
+
     auto finite_schedule =
             schedule_finite_domains(finite_domains, iter_dependencies);
 
