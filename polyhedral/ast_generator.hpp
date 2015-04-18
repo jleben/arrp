@@ -148,11 +148,13 @@ private:
     // Buffer size computation
 
     void compute_buffer_sizes( const isl::union_map & schedule,
-                               const isl::union_map & dependencies);
+                               const isl::union_map & dependencies );
 
-    void compute_buffer_size( const isl::union_map & schedule,
-                              const isl::map & dependence,
-                              const isl::space & time_space );
+    void compute_buffer_size
+    ( const isl::union_map & schedule,
+      const isl::union_map & dependencies,
+      statement *stmt,
+      const isl::space & time_space );
 
     // AST generation
 

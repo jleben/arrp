@@ -1012,11 +1012,10 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
         return false;
     });
 
-    dependencies.for_each([&]( const map & dependency )
+    for (statement *stmt : m_statements)
     {
-        compute_buffer_size(schedule, dependency, *time_space);
-        return true;
-    });
+        compute_buffer_size(schedule, dependencies, stmt, *time_space);
+    }
 
     delete time_space;
 
@@ -1037,68 +1036,92 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
     }
 }
 
-void ast_generator::compute_buffer_size( const isl::union_map & schedule,
-                                         const isl::map & dependency,
-                                         const isl::space & time_space )
+void ast_generator::compute_buffer_size
+( const isl::union_map & schedule,
+  const isl::union_map & dependencies,
+  statement *stmt,
+  const isl::space & time_space )
 {
     if (debug_buffer_size::is_enabled())
     {
-        cout << "Buffer size for dependency: ";
-        m_printer.print(dependency); cout << endl;
+        cout << "Buffer size for statement: " << stmt->name << endl;
     }
 
     using namespace isl;
     using isl::expression;
 
-    // Get info
 
-    space src_space = dependency.domain().get_space();
-    space sink_space = dependency.range().get_space();
+    auto src_space = isl::space( m_ctx,
+                                 isl::set_tuple( isl::identifier(stmt->name, stmt),
+                                                 stmt->domain.size() ) );
+    auto src_universe = isl::basic_set::universe(src_space);
 
-    statement *source_stmt = statement_for(src_space.id(isl::space::variable));
+    auto src_deps = dependencies.in_domain(src_universe);
+
+    if (src_deps.is_empty())
+        return;
 
     // Extract schedule
 
     space src_sched_space = space::from(src_space, time_space);
-    space sink_sched_space = space::from(sink_space, time_space);
-
     map src_sched = schedule.map_for(src_sched_space);
-    map sink_sched = schedule.map_for(sink_sched_space);
 
     // Do the work
 
     map not_later = order_greater_than_or_equal(time_space);
     map later = order_less_than(time_space);
 
+    // Find all source instances scheduled before t, for all t.
+    // => Create map: t -> src
+    //    such that: time(src) <= t
+
     map src_not_later = src_sched.inverse()( not_later );
-    map sink_later = sink_sched.inverse()( later );
-    map src_consumed_later =
-            dependency.inverse()( sink_later ).in_range(src_sched.domain());
+
+    // Find all instances of source consumed after time t, for each t;
+    // => Create map: t -> src
+    //    such that: time(sink(src)) <= t, for all sink
+
+    map src_consumed_later(space::from(time_space, src_space));
+
+    src_deps.for_each( [&]( const map & dep ){
+
+        space sink_space = dep.range().get_space();
+        space sink_sched_space = space::from(sink_space, time_space);
+        map sink_sched = schedule.map_for(sink_sched_space);
+        map sink_later = sink_sched.inverse()( later );
+        map src_consumed_by_sink_later =
+                dep.inverse()( sink_later ).in_range(src_sched.domain());
+
+        src_consumed_later = src_consumed_later | src_consumed_by_sink_later;
+
+        return true;
+    });
+
+    // Find all src instances live at the same time.
+    // = Create map: t -> src,
+    //   Such that: time(src) <= t and time(sink(src)) <= t, for all sink
+    auto buffered = src_not_later & src_consumed_later;
 
     if (debug_buffer_size::is_enabled())
     {
-        cout << ".. produced:" << endl;
-        m_printer.print(src_not_later); cout << endl;
-        m_printer.print(sink_later); cout << endl;
-        cout << ".. consumed:" << endl;
-        m_printer.print(src_consumed_later); cout << endl;
+        cout << ".. Buffered: " << endl;
+        m_printer.print(buffered);
+        cout << endl;
     }
 
-    auto buffered = src_not_later & src_consumed_later;
-
-    vector<long> buffer_size;
+    vector<int> buffer_size;
 
     {
         auto buffered_reflection = (buffered * buffered);
 
         if (debug_buffer_size::is_enabled())
         {
-            cout << ".. buffer reflection: " << endl;
+            cout << ".. Buffer reflection: " << endl;
             m_printer.print(buffered_reflection); cout << endl;
         }
 
         isl::local_space space(buffered_reflection.get_space());
-        int buf_dim_count = source_stmt->domain.size();
+        int buf_dim_count = stmt->domain.size();
         int time_dim_count = time_space.dimension(isl::space::variable);
         buffer_size.reserve(buf_dim_count);
 
@@ -1115,7 +1138,7 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
                 auto max_distance = buffered_reflection.wrapped().maximum(b - a).integer();
                 if (debug_buffer_size::is_enabled())
                     cout << max_distance << " ";
-                buffer_size.push_back(max_distance + 1);
+                buffer_size.push_back((int) max_distance + 1);
             }
             {
                 isl::local_space space(buffered_reflection.get_space());
@@ -1129,14 +1152,7 @@ void ast_generator::compute_buffer_size( const isl::union_map & schedule,
             cout << endl;
     }
 
-    auto & max_buffer_size = source_stmt->buffer;
-    for (unsigned int dim = 0; dim < source_stmt->domain.size(); ++dim)
-    {
-        if (dim >= max_buffer_size.size())
-            max_buffer_size.push_back(buffer_size[dim]);
-        else if (buffer_size[dim] > max_buffer_size[dim])
-            max_buffer_size[dim] = buffer_size[dim];
-    }
+    stmt->buffer = buffer_size;
 
     // TODO: Clear source_stmt->inter_period_dependency as appropriate.
 
