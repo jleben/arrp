@@ -78,6 +78,14 @@ public:
         return m;
     }
 
+    static mapping identity(int size)
+    {
+        mapping m;
+        m.coefficients = matrix<int>::identity(size);
+        m.constants.resize(size, 0);
+        return m;
+    }
+
     bool operator== ( const mapping & other ) const
     {
         return coefficients == other.coefficients && constants == other.constants;

@@ -86,6 +86,11 @@ public:
         return m;
     }
 
+    static matrix<T> identity( int size )
+    {
+        return identity(size, size);
+    }
+
     bool operator== (const matrix<T> & other) const
     {
         return m_rows == other.m_rows &&
