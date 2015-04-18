@@ -87,14 +87,30 @@ llvm_from_polyhedral::llvm_from_polyhedral
         const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
         if (actor)
         {
+#if 0
             bool period_overlaps =
                     actor->steady_count % stmt->buffer[actor->flow_dimension] != 0;
             bool init_overlaps =
                     actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
 
             buf.has_phase = period_overlaps || init_overlaps;
-            buf.phase_index = buf_sizes[phase_buffer]++;
+#endif
             transpose(buf.domain, actor->flow_dimension);
+
+            // FIXME:
+            // Find out offset after init.
+            // if period % size != 0
+            //    has_phase = true
+            // else
+            //    has_phase = false
+            //    if init % size != 0
+            //       offset init in buffer so that it ends exactly
+            //       at buffer end, thus avoiding the need for phase
+
+            //buf.has_phase = stmt->buffer_period % buf.domain[0] != 0;
+            buf.has_phase = true;
+
+            buf.phase_index = buf_sizes[phase_buffer]++;
         }
         else
         {
@@ -382,6 +398,7 @@ llvm_from_polyhedral::generate_statement
     // - Could this be avoided by rather modifying how the index is generated
     //   in the first place?
     vector<value_type> global_index = index;
+#if 0
     const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
     if (ctx.mode == periodic_schedule && actor)
     {
@@ -389,11 +406,13 @@ llvm_from_polyhedral::generate_statement
         flow_index = m_builder.CreateAdd(flow_index,
                                          this->value((int64_t)actor->init_count));
     }
+#endif
 
     value_type value;
 
     if (dynamic_cast<input_access*>(stmt->expr))
     {
+        // FIXME: input index...
         value = generate_input_access(stmt, index, ctx);
     }
     else
@@ -852,25 +871,31 @@ llvm_from_polyhedral::value_type
 llvm_from_polyhedral::generate_input_access
 ( statement *stmt, const index_type & index, const context & ctx)
 {
+    // FIXME: input index...
+
     vector<value_type> the_index(index);
     vector<int> the_domain(stmt->domain);
     const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
 
     if (actor)
     {
+        transpose(the_index, actor->flow_dimension);
+        transpose(the_domain, actor->flow_dimension);
+#if 0
         switch(ctx.mode)
         {
         case initial_schedule:
-            the_domain[actor->flow_dimension] = actor->init_count;
+            the_domain[0] = actor->init_count;
             break;
         case periodic_schedule:
-            the_domain[actor->flow_dimension] = actor->steady_count;
+            the_domain[0] = actor->steady_count;
             break;
         }
-        transpose(the_index, actor->flow_dimension);
-        transpose(the_domain, actor->flow_dimension);
+#endif
     }
 
+    // Note: the first dimension is premitted to be infinite,
+    // since it's not used by flat_index.
     value_type flat_index = this->flat_index(the_index, the_domain);
 
     int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
@@ -977,7 +1002,7 @@ void llvm_from_polyhedral::advance_buffers(const context & ctx)
         if (!buf.has_phase)
             continue;
 
-        int offset = actor->steady_count;
+        int offset = stmt->buffer_period;
         int buffer_size = stmt->buffer[actor->flow_dimension];
 
         value_type phase_ptr =
@@ -1004,15 +1029,17 @@ llvm_from_polyhedral::buffer_index
     // Prepare info
 
     vector<value_type> the_index(index);
-    vector<int> the_domain = stmt->domain;
+    //vector<int> the_domain = stmt->domain;
     vector<int> the_buffer_size = stmt->buffer;
 
+#if 0
     if (actor)
     {
         the_domain[actor->flow_dimension] = actor->init_count;
         if (ctx.mode == periodic_schedule)
             the_domain[actor->flow_dimension] += actor->steady_count;
     }
+#endif
 
     // Add flow index phase
 
@@ -1034,7 +1061,7 @@ llvm_from_polyhedral::buffer_index
 
     for (int dim = 0; dim < the_index.size(); ++dim)
     {
-        int domain_size = the_domain[dim];
+        //int domain_size = the_domain[dim];
         int buffer_size = the_buffer_size[dim];
 
         if (buffer_size < 2)
@@ -1043,8 +1070,10 @@ llvm_from_polyhedral::buffer_index
             continue;
         }
 
+        // FIXME: Avoid wrapping when possible
         bool may_wrap =
-                domain_size > buffer_size ||
+                //domain_size > buffer_size ||
+                true ||
                 (actor && dim == actor->flow_dimension && buf.has_phase);
 
         if (may_wrap)
