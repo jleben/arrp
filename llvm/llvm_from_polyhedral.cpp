@@ -371,13 +371,9 @@ llvm_from_polyhedral::generate_statement( const string & name,
 
 llvm_from_polyhedral::block_type
 llvm_from_polyhedral::generate_statement
-( statement *stmt, const index_type & ctx_index,
+( statement *stmt, const index_type & index,
   const context & ctx, block_type block )
 {
-    // Drop first dimension denoting period (always zero).
-    assert(!ctx_index.empty());
-    vector<value_type> index(ctx_index.begin()+1, ctx_index.end());
-
     m_builder.SetInsertPoint(block);
 
     // Offset steady-period index by initialization count
