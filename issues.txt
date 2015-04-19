@@ -1,0 +1,26 @@
+
+flux-stream, equalizer:
+  When using a single-dimension iteration domain for input,
+  loops are not fused as they could be.
+
+fir-filter (not in git yet):
+  Filter consists of map and reduce statements, both 2 dimensional
+  First dimension corresponds to filter output,
+  second dimension corresponds to inputs used for individual output.
+
+  Scheduler picks diagonal (1,1) first scheduling hyperplane for both
+  map and reduce stmts.
+  This prevents parallelizing the independent pairs of map + reduction,
+  because reductions are spread across the first hyperplane, which could otherwise
+  be achieved with a simple (1,0) hyperplane.
+
+  This allows parallelizing the second dimension (maps + reductions),
+  which now carries no dependencies, but that's less benefit.
+
+  Also, we could parallelize just the map step (in both dimensions!),
+  but that would require buffering n^2 data before feeding into reductions.
+
+fir-filter:
+  Map not fused with reduce in first dimension,
+  because reduce is split into into init and accumulate,
+  where accumulate has domain size of map - 1.
