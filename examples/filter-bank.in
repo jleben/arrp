@@ -1,0 +1,14 @@
+
+sum(x) = reduce(a,b in x) a + b;
+
+map(x) = x * (1..#x);
+
+bank(x) =
+  for each (a takes 100 in x)
+      sum( map(a) );
+
+f(x) = {
+  //let banks = for each (i in 1..10) bank(x);
+  //for each (t in banks{2})  sum(t)
+  bank(x);
+}
