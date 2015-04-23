@@ -159,6 +159,8 @@ private:
       statement *stmt,
       const isl::space & time_space );
 
+    void print_schedule( const isl::union_map & );
+
     // AST generation
 
     struct clast_stmt *make_ast( const isl::union_map & schedule );

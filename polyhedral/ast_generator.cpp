@@ -726,8 +726,7 @@ ast_generator::make_init_schedule(isl::union_set & domains,
     if (debug::is_enabled())
     {
         cout << endl << "Init schedule:" << endl;
-        //m_printer.print(init_schedule.in_domain(init_domains));
-        m_printer.print(init_schedule);
+        print_schedule(init_schedule);
         cout << endl;
     }
 
@@ -743,8 +742,7 @@ ast_generator::make_steady_schedule(isl::union_set & period_domains,
     if (debug::is_enabled())
     {
         cout << endl << "Steady schedule:" << endl;
-        //m_printer.print(steady_schedule.in_domain(steady_domains));
-        m_printer.print(steady_schedule);
+        print_schedule(steady_schedule);
         cout << endl;
     }
 
@@ -755,7 +753,12 @@ isl::union_map
 ast_generator::schedule_finite_domains
 (const isl::union_set & finite_domains, const isl::union_map & dependencies)
 {
-    return make_schedule(finite_domains, dependencies).in_domain(finite_domains);
+    auto schedule = make_schedule(finite_domains, dependencies).in_domain(finite_domains);
+    cout << endl << "Finite schedule:" << endl;
+    print_schedule(schedule);
+    cout << endl;
+
+    return schedule;
 }
 
 pair<isl::union_map, isl::union_map>
@@ -773,7 +776,7 @@ ast_generator::schedule_infinite_domains
     if (debug::is_enabled())
     {
         cout << "Infinite schedule:" << endl;
-        m_printer.print(infinite_sched);
+        print_schedule(infinite_sched);
         cout << endl;
     }
 
@@ -835,7 +838,7 @@ ast_generator::schedule_infinite_domains
     if (debug::is_enabled())
     {
         cout << "Period schedule:" << endl;
-        m_printer.print(period_sched);
+        print_schedule(period_sched);
         cout << endl;
     }
 
@@ -864,7 +867,7 @@ ast_generator::schedule_infinite_domains
     if (debug::is_enabled())
     {
         cout << "Init schedule:" << endl;
-        m_printer.print(init_sched);
+        print_schedule(init_sched);
         cout << endl;
     }
 
@@ -1108,7 +1111,7 @@ ast_generator::combine_schedules
     if (debug::is_enabled())
     {
         cout << endl << "Combined schedule:" << endl;
-        m_printer.print(combined_schedule);
+        print_schedule(combined_schedule);
         cout << endl;
     }
 }
@@ -1302,6 +1305,15 @@ void ast_generator::compute_buffer_size
         source_stmt->inter_period_dependency = max_distance > 0;
     }
 #endif
+}
+
+void ast_generator::print_schedule( const isl::union_map & sched )
+{
+    sched.for_each ( [&](const isl::map & m){
+       m_printer.print(m);
+       cout << endl;
+       return true;
+    });
 }
 
 struct clast_stmt *ast_generator::make_ast( const isl::union_map & isl_schedule )
