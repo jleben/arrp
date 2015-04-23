@@ -45,9 +45,9 @@ class cpp_from_cloog
     int id_count;
 
 public:
-    cpp_from_cloog();
+    cpp_from_cloog(builder *ctx);
 
-    statement_ptr generate( clast_stmt *ast );
+    void generate( clast_stmt *ast );
 
     template<typename F>
     void set_stmt_func(F f)
@@ -89,8 +89,12 @@ private:
     }
 #endif
 
-    std::function<statement_ptr(const string &,
-                                const vector<expression_ptr> &)> m_stmt_func;
+    std::function<void(const string &,
+                       const vector<expression_ptr> &,
+                       builder *)> m_stmt_func;
+
+private:
+    builder *m_ctx;
 };
 
 }

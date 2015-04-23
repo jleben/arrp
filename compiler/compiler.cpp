@@ -29,7 +29,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../polyhedral/ast_generator.hpp"
 #include "../llvm/llvm_ir_from_cloog.hpp"
 #include "../llvm/llvm_from_polyhedral.hpp"
-#include "../cpp/cpp_from_cloog.hpp"
+#include "../cpp/cpp_target.hpp"
 #include "../interface/cpp-intf-gen.hpp"
 
 #include <json++/json.hh>
@@ -306,26 +306,12 @@ result::code compile_polyhedral_model
             return result::io_error;
         }
 
-        using namespace cpp_gen;
+        //using namespace cpp_gen;
 
-        cpp_from_cloog gen;
+        cpp_gen::generate(target.name, target.args,
+                          statements, ast.first, ast.second,
+                          cpp_output_file);
 
-        block_statement code;
-
-        if (ast.first)
-        {
-            code.statements.push_back(make_shared<comment_statement>("Finite"));
-            code.statements.push_back( gen.generate(ast.first) );
-        }
-
-        if (ast.second)
-        {
-            code.statements.push_back(make_shared<comment_statement>("Infinite"));
-            code.statements.push_back( gen.generate(ast.second) );
-        }
-
-        state s;
-        code.generate(s, cpp_output_file);
 #if 0
         cpp_output_file << "#ifndef stream_function_" << target.name << "_included" << endl;
         cpp_output_file << "#define stream_function_" << target.name << "_included" << endl;

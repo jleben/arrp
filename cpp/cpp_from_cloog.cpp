@@ -28,22 +28,25 @@ using namespace std;
 namespace stream {
 namespace cpp_gen {
 
-cpp_from_cloog::cpp_from_cloog()
+cpp_from_cloog::cpp_from_cloog(builder *ctx):
+    m_ctx(ctx)
 {
 }
 
-statement_ptr cpp_from_cloog::generate( clast_stmt *ast )
+void cpp_from_cloog::generate( clast_stmt *ast )
 {
-    return process(ast);
+    m_ctx->add( process(ast) );
 }
 
 void cpp_from_cloog::process_list(clast_stmt *stmt, vector<statement_ptr> & list)
 {
+    m_ctx->push(&list);
     while(stmt)
     {
-        list.push_back( process(stmt) );
+        m_ctx->add(process(stmt));
         stmt = stmt->next;
     }
+    m_ctx->pop();
 }
 
 statement_ptr cpp_from_cloog::process( clast_stmt *stmt )
@@ -136,7 +139,7 @@ statement_ptr cpp_from_cloog::process( clast_guard* guard )
     auto body = make_shared<block_statement>();
     process_list(guard->then, body->statements);
 
-    if_stmt->body = body;
+    if_stmt->true_part = body;
 
     return statement_ptr(if_stmt);
 }
@@ -144,12 +147,15 @@ statement_ptr cpp_from_cloog::process( clast_guard* guard )
 statement_ptr cpp_from_cloog::process( clast_for* loop )
 {
     auto iterator = make_shared<id_expression>(loop->iterator);
+    auto iterator_decl =
+            make_shared<var_decl_expression>(make_shared<basic_type>("int"),
+                                             loop->iterator);
 
     auto for_stmt = new for_statement;
 
     for_stmt->initialization =
-            make_shared<bin_op_expression>("==",
-                                           iterator,
+            make_shared<bin_op_expression>("=",
+                                           iterator_decl,
                                            process(loop->LB));
     for_stmt->condition =
             make_shared<bin_op_expression>("<=",
@@ -282,7 +288,11 @@ statement_ptr cpp_from_cloog::process( clast_user_stmt* stmt )
 
     if (m_stmt_func)
     {
-        return m_stmt_func(stmt->statement->name, index);
+        auto block = make_shared<block_statement>();
+        m_ctx->push(&block->statements);
+        m_stmt_func(stmt->statement->name, index, m_ctx);
+        m_ctx->pop();
+        return block;
     }
     else
     {

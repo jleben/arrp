@@ -21,11 +21,17 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_CPP_GENERATION_INCLUDED
 #define STREAM_LANG_CPP_GENERATION_INCLUDED
 
-#include <iostream>
-#include <vector>
-#include <string>
+#include "../common/primitives.hpp"
+#include "../common/error.hpp"
+
 #include <cassert>
 #include <memory>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <stack>
+#include <unordered_map>
 #include <initializer_list>
 
 namespace stream {
@@ -34,6 +40,9 @@ namespace cpp_gen {
 using std::vector;
 using std::string;
 using std::ostream;
+using std::unordered_map;
+using std::ostringstream;
+using std::stack;
 
 enum indentation_type
 {
@@ -99,111 +108,108 @@ enum class_key
     struct_class
 };
 
-class program_member
+class module_member;
+typedef std::shared_ptr<module_member> module_member_ptr;
+
+class module
 {
 public:
-    virtual ~program_member() {}
+    string next_id(const string & prefix)
+    {
+        ostringstream name;
+        name << prefix;
+        int index = ++m_identifiers[prefix];
+        name << index;
+        return name.str();
+    }
+
+    vector<module_member_ptr> members;
+
+    void generate(state &, ostream &);
+
+private:
+    unordered_map<string,int> m_identifiers;
+};
+
+class module_member
+{
+public:
+    virtual ~module_member() {}
     virtual void generate(state &, ostream &) = 0;
 };
 
-class program
+class namespace_member : public module_member {};
+typedef std::shared_ptr<namespace_member> namespace_member_ptr;
+
+class namespace_node : public namespace_member
 {
 public:
-    ~program()
-    {
-        for (auto member : members)
-            delete member;
-    }
-    vector<program_member*> members;
-    void generate(state &, ostream &);
-};
-
-class namespace_member_node : public program_member
-{};
-
-class namespace_node : public namespace_member_node
-{
-public:
-    ~namespace_node()
-    {
-        for (auto member : members)
-            delete member;
-    }
     string name;
-    vector<namespace_member_node*> members;
+    vector<namespace_member_ptr> members;
     void generate(state &, ostream &);
 };
 
-class extern_c_node : public namespace_member_node
+class extern_c_node : public namespace_member
 {
 public:
-    ~extern_c_node()
-    {
-        for (auto member : members)
-            delete member;
-    }
-    vector<namespace_member_node*> members;
+    vector<namespace_member_ptr> members;
     void generate(state &, ostream &);
 };
 
-class class_member_node
+class class_member
 {
 public:
-    virtual ~class_member_node() {}
+    virtual ~class_member() {}
     virtual void generate(state &, ostream &) = 0;
 };
+typedef std::shared_ptr<class_member> class_member_ptr;
 
-class class_section_node
+class class_section
 {
 public:
-    class_section_node(access_type access = default_access): access(access) {}
-    ~class_section_node()
-    {
-        for(auto member : members)
-            delete member;
-    }
     access_type access;
-    vector<class_member_node*> members;
+    vector<class_member_ptr> members;
 
+    class_section(access_type access = default_access): access(access) {}
     void generate(state &, ostream &);
 };
 
-class class_node : public namespace_member_node, public class_member_node
+class class_node : public namespace_member, public class_member
 {
 public:
+    class_key key;
+    string name;
+    vector<class_section> sections;
+
     class_node(class_key key, const string & name = string()):
         key(key),
         name(name)
     {}
 
-    ~class_node()
-    {
-        for (auto section : sections)
-            delete section;
-    }
-
-    class_key key;
-    string name;
-    vector<class_section_node*> sections;
-
     void generate(state &, ostream &);
 };
 
-class type_node
+// Types
+
+class type
 {
 public:
-    virtual ~type_node() {}
+    virtual ~type() {}
     virtual void generate(state &, ostream &) = 0;
 };
 
-class base_type_node : public type_node
+typedef std::shared_ptr<type> type_ptr;
+
+class base_type : public type
 {
 };
 
-class basic_type_node : public base_type_node
+typedef std::shared_ptr<base_type> base_type_ptr;
+
+class basic_type : public base_type
 {
 public:
-    basic_type_node(const string & name):
+    basic_type(const string & name):
         name(name),
         is_const(false) {}
     string name;
@@ -211,101 +217,115 @@ public:
     void generate(state &, ostream &);
 };
 
-class pointer_type_node : public base_type_node
+typedef std::shared_ptr<basic_type> basic_type_ptr;
+
+class pointer_type_node : public base_type
 {
 public:
-    pointer_type_node(base_type_node *base):
-        base_type(base),
+    base_type_ptr base;
+    bool is_const;
+
+    pointer_type_node(base_type_ptr base):
+        base(base),
         is_const(false)
     {}
-    ~pointer_type_node()
-    {
-        delete base_type;
-    }
-    base_type_node * base_type;
-    bool is_const;
     void generate(state &, ostream &);
 };
 
-class reference_type_node : public type_node
+class reference_type_node : public type
 {
 public:
-    reference_type_node(base_type_node *base):
-        base_type(base)
+    reference_type_node(base_type_ptr base):
+        base(base)
     {}
-    ~reference_type_node()
-    {
-        delete base_type;
-    }
-    base_type_node * base_type;
+    base_type_ptr base;
     void generate(state &, ostream &);
 };
 
-class variable_decl_node
+inline basic_type_ptr type_for(primitive_type pt)
+{
+    switch(pt)
+    {
+    case primitive_type::boolean:
+        return std::make_shared<basic_type>("bool");
+    case primitive_type::integer:
+        return std::make_shared<basic_type>("int");
+    case primitive_type::real:
+        return std::make_shared<basic_type>("double");
+    default:
+        throw error("Unexpected primitive type.");
+    }
+}
+
+// Declarations
+
+class variable_decl
 {
 public:
-    variable_decl_node(type_node *t, const string & name = string()):
-        type(t),
-        name(name)
-    {}
-    virtual ~variable_decl_node()
-    {
-        delete type;
-    }
-    type_node *type;
+    type_ptr type;
     string name;
+    virtual void generate(state &, ostream &);
+
+    variable_decl() {}
+    variable_decl(type_ptr t, const string & name): type(t), name(name) {}
+};
+
+typedef std::shared_ptr<variable_decl> variable_decl_ptr;
+
+class array_decl : public variable_decl
+{
+public:
+    vector<int> size;
+
+    array_decl(type_ptr t, const string & name, const vector<int> & size):
+        variable_decl(t, name),
+        size(size)
+    {}
     virtual void generate(state &, ostream &);
 };
 
-class data_field_decl_node : public variable_decl_node, public class_member_node
+class data_field : public class_member
 {
 public:
-    data_field_decl_node(type_node *t, const string & name):
-        variable_decl_node(t, name)
-    {}
+    variable_decl_ptr var;
+
+    data_field() {}
+    data_field(variable_decl_ptr var): var(var) {}
+
     virtual void generate(state &state, ostream &stream)
     {
-        variable_decl_node::generate(state, stream);
+        var->generate(state, stream);
         stream << ";";
     }
 };
 
-class func_signature_node
+class func_signature
 {
 public:
-    ~func_signature_node()
-    {
-        delete type;
-        for(auto param: parameters)
-            delete param;
-    }
     string name;
-    type_node *type;
-    vector<variable_decl_node*> parameters;
+    type_ptr type;
+    vector<variable_decl_ptr> parameters;
     void generate(state &, ostream &);
 };
 
-typedef std::shared_ptr<func_signature_node> func_sig_ptr;
+typedef std::shared_ptr<func_signature> func_sig_ptr;
 
-class func_decl_node : public namespace_member_node, public class_member_node
+class func_decl : public namespace_member, public class_member
 {
 public:
-    func_decl_node(func_signature_node *sig): signature(sig) {}
-    ~func_decl_node()
-    {
-        delete signature;
-    }
-    func_signature_node *signature;
+    func_sig_ptr signature;
     void generate(state &, ostream &);
+
+    func_decl() {}
+    func_decl(func_sig_ptr sig): signature(sig) {}
 };
 
-class using_decl : public namespace_member_node, public class_member_node
+class using_decl : public namespace_member, public class_member
 {
 public:
-    using_decl(const string & name):
-        name(name)
-    {}
     const string name;
+
+    using_decl(const string & name): name(name) {}
     void generate(state &, ostream &stream)
     {
         stream << "using " << name << ';';
@@ -358,6 +378,8 @@ public:
         op(op), rhs(r)
     {}
     void generate(state &, ostream &);
+
+    static int precedence(const string & op);
 };
 
 class bin_op_expression : public expression
@@ -373,6 +395,8 @@ public:
         op(op), lhs(l), rhs(r)
     {}
     void generate(state &, ostream &);
+
+    static int precedence(const string & op);
 };
 
 class call_expression : public expression
@@ -388,6 +412,44 @@ public:
         func_name(f), args(a)
     {}
     void generate(state &, ostream &);
+};
+
+class var_decl_expression : public expression
+{
+public:
+    type_ptr type;
+    string name;
+
+    var_decl_expression(type_ptr t, string n): type(t), name(n) {}
+    void generate(cpp_gen::state & state, ostream & stream)
+    {
+        type->generate(state, stream);
+        stream << " " << name;
+    }
+};
+
+class cast_expression : public expression
+{
+public:
+    type_ptr type;
+    expression_ptr expr;
+
+    cast_expression() {}
+    cast_expression(type_ptr t, expression_ptr e): type(t), expr(e) {}
+    void generate(cpp_gen::state & state, ostream & stream);
+};
+
+class array_access_expression : public expression
+{
+public:
+    expression_ptr id;
+    vector<expression_ptr> index;
+
+    array_access_expression() {}
+    array_access_expression(expression_ptr id, const vector<expression_ptr> & index):
+        id(id), index(index)
+    {}
+    void generate(cpp_gen::state & state, ostream & stream);
 };
 
 // Statements
@@ -422,8 +484,15 @@ public:
 class if_statement : public statement
 {
 public:
+    if_statement() {}
+    if_statement(expression_ptr c, statement_ptr t, statement_ptr f):
+        condition(c),
+        true_part(t),
+        false_part(f)
+    {}
     expression_ptr condition;
-    statement_ptr body;
+    statement_ptr true_part;
+    statement_ptr false_part;
     void generate(state &, ostream &);
 };
 
@@ -451,15 +520,50 @@ public:
 
 // Function
 
-class func_def_node :  public namespace_member_node, public class_member_node
+class func_def :  public namespace_member, public class_member
 {
 public:
-    func_def_node(func_sig_ptr sig): signature(sig) {}
+    func_def(func_sig_ptr sig): signature(sig) {}
 
     func_sig_ptr signature;
     block_statement body;
 
     void generate(state &, ostream &);
+};
+
+// Constructor
+
+class builder
+{
+public:
+    builder(module *m): m_module(m) {}
+
+    void set_current_function(func_signature *f) { m_func = f; }
+    func_signature *current_function() { return m_func; }
+
+    void push(vector<statement_ptr> *block)
+    {
+        m_blocks.push(block);
+    }
+
+    void pop()
+    {
+        m_blocks.pop();
+    }
+
+    void add(statement_ptr stmt) { m_blocks.top()->push_back(stmt); }
+
+    string new_var_id() { return m_module->next_id("v"); }
+    expression_ptr new_var(type_ptr t, string & id)
+    {
+        id = new_var_id();
+        return std::make_shared<var_decl_expression>(t, id);
+    }
+
+private:
+    module * m_module;
+    func_signature *m_func;
+    stack<vector<statement_ptr>*> m_blocks;
 };
 
 

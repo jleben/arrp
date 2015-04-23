@@ -25,7 +25,7 @@ namespace cpp_gen {
 
 using namespace std;
 
-void program::generate(cpp_gen::state &state, ostream &stream)
+void module::generate(cpp_gen::state &state, ostream &stream)
 {
     for (auto member : members)
     {
@@ -91,10 +91,10 @@ void class_node::generate(cpp_gen::state & state, ostream & stream)
     state.new_line(stream);
     stream << "{";
 
-    for(auto section : sections)
+    for(auto & section : sections)
     {
         state.new_line(stream);
-        section->generate(state, stream);
+        section.generate(state, stream);
     }
 
     state.new_line(stream);
@@ -102,7 +102,7 @@ void class_node::generate(cpp_gen::state & state, ostream & stream)
 
 }
 
-void class_section_node::generate(cpp_gen::state & state, ostream & stream)
+void class_section::generate(cpp_gen::state & state, ostream & stream)
 {
     switch(access)
     {
@@ -127,7 +127,7 @@ void class_section_node::generate(cpp_gen::state & state, ostream & stream)
     state.decrease_indentation();
 }
 
-void basic_type_node::generate(cpp_gen::state & state, ostream & stream)
+void basic_type::generate(cpp_gen::state & state, ostream & stream)
 {
     stream << name;
     if (is_const)
@@ -136,7 +136,7 @@ void basic_type_node::generate(cpp_gen::state & state, ostream & stream)
 
 void pointer_type_node::generate(cpp_gen::state & state, ostream & stream)
 {
-    base_type->generate(state, stream);
+    base->generate(state, stream);
     if (is_const)
         stream << " const";
     stream << " *";
@@ -144,18 +144,27 @@ void pointer_type_node::generate(cpp_gen::state & state, ostream & stream)
 
 void reference_type_node::generate(cpp_gen::state & state, ostream & stream)
 {
-    base_type->generate(state, stream);
+    base->generate(state, stream);
     stream << " &";
 }
 
-void variable_decl_node::generate(cpp_gen::state & state, ostream & stream)
+void variable_decl::generate(cpp_gen::state & state, ostream & stream)
 {
     type->generate(state, stream);
     if (!name.empty())
         stream << ' ' << name;
 }
 
-void func_signature_node::generate(cpp_gen::state & state, ostream & stream)
+void array_decl::generate(cpp_gen::state & state, ostream & stream)
+{
+    variable_decl::generate(state, stream);
+    for(auto dim : size)
+    {
+        stream << "[" << dim << "]";
+    }
+}
+
+void func_signature::generate(cpp_gen::state & state, ostream & stream)
 {
     type->generate(state, stream);
 
@@ -179,7 +188,7 @@ void func_signature_node::generate(cpp_gen::state & state, ostream & stream)
     }
 }
 
-void func_decl_node::generate(cpp_gen::state & state, ostream & stream)
+void func_decl::generate(cpp_gen::state & state, ostream & stream)
 {
     signature->generate(state, stream);
     stream << ';';
@@ -190,21 +199,119 @@ void id_expression::generate(cpp_gen::state & state, ostream & stream)
     stream << name;
 }
 
+static unordered_map<string, int> unary_op_precedence_map()
+{
+    vector< vector<string> > rank =
+    {
+        {"++", "--"},
+        {"+", "-"},
+        {"!", "~"},
+        {"*"},
+        {"&"},
+    };
+
+    unordered_map<string, int> m;
+    for (unsigned int r = 0; r < rank.size(); ++r)
+    {
+        auto & ops = rank[r];
+        for(auto & op : ops)
+            m[op] = r + 1;
+    }
+
+    return m;
+}
+
+int un_op_expression::precedence(const string & op)
+{
+    static auto m = unary_op_precedence_map();
+    return m[op];
+}
+
 void un_op_expression::generate(cpp_gen::state & state, ostream & stream)
 {
-    stream << "(" << op;
+    bool wrap_rhs = false;
+    if (dynamic_cast<bin_op_expression*>(rhs.get()))
+    {
+        wrap_rhs = true;
+    }
+
+    stream << op;
+
+    if (wrap_rhs)
+        stream << "(";
     rhs->generate(state, stream);
-    stream << ")";
+    if (wrap_rhs)
+        stream << ")";
+}
+
+static unordered_map<string, int> binary_op_precedence_map()
+{
+    vector< vector<string> > rank =
+    {
+        {"."},
+        {"->"},
+        {"*", "/", "%"},
+        {"+", "-"},
+        {"<", "<="},
+        {">", ">="},
+        {"==", "!="},
+        {"&"},
+        {"^"},
+        {"|"},
+        {"&&"},
+        {"||"},
+        {"="},
+        {"+="},
+        {"-="},
+        {"*=", "/=", "%="},
+        {"&=", "^=", "|="},
+    };
+
+    unordered_map<string, int> m;
+    for (unsigned int r = 0; r < rank.size(); ++r)
+    {
+        auto & ops = rank[r];
+        for(auto & op : ops)
+            m[op] = r + 1;
+    }
+
+    return m;
+}
+
+int bin_op_expression::precedence(const string & op)
+{
+    static auto m = binary_op_precedence_map();
+    return m[op];
 }
 
 void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
 {
-    stream << "(";
-    lhs->generate(state, stream);
-    stream << ' ' << op << ' ';
-    rhs->generate(state, stream);
-    stream << ")";
+    bool wrap_lhs = false;
+    if(auto binop = dynamic_cast<bin_op_expression*>(lhs.get()))
+    {
+        if (precedence(op) < precedence(binop->op))
+            wrap_lhs = true;
+    }
+    bool wrap_rhs = false;
+    if(auto binop = dynamic_cast<bin_op_expression*>(rhs.get()))
+    {
+        if (precedence(op) < precedence(binop->op))
+            wrap_rhs = true;
+    }
 
+    if (wrap_lhs)
+        stream << "(";
+    lhs->generate(state, stream);
+    if (wrap_lhs)
+        stream << ")";
+
+    stream << ' ' << op << ' ';
+
+    if (wrap_rhs)
+        stream << "(";
+    rhs->generate(state, stream);
+    if (wrap_rhs)
+        stream << ")";
 }
 
 void call_expression::generate(cpp_gen::state & state, ostream & stream)
@@ -217,6 +324,25 @@ void call_expression::generate(cpp_gen::state & state, ostream & stream)
         args[a]->generate(state, stream);
     }
     stream << ")";
+}
+
+void cast_expression::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << "(";
+    type->generate(state, stream);
+    stream << ")";
+    expr->generate(state, stream);
+}
+
+void array_access_expression::generate(cpp_gen::state & state, ostream & stream)
+{
+    id->generate(state, stream);
+    for(auto i : index)
+    {
+        stream << "[";
+        i->generate(state, stream);
+        stream << "]";
+    }
 }
 
 void block_statement::generate(cpp_gen::state & state, ostream & stream)
@@ -244,10 +370,15 @@ void if_statement::generate(cpp_gen::state & state, ostream & stream)
     stream << "if (";
     condition->generate(state, stream);
     stream << ") ";
-
     state.new_line(stream);
-
-    body->generate(state, stream);
+    true_part->generate(state, stream);
+    if (false_part)
+    {
+        state.new_line(stream);
+        stream  << "else";
+        state.new_line(stream);
+        false_part->generate(state, stream);
+    }
 }
 
 void for_statement::generate(cpp_gen::state & state, ostream & stream)
@@ -265,7 +396,7 @@ void for_statement::generate(cpp_gen::state & state, ostream & stream)
     body->generate(state, stream);
 }
 
-void func_def_node::generate(cpp_gen::state & state, ostream & stream)
+void func_def::generate(cpp_gen::state & state, ostream & stream)
 {
     signature->generate(state, stream);
     state.new_line(stream);
