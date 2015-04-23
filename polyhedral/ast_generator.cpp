@@ -933,7 +933,7 @@ int ast_generator::compute_period
 
             ks.push_back(make_pair(stmt,first_flow_k));
 
-            cout << id.name << " flow coef @ " << first_out_dim << " = " << first_flow_k << endl;
+            //cout << id.name << " flow coef @ " << first_out_dim << " = " << first_flow_k << endl;
 
             if (sched_flow_dim == -1)
                 sched_flow_dim = first_out_dim;
@@ -961,7 +961,7 @@ int ast_generator::compute_period
         statement *stmt = k.first;
         int period = k.second;
         int span = least_common_period / period;
-        cout << "Period advances " << stmt->name << " by " << span << endl;
+        //cout << "Period advances " << stmt->name << " by " << span << endl;
         if (!stmt->buffer_period)
             stmt->buffer_period = span;
         if (stmt->buffer_period != span)
@@ -1003,7 +1003,7 @@ int ast_generator::common_offset(isl::union_map & schedule, int flow_dim)
 
         if (debug::is_enabled())
         {
-            cout << id.name << " offset = " << offset << endl;
+            //cout << id.name << " offset = " << offset << endl;
         }
 
         common_offset = std::max(common_offset, offset);
