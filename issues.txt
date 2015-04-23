@@ -1,9 +1,4 @@
-
-flux-stream, equalizer:
-  When using a single-dimension iteration domain for input,
-  loops are not fused as they could be.
-
-fir-filter (not in git yet):
+fir-filter:
   Filter consists of map and reduce statements, both 2 dimensional
   First dimension corresponds to filter output,
   second dimension corresponds to inputs used for individual output.
@@ -21,6 +16,12 @@ fir-filter (not in git yet):
   but that would require buffering n^2 data before feeding into reductions.
 
 fir-filter:
-  Map not fused with reduce in first dimension,
-  because reduce is split into into init and accumulate,
-  where accumulate has domain size of map - 1.
+  When reduction domain is 1 less than its input domain,
+  reduction is offset by 1 after its input in the enclosing schedule dimension.
+
+fir-filter, spectral flux, multi-channel equalizer:
+  Map not fused with reduce.
+  This is not due to reduction being split into init and accum stmts.
+  It is also not necessarily due to input stmt being contracted to 1 dimension.
+  It seems it happens whenever input has less dimensions than the following
+  stmts.
