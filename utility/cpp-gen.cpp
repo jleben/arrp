@@ -185,5 +185,92 @@ void func_decl_node::generate(cpp_gen::state & state, ostream & stream)
     stream << ';';
 }
 
+void id_expression::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << name;
+}
+
+void un_op_expression::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << "(" << op;
+    rhs->generate(state, stream);
+    stream << ")";
+}
+
+void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << "(";
+    lhs->generate(state, stream);
+    stream << ' ' << op << ' ';
+    rhs->generate(state, stream);
+    stream << ")";
+
+}
+
+void call_expression::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << func_name << "(";
+    for (unsigned int a = 0; a < args.size(); ++a)
+    {
+        if (a > 0)
+            stream << ", ";
+        args[a]->generate(state, stream);
+    }
+    stream << ")";
+}
+
+void block_statement::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << "{";
+    state.increase_indentation();
+    for (auto stmt : statements)
+    {
+        state.new_line(stream);
+        stmt->generate(state, stream);
+        stream << ";";
+    }
+    state.decrease_indentation();
+    state.new_line(stream);
+    stream << "}";
+}
+
+void expr_statement::generate(cpp_gen::state & state, ostream & stream)
+{
+    expr->generate(state, stream);
+}
+
+void if_statement::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << "if (";
+    condition->generate(state, stream);
+    stream << ") ";
+
+    state.new_line(stream);
+
+    body->generate(state, stream);
+}
+
+void for_statement::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << "for (";
+    initialization->generate(state, stream);
+    stream << "; ";
+    condition->generate(state, stream);
+    stream << "; ";
+    update->generate(state, stream);
+    stream << ") ";
+
+    state.new_line(stream);
+
+    body->generate(state, stream);
+}
+
+void func_def_node::generate(cpp_gen::state & state, ostream & stream)
+{
+    signature->generate(state, stream);
+    state.new_line(stream);
+    body.generate(state, stream);
+}
+
 } // namespace cpp_gen
 } // namespace stream

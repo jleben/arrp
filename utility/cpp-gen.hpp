@@ -25,6 +25,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <vector>
 #include <string>
 #include <cassert>
+#include <memory>
+#include <initializer_list>
 
 namespace stream {
 namespace cpp_gen {
@@ -54,7 +56,7 @@ public:
 class state
 {
 public:
-    state(const options & opt): opt(opt), indentation_level(0) {}
+    state(const options & opt = options()): opt(opt), indentation_level(0) {}
 
     options opt;
 
@@ -283,6 +285,8 @@ public:
     void generate(state &, ostream &);
 };
 
+typedef std::shared_ptr<func_signature_node> func_sig_ptr;
+
 class func_decl_node : public namespace_member_node, public class_member_node
 {
 public:
@@ -307,6 +311,157 @@ public:
         stream << "using " << name << ';';
     }
 };
+
+// Expressions
+
+class expression
+{
+public:
+    virtual ~expression(){}
+    virtual void generate(state &, ostream &) = 0;
+};
+
+typedef std::shared_ptr<expression> expression_ptr;
+
+template <typename T>
+class literal_expression : public expression
+{
+public:
+    literal_expression(T v = T()): value(v) {}
+
+    T value;
+
+    void generate(state &, ostream & stream)
+    {
+        stream << value;
+    }
+};
+
+class id_expression : public expression
+{
+public:
+    string name;
+
+    id_expression() {}
+    id_expression(string name): name(name) {}
+    void generate(state &, ostream &);
+};
+
+class un_op_expression : public expression
+{
+public:
+    string op;
+    expression_ptr rhs;
+
+    un_op_expression() {}
+    un_op_expression(string op, expression_ptr r):
+        op(op), rhs(r)
+    {}
+    void generate(state &, ostream &);
+};
+
+class bin_op_expression : public expression
+{
+public:
+    string op;
+    expression_ptr lhs;
+    expression_ptr rhs;
+
+    bin_op_expression() {}
+    bin_op_expression(string op): op(op) {}
+    bin_op_expression(string op, expression_ptr l, expression_ptr r):
+        op(op), lhs(l), rhs(r)
+    {}
+    void generate(state &, ostream &);
+};
+
+class call_expression : public expression
+{
+public:
+    string func_name;
+    vector<expression_ptr> args;
+
+    call_expression(string f, std::initializer_list<expression_ptr> a):
+        func_name(f), args(a)
+    {}
+    call_expression(string f, const vector<expression_ptr> & a):
+        func_name(f), args(a)
+    {}
+    void generate(state &, ostream &);
+};
+
+// Statements
+
+class statement
+{
+public:
+    virtual ~statement(){}
+    virtual void generate(state &, ostream &) = 0;
+};
+
+typedef std::shared_ptr<statement> statement_ptr;
+
+class block_statement : public statement
+{
+public:
+    vector<statement_ptr> statements;
+
+    void generate(state &, ostream &);
+};
+
+class expr_statement : public statement
+{
+public:
+    expression_ptr expr;
+
+    expr_statement(): expr(nullptr) {}
+    expr_statement(expression_ptr e): expr(e) {}
+    void generate(state &, ostream &);
+};
+
+class if_statement : public statement
+{
+public:
+    expression_ptr condition;
+    statement_ptr body;
+    void generate(state &, ostream &);
+};
+
+class for_statement : public statement
+{
+public:
+    expression_ptr initialization;
+    expression_ptr condition;
+    expression_ptr update;
+    statement_ptr body;
+    void generate(state &, ostream &);
+};
+
+class comment_statement : public statement
+{
+public:
+    string text;
+
+    comment_statement(const string & t): text(t) {}
+    void generate(state &, ostream & stream)
+    {
+        stream << "// " << text;
+    }
+};
+
+// Function
+
+class func_def_node :  public namespace_member_node, public class_member_node
+{
+public:
+    func_def_node(func_sig_ptr sig): signature(sig) {}
+
+    func_sig_ptr signature;
+    block_statement body;
+
+    void generate(state &, ostream &);
+};
+
 
 } // namespace cpp_gen
 } // namespace stream
