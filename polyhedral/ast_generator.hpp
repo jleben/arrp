@@ -146,6 +146,8 @@ private:
 
     int common_offset(isl::union_map & schedule, int flow_dim);
 
+    void print_schedule( const isl::union_map & sched );
+
     // Buffer size computation
 
     void compute_buffer_sizes( const isl::union_map & schedule,
