@@ -74,18 +74,18 @@ private:
 
     expression_ptr literal(bool v)
     {
-        return std::make_shared<literal_expression<bool>>(v);
+        return cpp_gen::literal(v);
     }
 
     expression_ptr literal(long v)
     {
-        return std::make_shared<literal_expression<long>>(v);
+        return cpp_gen::literal(v);
     }
 
 #ifdef CLOOG_INT_GMP
     expression_ptr literal( mpz_t v )
     {
-        return literal(mpz_get_si(v));
+        return cpp_gen::literal(mpz_get_si(v));
     }
 #endif
 

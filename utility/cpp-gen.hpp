@@ -357,6 +357,21 @@ public:
     }
 };
 
+inline expression_ptr literal(bool v)
+{
+    return std::make_shared<literal_expression<bool>>(v);
+}
+
+inline expression_ptr literal(int v)
+{
+    return std::make_shared<literal_expression<int>>(v);
+}
+
+inline expression_ptr literal(long v)
+{
+    return std::make_shared<literal_expression<long>>(v);
+}
+
 class id_expression : public expression
 {
 public:
