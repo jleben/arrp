@@ -279,7 +279,7 @@ cpp_from_polyhedral::mapped_index
 
     for(int out_dim = 0; out_dim < map.output_dimension(); ++out_dim)
     {
-        auto out_value = literal(map.constant(out_dim));
+        expression_ptr val;
         for (int in_dim = 0; in_dim < map.input_dimension(); ++in_dim)
         {
             int coefficient = map.coefficient(in_dim, out_dim);
@@ -288,10 +288,18 @@ cpp_from_polyhedral::mapped_index
             auto term = index[in_dim];
             if (coefficient != 1)
                 term = make_shared<bin_op_expression>(op::mult, term, literal(coefficient));
-            out_value =
-                    make_shared<bin_op_expression>(op::add, out_value, term);
+            if (val)
+                val = make_shared<bin_op_expression>(op::add, val, term);
+            else
+                val = term;
         }
-        target_index.push_back(out_value);
+        int c = map.constant(out_dim);
+        if (val && c != 0)
+            val = make_shared<bin_op_expression>(op::add, val, literal(c));
+        if (!val)
+            val = literal(c);
+
+        target_index.push_back(val);
     }
 
     return target_index;
