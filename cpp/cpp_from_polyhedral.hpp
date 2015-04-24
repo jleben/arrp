@@ -21,22 +21,28 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_CPP_GEN_FROM_POLYHEDRAL_INCLUDED
 #define STREAM_LANG_CPP_GEN_FROM_POLYHEDRAL_INCLUDED
 
+#include "cpp_target.hpp"
 #include "../utility/cpp-gen.hpp"
 #include "../common/polyhedral_model.hpp"
 
 #include <vector>
+#include <unordered_map>
+#include <string>
 
 namespace stream {
 namespace cpp_gen {
 
 using std::vector;
+using std::unordered_map;
+using std::string;
 
 class cpp_from_polyhedral
 {
 public:
     typedef vector<expression_ptr> index_type;
 
-    cpp_from_polyhedral(const vector<polyhedral::statement*> &);
+    cpp_from_polyhedral(const vector<polyhedral::statement*> &,
+                        const unordered_map<string,buffer> & buffers);
 
     void generate_statement(const string & name,
                             const index_type & index,
@@ -83,6 +89,7 @@ private:
     }
 
     vector<polyhedral::statement*> m_statements;
+    unordered_map<string,buffer> m_buffers;
 };
 
 }

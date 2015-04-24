@@ -9,8 +9,10 @@ namespace cpp_gen {
 using index_type = cpp_from_polyhedral::index_type;
 
 cpp_from_polyhedral::cpp_from_polyhedral
-(const vector<polyhedral::statement*> &stmts):
-    m_statements(stmts)
+(const vector<polyhedral::statement*> &stmts,
+ const unordered_map<string,buffer> & buffers):
+    m_statements(stmts),
+    m_buffers(buffers)
 {}
 
 void cpp_from_polyhedral::generate_statement
@@ -252,13 +254,20 @@ expression_ptr cpp_from_polyhedral::generate_input_access
 expression_ptr cpp_from_polyhedral::generate_buffer_access
 (polyhedral::statement * stmt, const index_type & index, builder * ctx)
 {
+    bool on_stack = m_buffers[stmt->name].on_stack;
+
     // TODO: index contraction
-    auto id = make_shared<id_expression>(stmt->name);
-    auto state_arg_name = ctx->current_function()->parameters.back()->name;
-    auto state_arg = make_shared<id_expression>(state_arg_name);
-    auto buffer_member = make_shared<id_expression>(stmt->name);
-    auto buffer = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, buffer_member);
+    expression_ptr buffer = make_shared<id_expression>(stmt->name);
+
+    if (!on_stack)
+    {
+        auto state_arg_name = ctx->current_function()->parameters.back()->name;
+        auto state_arg = make_shared<id_expression>(state_arg_name);
+        buffer = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, buffer);
+    }
+
     auto buffer_elem = make_shared<array_access_expression>(buffer, index);
+
     return buffer_elem;
 }
 

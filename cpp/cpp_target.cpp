@@ -25,18 +25,12 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <unordered_map>
 #include <algorithm>
+#include <iostream>
 
 using namespace std;
 
 namespace stream {
 namespace cpp_gen {
-
-struct buffer
-{
-    bool has_phase;
-    bool on_stack;
-    int size;
-};
 
 static int volume( const vector<int> & extent )
 {
@@ -127,6 +121,15 @@ class_node * state_type_def(const vector<polyhedral::statement*> & stmts,
         sec.members.push_back(make_shared<data_field>(buffer_decl(stmt)));
     }
 
+    for (auto stmt : stmts)
+    {
+        if (!buffers[stmt->name].has_phase)
+            continue;
+        auto int_t = make_shared<basic_type>("int");
+        auto decl = make_shared<variable_decl>(int_t, stmt->name + "_phase");
+        sec.members.push_back(make_shared<data_field>(decl));
+    }
+
     return def;
 }
 
@@ -143,7 +146,7 @@ buffer_analysis(const vector<polyhedral::statement*> & statements)
     {
         buffer buf;
         buf.size = volume(stmt->buffer);
-        buf.has_phase = true;
+        buf.has_phase = stmt->flow_dim >= 0;
 
         buffers[stmt->name] = buf;
 
@@ -200,6 +203,37 @@ buffer_analysis(const vector<polyhedral::statement*> & statements)
     return buffers;
 }
 
+
+static void advance_buffers(const vector<polyhedral::statement*> & statements,
+                            unordered_map<string,buffer> & buffers,
+                            builder * ctx, bool init)
+{
+    for (polyhedral::statement * stmt : statements)
+    {
+        const buffer & buf = buffers[stmt->name];
+
+        if (!buf.has_phase)
+            continue;
+
+        int offset = init ?
+                    stmt->buffer_period_offset : stmt->buffer_period;
+        int buffer_size = stmt->buffer[stmt->flow_dim];
+
+        auto phase_id = make_shared<id_expression>(stmt->name + "_phase");
+
+        auto state_arg_name = ctx->current_function()->parameters.back()->name;
+        auto state_arg = make_shared<id_expression>(state_arg_name);
+        auto phase = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, phase_id);
+
+        auto next_phase = make_shared<bin_op_expression>(op::add, phase, literal(offset));
+        next_phase = make_shared<bin_op_expression>(op::rem, next_phase, literal(buffer_size));
+
+        auto phase_change = make_shared<bin_op_expression>(op::assign, phase, next_phase);
+
+        ctx->add(phase_change);
+    }
+}
+
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
               const vector<polyhedral::statement*> & poly_model,
@@ -207,12 +241,12 @@ void generate(const string & name,
               clast_stmt *periodic_schedule,
               std::ostream & stream)
 {
+    unordered_map<string,buffer> buffers = buffer_analysis(poly_model);
+
     module m;
     builder b(&m);
     cpp_from_cloog cloog(&b);
-    cpp_from_polyhedral poly(poly_model);
-
-    unordered_map<string,buffer> buffers = buffer_analysis(poly_model);
+    cpp_from_polyhedral poly(poly_model, buffers);
 
     m.members.push_back(module_member_ptr(state_type_def(poly_model,buffers)));
 
@@ -243,6 +277,8 @@ void generate(const string & name,
 
         cloog.generate(finite_schedule);
 
+        advance_buffers(poly_model, buffers, &b, true);
+
         b.pop();
 
         m.members.push_back(func);
@@ -264,6 +300,8 @@ void generate(const string & name,
         }
 
         cloog.generate(periodic_schedule);
+
+        advance_buffers(poly_model, buffers, &b, false);
 
         b.pop();
 

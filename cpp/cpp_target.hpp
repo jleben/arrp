@@ -35,6 +35,13 @@ using std::vector;
 using std::string;
 using std::ostream;
 
+struct buffer
+{
+    bool has_phase;
+    bool on_stack;
+    int size;
+};
+
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
               const vector<polyhedral::statement*> &,
