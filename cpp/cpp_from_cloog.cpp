@@ -136,14 +136,15 @@ void cpp_from_cloog::process( clast_for* loop )
 {
     auto iterator = make_shared<id_expression>(loop->iterator);
     auto iterator_decl =
-            make_shared<var_decl_expression>(make_shared<basic_type>("int"),
-                                             loop->iterator);
+            make_shared<variable_decl>(make_shared<basic_type>("int"),
+                                       loop->iterator);
+    auto iterator_decl_expr = make_shared<var_decl_expression>(iterator_decl);
 
     auto for_stmt = new for_statement;
 
     for_stmt->initialization =
             make_shared<bin_op_expression>(op::assign,
-                                           iterator_decl,
+                                           iterator_decl_expr,
                                            process(loop->LB));
     for_stmt->condition =
             make_shared<bin_op_expression>(op::lesser_or_equal,

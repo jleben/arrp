@@ -457,14 +457,12 @@ public:
 class var_decl_expression : public expression
 {
 public:
-    type_ptr type;
-    string name;
-
-    var_decl_expression(type_ptr t, string n): type(t), name(n) {}
+    variable_decl_ptr decl;
+    var_decl_expression() {}
+    var_decl_expression(variable_decl_ptr decl): decl(decl) {}
     void generate(cpp_gen::state & state, ostream & stream)
     {
-        type->generate(state, stream);
-        stream << " " << name;
+        decl->generate(state, stream);
     }
 };
 
@@ -599,7 +597,8 @@ public:
     expression_ptr new_var(type_ptr t, string & id)
     {
         id = new_var_id();
-        return std::make_shared<var_decl_expression>(t, id);
+        auto decl = std::make_shared<variable_decl>(t, id);
+        return std::make_shared<var_decl_expression>(decl);
     }
 
 private:
