@@ -52,6 +52,8 @@ public:
                             const index_type & index,
                             builder*);
 
+    void set_in_period(bool flag) { m_in_period = flag; }
+
 private:
 
     expression_ptr generate_expression
@@ -90,6 +92,7 @@ private:
 
     vector<polyhedral::statement*> m_statements;
     unordered_map<string,buffer> m_buffers;
+    bool m_in_period = false;
 };
 
 }

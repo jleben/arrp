@@ -254,19 +254,59 @@ expression_ptr cpp_from_polyhedral::generate_input_access
 expression_ptr cpp_from_polyhedral::generate_buffer_access
 (polyhedral::statement * stmt, const index_type & index, builder * ctx)
 {
-    bool on_stack = m_buffers[stmt->name].on_stack;
+    index_type buffer_index = index;
 
-    // TODO: index contraction
+    cpp_gen::buffer & buffer_info = m_buffers[stmt->name];
+
     expression_ptr buffer = make_shared<id_expression>(stmt->name);
+    auto state_arg_name = ctx->current_function()->parameters.back()->name;
+    auto state_arg = make_shared<id_expression>(state_arg_name);
 
-    if (!on_stack)
+    if (!buffer_info.on_stack)
     {
-        auto state_arg_name = ctx->current_function()->parameters.back()->name;
-        auto state_arg = make_shared<id_expression>(state_arg_name);
         buffer = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, buffer);
     }
 
-    auto buffer_elem = make_shared<array_access_expression>(buffer, index);
+    // Add buffer phase
+
+    if (m_in_period && buffer_info.has_phase)
+    {
+        assert(stmt->flow_dim >= 0);
+
+        auto phase_id = make_shared<id_expression>(stmt->name + "_phase");
+        auto phase = make_shared<bin_op_expression>(op::member_of_pointer,
+                                                    state_arg,
+                                                    phase_id);
+
+        expression_ptr & i = buffer_index[stmt->flow_dim];
+        i = make_shared<bin_op_expression>(op::add, i, phase);
+    }
+
+    for (int dim = 0; dim < buffer_index.size(); ++dim)
+    {
+        // FIXME: is using stmt->buffer_period for domain size OK?
+        int domain_size = dim == stmt->flow_dim ? stmt->buffer_period : stmt->domain[dim];
+        int buffer_size = stmt->buffer[dim];
+        expression_ptr & i = buffer_index[dim];
+
+        if (buffer_size == 1)
+        {
+            i = literal((int)0);
+            continue;
+        }
+
+        bool may_wrap =
+                (buffer_size < domain_size) ||
+                (dim == stmt->flow_dim && buffer_info.has_phase);
+        if (may_wrap)
+        {
+            // FIXME: use modulo instead of remainder
+            auto size = literal(buffer_size);
+            i = make_shared<bin_op_expression>(op::rem, i, size);
+        }
+    }
+
+    auto buffer_elem = make_shared<array_access_expression>(buffer, buffer_index);
 
     return buffer_elem;
 }

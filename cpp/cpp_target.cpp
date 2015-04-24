@@ -146,7 +146,18 @@ buffer_analysis(const vector<polyhedral::statement*> & statements)
     {
         buffer buf;
         buf.size = volume(stmt->buffer);
-        buf.has_phase = stmt->flow_dim >= 0;
+
+        if(stmt->flow_dim >= 0)
+        {
+            int flow_size = stmt->buffer[stmt->flow_dim];
+            buf.has_phase =
+                    stmt->buffer_period_offset % flow_size  != 0 ||
+                    stmt->buffer_period % flow_size  != 0;
+        }
+        else
+        {
+            buf.has_phase = false;
+        }
 
         buffers[stmt->name] = buf;
 
@@ -288,6 +299,7 @@ void generate(const string & name,
     {
         auto sig = signature_for(name + "_period", args);
         b.set_current_function(sig.get());
+        poly.set_in_period(true);
 
         auto func = make_shared<func_def>(sig);
 
