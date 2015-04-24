@@ -28,6 +28,12 @@ using namespace std;
 namespace stream {
 namespace cpp_gen {
 
+static base_type_ptr state_type()
+{
+    static base_type_ptr t(make_shared<basic_type>("state_t"));
+    return t;
+}
+
 variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name)
 {
     switch(t->get_tag())
@@ -74,7 +80,27 @@ func_sig_ptr signature_for(const string & name, const vector<semantic::type_ptr>
         sig->parameters.push_back(param);
     }
 
+    auto state_param_t = make_shared<pointer_type>(state_type());
+    auto state_param = make_shared<variable_decl>(state_param_t, "state");
+    sig->parameters.push_back(state_param);
+
     return func_sig_ptr(sig);
+}
+
+class_node * state_type_def(const vector<polyhedral::statement*> & stmts)
+{
+    auto def = new class_node(struct_class, "state_t");
+    def->sections.resize(1);
+    auto & sec = def->sections.back();
+
+    for (auto stmt : stmts)
+    {
+        auto elem_type = type_for(stmt->expr->type);
+        auto member_decl = make_shared<array_decl>(elem_type, stmt->name, stmt->buffer);
+        sec.members.push_back(make_shared<data_field>(member_decl));
+    }
+
+    return def;
 }
 
 void generate(const string & name,
@@ -88,6 +114,8 @@ void generate(const string & name,
     builder b(&m);
     cpp_from_cloog cloog(&b);
     cpp_from_polyhedral poly(poly_model);
+
+    m.members.push_back(module_member_ptr(state_type_def(poly_model)));
 
     auto stmt_func = [&]
             ( const string & name,

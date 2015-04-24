@@ -258,7 +258,12 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 {
     // TODO: index contraction
     auto id = make_shared<id_expression>(stmt->name);
-    return make_shared<array_access_expression>(id, index);
+    auto state_arg_name = ctx->current_function()->parameters.back()->name;
+    auto state_arg = make_shared<id_expression>(state_arg_name);
+    auto buffer_member = make_shared<id_expression>(stmt->name);
+    auto buffer = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, buffer_member);
+    auto buffer_elem = make_shared<array_access_expression>(buffer, index);
+    return buffer_elem;
 }
 
 cpp_from_polyhedral::index_type
