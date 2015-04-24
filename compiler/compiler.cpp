@@ -30,7 +30,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../llvm/llvm_ir_from_cloog.hpp"
 #include "../llvm/llvm_from_polyhedral.hpp"
 #include "../cpp/cpp_target.hpp"
-#include "../interface/cpp-intf-gen.hpp"
+//#include "../interface/cpp-intf-gen.hpp"
 
 #include <json++/json.hh>
 

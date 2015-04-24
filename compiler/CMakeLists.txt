@@ -26,7 +26,7 @@ add_library(streamc-lib ${lib_mode}
   ../cpp/cpp_target.cpp
   ../cpp/cpp_from_cloog.cpp
   ../cpp/cpp_from_polyhedral.cpp
-  ../interface/cpp-intf-gen.cpp
+  #../interface/cpp-intf-gen.cpp
   compiler.cpp
 )
 
