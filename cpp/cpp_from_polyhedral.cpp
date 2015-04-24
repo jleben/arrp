@@ -45,7 +45,7 @@ void cpp_from_polyhedral::generate_statement
     }
 
     auto dst = generate_buffer_access(stmt, global_index, ctx);
-    auto store = make_shared<bin_op_expression>("=", dst, expr);
+    auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
 
     ctx->add(make_shared<expr_statement>(store));
 }
@@ -72,9 +72,9 @@ expression_ptr cpp_from_polyhedral::generate_expression
         assert(iterator->dimension >= 0 && iterator->dimension < index.size());
         auto val = index[iterator->dimension];
         if (iterator->ratio != 1)
-            val = make_shared<bin_op_expression>("*", val, literal(iterator->ratio));
+            val = make_shared<bin_op_expression>(op::mult, val, literal(iterator->ratio));
         if (iterator->offset)
-            val = make_shared<bin_op_expression>("+", val, literal(iterator->offset));
+            val = make_shared<bin_op_expression>(op::add, val, literal(iterator->offset));
         return val;
     }
     else if (auto read = dynamic_cast<stmt_access*>(expr))
@@ -120,13 +120,13 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     {
         auto lhs = generate_expression(expr->operands[0], index, ctx);
         auto rhs = generate_expression(expr->operands[1], index, ctx);
-        return make_shared<bin_op_expression>("&&", lhs, rhs);
+        return make_shared<bin_op_expression>(op::logic_and, lhs, rhs);
     }
     case primitive_op::logic_or:
     {
         auto lhs = generate_expression(expr->operands[0], index, ctx);
         auto rhs = generate_expression(expr->operands[1], index, ctx);
-        return make_shared<bin_op_expression>("||", lhs, rhs);
+        return make_shared<bin_op_expression>(op::logic_or, lhs, rhs);
     }
     case primitive_op::conditional:
     {
@@ -142,14 +142,14 @@ expression_ptr cpp_from_polyhedral::generate_primitive
 
         ctx->push(&true_block->statements);
         auto true_expr = generate_expression(expr->operands[1], index, ctx);
-        auto true_assign = make_shared<bin_op_expression>("=", id_expr, true_expr);
+        auto true_assign = make_shared<bin_op_expression>(op::assign, id_expr, true_expr);
         ctx->add(make_shared<expr_statement>(true_assign));
 
         ctx->pop();
 
         ctx->push(&false_block->statements);
         auto false_expr = generate_expression(expr->operands[2], index, ctx);
-        auto false_assign = make_shared<bin_op_expression>("=", id_expr, true_expr);
+        auto false_assign = make_shared<bin_op_expression>(op::assign, id_expr, true_expr);
         ctx->add(make_shared<expr_statement>(false_assign));
 
         ctx->pop();
@@ -178,38 +178,38 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     {
         expression_ptr operand = operands[0];
         if (expr->type == primitive_type::boolean)
-            return make_shared<un_op_expression>("!", operand);
+            return make_shared<un_op_expression>(op::logic_neg, operand);
         else
-            return make_shared<un_op_expression>("-", operand);
+            return make_shared<un_op_expression>(op::u_minus, operand);
     }
     case primitive_op::add:
-        return make_shared<bin_op_expression>("+", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::add, operands[0], operands[1]);
     case primitive_op::subtract:
-        return make_shared<bin_op_expression>("-", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::sub, operands[0], operands[1]);
     case primitive_op::multiply:
-        return make_shared<bin_op_expression>("*", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::mult, operands[0], operands[1]);
     case primitive_op::compare_g:
-        return make_shared<bin_op_expression>(">", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::greater, operands[0], operands[1]);
     case primitive_op::compare_geq:
-        return make_shared<bin_op_expression>(">=", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::greater_or_equal, operands[0], operands[1]);
     case primitive_op::compare_l:
-        return make_shared<bin_op_expression>("<", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::lesser, operands[0], operands[1]);
     case primitive_op::compare_leq:
-        return make_shared<bin_op_expression>("<=", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::lesser_or_equal, operands[0], operands[1]);
     case primitive_op::compare_eq:
-        return make_shared<bin_op_expression>("==", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::equal, operands[0], operands[1]);
     case primitive_op::compare_neq:
-        return make_shared<bin_op_expression>("!=", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::not_equal, operands[0], operands[1]);
     case primitive_op::divide:
     {
         if (expr->operands[0]->type != primitive_type::real)
             operands[0] = make_shared<cast_expression>(type_for(primitive_type::real), operands[0]);
 
-        return make_shared<bin_op_expression>("/", operands[0], operands[1]);
+        return make_shared<bin_op_expression>(op::div, operands[0], operands[1]);
     }
     case primitive_op::divide_integer:
     {
-        auto result = make_shared<bin_op_expression>("/", operands[0], operands[1]);
+        auto result = make_shared<bin_op_expression>(op::div, operands[0], operands[1]);
         if ( expr->operands[0]->type == primitive_type::integer &&
              expr->operands[1]->type == primitive_type::integer )
         {
@@ -282,9 +282,9 @@ cpp_from_polyhedral::mapped_index
                 continue;
             auto term = index[in_dim];
             if (coefficient != 1)
-                term = make_shared<bin_op_expression>("*", term, literal(coefficient));
+                term = make_shared<bin_op_expression>(op::mult, term, literal(coefficient));
             out_value =
-                    make_shared<bin_op_expression>("+", out_value, term);
+                    make_shared<bin_op_expression>(op::add, out_value, term);
         }
         target_index.push_back(out_value);
     }

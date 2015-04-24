@@ -98,7 +98,7 @@ statement_ptr cpp_from_cloog::process( clast_assignment* asgn )
 {
     expression_ptr rhs = process(asgn->RHS);
     expression_ptr lhs(new id_expression(asgn->LHS));
-    expression_ptr expr(new bin_op_expression("=", lhs, rhs));
+    expression_ptr expr(new bin_op_expression(op::assign, lhs, rhs));
     return statement_ptr(new expr_statement(expr));
 }
 
@@ -106,30 +106,16 @@ statement_ptr cpp_from_cloog::process( clast_guard* guard )
 {
     auto if_stmt = new if_statement;
 
-    if (guard->n == 1)
+    if (guard->n > 0)
     {
-        if_stmt->condition = process(guard->eq + 0);
-    }
-    else if (guard->n > 1)
-    {
-        bin_op_expression *conjunction = new bin_op_expression("&&");
-        conjunction->lhs = process(guard->eq + 0);
+        expression_ptr expr = process(guard->eq + 0);
         for (int i = 1; i < guard->n; ++i)
         {
-            if (i < guard->n - 1)
-            {
-                bin_op_expression *rhs = new bin_op_expression("&&");
-                conjunction->rhs = expression_ptr(rhs);
-                rhs->lhs = process(guard->eq + i);
-                conjunction = rhs;
-            }
-            else
-            {
-                conjunction->rhs = process(guard->eq + i);
-            }
+            auto rhs = process(guard->eq + i);
+            expr = make_shared<bin_op_expression>(op::logic_and, expr, rhs);
         }
 
-        if_stmt->condition = expression_ptr(conjunction);
+        if_stmt->condition = expr;
     }
     else
     {
@@ -154,16 +140,16 @@ statement_ptr cpp_from_cloog::process( clast_for* loop )
     auto for_stmt = new for_statement;
 
     for_stmt->initialization =
-            make_shared<bin_op_expression>("=",
+            make_shared<bin_op_expression>(op::assign,
                                            iterator_decl,
                                            process(loop->LB));
     for_stmt->condition =
-            make_shared<bin_op_expression>("<=",
+            make_shared<bin_op_expression>(op::lesser_or_equal,
                                            iterator,
                                            process(loop->UB));
 
     for_stmt->update =
-            make_shared<bin_op_expression>("+=",
+            make_shared<bin_op_expression>(op::assign_add,
                                            iterator,
                                            literal(loop->stride));
 
@@ -191,7 +177,7 @@ expression_ptr cpp_from_cloog::process( clast_expr* expr )
         if (term->var)
         {
             auto var = process(term->var);
-            val = make_shared<bin_op_expression>("*", val, var);
+            val = make_shared<bin_op_expression>(op::mult, val, var);
         }
         return val;
     }
@@ -201,7 +187,7 @@ expression_ptr cpp_from_cloog::process( clast_expr* expr )
         auto lhs = process(operation->LHS);
         auto rhs = literal(operation->RHS);
 
-        string op;
+        cpp_gen::op op_type;
 
         switch(operation->type)
         {
@@ -210,14 +196,15 @@ expression_ptr cpp_from_cloog::process( clast_expr* expr )
         case clast_bin_cdiv:
             throw std::runtime_error("Ceiling-of-division not implemented.");
         case clast_bin_div:
-            op = "/";
+            op_type = op::div;
         case clast_bin_mod:
-            op = "%";
+            // FIXME: should be modulo, not remainder!
+            op_type = op::rem;
         default:
             throw std::runtime_error("Unexpected binary operation type.");
         }
 
-        return make_shared<bin_op_expression>(op, lhs, rhs);
+        return make_shared<bin_op_expression>(op_type, lhs, rhs);
     }
     case clast_expr_red:
     {
@@ -233,7 +220,7 @@ expression_ptr cpp_from_cloog::process( clast_expr* expr )
             switch(reduction->type)
             {
             case clast_red_sum:
-                lhs = make_shared<bin_op_expression>("+", lhs, rhs);
+                lhs = make_shared<bin_op_expression>(op::add, lhs, rhs);
                 break;
             case clast_red_min:
                 lhs = make_shared<call_expression>("min", vec({lhs, rhs}));
@@ -260,11 +247,11 @@ expression_ptr cpp_from_cloog::process( clast_equation* eq )
     binop->rhs = process(eq->RHS);
 
     if (eq->sign < 0)
-        binop->op = "<=";
+        binop->op = op::lesser_or_equal;
     else if (eq->sign > 0)
-        binop->op = ">=";
+        binop->op = op::greater_or_equal;
     else
-        binop->op = "==";
+        binop->op = op::equal;
 
     return expression_ptr(binop);
 }

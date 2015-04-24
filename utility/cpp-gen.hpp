@@ -367,36 +367,76 @@ public:
     void generate(state &, ostream &);
 };
 
+enum struct op
+{
+    scope_resolution,
+    function_call,
+    array_subscript,
+    cast,
+    member_of_reference,
+    member_of_pointer,
+    dereference,
+    address,
+    logic_neg,
+    logic_and,
+    logic_or,
+    bit_neg,
+    bit_and,
+    bit_or,
+    bit_xor,
+    bit_left,
+    bit_right,
+    lesser,
+    lesser_or_equal,
+    greater,
+    greater_or_equal,
+    equal,
+    not_equal,
+    mult,
+    div,
+    rem,
+    add,
+    sub,
+    u_plus,
+    u_minus,
+    post_incr,
+    post_decr,
+    pre_incr,
+    pre_decr,
+    assign,
+    assign_add,
+    assign_sub,
+    assign_mult,
+    assign_div,
+    assign_rem,
+};
+
 class un_op_expression : public expression
 {
 public:
-    string op;
+    cpp_gen::op op;
     expression_ptr rhs;
 
     un_op_expression() {}
-    un_op_expression(string op, expression_ptr r):
+    un_op_expression(cpp_gen::op op, expression_ptr r):
         op(op), rhs(r)
     {}
     void generate(state &, ostream &);
-
-    static int precedence(const string & op);
 };
 
 class bin_op_expression : public expression
 {
 public:
-    string op;
+    cpp_gen::op op;
     expression_ptr lhs;
     expression_ptr rhs;
 
     bin_op_expression() {}
-    bin_op_expression(string op): op(op) {}
-    bin_op_expression(string op, expression_ptr l, expression_ptr r):
+    bin_op_expression(cpp_gen::op op): op(op) {}
+    bin_op_expression(cpp_gen::op op, expression_ptr l, expression_ptr r):
         op(op), lhs(l), rhs(r)
     {}
     void generate(state &, ostream &);
-
-    static int precedence(const string & op);
 };
 
 class call_expression : public expression

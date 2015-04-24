@@ -199,43 +199,168 @@ void id_expression::generate(cpp_gen::state & state, ostream & stream)
     stream << name;
 }
 
-static unordered_map<string, int> unary_op_precedence_map()
+
+static unordered_map<int, int> op_precedence_map()
 {
-    vector< vector<string> > rank =
+    vector< vector<op> > rank =
     {
-        {"++", "--"},
-        {"+", "-"},
-        {"!", "~"},
-        {"*"},
-        {"&"},
+        { op::scope_resolution },
+        { op::post_incr, op::post_decr },
+        { op::function_call },
+        { op::array_subscript },
+        { op::member_of_reference },
+        { op::member_of_pointer },
+        { op::pre_incr, op::pre_decr },
+        { op::u_plus, op::u_minus },
+        { op::logic_neg, op::bit_neg },
+        { op::cast },
+        { op::dereference },
+        { op::address },
+        { op::mult, op::div, op::rem },
+        { op::add, op::sub },
+        { op::bit_left, op::bit_right },
+        { op::lesser, op::lesser_or_equal },
+        { op::greater, op::greater_or_equal },
+        { op::equal, op::not_equal },
+        { op::bit_and },
+        { op::bit_xor },
+        { op::bit_or },
+        { op::logic_and },
+        { op::logic_or },
+        { op::assign },
+        { op::assign_add, op::assign_sub },
+        { op::assign_mult, op::assign_div, op::assign_rem },
     };
 
-    unordered_map<string, int> m;
+    unordered_map<int, int> m;
     for (unsigned int r = 0; r < rank.size(); ++r)
     {
         auto & ops = rank[r];
         for(auto & op : ops)
-            m[op] = r + 1;
+            m[static_cast<int>(op)] = r + 1;
     }
 
     return m;
 }
 
-int un_op_expression::precedence(const string & op)
+static int precedence(cpp_gen::op op)
 {
-    static auto m = unary_op_precedence_map();
-    return m[op];
+    static auto m = op_precedence_map();
+    return m[static_cast<int>(op)];
+}
+
+static int precedence(expression_ptr expr)
+{
+    if (auto unop = dynamic_cast<un_op_expression*>(expr.get()))
+    {
+        return precedence(unop->op);
+    }
+    else if (auto binop = dynamic_cast<bin_op_expression*>(expr.get()))
+    {
+        return precedence(binop->op);
+    }
+    else if (dynamic_cast<array_access_expression*>(expr.get()))
+    {
+        return precedence(op::array_subscript);
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+static string op_text(cpp_gen::op op_type)
+{
+    switch(op_type)
+    {
+    case op::scope_resolution:
+        return "::";
+    case op::member_of_reference:
+        return ".";
+    case op::member_of_pointer:
+        return "->";
+    case op::dereference:
+        return "*";
+    case op::address:
+        return "&";
+    case op::logic_neg:
+        return "!";
+    case op::logic_and:
+        return "&&";
+    case op::logic_or:
+        return "||";
+    case op::bit_neg:
+        return "~";
+    case op::bit_and:
+        return "&";
+    case op::bit_or:
+        return "|";
+    case op::bit_xor:
+        return "^";
+    case op::bit_left:
+        return "<<";
+    case op::bit_right:
+        return ">>";
+    case op::lesser:
+        return "<";
+    case op::lesser_or_equal:
+        return "<=";
+    case op::greater:
+        return ">";
+    case op::greater_or_equal:
+        return ">=";
+    case op::equal:
+        return "==";
+    case op::not_equal:
+        return "!=";
+    case op::mult:
+        return "*";
+    case op::div:
+        return "/";
+    case op::rem:
+        return "%";
+    case op::add:
+        return "+";
+    case op::sub:
+        return "-";
+    case op::u_plus:
+        return "+";
+    case op::u_minus:
+        return "-";
+    case op::post_incr:
+        return "++";
+    case op::post_decr:
+        return "--";
+    case op::pre_incr:
+        return "++";
+    case op::pre_decr:
+        return "--";
+    case op::assign:
+        return "=";
+    case op::assign_add:
+        return "+=";
+    case op::assign_sub:
+        return "-=";
+    case op::assign_mult:
+        return "*=";
+    case op::assign_div:
+        return "/=";
+    case op::assign_rem:
+        return "%=";
+    default:
+        return string();
+    }
 }
 
 void un_op_expression::generate(cpp_gen::state & state, ostream & stream)
 {
     bool wrap_rhs = false;
     if (dynamic_cast<bin_op_expression*>(rhs.get()))
-    {
+        wrap_rhs = false;
+    else if(precedence(op) < precedence(rhs))
         wrap_rhs = true;
-    }
 
-    stream << op;
+    stream << op_text(op);
 
     if (wrap_rhs)
         stream << "(";
@@ -244,60 +369,18 @@ void un_op_expression::generate(cpp_gen::state & state, ostream & stream)
         stream << ")";
 }
 
-static unordered_map<string, int> binary_op_precedence_map()
-{
-    vector< vector<string> > rank =
-    {
-        {"."},
-        {"->"},
-        {"*", "/", "%"},
-        {"+", "-"},
-        {"<", "<="},
-        {">", ">="},
-        {"==", "!="},
-        {"&"},
-        {"^"},
-        {"|"},
-        {"&&"},
-        {"||"},
-        {"="},
-        {"+="},
-        {"-="},
-        {"*=", "/=", "%="},
-        {"&=", "^=", "|="},
-    };
-
-    unordered_map<string, int> m;
-    for (unsigned int r = 0; r < rank.size(); ++r)
-    {
-        auto & ops = rank[r];
-        for(auto & op : ops)
-            m[op] = r + 1;
-    }
-
-    return m;
-}
-
-int bin_op_expression::precedence(const string & op)
-{
-    static auto m = binary_op_precedence_map();
-    return m[op];
-}
 
 void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
 {
     bool wrap_lhs = false;
-    if(auto binop = dynamic_cast<bin_op_expression*>(lhs.get()))
-    {
-        if (precedence(op) < precedence(binop->op))
+    if (precedence(op) < precedence(lhs))
             wrap_lhs = true;
-    }
+
     bool wrap_rhs = false;
-    if(auto binop = dynamic_cast<bin_op_expression*>(rhs.get()))
-    {
-        if (precedence(op) < precedence(binop->op))
-            wrap_rhs = true;
-    }
+    if (dynamic_cast<bin_op_expression*>(rhs.get()))
+        wrap_rhs = false;
+    else if (precedence(op) < precedence(rhs))
+        wrap_rhs = true;
 
     if (wrap_lhs)
         stream << "(";
@@ -305,7 +388,7 @@ void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
     if (wrap_lhs)
         stream << ")";
 
-    stream << ' ' << op << ' ';
+    stream << ' ' << op_text(op) << ' ';
 
     if (wrap_rhs)
         stream << "(";
