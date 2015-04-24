@@ -134,7 +134,7 @@ void basic_type::generate(cpp_gen::state & state, ostream & stream)
         stream << " const";
 }
 
-void pointer_type_node::generate(cpp_gen::state & state, ostream & stream)
+void pointer_type::generate(cpp_gen::state & state, ostream & stream)
 {
     base->generate(state, stream);
     if (is_const)
@@ -388,7 +388,7 @@ void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
     if (wrap_lhs)
         stream << ")";
 
-    stream << ' ' << op_text(op) << ' ';
+    stream << op_text(op);
 
     if (wrap_rhs)
         stream << "(";
@@ -419,7 +419,16 @@ void cast_expression::generate(cpp_gen::state & state, ostream & stream)
 
 void array_access_expression::generate(cpp_gen::state & state, ostream & stream)
 {
+    bool wrap = false;
+    if (precedence(op::array_subscript) < precedence(id))
+        wrap = true;
+
+    if (wrap)
+        stream << "(";
     id->generate(state, stream);
+    if (wrap)
+        stream << ")";
+
     for(auto i : index)
     {
         stream << "[";

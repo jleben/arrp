@@ -219,13 +219,13 @@ public:
 
 typedef std::shared_ptr<basic_type> basic_type_ptr;
 
-class pointer_type_node : public base_type
+class pointer_type : public base_type
 {
 public:
     base_type_ptr base;
     bool is_const;
 
-    pointer_type_node(base_type_ptr base):
+    pointer_type(base_type_ptr base):
         base(base),
         is_const(false)
     {}

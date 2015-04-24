@@ -31,32 +31,32 @@ namespace cpp_interface {
 using namespace stream::cpp_gen;
 
 base_type_node *int_type() { return new basic_type_node("int"); }
-pointer_type_node *int_ptr_type()
+pointer_type *int_ptr_type()
 {
-    return new pointer_type_node(int_type());
+    return new pointer_type(int_type());
 }
 
 base_type_node *int32_type() { return new basic_type_node("int32_t"); }
-base_type_node *int32_ptr_type() { return new pointer_type_node(int32_type()); }
+base_type_node *int32_ptr_type() { return new pointer_type(int32_type()); }
 
 base_type_node *int64_type() { return new basic_type_node("int64_t"); }
-base_type_node *int64_ptr_type() { return new pointer_type_node(int64_type()); }
+base_type_node *int64_ptr_type() { return new pointer_type(int64_type()); }
 
 base_type_node *double_type() { return new basic_type_node("double"); }
-pointer_type_node *double_ptr_type()
+pointer_type *double_ptr_type()
 {
-    return new pointer_type_node(double_type());
+    return new pointer_type(double_type());
 }
 
 base_type_node *void_type() { return new basic_type_node("void"); }
-pointer_type_node *void_ptr_type()
+pointer_type *void_ptr_type()
 {
-    return new pointer_type_node(void_type());
+    return new pointer_type(void_type());
 }
 
 func_decl_node *decl_alloc_func()
 {
-    auto buf_ptr_t = new pointer_type_node(new basic_type_node("buffer"));
+    auto buf_ptr_t = new pointer_type(new basic_type_node("buffer"));
 
     func_signature_node *sig = new func_signature_node;
     sig->name = "allocate";
@@ -68,7 +68,7 @@ func_decl_node *decl_alloc_func()
 
 func_decl_node *decl_get_output_func(polyhedral::statement *output_stmt)
 {
-    auto buf_ptr_type = new pointer_type_node(new basic_type_node("buffer"));
+    auto buf_ptr_type = new pointer_type(new basic_type_node("buffer"));
 
     type_node *ret_type = nullptr;
     switch(output_stmt->expr->type)
@@ -119,7 +119,7 @@ func_decl_node *decl_process_func(const string & name,
         func->parameters.push_back(param);
     }
     auto buffer_ptr_type =
-            new pointer_type_node(new basic_type_node("buffer"));
+            new pointer_type(new basic_type_node("buffer"));
 
     func->parameters.push_back(new variable_decl_node(buffer_ptr_type));
 
