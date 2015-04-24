@@ -24,12 +24,8 @@ void cpp_from_polyhedral::generate_statement
 }
 
 void cpp_from_polyhedral::generate_statement
-(polyhedral::statement *stmt, const index_type & ctx_index, builder* ctx)
+(polyhedral::statement *stmt, const index_type & index, builder* ctx)
 {
-    // Drop first dimension denoting period (always zero).
-    assert(!ctx_index.empty());
-
-    index_type index(ctx_index.begin()+1, ctx_index.end());
     index_type global_index = index;
     // TODO: offset global index for periodic function
 
