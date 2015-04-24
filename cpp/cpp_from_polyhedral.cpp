@@ -28,13 +28,11 @@ void cpp_from_polyhedral::generate_statement
 void cpp_from_polyhedral::generate_statement
 (polyhedral::statement *stmt, const index_type & index, builder* ctx)
 {
-    index_type global_index = index;
-    // TODO: offset global index for periodic function
-
     expression_ptr expr;
 
     if (dynamic_cast<polyhedral::input_access*>(stmt->expr))
     {
+        // FIXME: different iteration and data domains
         expr = generate_input_access(stmt, index, ctx);
     }
     else
@@ -42,7 +40,7 @@ void cpp_from_polyhedral::generate_statement
         expr = generate_expression(stmt->expr, index, ctx);
     }
 
-    auto dst = generate_buffer_access(stmt, global_index, ctx);
+    auto dst = generate_buffer_access(stmt, index, ctx);
     auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
 
     ctx->add(make_shared<expr_statement>(store));
