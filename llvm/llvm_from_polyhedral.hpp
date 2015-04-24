@@ -69,6 +69,7 @@ public:
         vector<value_type> inputs;
         vector<value_type> mem_buffers;
         vector<value_type> stack_buffers;
+        value_type input_access_func;
     };
 
     typedef vector<value_type> index_type;
@@ -129,7 +130,7 @@ private:
     value_type generate_expression( expression *, const index_type &, const context & );
     value_type generate_primitive( primitive_expr *, const index_type &, const context &  );
     value_type generate_buffer_access( statement *, const index_type &, const context &  );
-    value_type generate_input_access( statement *, const index_type &, const context &  );
+    void generate_input_access( statement *, const index_type &, const context &  );
     value_type generate_scalar_input_access( input_access *, const context & );
     value_type generate_reduction_access( reduction_access *, const index_type &, const context & );
     void advance_buffers(const context & );
@@ -164,6 +165,10 @@ private:
     type_type bool_type()
     {
         return llvm::Type::getInt1Ty(llvm_context());
+    }
+    type_type int8_type()
+    {
+        return llvm::Type::getInt8Ty(llvm_context());
     }
     type_type int32_type()
     {

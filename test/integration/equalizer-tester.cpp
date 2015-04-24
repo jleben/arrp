@@ -45,12 +45,25 @@ void reference_process(const double *x, double *y, unsigned int N)
     }
 }
 
+static double *input = nullptr;
+static int input_index = 0;
+
+static void input_func(int index, double *data)
+{
+    //cout << "input: " << input_index << endl;
+    *data = input[input_index];
+    ++input_index;
+}
+
 int main()
 {
     const int N = 1000;
 
     double x[N];
     double y[N];
+
+    input = x;
+    input_index = 0;
 
     {
         //const double freq = 0.03;
@@ -66,10 +79,11 @@ int main()
 
     equalizer::buffer buf;
     equalizer::allocate(&buf);
+    buf.input_func = (void*) &input_func;
 
     for(int i = 0; i < N; ++i)
     {
-        equalizer::process(&x[i], &buf);
+        equalizer::process(nullptr, &buf);
         y[i] = equalizer::get_output(&buf)[0];
     }
 

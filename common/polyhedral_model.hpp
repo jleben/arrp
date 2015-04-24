@@ -78,6 +78,14 @@ public:
         return m;
     }
 
+    static mapping identity(int size)
+    {
+        mapping m;
+        m.coefficients = matrix<int>::identity(size);
+        m.constants.resize(size, 0);
+        return m;
+    }
+
     bool operator== ( const mapping & other ) const
     {
         return coefficients == other.coefficients && constants == other.constants;
@@ -199,12 +207,18 @@ public:
     statement(const string & name):
         name(name),
         expr(nullptr),
+        buffer_period(0),
+        buffer_period_offset(0),
         inter_period_dependency(true)
     {}
     string name;
     expression * expr;
+    vector<int> iteration_domain;
+    mapping data_to_iteration;
     vector<int> domain;
     vector<int> buffer;
+    int buffer_period;
+    int buffer_period_offset;
     bool inter_period_dependency;
 
     vector<int> infinite_dimensions()
