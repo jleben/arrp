@@ -35,74 +35,73 @@ cpp_from_cloog::cpp_from_cloog(builder *ctx):
 
 void cpp_from_cloog::generate( clast_stmt *ast )
 {
-    m_ctx->add( process(ast) );
+    process(ast);
 }
 
-void cpp_from_cloog::process_list(clast_stmt *stmt, vector<statement_ptr> & list)
+void cpp_from_cloog::process_list(clast_stmt *stmt)
 {
-    m_ctx->push(&list);
     while(stmt)
     {
-        m_ctx->add(process(stmt));
+        process(stmt);
         stmt = stmt->next;
     }
-    m_ctx->pop();
 }
 
-statement_ptr cpp_from_cloog::process( clast_stmt *stmt )
+void cpp_from_cloog::process( clast_stmt *stmt )
 {
     if (CLAST_STMT_IS_A(stmt, stmt_root))
     {
-        return process( reinterpret_cast<clast_root*>(stmt) );
+        process( reinterpret_cast<clast_root*>(stmt) );
     }
     else if (CLAST_STMT_IS_A(stmt, stmt_block))
     {
-        return process( reinterpret_cast<clast_block*>(stmt) );
+        process( reinterpret_cast<clast_block*>(stmt) );
     }
     else if (CLAST_STMT_IS_A(stmt, stmt_ass))
     {
-        return process( reinterpret_cast<clast_assignment*>(stmt) );
+        process( reinterpret_cast<clast_assignment*>(stmt) );
     }
     else if (CLAST_STMT_IS_A(stmt, stmt_guard))
     {
-        return process( reinterpret_cast<clast_guard*>(stmt) );
+        process( reinterpret_cast<clast_guard*>(stmt) );
     }
     else if (CLAST_STMT_IS_A(stmt, stmt_for))
     {
-        return process( reinterpret_cast<clast_for*>(stmt) );
+        process( reinterpret_cast<clast_for*>(stmt) );
     }
     else if (CLAST_STMT_IS_A(stmt, stmt_user))
     {
-        return process( reinterpret_cast<clast_user_stmt*>(stmt) );
+        process( reinterpret_cast<clast_user_stmt*>(stmt) );
     }
     else
         throw std::runtime_error("Unexpected statement type.");
 }
 
-statement_ptr cpp_from_cloog::process( clast_root *root )
+void cpp_from_cloog::process( clast_root *root )
 {
-    auto stmt = new block_statement;
-    process_list(root->stmt.next, stmt->statements);
-    return statement_ptr(stmt);
+    process_list(root->stmt.next);
 }
 
-statement_ptr cpp_from_cloog::process( clast_block *block )
+void cpp_from_cloog::process( clast_block *block )
 {
-    auto stmt = new block_statement;
-    process_list(block->body, stmt->statements);
-    return statement_ptr(stmt);
+    auto stmt = make_shared<block_statement>();
+
+    m_ctx->push(&stmt->statements);
+    process_list(block->body);
+    m_ctx->pop();
+
+    m_ctx->add(stmt);
 }
 
-
-statement_ptr cpp_from_cloog::process( clast_assignment* asgn )
+void cpp_from_cloog::process( clast_assignment* asgn )
 {
     expression_ptr rhs = process(asgn->RHS);
     expression_ptr lhs(new id_expression(asgn->LHS));
     expression_ptr expr(new bin_op_expression(op::assign, lhs, rhs));
-    return statement_ptr(new expr_statement(expr));
+    m_ctx->add(expr);
 }
 
-statement_ptr cpp_from_cloog::process( clast_guard* guard )
+void cpp_from_cloog::process( clast_guard* guard )
 {
     auto if_stmt = new if_statement;
 
@@ -123,14 +122,17 @@ statement_ptr cpp_from_cloog::process( clast_guard* guard )
     }
 
     auto body = make_shared<block_statement>();
-    process_list(guard->then, body->statements);
+
+    m_ctx->push(&body->statements);
+    process_list(guard->then);
+    m_ctx->pop();
 
     if_stmt->true_part = body;
 
-    return statement_ptr(if_stmt);
+    m_ctx->add(statement_ptr(if_stmt));
 }
 
-statement_ptr cpp_from_cloog::process( clast_for* loop )
+void cpp_from_cloog::process( clast_for* loop )
 {
     auto iterator = make_shared<id_expression>(loop->iterator);
     auto iterator_decl =
@@ -154,11 +156,14 @@ statement_ptr cpp_from_cloog::process( clast_for* loop )
                                            literal(loop->stride));
 
     auto body = make_shared<block_statement>();
-    process_list(loop->body, body->statements);
+
+    m_ctx->push(&body->statements);
+    process_list(loop->body);
+    m_ctx->pop();
 
     for_stmt->body = body;
 
-    return statement_ptr(for_stmt);
+    m_ctx->add(statement_ptr(for_stmt));
 }
 
 expression_ptr cpp_from_cloog::process( clast_expr* expr )
@@ -256,7 +261,7 @@ expression_ptr cpp_from_cloog::process( clast_equation* eq )
     return expression_ptr(binop);
 }
 
-statement_ptr cpp_from_cloog::process( clast_user_stmt* stmt )
+void cpp_from_cloog::process( clast_user_stmt* stmt )
 {
     vector<expression_ptr> index;
 
@@ -275,11 +280,7 @@ statement_ptr cpp_from_cloog::process( clast_user_stmt* stmt )
 
     if (m_stmt_func)
     {
-        auto block = make_shared<block_statement>();
-        m_ctx->push(&block->statements);
         m_stmt_func(stmt->statement->name, index, m_ctx);
-        m_ctx->pop();
-        return block;
     }
     else
     {
@@ -294,7 +295,7 @@ statement_ptr cpp_from_cloog::process( clast_user_stmt* stmt )
         }
         text << ")";
 
-        return make_shared<comment_statement>(text.str());
+        m_ctx->add( make_shared<comment_statement>(text.str()) );
     }
 }
 

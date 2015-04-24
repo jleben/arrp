@@ -56,14 +56,14 @@ public:
     }
 
 private:
-    void process_list( clast_stmt *, vector<statement_ptr> & );
-    statement_ptr process( clast_stmt * );
-    statement_ptr process( clast_root* );
-    statement_ptr process( clast_block* );
-    statement_ptr process( clast_assignment* );
-    statement_ptr process( clast_guard* );
-    statement_ptr process( clast_for* );
-    statement_ptr process( clast_user_stmt* );
+    void process_list( clast_stmt * );
+    void process( clast_stmt * );
+    void process( clast_root* );
+    void process( clast_block* );
+    void process( clast_assignment* );
+    void process( clast_guard* );
+    void process( clast_for* );
+    void process( clast_user_stmt* );
     expression_ptr process( clast_expr* );
     expression_ptr process( clast_equation* );
 

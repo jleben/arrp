@@ -593,6 +593,8 @@ public:
 
     void add(statement_ptr stmt) { m_blocks.top()->push_back(stmt); }
 
+    void add(expression_ptr expr) { add(std::make_shared<expr_statement>(expr)); }
+
     string new_var_id() { return m_module->next_id("v"); }
     expression_ptr new_var(type_ptr t, string & id)
     {
