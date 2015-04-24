@@ -62,6 +62,8 @@ model::model( const vector<statement*> & statements )
             actor a(stmt, actor_id++);
             a.flow_dimension = infinite_dims.front();
             m_actors.emplace(stmt, a);
+
+            stmt->flow_dim = a.flow_dimension;
         }
         else
             invalid_statements.push_back(stmt);

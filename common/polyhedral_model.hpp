@@ -203,23 +203,19 @@ public:
 class statement
 {
 public:
-    statement(): expr(nullptr), inter_period_dependency(true) {}
-    statement(const string & name):
-        name(name),
-        expr(nullptr),
-        buffer_period(0),
-        buffer_period_offset(0),
-        inter_period_dependency(true)
-    {}
+    statement() {}
+    statement(const string & name): name(name) {}
+
     string name;
-    expression * expr;
+    expression * expr = nullptr;
     vector<int> iteration_domain;
     mapping data_to_iteration;
     vector<int> domain;
     vector<int> buffer;
-    int buffer_period;
-    int buffer_period_offset;
-    bool inter_period_dependency;
+    int flow_dim = -1;
+    int buffer_period = 0;
+    int buffer_period_offset = 0;
+    bool inter_period_dependency = false;
 
     vector<int> infinite_dimensions()
     {
