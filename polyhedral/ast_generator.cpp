@@ -754,9 +754,13 @@ ast_generator::schedule_finite_domains
 (const isl::union_set & finite_domains, const isl::union_map & dependencies)
 {
     auto schedule = make_schedule(finite_domains, dependencies).in_domain(finite_domains);
-    cout << endl << "Finite schedule:" << endl;
-    print_schedule(schedule);
-    cout << endl;
+
+    if (debug::is_enabled())
+    {
+        cout << endl << "Finite schedule:" << endl;
+        print_schedule(schedule);
+        cout << endl;
+    }
 
     return schedule;
 }
