@@ -664,6 +664,11 @@ public:
         m_blocks.push(&f->body.statements);
     }
 
+    void push(block_statement & block)
+    {
+        m_blocks.push(&block.statements);
+    }
+
     void push(vector<statement_ptr> *block)
     {
         m_blocks.push(block);

@@ -80,9 +80,7 @@ expression_ptr cpp_from_polyhedral::generate_expression
     }
     else if (auto access = dynamic_cast<reduction_access*>(expr))
     {
-        (void) access;
-        throw error("Reduction not implemented");
-        //result = generate_reduction_access(access, index, ctx);
+        result = generate_reduction_access(access, index, ctx);
     }
     else if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
     {
@@ -295,6 +293,71 @@ expression_ptr cpp_from_polyhedral::generate_input_access
     auto input_name = ctx->current_function()->parameters[input_num]->name;
     auto input_id = make_shared<id_expression>(input_name);
     return make_shared<array_access_expression>(input_id, index);
+}
+
+expression_ptr cpp_from_polyhedral::generate_reduction_access
+(polyhedral::reduction_access *access, const index_type & index, builder * ctx)
+{
+    int reduction_dim = access->reductor->domain.size() - 1;
+    assert(reduction_dim < index.size());
+
+    auto result = make_id(ctx->new_var_id());
+    ctx->add(decl_expr(type_for(access->type), *result));
+
+    auto if_stmt = make_shared<if_statement>();
+
+    if_stmt->condition = binop(op::equal, index[reduction_dim], literal((int)0));
+
+    auto true_block = make_shared<block_statement>();
+    if_stmt->true_part = true_block;
+    {
+        ctx->push(*true_block);
+
+        assert(index.size() >= access->initializer->domain.size());
+        index_type init_index;
+        if (index.size() > 1)
+        {
+            int init_dims = access->initializer->domain.size();
+            init_index.insert(init_index.end(),
+                              index.begin(),
+                              index.begin() + init_dims);
+        }
+        else
+        {
+            // FIXME: Correct? The LLVM generation code is weird.
+            init_index.push_back(literal((int)0));
+        }
+        assert(access->initializer->domain.size() == init_index.size());
+
+        auto val = generate_buffer_access(access->initializer, init_index, ctx);
+
+        ctx->add(assign(result, val));
+
+        ctx->pop();
+    }
+
+    auto false_block = make_shared<block_statement>();
+    if_stmt->false_part = false_block;
+    {
+        ctx->push(*false_block);
+
+        index_type reductor_index;
+        reductor_index.insert(reductor_index.end(),
+                              index.begin(), index.begin() + reduction_dim + 1);
+        reductor_index[reduction_dim] =
+                binop(op::sub, reductor_index[reduction_dim], literal((int)1));
+
+        auto val = generate_buffer_access(access->reductor,
+                                          reductor_index, ctx);
+
+        ctx->add(assign(result, val));
+
+        ctx->pop();
+    }
+
+    ctx->add(if_stmt);
+
+    return result;
 }
 
 expression_ptr cpp_from_polyhedral::generate_buffer_access
