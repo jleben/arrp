@@ -138,6 +138,37 @@ public:
     virtual void generate(state &, ostream &) = 0;
 };
 
+class include_dir : public module_member
+{
+public:
+    enum location
+    {
+        local,
+        global
+    };
+
+    location loc = global;
+    string filename;
+
+    include_dir() {}
+    include_dir(const string & f, location loc = global): loc(loc), filename(f) {}
+    void generate(state &, ostream &stream)
+    {
+        stream << "#include ";
+        if (loc == local)
+            stream << "\"";
+        else
+            stream << "<";
+
+        stream << filename;
+
+        if (loc == local)
+            stream << "\"";
+        else
+            stream << ">";
+    }
+};
+
 class namespace_member : public module_member {};
 typedef std::shared_ptr<namespace_member> namespace_member_ptr;
 
@@ -424,6 +455,7 @@ enum struct op
     assign_mult,
     assign_div,
     assign_rem,
+    conditional
 };
 
 class un_op_expression : public expression
@@ -454,6 +486,20 @@ public:
     void generate(state &, ostream &);
 };
 
+class if_expression : public expression
+{
+public:
+    expression_ptr condition;
+    expression_ptr true_expr;
+    expression_ptr false_expr;
+
+    if_expression() {}
+    if_expression(expression_ptr c, expression_ptr t, expression_ptr f):
+        condition(c), true_expr(t), false_expr(f)
+    {}
+    void generate(state &, ostream &);
+};
+
 class call_expression : public expression
 {
 public:
@@ -462,6 +508,12 @@ public:
 
     call_expression(string f, std::initializer_list<expression_ptr> a):
         func_name(f), args(a)
+    {}
+    call_expression(string f, expression_ptr a):
+        func_name(f), args({a})
+    {}
+    call_expression(string f, expression_ptr a, expression_ptr b):
+        func_name(f), args({a,b})
     {}
     call_expression(string f, const vector<expression_ptr> & a):
         func_name(f), args(a)
@@ -571,6 +623,16 @@ public:
     }
 };
 
+class return_statement : public statement
+{
+public:
+    expression_ptr value;
+
+    return_statement() {}
+    return_statement(expression_ptr v): value(v) {}
+    void generate(state &, ostream &);
+};
+
 // Function
 
 class func_def :  public namespace_member, public class_member
@@ -580,6 +642,7 @@ public:
 
     func_sig_ptr signature;
     block_statement body;
+    bool is_inline = false;
 
     void generate(state &, ostream &);
 };
@@ -593,6 +656,13 @@ public:
 
     void set_current_function(func_signature *f) { m_func = f; }
     func_signature *current_function() { return m_func; }
+
+    void set_current_function(func_def *f)
+    {
+        m_func = f->signature.get();
+        m_blocks = stack<vector<statement_ptr>*>();
+        m_blocks.push(&f->body.statements);
+    }
 
     void push(vector<statement_ptr> *block)
     {
@@ -622,6 +692,47 @@ private:
     stack<vector<statement_ptr>*> m_blocks;
 };
 
+// Helpers
+
+inline expression_ptr binop(op o, expression_ptr l, expression_ptr r)
+{
+    return std::make_shared<bin_op_expression>(o, l, r);
+}
+
+inline expression_ptr unop(op o, expression_ptr l)
+{
+    return std::make_shared<un_op_expression>(o, l);
+}
+
+inline expression_ptr assign(expression_ptr lhs, expression_ptr rhs)
+{
+    return binop(op::assign, lhs, rhs);
+}
+
+inline std::shared_ptr<id_expression> make_id(const string & name)
+{
+    return std::make_shared<id_expression>(name);
+}
+
+inline variable_decl_ptr decl(type_ptr t, const string & id)
+{
+    return std::make_shared<variable_decl>(t, id);
+}
+
+inline variable_decl_ptr decl(type_ptr t, const id_expression & id)
+{
+    return std::make_shared<variable_decl>(t, id.name);
+}
+
+inline expression_ptr decl_expr(type_ptr t, const string & id)
+{
+    return std::make_shared<var_decl_expression>(decl(t,id));
+}
+
+inline expression_ptr decl_expr(type_ptr t, const id_expression & id)
+{
+    return std::make_shared<var_decl_expression>(decl(t,id.name));
+}
 
 } // namespace cpp_gen
 } // namespace stream

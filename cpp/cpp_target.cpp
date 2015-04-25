@@ -245,6 +245,67 @@ static void advance_buffers(const vector<polyhedral::statement*> & statements,
     }
 }
 
+void add_remainder_function(cpp_gen::module &module)
+{
+    auto int_type = make_shared<basic_type>("int");
+    auto double_type = make_shared<basic_type>("double");
+
+    builder build(&module);
+
+    {
+        auto x_arg = make_shared<variable_decl>(int_type, "x");
+        auto y_arg = make_shared<variable_decl>(int_type, "y");
+        auto f_sig = make_shared<func_signature>();
+        f_sig->name = "remainder";
+        f_sig->type = int_type;
+        f_sig->parameters = {x_arg,y_arg};
+        auto f = make_shared<func_def>(f_sig);
+        f->is_inline = true;
+
+        build.set_current_function(f.get());
+
+        auto x = make_id("x");
+        auto y = make_id("y");
+        auto m = make_id("m");
+        build.add(assign(decl_expr(int_type, *m), binop(op::rem, x, y)));
+
+        auto zero = literal((int)0);
+        auto m_not_zero = binop(op::not_equal, m, zero);
+        auto m_neg = binop(op::lesser, m, zero);
+        auto y_neg = binop(op::lesser, y, zero);
+        auto sign_m_not_y = binop(op::not_equal, m_neg, y_neg);
+        auto do_correct = binop(op::logic_and, m_not_zero, sign_m_not_y);
+        auto m_corrected = binop(op::add, m, y);
+        auto result = make_shared<if_expression>(do_correct, m_corrected, m);
+
+        build.add(make_shared<return_statement>(result));
+
+        module.members.push_back(f);
+    }
+
+    {
+        auto x_arg = make_shared<variable_decl>(double_type, "x");
+        auto y_arg = make_shared<variable_decl>(double_type, "y");
+        auto f_sig = make_shared<func_signature>();
+        f_sig->name = "remainder";
+        f_sig->type = double_type;
+        f_sig->parameters = {x_arg,y_arg};
+        auto f = make_shared<func_def>(f_sig);
+        f->is_inline = true;
+
+        auto x = make_shared<id_expression>("x");
+        auto y = make_shared<id_expression>("y");
+        expression_ptr q = make_shared<bin_op_expression>(op::div, x, y);
+        q = make_shared<call_expression>("floor", q);
+        auto b = make_shared<bin_op_expression>(op::mult, q, y);
+        auto result = make_shared<bin_op_expression>(op::sub, x, b);
+
+        f->body.statements.push_back(make_shared<return_statement>(result));
+
+        module.members.push_back(f);
+    }
+}
+
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
               const vector<polyhedral::statement*> & poly_model,
@@ -258,6 +319,11 @@ void generate(const string & name,
     builder b(&m);
     cpp_from_cloog cloog(&b);
     cpp_from_polyhedral poly(poly_model, buffers);
+
+    m.members.push_back(make_shared<include_dir>("cmath"));
+    m.members.push_back(make_shared<using_decl>("namespace std"));
+
+    add_remainder_function(m);
 
     m.members.push_back(module_member_ptr(state_type_def(poly_model,buffers)));
 

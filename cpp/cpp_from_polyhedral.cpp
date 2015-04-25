@@ -217,21 +217,69 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         }
     }
     case primitive_op::modulo:
+    {
+        return make_shared<call_expression>("remainder", operands[0], operands[1]);
+    }
     case primitive_op::raise:
+    {
+        return make_shared<call_expression>("pow", operands[0], operands[1]);
+    }
     case primitive_op::floor:
+    {
+        if (expr->operands[0]->type == primitive_type::integer)
+            return operands[0];
+        return make_shared<call_expression>("floor", operands[0]);
+    }
     case primitive_op::ceil:
+    {
+        if (expr->operands[0]->type == primitive_type::integer)
+            return operands[0];
+        return make_shared<call_expression>("ceil", operands[0]);
+    }
     case primitive_op::abs:
+    {
+        return make_shared<call_expression>("abs", operands[0]);
+    }
     case primitive_op::max:
+    {
+        return make_shared<call_expression>("max", operands[0], operands[1]);
+    }
     case primitive_op::min:
+    {
+        return make_shared<call_expression>("min", operands[0], operands[1]);
+    }
     case primitive_op::log:
+    {
+        return make_shared<call_expression>("log", operands[0]);
+    }
     case primitive_op::log2:
+    {
+        return make_shared<call_expression>("log2", operands[0]);
+    }
     case primitive_op::log10:
+    {
+        return make_shared<call_expression>("log10", operands[0]);
+    }
     case primitive_op::exp:
+    {
+        return make_shared<call_expression>("exp", operands[0]);
+    }
     case primitive_op::exp2:
+    {
+        return make_shared<call_expression>("exp2", operands[0]);
+    }
     case primitive_op::sqrt:
+    {
+        return make_shared<call_expression>("sqrt", operands[0]);
+    }
     case primitive_op::sin:
+    {
+        return make_shared<call_expression>("sin", operands[0]);
+    }
     case primitive_op::cos:
-        throw error("C++ target: Primitive expression not implemented.");
+    {
+        return make_shared<call_expression>("cos", operands[0]);
+    }
     default:
         ostringstream text;
         text << "Unexpected primitive op: " << expr->op;

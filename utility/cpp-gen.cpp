@@ -228,7 +228,8 @@ static unordered_map<int, int> op_precedence_map()
         { op::logic_or },
         { op::assign,
           op::assign_add, op::assign_sub,
-          op::assign_mult, op::assign_div, op::assign_rem },
+          op::assign_mult, op::assign_div, op::assign_rem,
+          op::conditional },
     };
 
     unordered_map<int, int> m;
@@ -396,6 +397,15 @@ void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
         stream << ")";
 }
 
+void if_expression::generate(cpp_gen::state & state, ostream & stream)
+{
+    condition->generate(state, stream);
+    stream << " ? ";
+    true_expr->generate(state, stream);
+    stream << " : ";
+    false_expr->generate(state, stream);
+}
+
 void call_expression::generate(cpp_gen::state & state, ostream & stream)
 {
     stream << func_name << "(";
@@ -487,8 +497,20 @@ void for_statement::generate(cpp_gen::state & state, ostream & stream)
     body->generate(state, stream);
 }
 
+void return_statement::generate(cpp_gen::state &state, ostream & stream)
+{
+    stream << "return";
+    if (value)
+    {
+        stream << ' ';
+        value->generate(state, stream);
+    }
+}
+
 void func_def::generate(cpp_gen::state & state, ostream & stream)
 {
+    if (is_inline)
+        stream << "inline ";
     signature->generate(state, stream);
     state.new_line(stream);
     body.generate(state, stream);
