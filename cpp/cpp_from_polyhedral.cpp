@@ -363,6 +363,8 @@ expression_ptr cpp_from_polyhedral::generate_reduction_access
 expression_ptr cpp_from_polyhedral::generate_buffer_access
 (polyhedral::statement * stmt, const index_type & index, builder * ctx)
 {
+
+
     index_type buffer_index = index;
 
     cpp_gen::buffer & buffer_info = m_buffers[stmt->name];
@@ -375,6 +377,9 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     {
         buffer = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, buffer);
     }
+
+    if (stmt->buffer.size() == 1 && stmt->buffer[0] == 1)
+        return buffer;
 
     // Add buffer phase
 

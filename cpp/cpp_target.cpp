@@ -65,6 +65,7 @@ variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name
         auto elem_type = type_for(stream.element_type);
 
         vector<int> size = stream.size;
+
         // FIXME:
         for(int & dim : size)
             if (dim == semantic::stream::infinite)
@@ -104,7 +105,10 @@ func_sig_ptr signature_for(const string & name, const vector<semantic::type_ptr>
 variable_decl_ptr buffer_decl(polyhedral::statement *stmt)
 {
     auto elem_type = type_for(stmt->expr->type);
-    return make_shared<array_decl>(elem_type, stmt->name, stmt->buffer);
+    if (stmt->buffer.size() == 1 && stmt->buffer[0] == 1)
+        return decl(elem_type, stmt->name);
+    else
+        return make_shared<array_decl>(elem_type, stmt->name, stmt->buffer);
 }
 
 class_node * state_type_def(const vector<polyhedral::statement*> & stmts,
