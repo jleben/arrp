@@ -112,6 +112,9 @@ enum class_key
 class module_member;
 typedef std::shared_ptr<module_member> module_member_ptr;
 
+class expression;
+typedef std::shared_ptr<expression> expression_ptr;
+
 class module
 {
 public:
@@ -296,6 +299,8 @@ class variable_decl
 public:
     type_ptr type;
     string name;
+    expression_ptr value;
+
     virtual void generate(state &, ostream &);
 
     variable_decl() {}
@@ -372,8 +377,6 @@ public:
     virtual ~expression(){}
     virtual void generate(state &, ostream &) = 0;
 };
-
-typedef std::shared_ptr<expression> expression_ptr;
 
 template <typename T>
 class literal_expression : public expression

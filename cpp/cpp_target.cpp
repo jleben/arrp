@@ -130,8 +130,9 @@ class_node * state_type_def(const vector<polyhedral::array_ptr> & arrays,
         if (!buffers[array->name].has_phase)
             continue;
         auto int_t = make_shared<basic_type>("int");
-        auto decl = make_shared<variable_decl>(int_t, array->name + "_ph");
-        sec.members.push_back(make_shared<data_field>(decl));
+        auto field = decl(int_t, array->name + "_ph");
+        field->value = literal((int)0);
+        sec.members.push_back(make_shared<data_field>(field));
     }
 
     return def;

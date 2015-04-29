@@ -153,6 +153,11 @@ void variable_decl::generate(cpp_gen::state & state, ostream & stream)
     type->generate(state, stream);
     if (!name.empty())
         stream << ' ' << name;
+    if (value)
+    {
+        stream << " = ";
+        value->generate(state, stream);
+    }
 }
 
 void array_decl::generate(cpp_gen::state & state, ostream & stream)
