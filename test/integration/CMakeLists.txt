@@ -72,12 +72,12 @@ add_integration_test_cpp(flux-no-log
 )
 target_compile_definitions(flux-no-log PRIVATE NO_LOGARITHM)
 
-#add_integration_test(flux-stream
-#  ${CMAKE_SOURCE_DIR}/examples/spectral-flux.in
-#  flux "[inf,1000]"
-#  flux.cpp
-#)
-#target_compile_definitions(flux-stream PRIVATE STREAMING)
+add_integration_test_cpp(flux-stream
+  ${CMAKE_SOURCE_DIR}/examples/spectral-flux.in
+  flux "[inf,1000]"
+  flux.cpp
+)
+target_compile_definitions(flux-stream PRIVATE STREAMING)
 
 
 

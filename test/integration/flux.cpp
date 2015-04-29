@@ -92,18 +92,32 @@ void expected_typical( const multi_array<double,T,N> & in,
 static constexpr int T=1000;
 static constexpr int N=1000;
 
-static multi_array<double,T,N> *input = nullptr;
-static int t = 0;
+static multi_array<double,T,N> *in_array = nullptr;
+static int in_t = 0;
+static multi_array<double,T-1> *out_array = nullptr;
+static int out_t = 0;
 
-static void input_func(int index, double *data)
+
+#if defined(STREAMING) || 1
+namespace FLUX {
+
+void input(int, double *dst)
 {
-    //cout << "input: " << t << endl;
     for(int n = 0; n < N; ++n)
     {
-        data[n] = (*input)(t, n);
+        dst[n] = (*in_array)(in_t, n);
     }
-    ++t;
+    ++in_t;
 }
+
+void output(double *src)
+{
+    (*out_array)(out_t) = *src;
+    ++out_t;
+}
+
+}
+#endif
 
 int main()
 {
@@ -120,8 +134,11 @@ int main()
         cout << "## Run " << rep << " ##" << endl;
 
         multi_array<double,T,N> in = multi_array<double,T,N>::random(0,100,rand());
-        input = &in;
-        t = 0;
+
+        in_array = &in;
+        in_t = 0;
+        out_array = &out;
+        out_t = 0;
 
         auto ex_best_start_time = high_resolution_clock::now();
         expected_best(in, ex, ex_buf);
@@ -133,18 +150,17 @@ int main()
 
         FLUX::state state;
         //FLUX::allocate(&state);
-#ifdef STREAMING
-        state.input_func = (void*) &input_func;
-#endif
+
         auto test_start_time = high_resolution_clock::now();
 
-        FLUX::initialize((double (*)[1000]) in.data(), &state);
+#ifndef STREAMING
+        FLUX::initialize((double (*)[N]) in.data(), &state);
+#else
+        FLUX::initialize(nullptr, &state);
 
-#ifdef STREAMING
         for(int t = 0; t < T-1; ++t)
         {
-            FLUX::process(nullptr, &buf);
-            out(t) = *FLUX::get_output(&buf);
+            FLUX::process(nullptr, &state);
         }
 #endif
 
