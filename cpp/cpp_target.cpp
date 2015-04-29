@@ -311,6 +311,38 @@ void add_remainder_function(cpp_gen::module &module, namespace_node & nmspc)
     }
 }
 
+func_sig_ptr output_getter_signature(const polyhedral::array_ptr & out_array)
+{
+    auto sig = make_shared<func_signature>();
+    sig->name = "get_output";
+    sig->type = make_shared<pointer_type>(type_for(out_array->type));
+    sig->parameters.push_back( decl(pointer(state_type()), "s") );
+    return sig;
+}
+
+void add_output_getter_func(cpp_gen::module &module, namespace_node & nmspc,
+                            const polyhedral::array_ptr & out_array)
+{
+    builder ctx(&module);
+
+    auto sig = output_getter_signature(out_array);
+    auto func = make_shared<func_def>(sig);
+    ctx.set_current_function(func.get());
+
+    auto out_id = make_shared<id_expression>(out_array->name);
+
+    auto state_arg_name = ctx.current_function()->parameters.back()->name;
+    auto state_arg = make_shared<id_expression>(state_arg_name);
+    expression_ptr out = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, out_id);
+
+    if (out_array->buffer_size.size() == 1 && out_array->buffer_size[0] == 1)
+        out = make_shared<un_op_expression>(op::address, out);
+
+    ctx.add(make_shared<return_statement>(out));
+
+    nmspc.members.push_back(func);
+}
+
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
               const vector<polyhedral::statement*> & statements,
@@ -339,6 +371,8 @@ void generate(const string & name,
 
     // FIXME: rather include header:
     nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
+
+    add_output_getter_func(m, *nmspc, arrays.back());
 
     auto stmt_func = [&]
             ( const string & name,
@@ -418,6 +452,10 @@ void generate(const string & name,
         }
         {
             auto sig = signature_for("process", args);
+            nmspc->members.push_back(make_shared<func_decl>(sig));
+        }
+        {
+            auto sig = output_getter_signature(arrays.back());
             nmspc->members.push_back(make_shared<func_decl>(sig));
         }
         {

@@ -692,7 +692,7 @@ public:
     }
 
 private:
-    module * m_module;
+    cpp_gen::module * m_module;
     func_signature *m_func;
     stack<vector<statement_ptr>*> m_blocks;
 };
@@ -737,6 +737,11 @@ inline expression_ptr decl_expr(type_ptr t, const string & id)
 inline expression_ptr decl_expr(type_ptr t, const id_expression & id)
 {
     return std::make_shared<var_decl_expression>(decl(t,id.name));
+}
+
+inline base_type_ptr pointer(base_type_ptr t)
+{
+    return std::make_shared<pointer_type>(t);
 }
 
 } // namespace cpp_gen
