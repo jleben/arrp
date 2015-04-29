@@ -337,6 +337,8 @@ void add_output_getter_func(cpp_gen::module &module, namespace_node & nmspc,
 
     if (out_array->buffer_size.size() == 1 && out_array->buffer_size[0] == 1)
         out = make_shared<un_op_expression>(op::address, out);
+    else
+        out = make_shared<cast_expression>(sig->type, out);
 
     ctx.add(make_shared<return_statement>(out));
 
