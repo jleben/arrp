@@ -139,9 +139,9 @@ void printer::print(const expression *expr, ostream &s)
         s << "iterator: " << it->offset << " + " << it->ratio << " * "
           << '[' << it->dimension << ']';
     }
-    else if (auto access = dynamic_cast<const stmt_access*>(expr))
+    else if (auto access = dynamic_cast<const array_access*>(expr))
     {
-        s << "access: " << access->target->name << " [" << endl;
+        s << "read: " << access->target->name << " [" << endl;
         indent();
         for (int row = 0; row < access->pattern.output_dimension(); ++row)
         {
@@ -193,13 +193,19 @@ void printer::print(const statement *stmt, ostream &s )
     s << stmt->name << " [";
     for(int size : stmt->domain)
         s << " " << size;
-    s << " ] = ";
+    s << " ]:" << endl;
+    s << stmt->array->name
+      << " [" << endl
+      << stmt->write_relation
+      << "] = ";
     if (stmt->expr)
     {
         s << endl;
         indent();
+
         s << indentation();
         print(stmt->expr, s);
+
         unindent();
     }
     else

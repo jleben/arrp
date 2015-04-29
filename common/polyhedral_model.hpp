@@ -28,6 +28,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <vector>
 #include <string>
 #include <iostream>
+#include <memory>
 
 namespace stream {
 namespace polyhedral {
@@ -52,6 +53,7 @@ template<> struct expr_type<double> { static constexpr primitive_type type = pri
 template<> struct expr_type<bool> { static constexpr primitive_type type = primitive_type::boolean; };
 
 class statement;
+class array;
 
 class mapping
 {
@@ -200,6 +202,26 @@ public:
     int index;
 };
 
+class array
+{
+public:
+    array(const string & name, primitive_type & t):
+        name(name),
+        type(t)
+    {}
+
+    string name;
+    primitive_type type;
+    vector<int> size;
+    vector<int> buffer_size;
+    int flow_dim = -1;
+    int period = 0;
+    int period_offset = 0;
+    bool inter_period_dependency = false;
+};
+
+typedef std::shared_ptr<array> array_ptr;
+
 class statement
 {
 public:
@@ -208,14 +230,12 @@ public:
 
     string name;
     expression * expr = nullptr;
-    vector<int> iteration_domain;
-    mapping data_to_iteration;
     vector<int> domain;
-    vector<int> buffer;
+
+    array_ptr array;
+    mapping write_relation;
+
     int flow_dim = -1;
-    int buffer_period = 0;
-    int buffer_period_offset = 0;
-    bool inter_period_dependency = false;
 
     vector<int> infinite_dimensions()
     {
@@ -227,17 +247,16 @@ public:
     }
 };
 
-class stmt_access : public expression
+class array_access : public expression
 {
 public:
-    stmt_access(statement *target):
-        expression(target->expr->type),
-        target(target) {}
-    stmt_access(statement *target, primitive_type t):
-        expression(t),
-        target(target) {}
-    statement * target;
+    array_ptr target;
     mapping pattern;
+
+    array_access(array_ptr target):
+        expression(target->type),
+        target(target)
+    {}
 };
 
 class reduction_access : public expression

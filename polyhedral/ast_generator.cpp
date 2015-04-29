@@ -69,14 +69,14 @@ statement *statement_for( const isl::identifier & id )
 }
 
 ast_generator::ast_generator( const vector<statement*> & statements,
-                              const dataflow::model * dataflow ):
+                              const vector<array_ptr> & arrays ):
     m_print_ast(false),
     m_printer(m_ctx),
     m_statements(statements),
-    m_dataflow(dataflow)
+    m_arrays(arrays)
 {
     m_ctx.set_error_action(isl::context::abort_on_error);
-
+#if 0
     // FIXME: belongs somewhere else...
     for (statement * stmt : m_statements)
     {
@@ -93,6 +93,7 @@ ast_generator::ast_generator( const vector<statement*> & statements,
             stmt->data_to_iteration = mapping::identity(stmt->domain.size());
         }
     }
+#endif
 }
 
 ast_generator::~ast_generator()
@@ -105,57 +106,35 @@ ast_generator::generate()
     if (debug::is_enabled())
         cout << endl << "### AST Generation ###" << endl;
 
-    isl::union_set finite_domains(m_ctx);
-    isl::union_set infinite_domains(m_ctx);
-    isl::union_map data_iter_map(m_ctx);
-    isl::union_map data_dependencies(m_ctx);
-    polyhedral_model(finite_domains, infinite_domains, data_iter_map, data_dependencies);
+    data d(m_ctx);
+    polyhedral_model(d);
 
-    isl::union_map iter_dependencies = data_dependencies;
-    iter_dependencies.map_domain_through(data_iter_map);
-
-    // FIXME: belongs somewhere else...
-    // Add additional constraints for infinite inputs:
-    // each input iteration must be after the previous one.
-    for (statement * stmt : m_statements)
+    if (debug::is_enabled())
     {
-        const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
-        if ( actor && dynamic_cast<input_access*>(stmt->expr) )
-        {
-            assert(stmt->iteration_domain.size() == 1);
-            auto iter_space = isl::space( m_ctx,
-                                          isl::set_tuple(isl::identifier(stmt->name, stmt), 1) );
-            auto iter_dep_space = isl::space::from(iter_space, iter_space);
-            auto dep = isl::basic_map::universe(iter_dep_space);
-            isl::local_space cnstr_space(iter_dep_space);
-            auto in = cnstr_space(isl::space::input, 0);
-            auto out = cnstr_space(isl::space::output, 0);
-            dep.add_constraint(out == in + 1);
-
-            if (debug::is_enabled())
-            {
-                cout << "Input sequence constraint: ";
-                m_printer.print(dep);
-                cout << endl;
-            }
-
-            iter_dependencies = iter_dependencies | dep;
-        }
+        cout << "Domains: " << endl;
+        print_each_in(d.finite_domains);
+        print_each_in(d.infinite_domains);
+        cout << "Write relations:" << endl;
+        print_each_in(d.write_relations);
+        cout << "Read relations:" << endl;
+        print_each_in(d.read_relations);
+        cout << "Dependencies:" << endl;
+        print_each_in(d.dependencies);
     }
 
-
     auto finite_schedule =
-            schedule_finite_domains(finite_domains, iter_dependencies);
+            schedule_finite_domains(d.finite_domains, d.dependencies);
 
     isl::union_map infinite_schedule(m_ctx);
     auto periodic_schedules =
-            schedule_infinite_domains(infinite_domains, iter_dependencies,
+            schedule_infinite_domains(d.infinite_domains, d.dependencies,
                                       infinite_schedule);
+
 
     isl::union_map combined_schedule(m_ctx);
     combine_schedules(finite_schedule, infinite_schedule, combined_schedule);
 
-    compute_buffer_sizes(combined_schedule, data_dependencies, data_iter_map);
+    compute_buffer_sizes(combined_schedule, d);
 
     if(m_print_ast)
         cout << endl << "== Output AST ==" << endl;
@@ -190,92 +169,71 @@ ast_generator::generate()
     struct clast_stmt *period_ast
             = make_ast( periodic_schedules.second );
 
-    //return pair<clast_stmt*,clast_stmt*>(nullptr, nullptr);
     return make_pair(finite_ast, period_ast);
-
-#if 0
-    isl::union_set init_domains(m_ctx);
-    isl::union_set steady_domains(m_ctx);
-    isl::union_map periodic_dependencies(m_ctx);
-    isl::union_map domain_map(m_ctx);
-    periodic_model(domains, dependencies,
-                   domain_map, init_domains, steady_domains,
-                   periodic_dependencies);
-
-    isl::union_set period_domains(m_ctx);
-    steady_domains.for_each( [&](isl::set & domain)
-    {
-        auto period = domain.get_space()(isl::space::variable, 0);
-        domain.add_constraint(period == 0);
-        period_domains = period_domains | domain;
-        return true;
-    });
-
-    auto init_schedule = make_init_schedule(init_domains, periodic_dependencies);
-    auto period_schedule = make_steady_schedule(period_domains, periodic_dependencies);
-
-    auto combined_schedule =
-            combine_schedule(init_domains, steady_domains,
-                             init_schedule, period_schedule);
-
-    compute_buffer_sizes(combined_schedule, periodic_dependencies, domain_map);
-
-    if(m_print_ast)
-        cout << endl << "== Output AST ==" << endl;
-
-    if(m_print_ast)
-        cout << endl << "-- Finite --" << endl;
-    struct clast_stmt *init_ast
-            = make_ast( init_schedule.in_domain(init_domains) );
-
-    if(m_print_ast)
-        cout << endl << "-- Periodic --" << endl;
-    struct clast_stmt *period_ast
-            = make_ast( period_schedule.in_domain(period_domains) );
-
-    return std::make_pair(init_ast, period_ast);
-#endif
 }
 
-void ast_generator::polyhedral_model
-(isl::union_set & finite_domains, isl::union_set &infinite_domains,
- isl::union_map & data_iter_map,
- isl::union_map & all_dependencies)
-{    
-    for (statement * stmt : m_statements)
-    {
-        auto domain = polyhedral_domain(stmt);
-        if (m_dataflow->find_actor_for(stmt))
-            infinite_domains = infinite_domains | domain.first;
-        else
-            finite_domains = finite_domains | domain.first;
-
-        data_iter_map = data_iter_map | domain.second;
-    }
-
-    for (statement * stmt : m_statements)
-    {
-        auto dependency = polyhedral_dependencies(stmt);
-        all_dependencies = all_dependencies | dependency;
-    }
-}
-
-pair<isl::basic_set, isl::basic_map>
-ast_generator::polyhedral_domain( statement *stmt )
+void ast_generator::polyhedral_model(data & d)
 {
+    for (statement * stmt : m_statements)
+    {
+        polyhedral_model(stmt, d);
+    }
+
+    auto deps = d.write_relations;
+    deps.map_range_through(d.read_relations.inverse());
+    d.dependencies = deps;
+
+    // FIXME: belongs somewhere else...
+    // Add additional constraints for infinite inputs:
+    // each input iteration must be after the previous one.
+    for (statement * stmt : m_statements)
+    {
+        if ( dynamic_cast<input_access*>(stmt->expr) &&
+             stmt->flow_dim >= 0 )
+        {
+            assert(stmt->domain.size() == 1);
+            auto iter_space = isl::space( m_ctx,
+                                          isl::set_tuple(isl::identifier(stmt->name, stmt), 1) );
+            auto iter_dep_space = isl::space::from(iter_space, iter_space);
+            auto dep = isl::basic_map::universe(iter_dep_space);
+            isl::local_space cnstr_space(iter_dep_space);
+            auto in = cnstr_space(isl::space::input, 0);
+            auto out = cnstr_space(isl::space::output, 0);
+            dep.add_constraint(out == in + 1);
+
+            if (debug::is_enabled())
+            {
+                cout << "Input sequence constraint: ";
+                m_printer.print(dep);
+                cout << endl;
+            }
+
+            d.dependencies = d.dependencies | dep;
+        }
+    }
+}
+
+void ast_generator::polyhedral_model(statement * stmt, data & d)
+{
+    using namespace isl;
     using isl::tuple;
 
-    assert(stmt->iteration_domain.size());
+    // FIXME:
+    if ( dynamic_cast<input_access*>(stmt->expr) &&
+         stmt->flow_dim >= 0 )
+    {
+        stmt->domain = { infinite };
+    }
 
-    auto iter_space = isl::space( m_ctx,
-                                  isl::set_tuple( isl::identifier(stmt->name, stmt),
-                                                  stmt->iteration_domain.size() ) );
+    auto stmt_tuple = isl::set_tuple( isl::identifier(stmt->name, stmt),
+                                      stmt->domain.size() );
+    auto iter_space = isl::space( m_ctx, stmt_tuple );
     auto iter_domain = isl::basic_set::universe(iter_space);
     {
         auto constraint_space = isl::local_space(iter_space);
-        for (int dim = 0; dim < stmt->iteration_domain.size(); ++dim)
+        for (int dim = 0; dim < stmt->domain.size(); ++dim)
         {
-            int extent = stmt->iteration_domain[dim];
+            int extent = stmt->domain[dim];
 
             auto dim_var = isl::expression::variable(constraint_space, isl::space::variable, dim);
 
@@ -290,174 +248,69 @@ ast_generator::polyhedral_domain( statement *stmt )
         }
     }
 
-    auto data_space = isl::space( m_ctx,
-                                  isl::set_tuple( isl::identifier(stmt->name, stmt),
-                                                  stmt->domain.size() ) );
+    if (stmt->flow_dim >= 0)
+        d.infinite_domains = d.infinite_domains | iter_domain;
+    else
+        d.finite_domains = d.finite_domains | iter_domain;
 
-    // FIXME: constraint_matrix places output dim before input dim
-    auto iter_data_space = isl::space::from(iter_space, data_space);
+    // Write relation
 
-    auto equalities = constraint_matrix(stmt->data_to_iteration);
-    auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
-
-    auto data_iter_map =
-            isl::basic_map(iter_data_space, equalities, inequalities).inverse();
-
-    if(debug::is_enabled())
+    // FIXME:
     {
-        cout << "Iteration domain: "; m_printer.print(iter_domain); cout << endl;
-        cout << "Data to iteration map: "; m_printer.print(data_iter_map); cout << endl;
+        auto a = stmt->array;
+        auto array_tuple = isl::output_tuple( isl::identifier(a->name),
+                                              a->size.size() );
+        isl::input_tuple stmt_in_tuple;
+        stmt_in_tuple.id = stmt_tuple.id;
+        stmt_in_tuple.elements = stmt_tuple.elements;
+
+        isl::space space(m_ctx, stmt_in_tuple, array_tuple);
+
+        if ( dynamic_cast<input_access*>(stmt->expr) &&
+             stmt->flow_dim >= 0 )
+        {
+            isl::local_space cnstr_space(space);
+            auto stmt_flow = cnstr_space(space::input, stmt->flow_dim);
+            auto array_flow = cnstr_space(space::output, a->flow_dim);
+
+            auto relation = isl::basic_map::universe(space);
+            relation.add_constraint(stmt_flow == array_flow);
+
+            d.write_relations = d.write_relations | relation;
+        }
+        else
+        {
+            auto equalities = constraint_matrix(stmt->write_relation);
+            auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
+            auto relation = isl::basic_map(space, equalities, inequalities);
+
+            d.write_relations = d.write_relations | relation;
+        }
     }
 
-    return make_pair(iter_domain, data_iter_map);
-}
+    // Read relations
 
-isl::union_map ast_generator::polyhedral_dependencies( statement * dependent )
-{
-    using isl::tuple;
-
-    // We assume that a statement only writes one scalar value at a time.
-    // Therefore, a dependency between two statements is exactly
-    // the polyhedral::stmt_access::pattern in the model.
-
-    isl::union_map all_dependencies_map(m_ctx);
-
-    vector<stmt_access*> stmt_accesses;
-    dependent->expr->find<stmt_access>(stmt_accesses);
-
-    for (auto access : stmt_accesses)
     {
-        statement *target = access->target;
+        vector<array_access*> array_accesses;
+        stmt->expr->find<array_access>(array_accesses);
 
-        // NOTE: "input" and "output" are swapped in the ISL model.
-        // "input" = source
-        // "output" = sink
-
-        isl::input_tuple target_tuple(isl::identifier(target->name, target),
-                                      target->domain.size());
-        isl::output_tuple dependent_tuple(isl::identifier(dependent->name, dependent),
-                                       dependent->iteration_domain.size());
-        isl::space space(m_ctx, target_tuple, dependent_tuple);
-
-        auto equalities = constraint_matrix(access->pattern);
-        auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
-
-        isl::basic_map dependency_map(space, equalities, inequalities);
-
-        if (debug::is_enabled())
+        for (auto access : array_accesses)
         {
-            cout << "Dependency: ";
-            m_printer.print(dependency_map); cout << endl;
-        }
+            auto a = access->target;
+            auto array_tuple = isl::output_tuple( isl::identifier(a->name),
+                                                  a->size.size() );
+            isl::input_tuple stmt_in_tuple;
+            stmt_in_tuple.id = stmt_tuple.id;
+            stmt_in_tuple.elements = stmt_tuple.elements;
 
-        all_dependencies_map = all_dependencies_map | dependency_map;
+            isl::space space(m_ctx, stmt_in_tuple, array_tuple);
+            auto equalities = constraint_matrix(access->pattern);
+            auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
+            auto relation = isl::basic_map(space, equalities, inequalities);
+
+            d.read_relations = d.read_relations | relation;
+        }
     }
-
-    vector<reduction_access*> reduction_accesses;
-    dependent->expr->find<reduction_access>(reduction_accesses);
-
-    for (auto access : reduction_accesses)
-    {
-        // FIXME: Required data to iteration mapping?
-#if 1
-        isl::output_tuple dependent_space
-                (isl::identifier(dependent->name, dependent),
-                 dependent->domain.size());
-
-        // Initialization dependence
-        {
-            statement *initializer = access->initializer;
-
-            assert(dependent->domain.size() >= initializer->domain.size());
-
-            isl::input_tuple initializer_space
-                    (isl::identifier(initializer->name, initializer),
-                     initializer->domain.size());
-
-            isl::space space(m_ctx, initializer_space, dependent_space);
-
-            int coef_count = initializer->domain.size() + dependent->domain.size() + 1;
-            int dep_coef = initializer->domain.size();
-            int reduction_dim = initializer->domain.size();
-            if (reduction_dim > dependent->domain.size() - 1)
-                --reduction_dim;
-
-            // Equalities
-            int eq_count = reduction_dim + 1;
-            auto equalities = isl::matrix(m_ctx, eq_count, coef_count, 0);
-            // Constraints: Initial dimensions are equal
-            for (int dim = 0; dim < reduction_dim; ++dim)
-            {
-                equalities(dim, dim) = 1;
-                equalities(dim, dep_coef + dim) = -1;
-            }
-            // Constraint: Dependent reduction dimension is 0:
-            equalities(reduction_dim, dep_coef + reduction_dim) = 1;
-
-            // No inequalities
-            auto inequalities = isl::matrix(m_ctx, 0, coef_count);
-
-            isl::basic_map dependency_map(space, equalities, inequalities);
-            all_dependencies_map = all_dependencies_map | dependency_map;
-
-            if (debug::is_enabled())
-            {
-                cout << "Reduction initializer dependency: ";
-                m_printer.print(dependency_map); cout << endl;
-            }
-        }
-
-        // Reduction dependence
-        {
-            statement *reductor = access->reductor;
-
-            assert(dependent->domain.size() >= reductor->domain.size());
-
-            isl::input_tuple reductor_space
-                    (isl::identifier(reductor->name, reductor),
-                     reductor->domain.size());
-
-            isl::space space(m_ctx, reductor_space, dependent_space);
-
-            int coef_count = reductor->domain.size() + dependent->domain.size() + 1;
-            int dep_coef = reductor->domain.size();
-            int const_coef = coef_count - 1;
-            int reduction_dim = reductor->domain.size() - 1;
-
-            // Equalities
-            int eq_count = reduction_dim + 1;
-            auto equalities = isl::matrix(m_ctx, eq_count, coef_count, 0);
-            // Constraints: Initial dimensions are equal
-            for (int dim = 0; dim < reduction_dim; ++dim)
-            {
-                equalities(dim, dim) = 1;
-                equalities(dim, dep_coef + dim) = -1;
-            }
-            // Constraint:
-            // r = reduction dimension; reduction(r) - dependent(r) + 1 = 0;
-            equalities(reduction_dim, reduction_dim) = 1;
-            equalities(reduction_dim, dep_coef + reduction_dim) = -1;
-            equalities(reduction_dim, const_coef) = 1;
-
-            // Inequalities
-            auto inequalities = isl::matrix(m_ctx, 1, coef_count);
-            // Constraint: dependent(reduction_dim) >= 1
-            inequalities(0, dep_coef + reduction_dim) = 1;
-            inequalities(0, const_coef) = -1;
-
-            isl::basic_map dependency_map(space, equalities, inequalities);
-            all_dependencies_map = all_dependencies_map | dependency_map;
-
-            if (debug::is_enabled())
-            {
-                cout << "Reduction self-dependency: ";
-                m_printer.print(dependency_map); cout << endl;
-            }
-        }
-#endif
-    }
-
-    return all_dependencies_map;
 }
 
 isl::matrix ast_generator::constraint_matrix( const mapping & map )
@@ -475,14 +328,16 @@ isl::matrix ast_generator::constraint_matrix( const mapping & map )
 
     for (int out_dim = 0; out_dim < map.output_dimension(); ++out_dim)
     {
+        int out_col = out_dim + map.input_dimension();
+
         // Put output index on the other side of the equality (negate):
-        matrix(out_dim, out_dim) = -1;
+        matrix(out_dim, out_col) = -1;
 
         for (int in_dim = 0; in_dim < map.input_dimension(); ++in_dim)
         {
-            int col = in_dim + map.output_dimension();
+            int in_col = in_dim;
             int coef = map.coefficients(out_dim, in_dim);
-            matrix(out_dim, col) = coef;
+            matrix(out_dim, in_col) = coef;
         }
 
         int offset = map.constants[out_dim];
@@ -508,6 +363,7 @@ isl::matrix ast_generator::constraint_matrix( const mapping & map )
     Dep_i+s = (M_i U M_s)(Dep)
 */
 
+#if 0
 void ast_generator::periodic_model
 ( const isl::union_set & domains,
   const isl::union_map & dependencies,
@@ -648,7 +504,7 @@ void ast_generator::periodic_model
         cout << endl;
     }
 }
-
+#endif
 
 isl::union_map ast_generator::make_schedule
 (const isl::union_set & domains, const isl::union_map & dependencies)
@@ -726,7 +582,7 @@ ast_generator::make_init_schedule(isl::union_set & domains,
     if (debug::is_enabled())
     {
         cout << endl << "Init schedule:" << endl;
-        print_schedule(init_schedule);
+        print_each_in(init_schedule);
         cout << endl;
     }
 
@@ -742,7 +598,7 @@ ast_generator::make_steady_schedule(isl::union_set & period_domains,
     if (debug::is_enabled())
     {
         cout << endl << "Steady schedule:" << endl;
-        print_schedule(steady_schedule);
+        print_each_in(steady_schedule);
         cout << endl;
     }
 
@@ -758,7 +614,7 @@ ast_generator::schedule_finite_domains
     if (debug::is_enabled())
     {
         cout << endl << "Finite schedule:" << endl;
-        print_schedule(schedule);
+        print_each_in(schedule);
         cout << endl;
     }
 
@@ -780,7 +636,7 @@ ast_generator::schedule_infinite_domains
     if (debug::is_enabled())
     {
         cout << "Infinite schedule:" << endl;
-        print_schedule(infinite_sched);
+        print_each_in(infinite_sched);
         cout << endl;
     }
 
@@ -834,7 +690,12 @@ ast_generator::schedule_infinite_domains
 
         period_sched = period_sched | m;
 
-        stmt->buffer_period_offset = min_i.integer();
+        // FIXME:
+        int offset = min_i.integer();
+        if (!stmt->array->period_offset)
+            stmt->array->period_offset = offset;
+        else if (stmt->array->period_offset != offset)
+            cerr << "WARNING: different offsets for same buffer." << endl;
 
         return true;
     });
@@ -842,7 +703,7 @@ ast_generator::schedule_infinite_domains
     if (debug::is_enabled())
     {
         cout << "Period schedule:" << endl;
-        print_schedule(period_sched);
+        print_each_in(period_sched);
         cout << endl;
     }
 
@@ -852,12 +713,11 @@ ast_generator::schedule_infinite_domains
     {
         auto id = m.id(isl::space::input);
         auto stmt = statement_for(id);
-        auto actor = m_dataflow->find_actor_for(stmt);
-        assert(actor);
+        assert(stmt->flow_dim >= 0);
 
         local_space cnstr_space(m.get_space());
 
-        auto stmt_flow_var = cnstr_space(isl::space::input, actor->flow_dimension);
+        auto stmt_flow_var = cnstr_space(isl::space::input, stmt->flow_dim);
         m.add_constraint(stmt_flow_var >= 0);
 
         auto sched_flow_var = cnstr_space(isl::space::output, flow_dim);
@@ -871,7 +731,7 @@ ast_generator::schedule_infinite_domains
     if (debug::is_enabled())
     {
         cout << "Init schedule:" << endl;
-        print_schedule(init_sched);
+        print_each_in(init_sched);
         cout << endl;
     }
 
@@ -889,9 +749,8 @@ int ast_generator::compute_period
     {
         auto id = m.id(isl::space::input);
         statement *stmt = statement_for(id);
-        auto actor_ptr = m_dataflow->find_actor_for(stmt);
-        assert(actor_ptr);
-        int flow_dim = actor_ptr->flow_dimension;
+        assert(stmt->flow_dim >= 0);
+        int flow_dim = stmt->flow_dim;
 
         m.for_each( [&] (const isl::basic_map & bm)
         {
@@ -966,10 +825,14 @@ int ast_generator::compute_period
         int period = k.second;
         int span = least_common_period / period;
         //cout << "Period advances " << stmt->name << " by " << span << endl;
-        if (!stmt->buffer_period)
-            stmt->buffer_period = span;
-        if (stmt->buffer_period != span)
-            cerr << "WARNING: different period counts for the same statement!" << endl;
+
+        // FIXME:
+        // Assuming write relation is simple
+        // (array flow dimension = statement flow dimension)
+        if (!stmt->array->period)
+            stmt->array->period = span;
+        if (stmt->array->period != span)
+            cerr << "WARNING: different buffer periods for the same array!" << endl;
     }
 
     return least_common_period;
@@ -987,8 +850,7 @@ int ast_generator::common_offset(isl::union_map & schedule, int flow_dim)
     {
         auto id = m.id(isl::space::input);
         auto stmt = statement_for(id);
-        auto actor = m_dataflow->find_actor_for(stmt);
-        if (!actor)
+        if (stmt->flow_dim < 0)
             return true;
 
         auto space = m.get_space();
@@ -996,7 +858,7 @@ int ast_generator::common_offset(isl::union_map & schedule, int flow_dim)
 
         // add constraint: iter[flow] < 0
         local_space cnstr_space(space);
-        auto dim0_idx = cnstr_space(space::input, actor->flow_dimension);
+        auto dim0_idx = cnstr_space(space::input, stmt->flow_dim);
         m.add_constraint(dim0_idx < 0);
         assert(!m.is_empty());
 
@@ -1076,11 +938,9 @@ ast_generator::combine_schedules
             // Lower-bound domain flow dim to 0;
             auto id = sched.id(isl::space::input);
             auto stmt = statement_for(id);
-            auto actor = m_dataflow->find_actor_for(stmt);
-            assert(actor);
 
             isl::local_space space( sched.get_space() );
-            auto in_flow = space(isl::space::input, actor->flow_dimension);
+            auto in_flow = space(isl::space::input, stmt->flow_dim);
             sched.add_constraint(in_flow >= 0);
         }
 
@@ -1115,14 +975,13 @@ ast_generator::combine_schedules
     if (debug::is_enabled())
     {
         cout << endl << "Combined schedule:" << endl;
-        print_schedule(combined_schedule);
+        print_each_in(combined_schedule);
         cout << endl;
     }
 }
 
 void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
-                                          const isl::union_map & data_dependencies,
-                                          const isl::union_map & data_iter_map )
+                                          const data & d )
 {
     using namespace isl;
 
@@ -1134,65 +993,64 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
         return false;
     });
 
-    for (statement *stmt : m_statements)
+    for (auto & array : m_arrays)
     {
-        compute_buffer_size(schedule, data_dependencies, data_iter_map,
-                            stmt, *time_space);
+        compute_buffer_size(schedule, d,
+                            array, *time_space);
     }
 
     delete time_space;
 
-    for (statement *stmt : m_statements)
+    for (auto & array : m_arrays)
     {
-        if (stmt->buffer.empty())
+        if (array->buffer_size.empty())
         {
-            const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
-            for (int dim = 0; dim < stmt->domain.size(); ++dim)
+            for (int dim = 0; dim < array->size.size(); ++dim)
             {
-                if (actor && dim == actor->flow_dimension)
-                    // FIXME!
-                    stmt->buffer.push_back(std::max(actor->init_count, actor->steady_count));
+                if (dim == array->flow_dim)
+                    // FIXME:
+                    array->buffer_size.push_back(array->period_offset + array->period);
                 else
-                    stmt->buffer.push_back(stmt->domain[dim]);
-                assert(stmt->buffer.back() >= 0);
+                    array->buffer_size.push_back(array->size[dim]);
+                assert(array->buffer_size.back() >= 0);
             }
         }
     }
 }
 
+#if 1
 void ast_generator::compute_buffer_size
 ( const isl::union_map & schedule,
-  const isl::union_map & data_dependencies,
-  const isl::union_map & data_iter_map,
-  statement *stmt,
+  const data & d,
+  const array_ptr & array,
   const isl::space & time_space )
 {
     if (debug_buffer_size::is_enabled())
     {
-        cout << "Buffer size for statement: " << stmt->name << endl;
+        cout << "Buffer size for array: " << array->name << endl;
     }
 
     using namespace isl;
     using isl::expression;
 
+    auto array_space = isl::space( m_ctx,
+                                   isl::set_tuple( isl::identifier(array->name),
+                                                   array->size.size() ) );
 
-    auto src_iter_space = isl::space( m_ctx,
-                                      isl::set_tuple( isl::identifier(stmt->name, stmt),
-                                                 stmt->iteration_domain.size() ) );
-    auto src_data_space = isl::space( m_ctx,
-                                      isl::set_tuple( isl::identifier(stmt->name, stmt),
-                                                      stmt->domain.size() ) );
-    auto src_data_universe = isl::basic_set::universe(src_data_space);
+    auto array_sched_space = isl::space::from(array_space, time_space);
 
-    auto src_data_deps = data_dependencies.in_domain(src_data_universe);
+    // Filter and map writers and readers
 
-    if (src_data_deps.is_empty())
+    auto all_write_sched = schedule;
+    all_write_sched.map_domain_through(d.write_relations);
+    auto write_sched = all_write_sched.map_for(array_sched_space);
+
+    auto all_read_sched = schedule;
+    all_read_sched.map_domain_through(d.read_relations);
+    auto read_sched = all_read_sched.map_for(array_sched_space);
+
+    if (write_sched.is_empty() || read_sched.is_empty())
         return;
-
-    // Extract schedule
-
-    space src_sched_space = space::from(src_iter_space, time_space);
-    map src_sched = schedule.map_for(src_sched_space);
 
     // Do the work
 
@@ -1203,37 +1061,18 @@ void ast_generator::compute_buffer_size
     // => Create map: t -> src
     //    such that: time(src) <= t
 
-    map src_not_later = src_sched.inverse()( not_later );
-    {
-        auto src_iter_data_map =
-                data_iter_map.map_for(space::from(src_data_space, src_iter_space)).inverse();
-        src_not_later.map_range_through(src_iter_data_map);
-    }
+    auto written_not_later = write_sched.inverse()( not_later );
 
     // Find all instances of source consumed after time t, for each t;
     // => Create map: t -> src
     //    such that: time(sink(src)) <= t, for all sink
 
-    map src_consumed_later(space::from(time_space, src_data_space));
-
-    src_data_deps.for_each( [&]( const map & dep ){
-
-        space sink_space = dep.range().get_space();
-        space sink_sched_space = space::from(sink_space, time_space);
-        map sink_sched = schedule.map_for(sink_sched_space);
-        map sink_later = sink_sched.inverse()( later );
-        map src_consumed_by_sink_later =
-                dep.inverse()( sink_later ); // FIXME? .in_range(src_sched.domain());
-
-        src_consumed_later = src_consumed_later | src_consumed_by_sink_later;
-
-        return true;
-    });
+    auto read_later = read_sched.inverse()( later );
 
     // Find all src instances live at the same time.
     // = Create map: t -> src,
     //   Such that: time(src) <= t and time(sink(src)) <= t, for all sink
-    auto buffered = src_not_later & src_consumed_later;
+    auto buffered = written_not_later & read_later;
 
     if (debug_buffer_size::is_enabled())
     {
@@ -1254,7 +1093,7 @@ void ast_generator::compute_buffer_size
         }
 
         isl::local_space space(buffered_reflection.get_space());
-        int buf_dim_count = stmt->domain.size();
+        int buf_dim_count = array->size.size();
         int time_dim_count = time_space.dimension(isl::space::variable);
         buffer_size.reserve(buf_dim_count);
 
@@ -1285,9 +1124,9 @@ void ast_generator::compute_buffer_size
             cout << endl;
     }
 
-    stmt->buffer = buffer_size;
+    array->buffer_size = buffer_size;
 
-    // TODO: Clear source_stmt->inter_period_dependency as appropriate.
+    // TODO: Clear inter_period_dependency as appropriate.
 
 #if 0
     // Compute largest re-use distance in number of periods
@@ -1310,10 +1149,20 @@ void ast_generator::compute_buffer_size
     }
 #endif
 }
+#endif
 
-void ast_generator::print_schedule( const isl::union_map & sched )
+void ast_generator::print_each_in( const isl::union_set & us )
 {
-    sched.for_each ( [&](const isl::map & m){
+    us.for_each ( [&](const isl::set & s){
+       m_printer.print(s);
+       cout << endl;
+       return true;
+    });
+}
+
+void ast_generator::print_each_in( const isl::union_map & um )
+{
+    um.for_each ( [&](const isl::map & m){
        m_printer.print(m);
        cout << endl;
        return true;

@@ -100,6 +100,42 @@ void translator::translate(const semantic::symbol & sym,
 
     if (debug::is_enabled())
         cout << "[poly] Exiting root scope." << endl;
+
+    // Check flow dimensions;
+
+    for(statement *stmt : m_statements)
+    {
+        int flow_dim = -1;
+        for(int dim = 0; dim < stmt->domain.size(); ++dim)
+        {
+            if (stmt->domain[dim] == infinite)
+            {
+                if (flow_dim >= 0)
+                {
+                    throw error("Statement infinite in multiple dimensions.");
+                }
+                flow_dim = dim;
+            }
+        }
+        stmt->flow_dim = flow_dim;
+    }
+
+    for(array_ptr a : m_arrays)
+    {
+        int flow_dim = -1;
+        for(int dim = 0; dim < a->size.size(); ++dim)
+        {
+            if (a->size[dim] == infinite)
+            {
+                if (flow_dim >= 0)
+                {
+                    throw error("Array infinite in multiple dimensions.");
+                }
+                flow_dim = dim;
+            }
+        }
+        a->flow_dim = flow_dim;
+    }
 }
 
 expression * translator::translate_input(const semantic::type_ptr & type,
@@ -117,13 +153,17 @@ expression * translator::translate_input(const semantic::type_ptr & type,
     {
         auto & stream_type = type->as<semantic::stream>();
 
-        statement *generator =
-                make_statement(new input_access(primitive_type_for(type), index), stream_type.size);
+        array_ptr array = make_array(primitive_type_for(type));
+        array->size = stream_type.size;
 
-        int dimension = generator->domain.size();
+        statement *generator = make_statement();
+        generator->expr = new input_access(array->type, index);
+        generator->domain = array->size;
+        generator->array = array;
+        generator->write_relation = mapping::identity(array->size.size());
 
-        auto expr = new stmt_view(generator);
-        expr->pattern = mapping::identity(dimension, dimension);
+        auto expr = new array_view(array);
+        expr->pattern = mapping::identity(array->size.size());
         expr->current_iteration = 0;
         return expr;
     }
@@ -162,7 +202,7 @@ expression* translator::do_statement(const ast::node_ptr &node)
 
     expression *expr = do_block(body_node);
 
-    if(!dynamic_cast<stmt_view*>(expr))
+    if(!dynamic_cast<array_view*>(expr))
     {
         using namespace semantic;
 
@@ -179,13 +219,13 @@ expression* translator::do_statement(const ast::node_ptr &node)
 
         if (!domain.empty())
         {
-            expr = make_current_view( make_statement(expr, domain) );
+            expr = make_current_view( make_statement(expr, domain)->array );
         }
         else
         {
             domain.push_back(1);
             auto stmt = make_statement(expr, domain);
-            auto view = new stmt_view(stmt);
+            auto view = new array_view(stmt->array);
             view->pattern = mapping(1,1);
             view->current_iteration = 0;
             expr = view;
@@ -762,10 +802,10 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
         semantic::stream & source_type =
                 iter.domain->semantic_type->as<semantic::stream>();
 
-        stmt_view *source_stream;
-        if ((source_stream = dynamic_cast<stmt_view*>(source_expr)))
+        array_view *source_stream;
+        if ((source_stream = dynamic_cast<array_view*>(source_expr)))
         {
-            stmt_view *copy = new stmt_view(source_stream->target);
+            array_view *copy = new array_view(source_stream->target);
             copy->pattern = access(source_stream);
             source_stream = copy;
         }
@@ -775,7 +815,7 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
             domain.insert(domain.end(), source_type.size.begin(), source_type.size.end());
             if (auto r = dynamic_cast<range*>(source_expr))
                 source_expr = iterate(r);
-            source_stream = make_current_view( make_statement(source_expr, domain) );
+            source_stream = make_current_view( make_statement(source_expr, domain)->array );
         }
 
         // Expand
@@ -822,7 +862,7 @@ expression * translator::do_mapping(const  ast::node_ptr &node)
 
     expression *result = do_block(body_node);
 
-    if (stmt_view *view = dynamic_cast<stmt_view*>(result))
+    if (array_view *view = dynamic_cast<array_view*>(result))
     {
         view->pattern = access(view);
         view->current_iteration = current_dimension() - 1;
@@ -851,13 +891,13 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
 
     expression *source_expr = do_expression(source_node);
 
-    stmt_view *source_stmt_view;
-    if ((source_stmt_view = dynamic_cast<stmt_view*>(source_expr)))
+    array_view *source_array_view;
+    if ((source_array_view = dynamic_cast<array_view*>(source_expr)))
     {
-        stmt_view *copy = new stmt_view(source_stmt_view->target);
-        copy->pattern = access(source_stmt_view);
+        array_view *copy = new array_view(source_array_view->target);
+        copy->pattern = access(source_array_view);
         copy->current_iteration = current_dimension();
-        source_stmt_view = copy;
+        source_array_view = copy;
     }
     else
     {
@@ -865,17 +905,21 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
         domain.insert(domain.end(), source_stream.size.begin(), source_stream.size.end());
         if (auto r = dynamic_cast<range*>(source_expr))
             source_expr = iterate(r);
-        source_stmt_view = make_current_view( make_statement(source_expr, domain) );
+        source_array_view = make_current_view( make_statement(source_expr, domain)->array );
     }
 
     vector<int> result_domain = m_domain;
     if (result_domain.empty())
         result_domain.push_back(1);
 
-    stmt_access *init_access = new stmt_access(source_stmt_view->target);
+    auto reduct_array = make_array(primitive_type_for(node->semantic_type));
+    reduct_array->size = m_domain;
+    reduct_array->size.push_back(source_stream.size.front());
+
+    array_access *iterator0 = new array_access(source_array_view->target);
     {
-        init_access->pattern = source_stmt_view->pattern;
-        mapping &m = init_access->pattern;
+        iterator0->pattern = source_array_view->pattern;
+        mapping &m = iterator0->pattern;
         if (m.input_dimension() > 1)
         {
             m.coefficients = m.coefficients.resized(m.coefficients.rows(),
@@ -887,19 +931,30 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
                 m.coefficient(m.input_dimension()-1,d) = 0;
         }
     }
-    statement *init_stmt = make_statement(init_access, result_domain);
+    statement *init_stmt = make_statement();
+    init_stmt->expr = iterator0;
+    init_stmt->domain = result_domain;
+    init_stmt->array = reduct_array;
+    init_stmt->write_relation = mapping::identity(result_domain.size(),
+                                                  result_domain.size() + 1);
 
-    reduction_access *accumulator = new reduction_access(init_stmt->expr->type);
-    accumulator->initializer = init_stmt;
-
-    stmt_view *iterator = source_stmt_view;
-    iterator->current_iteration = current_dimension() + 1;
+    array_access *iterator = new array_access(source_array_view->target);
     {
-        int dims = iterator->pattern.input_dimension();
-        assert(iterator->current_iteration == dims);
-        mapping offset = mapping::identity(dims, dims);
-        offset.constant(dims - 1) = 1;
+        iterator->pattern = source_array_view->pattern;
+
+        // Offset by 1 in last (= reduction) dim
+        int in_dims = iterator->pattern.input_dimension();
+        mapping offset = mapping::identity(in_dims);
+        offset.constants.back() = 1;
+
         iterator->pattern = iterator->pattern * offset;
+    }
+
+    array_access *accumulator = new array_access(reduct_array);
+    {
+        accumulator->pattern = mapping::identity(reduct_array->size.size());
+        // Offset by -1 in last (= reduction) dim
+        //accumulator->pattern.constants.back() = -1;
     }
 
     statement *reduction_stmt;
@@ -916,30 +971,36 @@ expression * translator::do_reduction(const  ast::node_ptr &node)
         m_domain.push_back(source_stream.size.front() - 1);
 
         expression *reduction_expr = do_block(body_node);
-        reduction_stmt = make_statement(reduction_expr, m_domain);
-        accumulator->reductor = reduction_stmt;
 
-        assert(init_stmt->expr->type == reduction_stmt->expr->type);
+        reduction_stmt = make_statement();
+        reduction_stmt->expr = reduction_expr;
+        reduction_stmt->domain = m_domain;
+        reduction_stmt->array = reduct_array;
+        reduction_stmt->write_relation = mapping::identity(m_domain.size());
+        reduction_stmt->write_relation.constants.back() = 1;
 
         // Restore domain
         m_domain.resize(original_domain_size);
     }
 
+    assert(init_stmt->expr->type == reduct_array->type);
+    assert(reduction_stmt->expr->type == reduct_array->type);
+
     // Create a view with fixed mapping to last element of reduction:
-    auto result = new stmt_view(reduction_stmt);
+    auto result = new array_view(reduct_array);
     result->pattern = mapping::identity(result_domain.size(),
-                                        reduction_stmt->domain.size());
+                                        reduct_array->size.size());
     if (current_dimension() < result_domain.size())
         result->pattern.coefficient(current_dimension(),
                                     current_dimension()) = 0;
     result->pattern.constant(current_dimension())
-            = reduction_stmt->domain.back() - 1;
+            = reduct_array->size.back() - 1;
     result->current_iteration = current_dimension();
 
     return result;
 }
 
-mapping translator::access(stmt_view *source, int padding)
+mapping translator::access(array_view *source, int padding)
 {
     assert(padding >= 0);
 
@@ -979,7 +1040,7 @@ expression *translator::iterate (expression *expr, const semantic::type_ptr & re
 {
     if (auto rng = dynamic_cast<range*>(expr))
         return iterate(rng);
-    else if (auto strm = dynamic_cast<stmt_view*>(expr))
+    else if (auto strm = dynamic_cast<array_view*>(expr))
         return complete_access(strm, result_type);
     else
         return expr;
@@ -1000,8 +1061,8 @@ iterator_access * translator::iterate( range *r )
     return it;
 }
 
-stmt_access * translator::complete_access
-( stmt_view * view, const semantic::type_ptr & result_type)
+array_access * translator::complete_access
+( array_view * view, const semantic::type_ptr & result_type)
 {
     int padding = 0;
     if (result_type->is(semantic::type::stream))
@@ -1011,10 +1072,34 @@ stmt_access * translator::complete_access
     }
     assert(padding >= 0);
 
-    auto access = new stmt_access(view->target);
+    auto access = new array_access(view->target);
     access->pattern = this->access(view, padding);
 
     return access;
+}
+
+array_ptr translator::make_array(primitive_type type)
+{
+    ostringstream name;
+    name << "A_" << m_arrays.size();
+
+    auto a = make_shared<array>(name.str(), type);
+    m_arrays.push_back(a);
+
+    return a;
+}
+
+statement *
+translator::make_statement()
+{
+    ostringstream name;
+    name << "S_" << m_statements.size();
+
+    auto stmt = new statement;
+    m_statements.push_back(stmt);
+    stmt->name = name.str();
+
+    return stmt;
 }
 
 statement *
@@ -1029,15 +1114,18 @@ translator::make_statement( expression * expr,
     stmt->domain = domain;
     stmt->expr = expr;
     stmt->name = name.str();
+    stmt->array = make_array(expr->type);
+    stmt->array->size = domain;
+    stmt->write_relation = mapping::identity(domain.size());
 
     return stmt;
 }
 
-translator::stmt_view *
-translator::make_current_view( statement * stmt )
+translator::array_view *
+translator::make_current_view( array_ptr array )
 {
-    auto view = new stmt_view(stmt);
-    view->pattern = mapping::identity(stmt->domain.size(), stmt->domain.size());
+    auto view = new array_view(array);
+    view->pattern = mapping::identity(array->size.size());
     view->current_iteration = current_dimension();
     return view;
 }
@@ -1052,7 +1140,7 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
         }
         return expr;
     }
-    if (auto dependency = dynamic_cast<stmt_access*>(expr))
+    if (auto dependency = dynamic_cast<array_access*>(expr))
     {
         // FIXME: duplicate, for the sake of consistency with stream_view below.
 
@@ -1061,7 +1149,7 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
         //cout << "after: " << endl  << dependency->pattern;
         return expr;
     }
-    if (auto view = dynamic_cast<stmt_view*>(expr))
+    if (auto view = dynamic_cast<array_view*>(expr))
     {
         if (debug_transform::is_enabled())
         {
@@ -1098,7 +1186,7 @@ expression * translator::update_accesses(expression *expr, const mapping & map )
 
         // FIXME: Only duplicate if shared (avoid memory leak).
 
-        auto new_view = new stmt_view(view->target);
+        auto new_view = new array_view(view->target);
         new_view->pattern = new_pattern;
         new_view->current_iteration = view->current_iteration;
 

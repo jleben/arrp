@@ -56,6 +56,7 @@ public:
                    const vector<semantic::type_ptr> & args);
 
     vector<statement*> & statements() { return m_statements; }
+    vector<array_ptr> & arrays() { return m_arrays; }
 
 private:
     class symbol
@@ -65,14 +66,14 @@ private:
         expression * source;
     };
 
-    class stmt_view : public expression
+    class array_view : public expression
     {
     public:
-        stmt_view(statement *target):
-            expression(target->expr->type),
+        array_view(array_ptr target):
+            expression(target->type),
             target(target)
         {}
-        statement *target;
+        array_ptr target;
         mapping pattern;
         int current_iteration;
     };
@@ -92,7 +93,7 @@ private:
     context m_context;
     vector<int> m_domain;
     vector<statement*> m_statements;
-
+    vector<array_ptr> m_arrays;
 
     void do_statement_list(const ast::node_ptr &node);
     expression * do_statement(const ast::node_ptr &node);
@@ -115,14 +116,18 @@ private:
 
     expression * translate_input(const semantic::type_ptr & type, int index);
 
-    mapping access(stmt_view *source, int padding = 0);
+    mapping access(array_view *source, int padding = 0);
 
     expression *iterate (expression *, const semantic::type_ptr & result_type);
     iterator_access * iterate( range * );
-    stmt_access * complete_access( stmt_view *, const semantic::type_ptr & result_type );
+    array_access * complete_access( array_view *, const semantic::type_ptr & result_type );
 
+    array_ptr make_array(primitive_type);
+
+    statement * make_statement();
     statement * make_statement( expression *, const vector<int> & domain );
-    stmt_view * make_current_view( statement * );
+    array_view * make_current_view( array_ptr );
+    array_view * make_current_view( statement * );
 
     expression * update_accesses(expression *, const mapping & map);
 };

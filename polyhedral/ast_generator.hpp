@@ -21,7 +21,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_AST_GENERATOR_INCLUDED
 #define STREAM_POLYHEDRAL_AST_GENERATOR_INCLUDED
 
-#include "../common/dataflow_model.hpp"
 #include "../common/polyhedral_model.hpp"
 #include "../utility/debug.hpp"
 
@@ -37,8 +36,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 // and libpiplib64, and it should use 64 code version,
 // but including these ISL headers makes it call into MP version instead.
 
-//#include <isl-cpp/set.hpp>
-//#include <isl-cpp/map.hpp>
+#include <isl-cpp/set.hpp>
+#include <isl-cpp/map.hpp>
 #include <isl-cpp/context.hpp>
 #include <isl-cpp/printer.hpp>
 
@@ -88,7 +87,7 @@ public:
         {}
     };
 
-    ast_generator( const vector<statement*> &, const dataflow::model * );
+    ast_generator( const vector<statement*> &, const vector<array_ptr> & arrays );
     ~ast_generator();
 
     pair<struct clast_stmt*,struct clast_stmt*> generate();
@@ -100,8 +99,27 @@ public:
 
 private:
 
+    struct data
+    {
+        data(isl::context & ctx):
+            finite_domains(ctx),
+            infinite_domains(ctx),
+            write_relations(ctx),
+            read_relations(ctx),
+            dependencies(ctx)
+        {}
+        isl::union_set finite_domains;
+        isl::union_set infinite_domains;
+        isl::union_map write_relations;
+        isl::union_map read_relations;
+        isl::union_map dependencies;
+    };
+
     // Translation to ISL representation:
 
+    void polyhedral_model(data &);
+    void polyhedral_model(statement *, data &);
+#if 0
     void polyhedral_model(isl::union_set & finite_domains,
                           isl::union_set & infinite_domains,
                           isl::union_map & data_iter_map,
@@ -109,15 +127,17 @@ private:
 
     pair<isl::basic_set, isl::basic_map> polyhedral_domain( statement * );
     isl::union_map polyhedral_dependencies( statement * );
-    isl::matrix constraint_matrix( const mapping & );
+    #endif
 
+    isl::matrix constraint_matrix( const mapping & );
+#if 0
     void periodic_model( const isl::union_set & domains,
                          const isl::union_map & dependencies,
                          isl::union_map & domain_map,
                          isl::union_set & init_domains,
                          isl::union_set & steady_domains,
                          isl::union_map & periodic_dependencies );
-
+#endif
     // Scheduling
 
     isl::union_map make_schedule(const isl::union_set & domains,
@@ -146,19 +166,18 @@ private:
 
     int common_offset(isl::union_map & schedule, int flow_dim);
 
-    void print_schedule( const isl::union_map & sched );
+    void print_each_in( const isl::union_set & );
+    void print_each_in( const isl::union_map & );
 
     // Buffer size computation
 
     void compute_buffer_sizes( const isl::union_map & schedule,
-                               const isl::union_map & data_dependencies,
-                               const isl::union_map & data_iter_map);
+                               const data & );
 
     void compute_buffer_size
     ( const isl::union_map & schedule,
-      const isl::union_map & data_dependencies,
-      const isl::union_map & data_iter_map,
-      statement *stmt,
+      const data &,
+      const array_ptr & array,
       const isl::space & time_space );
 
     // AST generation
@@ -171,7 +190,7 @@ private:
     isl::printer m_printer;
 
     vector<statement*> m_statements;
-    const dataflow::model * m_dataflow;
+    vector<array_ptr> m_arrays;
 };
 
 }
