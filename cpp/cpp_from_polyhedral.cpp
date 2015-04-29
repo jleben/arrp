@@ -317,7 +317,7 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     {
         assert(array->flow_dim >= 0);
 
-        auto phase_id = make_shared<id_expression>(array->name + "_phase");
+        auto phase_id = make_shared<id_expression>(array->name + "_ph");
         auto phase = make_shared<bin_op_expression>(op::member_of_pointer,
                                                     state_arg,
                                                     phase_id);

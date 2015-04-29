@@ -44,7 +44,7 @@ static int volume( const vector<int> & extent )
 
 static base_type_ptr state_type()
 {
-    static base_type_ptr t(make_shared<basic_type>("state_t"));
+    static base_type_ptr t(make_shared<basic_type>("state"));
     return t;
 }
 
@@ -96,7 +96,7 @@ func_sig_ptr signature_for(const string & name, const vector<semantic::type_ptr>
     }
 
     auto state_param_t = make_shared<pointer_type>(state_type());
-    auto state_param = make_shared<variable_decl>(state_param_t, "state");
+    auto state_param = make_shared<variable_decl>(state_param_t, "s");
     sig->parameters.push_back(state_param);
 
     return func_sig_ptr(sig);
@@ -114,7 +114,7 @@ variable_decl_ptr buffer_decl(polyhedral::array_ptr array)
 class_node * state_type_def(const vector<polyhedral::array_ptr> & arrays,
                             unordered_map<string,buffer> & buffers)
 {
-    auto def = new class_node(struct_class, "state_t");
+    auto def = new class_node(struct_class, "state");
     def->sections.resize(1);
     auto & sec = def->sections.back();
 
@@ -130,7 +130,7 @@ class_node * state_type_def(const vector<polyhedral::array_ptr> & arrays,
         if (!buffers[array->name].has_phase)
             continue;
         auto int_t = make_shared<basic_type>("int");
-        auto decl = make_shared<variable_decl>(int_t, array->name + "_phase");
+        auto decl = make_shared<variable_decl>(int_t, array->name + "_ph");
         sec.members.push_back(make_shared<data_field>(decl));
     }
 
@@ -235,7 +235,7 @@ static void advance_buffers(const vector<polyhedral::array_ptr> & arrays,
                     array->period_offset : array->period;
         int buffer_size = array->buffer_size[array->flow_dim];
 
-        auto phase_id = make_shared<id_expression>(array->name + "_phase");
+        auto phase_id = make_shared<id_expression>(array->name + "_ph");
 
         auto state_arg_name = ctx->current_function()->parameters.back()->name;
         auto state_arg = make_shared<id_expression>(state_arg_name);
@@ -250,7 +250,7 @@ static void advance_buffers(const vector<polyhedral::array_ptr> & arrays,
     }
 }
 
-void add_remainder_function(cpp_gen::module &module)
+void add_remainder_function(cpp_gen::module &module, namespace_node & nmspc)
 {
     auto int_type = make_shared<basic_type>("int");
     auto double_type = make_shared<basic_type>("double");
@@ -285,7 +285,7 @@ void add_remainder_function(cpp_gen::module &module)
 
         build.add(make_shared<return_statement>(result));
 
-        module.members.push_back(f);
+        nmspc.members.push_back(f);
     }
 
     {
@@ -307,7 +307,7 @@ void add_remainder_function(cpp_gen::module &module)
 
         f->body.statements.push_back(make_shared<return_statement>(result));
 
-        module.members.push_back(f);
+        nmspc.members.push_back(f);
     }
 }
 
@@ -317,7 +317,8 @@ void generate(const string & name,
               const vector<polyhedral::array_ptr> & arrays,
               clast_stmt *finite_schedule,
               clast_stmt *periodic_schedule,
-              std::ostream & stream)
+              std::ostream & src_stream,
+              std::ostream & hdr_stream)
 {
     unordered_map<string,buffer> buffers = buffer_analysis(arrays);
 
@@ -329,9 +330,14 @@ void generate(const string & name,
     m.members.push_back(make_shared<include_dir>("cmath"));
     m.members.push_back(make_shared<using_decl>("namespace std"));
 
-    add_remainder_function(m);
+    auto nmspc = make_shared<namespace_node>();
+    nmspc->name = name;
+    m.members.push_back(nmspc);
 
-    m.members.push_back(module_member_ptr(state_type_def(arrays,buffers)));
+    add_remainder_function(m,*nmspc);
+
+    // FIXME: rather include header:
+    nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
 
     auto stmt_func = [&]
             ( const string & name,
@@ -345,7 +351,7 @@ void generate(const string & name,
 
     if (finite_schedule)
     {
-        auto sig = signature_for(name + "_finite", args);
+        auto sig = signature_for("initialize", args);
         b.set_current_function(sig.get());
 
         auto func = make_shared<func_def>(sig);
@@ -364,12 +370,12 @@ void generate(const string & name,
 
         b.pop();
 
-        m.members.push_back(func);
+        nmspc->members.push_back(func);
     }
 
     if (periodic_schedule)
     {
-        auto sig = signature_for(name + "_period", args);
+        auto sig = signature_for("process", args);
         b.set_current_function(sig.get());
         poly.set_in_period(true);
 
@@ -389,13 +395,64 @@ void generate(const string & name,
 
         b.pop();
 
-        m.members.push_back(func);
+        nmspc->members.push_back(func);
     }
 
-    cpp_gen::state gen_state;
+    {
+        cpp_gen::state gen_state;
+        m.generate(gen_state, src_stream);
+    }
 
-    m.generate(gen_state, stream);
+    {
+        module header;
+        auto nmspc = make_shared<namespace_node>();
+        nmspc->name = name;
+        header.members.push_back(nmspc);
+
+        nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
+
+        {
+            auto sig = signature_for("initialize", args);
+            nmspc->members.push_back(make_shared<func_decl>(sig));
+        }
+        {
+            auto sig = signature_for("process", args);
+            nmspc->members.push_back(make_shared<func_decl>(sig));
+        }
+        {
+            cpp_gen::state gen;
+            header.generate(gen, hdr_stream);
+        }
+    }
 }
+#if 0
+void generate_header(const string & name,
+                     const vector<semantic::type_ptr> & args,
+                     const vector<polyhedral::statement*> & statements,
+                     const vector<polyhedral::array_ptr> & arrays,
+                     ostream & stream)
+{
 
+    module header;
+    auto nmspc = make_shared<namespace_node>();
+    nmspc->name = name;
+    header.members.push_back(nmspc);
+
+    nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
+
+    {
+        auto sig = signature_for("initialize", args);
+        nmspc->members.push_back(make_shared<func_decl>(sig));
+    }
+    {
+        auto sig = signature_for("process", args);
+        nmspc->members.push_back(make_shared<func_decl>(sig));
+    }
+    {
+        cpp_gen::state gen;
+        header.generate(gen, stream);
+    }
+}
+#endif
 }
 }

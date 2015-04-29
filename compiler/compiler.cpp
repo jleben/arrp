@@ -296,20 +296,31 @@ result::code compile_polyhedral_model
 
     if (!args.cpp_output_filename.empty())
     {
-        ofstream cpp_output_file(args.cpp_output_filename);
-        if (!cpp_output_file.is_open())
         {
-            cerr << "Could not open C++ interface output file: "
-                 << args.cpp_output_filename << endl;
-            return result::io_error;
+            string cpp_filename = args.cpp_output_filename + ".cpp";
+            ofstream cpp_file(cpp_filename);
+            if (!cpp_file.is_open())
+            {
+                cerr << "Could not open C++ output file: "
+                     << cpp_filename << endl;
+                return result::io_error;
+            }
+
+            string hpp_filename = args.cpp_output_filename + ".h";
+            ofstream hpp_file(hpp_filename);
+            if (!hpp_file.is_open())
+            {
+                cerr << "Could not open C++ header output file: "
+                     << hpp_filename << endl;
+                return result::io_error;
+            }
+
+            cpp_gen::generate(target.name, target.args,
+                              statements, arrays,
+                              ast.first, ast.second,
+                              cpp_file,
+                              hpp_file);
         }
-
-        using namespace cpp_gen;
-
-        cpp_gen::generate(target.name, target.args,
-                          statements, arrays,
-                          ast.first, ast.second,
-                          cpp_output_file);
 
 #if 0
         cpp_output_file << "#ifndef stream_function_" << target.name << "_included" << endl;
