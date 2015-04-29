@@ -18,12 +18,18 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#ifndef NO_LOGARITHM
-# define FLUX flux
-# define FLUX_HEADER "flux-kernel.h"
-#else
+#ifdef NO_LOGARITHM
 # define FLUX flux_no_log
+#else
+# define FLUX flux
+#endif
+
+#if defined (STREAMING)
+# define FLUX_HEADER "flux-stream-kernel.h"
+#elif defined (NO_LOGARITHM)
 # define FLUX_HEADER "flux-no-log-kernel.h"
+#else
+# define FLUX_HEADER "flux-kernel.h"
 #endif
 
 #include FLUX_HEADER
@@ -96,9 +102,10 @@ static multi_array<double,T,N> *in_array = nullptr;
 static int in_t = 0;
 static multi_array<double,T-1> *out_array = nullptr;
 static int out_t = 0;
+FLUX::state *g_state = nullptr;
 
 
-#if defined(STREAMING) || 1
+#if defined(STREAMING)
 namespace FLUX {
 
 void input(int, double *dst)
@@ -112,6 +119,7 @@ void input(int, double *dst)
 
 void output(double *src)
 {
+    //cout << out_t << " @ " << g_state->A_1_ph << endl;
     (*out_array)(out_t) = *src;
     ++out_t;
 }
@@ -123,7 +131,6 @@ int main()
 {
     multi_array<double,T-1> ex;
     multi_array<double,N> ex_buf;
-    multi_array<double,T-1> out;
 
     std::random_device rand;
 
@@ -134,6 +141,7 @@ int main()
         cout << "## Run " << rep << " ##" << endl;
 
         multi_array<double,T,N> in = multi_array<double,T,N>::random(0,100,rand());
+        multi_array<double,T-1> out;
 
         in_array = &in;
         in_t = 0;
@@ -150,6 +158,7 @@ int main()
 
         FLUX::state state;
         //FLUX::allocate(&state);
+        g_state = &state;
 
         auto test_start_time = high_resolution_clock::now();
 
