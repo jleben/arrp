@@ -511,10 +511,10 @@ public:
         func_name(f), args(a)
     {}
     call_expression(string f, expression_ptr a):
-        func_name(f), args({a})
+        func_name(f), args{a}
     {}
     call_expression(string f, expression_ptr a, expression_ptr b):
-        func_name(f), args({a,b})
+        func_name(f), args{a,b}
     {}
     call_expression(string f, const vector<expression_ptr> & a):
         func_name(f), args(a)

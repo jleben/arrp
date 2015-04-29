@@ -345,6 +345,28 @@ void add_output_getter_func(cpp_gen::module &module, namespace_node & nmspc,
     nmspc.members.push_back(func);
 }
 
+func_sig_ptr input_func_sig()
+{
+    auto sig = make_shared<func_signature>();
+    sig->name = "input";
+    sig->type = make_shared<basic_type>("void");
+    auto double_t = make_shared<basic_type>("double");
+    auto int_t = make_shared<basic_type>("int");
+    sig->parameters.push_back( decl(int_t,"") );
+    sig->parameters.push_back( decl(pointer(double_t),"") );
+    return sig;
+}
+
+func_sig_ptr output_func_sig()
+{
+    auto sig = make_shared<func_signature>();
+    sig->name = "output";
+    sig->type = make_shared<basic_type>("void");
+    auto double_t = make_shared<basic_type>("double");
+    sig->parameters.push_back( decl(pointer(double_t),"") );
+    return sig;
+}
+
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
               const vector<polyhedral::statement*> & statements,
@@ -373,6 +395,8 @@ void generate(const string & name,
 
     // FIXME: rather include header:
     nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
+    nmspc->members.push_back(make_shared<func_decl>(input_func_sig()));
+    nmspc->members.push_back(make_shared<func_decl>(output_func_sig()));
 
     // FIXME: not of much use with infinite I/O
     add_output_getter_func(m, *nmspc, arrays.back());
@@ -459,6 +483,16 @@ void generate(const string & name,
         }
         {
             auto sig = output_getter_signature(arrays.back());
+            nmspc->members.push_back(make_shared<func_decl>(sig));
+        }
+        {
+            // FIXME: Input type
+            auto sig = input_func_sig();
+            nmspc->members.push_back(make_shared<func_decl>(sig));
+        }
+        {
+            // FIXME: Output type
+            auto sig = output_func_sig();
             nmspc->members.push_back(make_shared<func_decl>(sig));
         }
         {

@@ -307,7 +307,7 @@ void cpp_from_polyhedral::generate_input_access
     {
         index_type dst_index = index;
         int dim_dif = stmt->array->buffer_size.size() - dst_index.size();
-        dst_index.resize(dst_index.size() + dim_dif, 0);
+        dst_index.resize(dst_index.size() + dim_dif, literal((int)0));
 
         expression_ptr dst = generate_buffer_access(stmt->array, dst_index, ctx);
         dst = make_shared<un_op_expression>(op::address, dst);
@@ -325,7 +325,7 @@ void cpp_from_polyhedral::generate_output_access
 
     index_type source_index = index;
     int dim_dif = access->target->buffer_size.size() - source_index.size();
-    source_index.resize(source_index.size() + dim_dif, 0);
+    source_index.resize(source_index.size() + dim_dif, literal((int)0));
 
     expression_ptr src = generate_buffer_access(access->target, source_index, ctx);
     src = make_shared<un_op_expression>(op::address, src);
