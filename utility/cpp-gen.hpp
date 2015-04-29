@@ -27,6 +27,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <cassert>
 #include <memory>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -384,7 +385,7 @@ public:
 
     void generate(state &, ostream & stream)
     {
-        stream << value;
+        stream << std::showpoint << value;
     }
 };
 
