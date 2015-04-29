@@ -328,6 +328,7 @@ void generate(const string & name,
     cpp_from_polyhedral poly(statements, buffers);
 
     m.members.push_back(make_shared<include_dir>("cmath"));
+    m.members.push_back(make_shared<include_dir>("algorithm"));
     m.members.push_back(make_shared<using_decl>("namespace std"));
 
     auto nmspc = make_shared<namespace_node>();
