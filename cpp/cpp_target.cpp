@@ -66,7 +66,7 @@ variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name
 
         vector<int> size = stream.size;
 
-        // FIXME:
+        // FIXME: Omit infinite inputs from args?
         for(int & dim : size)
             if (dim == semantic::stream::infinite)
                 dim = 0;
@@ -374,6 +374,7 @@ void generate(const string & name,
     // FIXME: rather include header:
     nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
 
+    // FIXME: not of much use with infinite I/O
     add_output_getter_func(m, *nmspc, arrays.back());
 
     auto stmt_func = [&]

@@ -136,6 +136,21 @@ void translator::translate(const semantic::symbol & sym,
         }
         a->flow_dim = flow_dim;
     }
+
+    // Add output statement;
+
+    assert(!m_statements.empty());
+    statement *last_stmt = m_statements.back();
+    if (last_stmt->flow_dim >= 0)
+    {
+        auto src = new array_access(last_stmt->array);
+        // NOTE: special pattern will be fixed later
+        auto stmt = make_statement();
+        stmt->domain = { infinite };
+        stmt->flow_dim = 0;
+        stmt->expr = src;
+        // NOTE: no array
+    }
 }
 
 expression * translator::translate_input(const semantic::type_ptr & type,

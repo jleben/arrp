@@ -33,18 +33,22 @@ void cpp_from_polyhedral::generate_statement
     if (dynamic_cast<polyhedral::input_access*>(stmt->expr))
     {
         // FIXME: different iteration and data domains
-        expr = generate_input_access(stmt, index, ctx);
+        generate_input_access(stmt, index, ctx);
+    }
+    else if (!stmt->array)
+    {
+        generate_output_access(stmt, index, ctx);
     }
     else
     {
         expr = generate_expression(stmt->expr, index, ctx);
+
+        auto array_index = mapped_index(index, stmt->write_relation, ctx);
+        auto dst = generate_buffer_access(stmt->array, array_index, ctx);
+        auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
+
+        ctx->add(make_shared<expr_statement>(store));
     }
-
-    auto array_index = mapped_index(index, stmt->write_relation, ctx);
-    auto dst = generate_buffer_access(stmt->array, array_index, ctx);
-    auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
-
-    ctx->add(make_shared<expr_statement>(store));
 }
 
 expression_ptr cpp_from_polyhedral::generate_expression
@@ -282,14 +286,51 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     }
 }
 
-expression_ptr cpp_from_polyhedral::generate_input_access
+void cpp_from_polyhedral::generate_input_access
 (polyhedral::statement * stmt, const index_type & index, builder * ctx)
 {
-    // FIXME: index
     int input_num = reinterpret_cast<polyhedral::input_access*>(stmt->expr)->index;
-    auto input_name = ctx->current_function()->parameters[input_num]->name;
-    auto input_id = make_shared<id_expression>(input_name);
-    return make_shared<array_access_expression>(input_id, index);
+
+    if (stmt->flow_dim < 0)
+    {
+        auto input_name = ctx->current_function()->parameters[input_num]->name;
+        auto input_id = make_shared<id_expression>(input_name);
+        auto value = make_shared<array_access_expression>(input_id, index);
+
+        auto array_index = mapped_index(index, stmt->write_relation, ctx);
+        auto dst = generate_buffer_access(stmt->array, array_index, ctx);
+        auto store = make_shared<bin_op_expression>(op::assign, dst, value);
+
+        ctx->add(make_shared<expr_statement>(store));
+    }
+    else
+    {
+        index_type dst_index = index;
+        int dim_dif = stmt->array->buffer_size.size() - dst_index.size();
+        dst_index.resize(dst_index.size() + dim_dif, 0);
+
+        expression_ptr dst = generate_buffer_access(stmt->array, dst_index, ctx);
+        dst = make_shared<un_op_expression>(op::address, dst);
+        auto call = make_shared<call_expression>("input", literal(input_num), dst);
+        ctx->add(call);
+        //cout << "Would generate input call for " << stmt->name << endl;
+    }
+}
+
+void cpp_from_polyhedral::generate_output_access
+(polyhedral::statement * stmt, const index_type & index, builder * ctx)
+{
+    auto access = dynamic_cast<polyhedral::array_access*>(stmt->expr);
+    assert(access);
+
+    index_type source_index = index;
+    int dim_dif = access->target->buffer_size.size() - source_index.size();
+    source_index.resize(source_index.size() + dim_dif, 0);
+
+    expression_ptr src = generate_buffer_access(access->target, source_index, ctx);
+    src = make_shared<un_op_expression>(op::address, src);
+    auto call = make_shared<call_expression>("output", src);
+    ctx->add(call);
 }
 
 expression_ptr cpp_from_polyhedral::generate_buffer_access

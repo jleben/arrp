@@ -62,7 +62,10 @@ private:
     expression_ptr generate_primitive
     (polyhedral::primitive_expr*, const index_type&, builder*);
 
-    expression_ptr generate_input_access
+    void generate_input_access
+    (polyhedral::statement*, const index_type&, builder*);
+
+    void generate_output_access
     (polyhedral::statement*, const index_type&, builder*);
 
     expression_ptr generate_buffer_access

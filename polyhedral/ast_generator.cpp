@@ -184,12 +184,12 @@ void ast_generator::polyhedral_model(data & d)
     d.dependencies = deps;
 
     // FIXME: belongs somewhere else...
-    // Add additional constraints for infinite inputs:
+    // Add additional constraints for infinite inputs and outputs:
     // each input iteration must be after the previous one.
     for (statement * stmt : m_statements)
     {
-        if ( dynamic_cast<input_access*>(stmt->expr) &&
-             stmt->flow_dim >= 0 )
+        if ( stmt->flow_dim >= 0 &&
+             (dynamic_cast<input_access*>(stmt->expr) || !stmt->array) )
         {
             assert(stmt->domain.size() == 1);
             auto iter_space = isl::space( m_ctx,
@@ -201,13 +201,6 @@ void ast_generator::polyhedral_model(data & d)
             auto out = cnstr_space(isl::space::output, 0);
             dep.add_constraint(out == in + 1);
 
-            if (debug::is_enabled())
-            {
-                cout << "Input sequence constraint: ";
-                m_printer.print(dep);
-                cout << endl;
-            }
-
             d.dependencies = d.dependencies | dep;
         }
     }
@@ -218,11 +211,12 @@ void ast_generator::polyhedral_model(statement * stmt, data & d)
     using namespace isl;
     using isl::tuple;
 
-    // FIXME:
+    // FIXME: Dirty hack
     if ( dynamic_cast<input_access*>(stmt->expr) &&
          stmt->flow_dim >= 0 )
     {
         stmt->domain = { infinite };
+        stmt->flow_dim = 0;
     }
 
     auto stmt_tuple = isl::set_tuple( isl::identifier(stmt->name, stmt),
@@ -255,7 +249,7 @@ void ast_generator::polyhedral_model(statement * stmt, data & d)
 
     // Write relation
 
-    // FIXME:
+    if (stmt->array)
     {
         auto a = stmt->array;
         auto array_tuple = isl::output_tuple( isl::identifier(a->name),
@@ -266,6 +260,7 @@ void ast_generator::polyhedral_model(statement * stmt, data & d)
 
         isl::space space(m_ctx, stmt_in_tuple, array_tuple);
 
+        // FIXME: Dirty hack
         if ( dynamic_cast<input_access*>(stmt->expr) &&
              stmt->flow_dim >= 0 )
         {
@@ -304,11 +299,27 @@ void ast_generator::polyhedral_model(statement * stmt, data & d)
             stmt_in_tuple.elements = stmt_tuple.elements;
 
             isl::space space(m_ctx, stmt_in_tuple, array_tuple);
-            auto equalities = constraint_matrix(access->pattern);
-            auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
-            auto relation = isl::basic_map(space, equalities, inequalities);
 
-            d.read_relations = d.read_relations | relation;
+            // FIXME: Dirty hack
+            if ( !stmt->array )
+            {
+                isl::local_space cnstr_space(space);
+                auto stmt_flow = cnstr_space(space::input, stmt->flow_dim);
+                auto array_flow = cnstr_space(space::output, a->flow_dim);
+
+                auto relation = isl::basic_map::universe(space);
+                relation.add_constraint(stmt_flow == array_flow);
+
+                d.read_relations = d.read_relations | relation;
+            }
+            else
+            {
+                auto equalities = constraint_matrix(access->pattern);
+                auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
+                auto relation = isl::basic_map(space, equalities, inequalities);
+
+                d.read_relations = d.read_relations | relation;
+            }
         }
     }
 }
@@ -825,6 +836,10 @@ int ast_generator::compute_period
         int period = k.second;
         int span = least_common_period / period;
         //cout << "Period advances " << stmt->name << " by " << span << endl;
+
+        // FIXME: Dirty hack
+        if (!stmt->array)
+            continue;
 
         // FIXME:
         // Assuming write relation is simple
