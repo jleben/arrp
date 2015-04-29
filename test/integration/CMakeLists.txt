@@ -6,7 +6,6 @@ include(streams)
 
 function(add_integration_test target_name source func args driver)
   set(kernel_target_name ${target_name}-kernel)
-  set(meta ${target_name}.meta)
 
   compile_stream_func( ${kernel_target_name}
     ${source} ${func} "${args}"
@@ -20,49 +19,65 @@ function(add_integration_test target_name source func args driver)
   add_test(NAME ${target_name} COMMAND $<TARGET_FILE:${target_name}>)
 endfunction()
 
-add_integration_test(sum
+function(add_integration_test_cpp target_name source func args driver)
+  set(out_cpp ${target_name}-kernel.cpp)
+
+  add_custom_command(OUTPUT ${out_cpp}
+    COMMAND $<TARGET_FILE:streamc>
+    ARGS ${source} -g ${func} ${args} --cpp ${target_name}-kernel
+    DEPENDS ${source} streamc
+  )
+
+message(STATUS "Driver: ${driver}")
+
+  add_executable( ${target_name} ${driver} "${CMAKE_CURRENT_BINARY_DIR}/${out_cpp}" )
+
+  add_test(NAME ${target_name} COMMAND $<TARGET_FILE:${target_name}>)
+endfunction()
+
+add_integration_test_cpp(sum
   ${CMAKE_SOURCE_DIR}/examples/audio-features.in
   sum "[10]"
   sum.cpp
 )
 
-add_integration_test(rms
+add_integration_test_cpp(rms
   ${CMAKE_SOURCE_DIR}/examples/audio-features.in
   rms "[10]"
   rms.cpp
 )
 
-add_integration_test(centroid
+add_integration_test_cpp(centroid
   ${CMAKE_SOURCE_DIR}/examples/audio-features.in
   centroid "[100]"
   centroid.cpp
 )
 
-add_integration_test(mat-mul
+add_integration_test_cpp(mat-mul
   ${CMAKE_SOURCE_DIR}/examples/matrix-mult.in
   matrix_multiply "[10,128,256];[10,256,128]"
   mat-mul.cpp
 )
 
-add_integration_test(flux
+add_integration_test_cpp(flux
   ${CMAKE_SOURCE_DIR}/examples/spectral-flux.in
   flux "[1000,1000]"
   flux.cpp
 )
 
-add_integration_test(flux-no-log
+add_integration_test_cpp(flux-no-log
   ${CMAKE_SOURCE_DIR}/examples/spectral-flux.in
   flux_no_log "[1000,1000]"
   flux.cpp
 )
 target_compile_definitions(flux-no-log PRIVATE NO_LOGARITHM)
 
-add_integration_test(flux-stream
-  ${CMAKE_SOURCE_DIR}/examples/spectral-flux.in
-  flux "[inf,1000]"
-  flux.cpp
-)
-target_compile_definitions(flux-stream PRIVATE STREAMING)
+#add_integration_test(flux-stream
+#  ${CMAKE_SOURCE_DIR}/examples/spectral-flux.in
+#  flux "[inf,1000]"
+#  flux.cpp
+#)
+#target_compile_definitions(flux-stream PRIVATE STREAMING)
 
 
 
@@ -70,8 +85,8 @@ target_compile_definitions(flux-stream PRIVATE STREAMING)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-add_executable(compile-equalizer equalizer-compiler.cpp)
-target_link_libraries(compile-equalizer streamc-lib)
+#add_executable(compile-equalizer equalizer-compiler.cpp)
+#target_link_libraries(compile-equalizer streamc-lib)
 
 add_custom_command(OUTPUT equalizer-kernel.ll
   COMMAND ./compile-equalizer
@@ -80,6 +95,6 @@ add_custom_command(OUTPUT equalizer-kernel.ll
 
 stream_kernel_opt(equalizer-kernel-opt.ll equalizer-kernel.ll)
 stream_kernel_object(equalizer-kernel.o equalizer-kernel-opt.ll)
-add_executable(test-equalizer equalizer-tester.cpp equalizer-kernel.o)
+#add_executable(test-equalizer equalizer-tester.cpp equalizer-kernel.o)
 
-add_test(NAME equalizer COMMAND $<TARGET_FILE:test-equalizer>)
+#add_test(NAME equalizer COMMAND $<TARGET_FILE:test-equalizer>)

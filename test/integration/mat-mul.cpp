@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "mat-mul.h"
+#include "mat-mul-kernel.h"
 #include "test.hpp"
 
 #include <iostream>
@@ -83,11 +83,13 @@ int main()
 
        // Run lang
 
-       matrix_multiply::buffer state;
-       matrix_multiply::allocate(&state);
+       matrix_multiply::state state;
+       //matrix_multiply::allocate(&state);
 
        auto lang_start_time = high_resolution_clock::now();
-       matrix_multiply::initialize(in1.data(), in2.data(), &state);
+       matrix_multiply::initialize((double(*)[A][B]) in1.data(),
+                                   (double(*)[B][C]) in2.data(),
+                                   &state);
        auto lang_end_time = high_resolution_clock::now();
 
        // Compare

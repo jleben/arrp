@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "centroid.h"
+#include "centroid-kernel.h"
 #include "test.hpp"
 
 constexpr int in_size = 100;
@@ -42,8 +42,8 @@ double expected( const in_type & in )
 
 int main()
 {
-    centroid::buffer state;
-    centroid::allocate(&state);
+    centroid::state state;
+    //centroid::allocate(&state);
 
     bool ok = true;
 

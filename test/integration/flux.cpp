@@ -18,7 +18,15 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "flux.h"
+#ifndef NO_LOGARITHM
+# define FLUX flux
+# define FLUX_HEADER "flux-kernel.h"
+#else
+# define FLUX flux_no_log
+# define FLUX_HEADER "flux-no-log-kernel.h"
+#endif
+
+#include FLUX_HEADER
 #include "test.hpp"
 
 #include <cmath>
@@ -123,19 +131,20 @@ int main()
         expected_typical(in, ex);
         auto ex_typical_end_time = high_resolution_clock::now();
 
-        flux::buffer buf;
-        flux::allocate(&buf);
-        buf.input_func = (void*) &input_func;
-
+        FLUX::state state;
+        //FLUX::allocate(&state);
+#ifdef STREAMING
+        state.input_func = (void*) &input_func;
+#endif
         auto test_start_time = high_resolution_clock::now();
 
-        flux::initialize(in.data(), &buf);
+        FLUX::initialize((double (*)[1000]) in.data(), &state);
 
 #ifdef STREAMING
         for(int t = 0; t < T-1; ++t)
         {
-            flux::process(nullptr, &buf);
-            out(t) = *flux::get_output(&buf);
+            FLUX::process(nullptr, &buf);
+            out(t) = *FLUX::get_output(&buf);
         }
 #endif
 
@@ -157,7 +166,7 @@ int main()
              << (stream_time.count() / c_typical_time.count()) << endl;
 
 #ifndef STREAMING
-        out = multi_array<double,T-1>(flux::get_output(&buf));
+        out = multi_array<double,T-1>(FLUX::get_output(&state));
 #endif
 
 #if 0

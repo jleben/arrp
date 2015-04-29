@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "rms.h"
+#include "rms-kernel.h"
 
 #include <iostream>
 #include <cmath>
@@ -27,8 +27,8 @@ using namespace std;
 
 int main()
 {
-    rms::buffer buf;
-    rms::allocate(&buf);
+    rms::state s;
+    //rms::allocate(&buf);
 
     double *input = new double[10];
     for (int i = 0; i < 10; ++i)
@@ -36,7 +36,7 @@ int main()
         input[i] = i;
     }
 
-    rms::initialize(input, &buf);
+    rms::initialize(input, &s);
 
     double expected;
     {
@@ -47,7 +47,7 @@ int main()
         expected = std::sqrt(sum);
     }
 
-    double actual = *rms::get_output(&buf);
+    double actual = *rms::get_output(&s);
 
     cout << "expected: " << expected << endl;
     cout << "actual: " << actual << endl;

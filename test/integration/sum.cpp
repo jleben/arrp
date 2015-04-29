@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "sum.h"
+#include "sum-kernel.h"
 
 #include <iostream>
 
@@ -26,8 +26,8 @@ using namespace std;
 
 int main()
 {
-    sum::buffer buf;
-    sum::allocate(&buf);
+    sum::state s;
+    //sum::allocate(&buf);
 
     double *input = new double[10];
     for (int i = 0; i < 10; ++i)
@@ -35,9 +35,9 @@ int main()
         input[i] = i;
     }
 
-    sum::initialize(input, &buf);
+    sum::initialize(input, &s);
 
-    double result = *sum::get_output(&buf);
+    double result = *sum::get_output(&s);
 
     cout << "result = " << result << endl;
 
