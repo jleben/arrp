@@ -1231,6 +1231,10 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
                                " 1 dimension not supported.",
                                root->line);
 
+        if (domain_type->as<stream>().size[0] == stream::infinite)
+            throw source_error("Reduction of infinite dimension not supported.",
+                               root->line);
+
         val1 = val2 = make_shared<real_num>();
         break;
     }
