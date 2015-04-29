@@ -27,8 +27,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/type_checker.hpp"
 #include "../polyhedral/translator.hpp"
 #include "../polyhedral/ast_generator.hpp"
-#include "../llvm/llvm_ir_from_cloog.hpp"
-#include "../llvm/llvm_from_polyhedral.hpp"
+//#include "../llvm/llvm_ir_from_cloog.hpp"
+//#include "../llvm/llvm_from_polyhedral.hpp"
 #include "../cpp/cpp_target.hpp"
 //#include "../interface/cpp-intf-gen.hpp"
 
@@ -194,12 +194,13 @@ result::code compile_source(istream & source, const arguments & args)
     polyhedral::translator poly(env);
     poly.translate( sym_iter->second, target.args );
 
-    return compile_polyhedral_model(poly.statements(), args);
+    return compile_polyhedral_model(poly.statements(), poly.arrays(), args);
 }
 
 
 result::code compile_polyhedral_model
 (const vector<stream::polyhedral::statement*> & statements,
+ const vector<stream::polyhedral::array_ptr> & arrays,
  const arguments & args)
 {
     // Print polyhedral model
@@ -218,14 +219,9 @@ result::code compile_polyhedral_model
 
     const target_info & target = args.target;
 
-    // Construct dataflow model
-
-    dataflow::model dataflow_model(statements);
-
     // Construct AST from polyhedral and dataflow models
 
-    polyhedral::ast_generator poly_ast_gen( statements,
-                                            &dataflow_model );
+    polyhedral::ast_generator poly_ast_gen( statements, arrays );
     poly_ast_gen.set_print_ast_enabled(args.print[arguments::target_ast_output]);
 
     auto ast = poly_ast_gen.generate();
@@ -239,9 +235,10 @@ result::code compile_polyhedral_model
 
     if (args.print[arguments::buffer_size_output])
     {
-        print_buffer_sizes(statements);
+        print_buffer_sizes(arrays);
     }
 
+#if 0
     // Generate LLVM IR
 
     llvm::Module *module = new llvm::Module(args.input_filename,
@@ -250,7 +247,8 @@ result::code compile_polyhedral_model
     llvm_gen::llvm_from_cloog llvm_cloog(module);
 
     llvm_gen::llvm_from_polyhedral llvm_from_polyhedral
-            (module, statements, &dataflow_model);
+            (module, statements, nullptr);
+
 
     // Generate LLVM IR for finite part
 
@@ -293,7 +291,7 @@ result::code compile_polyhedral_model
                              ctx.start_block,
                              ctx.end_block );
     }
-
+#endif
     // Output C++ interface
 
     if (!args.cpp_output_filename.empty())
@@ -306,10 +304,11 @@ result::code compile_polyhedral_model
             return result::io_error;
         }
 
-        //using namespace cpp_gen;
+        using namespace cpp_gen;
 
         cpp_gen::generate(target.name, target.args,
-                          statements, ast.first, ast.second,
+                          statements, arrays,
+                          ast.first, ast.second,
                           cpp_output_file);
 
 #if 0
@@ -501,6 +500,7 @@ result::code compile_polyhedral_model
 #endif
     }
 
+#if 0
     // Output LLVM IR
 
     ofstream output_file(args.output_filename);
@@ -514,18 +514,18 @@ result::code compile_polyhedral_model
 
     if (!llvm_cloog.verify())
         return result::generator_error;
-
+#endif
     return result::ok;
 }
 
-void print_buffer_sizes(const vector<stream::polyhedral::statement*> & stmts)
+void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
 {
     cout << endl << "== Buffer sizes ==" << endl;
-    for (polyhedral::statement *stmt : stmts)
+    for (const auto & array : arrays)
     {
         int flat_size = 1;
-        cout << stmt->name << ": ";
-        for (auto b : stmt->buffer)
+        cout << array->name << ": ";
+        for (auto b : array->buffer_size)
         {
             cout << b << " ";
             flat_size *= b;

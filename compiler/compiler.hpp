@@ -30,9 +30,10 @@ result::code compile_source(istream &, const arguments &);
 
 result::code compile_polyhedral_model
 (const vector<stream::polyhedral::statement*> &,
+ const vector<stream::polyhedral::array_ptr> &,
  const arguments &);
 
-void print_buffer_sizes(const vector<stream::polyhedral::statement*> &);
+void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> &);
 
 }
 }
