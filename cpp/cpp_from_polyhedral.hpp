@@ -65,11 +65,8 @@ private:
     expression_ptr generate_input_access
     (polyhedral::statement*, const index_type&, builder*);
 
-    expression_ptr generate_reduction_access
-    (polyhedral::reduction_access*, const index_type&, builder*);
-
     expression_ptr generate_buffer_access
-    (polyhedral::statement*, const index_type&, builder*);
+    (polyhedral::array_ptr, const index_type&, builder*);
 
     index_type mapped_index( const index_type & index,
                              const polyhedral::mapping &,

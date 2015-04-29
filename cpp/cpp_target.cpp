@@ -102,35 +102,35 @@ func_sig_ptr signature_for(const string & name, const vector<semantic::type_ptr>
     return func_sig_ptr(sig);
 }
 
-variable_decl_ptr buffer_decl(polyhedral::statement *stmt)
+variable_decl_ptr buffer_decl(polyhedral::array_ptr array)
 {
-    auto elem_type = type_for(stmt->expr->type);
-    if (stmt->buffer.size() == 1 && stmt->buffer[0] == 1)
-        return decl(elem_type, stmt->name);
+    auto elem_type = type_for(array->type);
+    if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
+        return decl(elem_type, array->name);
     else
-        return make_shared<array_decl>(elem_type, stmt->name, stmt->buffer);
+        return make_shared<array_decl>(elem_type, array->name, array->buffer_size);
 }
 
-class_node * state_type_def(const vector<polyhedral::statement*> & stmts,
+class_node * state_type_def(const vector<polyhedral::array_ptr> & arrays,
                             unordered_map<string,buffer> & buffers)
 {
     auto def = new class_node(struct_class, "state_t");
     def->sections.resize(1);
     auto & sec = def->sections.back();
 
-    for (auto stmt : stmts)
+    for (auto array : arrays)
     {
-        if (buffers[stmt->name].on_stack)
+        if (buffers[array->name].on_stack)
             continue;
-        sec.members.push_back(make_shared<data_field>(buffer_decl(stmt)));
+        sec.members.push_back(make_shared<data_field>(buffer_decl(array)));
     }
 
-    for (auto stmt : stmts)
+    for (auto array : arrays)
     {
-        if (!buffers[stmt->name].has_phase)
+        if (!buffers[array->name].has_phase)
             continue;
         auto int_t = make_shared<basic_type>("int");
-        auto decl = make_shared<variable_decl>(int_t, stmt->name + "_phase");
+        auto decl = make_shared<variable_decl>(int_t, array->name + "_phase");
         sec.members.push_back(make_shared<data_field>(decl));
     }
 
@@ -138,41 +138,42 @@ class_node * state_type_def(const vector<polyhedral::statement*> & stmts,
 }
 
 unordered_map<string,buffer>
-buffer_analysis(const vector<polyhedral::statement*> & statements)
+buffer_analysis(const vector<polyhedral::array_ptr> & arrays)
 {
+    using polyhedral::array;
 
-    std::vector<polyhedral::statement*> buffers_on_stack;
-    std::vector<polyhedral::statement*> buffers_in_memory;
+    std::vector<array*> buffers_on_stack;
+    std::vector<array*> buffers_in_memory;
 
     unordered_map<string,buffer> buffers;
 
-    for (polyhedral::statement *stmt : statements)
+    for (const auto & array : arrays)
     {
         buffer buf;
-        buf.size = volume(stmt->buffer);
+        buf.size = volume(array->buffer_size);
 
-        if(stmt->flow_dim >= 0)
+        if(array->flow_dim >= 0)
         {
-            int flow_size = stmt->buffer[stmt->flow_dim];
+            int flow_size = array->buffer_size[array->flow_dim];
             buf.has_phase =
-                    stmt->buffer_period_offset % flow_size  != 0 ||
-                    stmt->buffer_period % flow_size  != 0;
+                    array->period_offset % flow_size  != 0 ||
+                    array->period % flow_size  != 0;
         }
         else
         {
             buf.has_phase = false;
         }
 
-        buffers[stmt->name] = buf;
+        buffers[array->name] = buf;
 
-        if (stmt->inter_period_dependency || stmt == statements.back())
-            buffers_in_memory.push_back(stmt);
+        if (array->inter_period_dependency || array == arrays.back())
+            buffers_in_memory.push_back(array.get());
         else
-            buffers_on_stack.push_back(stmt);
+            buffers_on_stack.push_back(array.get());
     }
 
     auto buffer_size_is_smaller =
-            [&](polyhedral::statement * a, polyhedral::statement * b) -> bool
+            [&](polyhedral::array * a, polyhedral::array * b) -> bool
     { return buffers[a->name].size < buffers[b->name].size; };
 
     std::sort(buffers_on_stack.begin(), buffers_on_stack.end(), buffer_size_is_smaller);
@@ -181,11 +182,11 @@ buffer_analysis(const vector<polyhedral::statement*> & statements)
 
     for(int idx = 0; idx < buffers_on_stack.size(); ++idx)
     {
-        polyhedral::statement *stmt = buffers_on_stack[idx];
-        buffer & b = buffers[stmt->name];
+        polyhedral::array *array = buffers_on_stack[idx];
+        buffer & b = buffers[array->name];
 
         int elem_size = 0;
-        switch(stmt->expr->type)
+        switch(array->type)
         {
         case primitive_type::integer:
             elem_size = 4;
@@ -204,14 +205,14 @@ buffer_analysis(const vector<polyhedral::statement*> & statements)
         }
         else
         {
-            buffers_in_memory.push_back(stmt);
+            buffers_in_memory.push_back(array);
         }
     }
 
     for(int idx = 0; idx < buffers_in_memory.size(); ++idx)
     {
-        polyhedral::statement *stmt = buffers_in_memory[idx];
-        buffer & b = buffers[stmt->name];
+        polyhedral::array *array = buffers_in_memory[idx];
+        buffer & b = buffers[array->name];
         b.on_stack = false;
     }
 
@@ -219,22 +220,22 @@ buffer_analysis(const vector<polyhedral::statement*> & statements)
 }
 
 
-static void advance_buffers(const vector<polyhedral::statement*> & statements,
+static void advance_buffers(const vector<polyhedral::array_ptr> & arrays,
                             unordered_map<string,buffer> & buffers,
                             builder * ctx, bool init)
 {
-    for (polyhedral::statement * stmt : statements)
+    for (const auto & array : arrays)
     {
-        const buffer & buf = buffers[stmt->name];
+        const buffer & buf = buffers[array->name];
 
         if (!buf.has_phase)
             continue;
 
         int offset = init ?
-                    stmt->buffer_period_offset : stmt->buffer_period;
-        int buffer_size = stmt->buffer[stmt->flow_dim];
+                    array->period_offset : array->period;
+        int buffer_size = array->buffer_size[array->flow_dim];
 
-        auto phase_id = make_shared<id_expression>(stmt->name + "_phase");
+        auto phase_id = make_shared<id_expression>(array->name + "_phase");
 
         auto state_arg_name = ctx->current_function()->parameters.back()->name;
         auto state_arg = make_shared<id_expression>(state_arg_name);
@@ -312,24 +313,25 @@ void add_remainder_function(cpp_gen::module &module)
 
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
-              const vector<polyhedral::statement*> & poly_model,
+              const vector<polyhedral::statement*> & statements,
+              const vector<polyhedral::array_ptr> & arrays,
               clast_stmt *finite_schedule,
               clast_stmt *periodic_schedule,
               std::ostream & stream)
 {
-    unordered_map<string,buffer> buffers = buffer_analysis(poly_model);
+    unordered_map<string,buffer> buffers = buffer_analysis(arrays);
 
     module m;
     builder b(&m);
     cpp_from_cloog cloog(&b);
-    cpp_from_polyhedral poly(poly_model, buffers);
+    cpp_from_polyhedral poly(statements, buffers);
 
     m.members.push_back(make_shared<include_dir>("cmath"));
     m.members.push_back(make_shared<using_decl>("namespace std"));
 
     add_remainder_function(m);
 
-    m.members.push_back(module_member_ptr(state_type_def(poly_model,buffers)));
+    m.members.push_back(module_member_ptr(state_type_def(arrays,buffers)));
 
     auto stmt_func = [&]
             ( const string & name,
@@ -350,15 +352,15 @@ void generate(const string & name,
 
         b.push(&func->body.statements);
 
-        for (auto stmt : poly_model)
+        for (auto array : arrays)
         {
-            if (buffers[stmt->name].on_stack)
-                b.add(make_shared<var_decl_expression>(buffer_decl(stmt)));
+            if (buffers[array->name].on_stack)
+                b.add(make_shared<var_decl_expression>(buffer_decl(array)));
         }
 
         cloog.generate(finite_schedule);
 
-        advance_buffers(poly_model, buffers, &b, true);
+        advance_buffers(arrays, buffers, &b, true);
 
         b.pop();
 
@@ -375,15 +377,15 @@ void generate(const string & name,
 
         b.push(&func->body.statements);
 
-        for (auto stmt : poly_model)
+        for (auto array : arrays)
         {
-            if (buffers[stmt->name].on_stack)
-                b.add(make_shared<var_decl_expression>(buffer_decl(stmt)));
+            if (buffers[array->name].on_stack)
+                b.add(make_shared<var_decl_expression>(buffer_decl(array)));
         }
 
         cloog.generate(periodic_schedule);
 
-        advance_buffers(poly_model, buffers, &b, false);
+        advance_buffers(arrays, buffers, &b, false);
 
         b.pop();
 

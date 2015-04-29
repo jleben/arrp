@@ -45,6 +45,7 @@ struct buffer
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
               const vector<polyhedral::statement*> &,
+              const vector<polyhedral::array_ptr> &,
               clast_stmt *finite_schedule,
               clast_stmt *periodic_schedule,
               ostream &);

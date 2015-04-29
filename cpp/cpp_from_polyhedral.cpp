@@ -40,7 +40,8 @@ void cpp_from_polyhedral::generate_statement
         expr = generate_expression(stmt->expr, index, ctx);
     }
 
-    auto dst = generate_buffer_access(stmt, index, ctx);
+    auto array_index = mapped_index(index, stmt->write_relation, ctx);
+    auto dst = generate_buffer_access(stmt->array, array_index, ctx);
     auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
 
     ctx->add(make_shared<expr_statement>(store));
@@ -73,14 +74,10 @@ expression_ptr cpp_from_polyhedral::generate_expression
             val = make_shared<bin_op_expression>(op::add, val, literal(iterator->offset));
         return val;
     }
-    else if (auto read = dynamic_cast<stmt_access*>(expr))
+    else if (auto read = dynamic_cast<array_access*>(expr))
     {
         auto target_index = mapped_index(index, read->pattern, ctx);
         result = generate_buffer_access(read->target, target_index, ctx);
-    }
-    else if (auto access = dynamic_cast<reduction_access*>(expr))
-    {
-        result = generate_reduction_access(access, index, ctx);
     }
     else if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
     {
@@ -295,81 +292,14 @@ expression_ptr cpp_from_polyhedral::generate_input_access
     return make_shared<array_access_expression>(input_id, index);
 }
 
-expression_ptr cpp_from_polyhedral::generate_reduction_access
-(polyhedral::reduction_access *access, const index_type & index, builder * ctx)
-{
-    int reduction_dim = access->reductor->domain.size() - 1;
-    assert(reduction_dim < index.size());
-
-    auto result = make_id(ctx->new_var_id());
-    ctx->add(decl_expr(type_for(access->type), *result));
-
-    auto if_stmt = make_shared<if_statement>();
-
-    if_stmt->condition = binop(op::equal, index[reduction_dim], literal((int)0));
-
-    auto true_block = make_shared<block_statement>();
-    if_stmt->true_part = true_block;
-    {
-        ctx->push(*true_block);
-
-        assert(index.size() >= access->initializer->domain.size());
-        index_type init_index;
-        if (index.size() > 1)
-        {
-            int init_dims = access->initializer->domain.size();
-            init_index.insert(init_index.end(),
-                              index.begin(),
-                              index.begin() + init_dims);
-        }
-        else
-        {
-            // FIXME: Correct? The LLVM generation code is weird.
-            init_index.push_back(literal((int)0));
-        }
-        assert(access->initializer->domain.size() == init_index.size());
-
-        auto val = generate_buffer_access(access->initializer, init_index, ctx);
-
-        ctx->add(assign(result, val));
-
-        ctx->pop();
-    }
-
-    auto false_block = make_shared<block_statement>();
-    if_stmt->false_part = false_block;
-    {
-        ctx->push(*false_block);
-
-        index_type reductor_index;
-        reductor_index.insert(reductor_index.end(),
-                              index.begin(), index.begin() + reduction_dim + 1);
-        reductor_index[reduction_dim] =
-                binop(op::sub, reductor_index[reduction_dim], literal((int)1));
-
-        auto val = generate_buffer_access(access->reductor,
-                                          reductor_index, ctx);
-
-        ctx->add(assign(result, val));
-
-        ctx->pop();
-    }
-
-    ctx->add(if_stmt);
-
-    return result;
-}
-
 expression_ptr cpp_from_polyhedral::generate_buffer_access
-(polyhedral::statement * stmt, const index_type & index, builder * ctx)
+(polyhedral::array_ptr array, const index_type & index, builder * ctx)
 {
-
-
     index_type buffer_index = index;
 
-    cpp_gen::buffer & buffer_info = m_buffers[stmt->name];
+    cpp_gen::buffer & buffer_info = m_buffers[array->name];
 
-    expression_ptr buffer = make_shared<id_expression>(stmt->name);
+    expression_ptr buffer = make_shared<id_expression>(array->name);
     auto state_arg_name = ctx->current_function()->parameters.back()->name;
     auto state_arg = make_shared<id_expression>(state_arg_name);
 
@@ -378,29 +308,29 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
         buffer = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, buffer);
     }
 
-    if (stmt->buffer.size() == 1 && stmt->buffer[0] == 1)
+    if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
         return buffer;
 
     // Add buffer phase
 
     if (m_in_period && buffer_info.has_phase)
     {
-        assert(stmt->flow_dim >= 0);
+        assert(array->flow_dim >= 0);
 
-        auto phase_id = make_shared<id_expression>(stmt->name + "_phase");
+        auto phase_id = make_shared<id_expression>(array->name + "_phase");
         auto phase = make_shared<bin_op_expression>(op::member_of_pointer,
                                                     state_arg,
                                                     phase_id);
 
-        expression_ptr & i = buffer_index[stmt->flow_dim];
+        expression_ptr & i = buffer_index[array->flow_dim];
         i = make_shared<bin_op_expression>(op::add, i, phase);
     }
 
     for (int dim = 0; dim < buffer_index.size(); ++dim)
     {
         // FIXME: is using stmt->buffer_period for domain size OK?
-        int domain_size = dim == stmt->flow_dim ? stmt->buffer_period : stmt->domain[dim];
-        int buffer_size = stmt->buffer[dim];
+        int domain_size = dim == array->flow_dim ? array->period : array->size[dim];
+        int buffer_size = array->buffer_size[dim];
         expression_ptr & i = buffer_index[dim];
 
         if (buffer_size == 1)
@@ -411,7 +341,7 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 
         bool may_wrap =
                 (buffer_size < domain_size) ||
-                (dim == stmt->flow_dim && buffer_info.has_phase);
+                (dim == array->flow_dim && buffer_info.has_phase);
         if (may_wrap)
         {
             // FIXME: use modulo instead of remainder
