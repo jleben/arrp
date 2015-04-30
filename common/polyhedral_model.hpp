@@ -217,7 +217,7 @@ public:
     int flow_dim = -1;
     int period = 0;
     int period_offset = 0;
-    bool inter_period_dependency = false;
+    bool inter_period_dependency = true;
 };
 
 typedef std::shared_ptr<array> array_ptr;
