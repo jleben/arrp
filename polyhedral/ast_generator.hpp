@@ -106,13 +106,17 @@ private:
             infinite_domains(ctx),
             write_relations(ctx),
             read_relations(ctx),
-            dependencies(ctx)
+            dependencies(ctx),
+            finite_schedule(ctx),
+            infinite_schedule(ctx)
         {}
         isl::union_set finite_domains;
         isl::union_set infinite_domains;
         isl::union_map write_relations;
         isl::union_map read_relations;
         isl::union_map dependencies;
+        isl::union_map finite_schedule;
+        isl::union_map infinite_schedule;
     };
 
     // Translation to ISL representation:
@@ -180,6 +184,9 @@ private:
       const array_ptr & array,
       const isl::space & time_space );
 
+    void find_inter_period_deps( const isl::union_map & period_schedule,
+                                 const data & );
+
     // AST generation
 
     struct clast_stmt *make_ast( const isl::union_map & schedule );
@@ -191,6 +198,9 @@ private:
 
     vector<statement*> m_statements;
     vector<array_ptr> m_arrays;
+
+    int m_schedule_flow_dim = -1;
+    int m_schedule_period_offset = 0;
 };
 
 }

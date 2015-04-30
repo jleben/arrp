@@ -122,19 +122,20 @@ ast_generator::generate()
         print_each_in(d.dependencies);
     }
 
-    auto finite_schedule =
+    d.finite_schedule =
             schedule_finite_domains(d.finite_domains, d.dependencies);
 
-    isl::union_map infinite_schedule(m_ctx);
     auto periodic_schedules =
             schedule_infinite_domains(d.infinite_domains, d.dependencies,
-                                      infinite_schedule);
+                                      d.infinite_schedule);
 
 
     isl::union_map combined_schedule(m_ctx);
-    combine_schedules(finite_schedule, infinite_schedule, combined_schedule);
+    combine_schedules(d.finite_schedule, d.infinite_schedule, combined_schedule);
 
     compute_buffer_sizes(combined_schedule, d);
+
+    find_inter_period_deps(periodic_schedules.second, d);
 
     if(m_print_ast)
         cout << endl << "== Output AST ==" << endl;
@@ -142,7 +143,7 @@ ast_generator::generate()
     if(m_print_ast)
         cout << endl << "-- Finite --" << endl;
     struct clast_stmt *finite_ast
-            = make_ast( finite_schedule );
+            = make_ast( d.finite_schedule );
 
     if(m_print_ast)
         cout << endl << "-- Init --" << endl;
@@ -746,6 +747,9 @@ ast_generator::schedule_infinite_domains
         cout << endl;
     }
 
+    m_schedule_flow_dim = flow_dim;
+    m_schedule_period_offset = least_common_offset;
+
     return make_pair(init_sched, period_sched);
 }
 
@@ -1165,6 +1169,66 @@ void ast_generator::compute_buffer_size
 #endif
 }
 #endif
+
+void ast_generator::find_inter_period_deps
+( const isl::union_map & period_schedule,
+  const data & d )
+{
+    cout << "Sched flot dim = " << m_schedule_flow_dim << endl;
+    cout << "Sched period offset = " << m_schedule_period_offset << endl;
+    for( auto & array : m_arrays )
+    {
+        auto array_space = isl::space( m_ctx,
+                                       isl::set_tuple( isl::identifier(array->name),
+                                                       array->size.size() ) );
+        auto array_universe = isl::basic_set::universe(array_space);
+
+        auto read_in_period =
+                d.read_relations( period_schedule.domain() )
+                & array_universe;
+
+        auto writers = d.write_relations.inverse()( read_in_period );
+
+        {
+            auto sched = d.finite_schedule.in_domain(writers);
+            if (!sched.is_empty())
+            {
+                array->inter_period_dependency = true;
+                cout << "Array " << array->name << " written by finite:" << endl;
+                m_printer.print(sched); cout << endl;
+                continue;
+            }
+        }
+
+        {
+            array->inter_period_dependency = false;
+
+            auto sched = d.infinite_schedule.in_domain(writers);
+            if (sched.is_empty())
+                continue;
+
+            sched.for_each( [&](const isl::map & m )
+            {
+                auto s = m.range();
+                isl::local_space spc(s.get_space());
+                auto flow_dim = spc(isl::space::variable, m_schedule_flow_dim);
+                auto min_time = s.minimum(flow_dim);
+
+                if (min_time.integer() < m_schedule_period_offset)
+                {
+                    array->inter_period_dependency = true;
+
+                    cout << "Array " << array->name << " written by infinite: " << endl;
+                    m_printer.print(m); cout << endl;
+
+                    return false;
+                }
+
+                return true;
+            });
+        }
+    }
+}
 
 void ast_generator::print_each_in( const isl::union_set & us )
 {
