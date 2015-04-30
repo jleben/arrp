@@ -194,10 +194,18 @@ void printer::print(const statement *stmt, ostream &s )
     for(int size : stmt->domain)
         s << " " << size;
     s << " ]:" << endl;
-    s << stmt->array->name
-      << " [" << endl
-      << stmt->write_relation
-      << "] = ";
+    if (stmt->array)
+    {
+        s << stmt->array->name
+          << " [" << endl
+          << stmt->write_relation
+          << "]";
+    }
+    else
+    {
+        s << " <no array>";
+    }
+    s << " = ";
     if (stmt->expr)
     {
         s << endl;
