@@ -199,7 +199,7 @@ buffer_analysis(const vector<polyhedral::array_ptr> & arrays)
 
         int mem_size = b.size * elem_size;
         // FIXME: use user option for max stack size
-        if (stack_size + mem_size < 4096)
+        if (stack_size + mem_size < 1024)
         {
             b.on_stack = true;
             stack_size += mem_size;
