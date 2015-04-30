@@ -156,20 +156,18 @@ int main()
         expected_typical(in, ex);
         auto ex_typical_end_time = high_resolution_clock::now();
 
-        FLUX::state state;
-        //FLUX::allocate(&state);
-        g_state = &state;
+        g_state = new FLUX::state;
 
         auto test_start_time = high_resolution_clock::now();
 
 #ifndef STREAMING
-        FLUX::initialize((double (*)[N]) in.data(), &state);
+        FLUX::initialize((double (*)[N]) in.data(), g_state);
 #else
-        FLUX::initialize(nullptr, &state);
+        FLUX::initialize(nullptr, g_state);
 
         for(int t = 0; t < T-1; ++t)
         {
-            FLUX::process(nullptr, &state);
+            FLUX::process(nullptr, g_state);
         }
 #endif
 
@@ -191,7 +189,7 @@ int main()
              << (stream_time.count() / c_typical_time.count()) << endl;
 
 #ifndef STREAMING
-        out = multi_array<double,T-1>(FLUX::get_output(&state));
+        out = multi_array<double,T-1>(FLUX::get_output(g_state));
 #endif
 
 #if 0
@@ -206,6 +204,8 @@ int main()
         stream::testing::outcome(ok);
 
         all_ok &= ok;
+
+        delete g_state;
     }
 
     cout << endl << "## Summary:" << endl;
