@@ -49,6 +49,7 @@ private:
     expression_ptr generate_range(ast::node_ptr);
     expression_ptr generate_slice(ast::node_ptr);
     expression_ptr generate_transpose(ast::node_ptr);
+    expression_ptr generate_conditional(ast::node_ptr);
     expression_ptr generate_mapping(ast::node_ptr);
     expression_ptr generate_unary_op(ast::node_ptr);
     expression_ptr generate_binary_op(ast::node_ptr);

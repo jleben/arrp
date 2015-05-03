@@ -163,6 +163,8 @@ expression_ptr model_generator::generate_expression(ast::node_ptr node)
         return generate_slice(node);
     case ast::transpose_expression:
         return generate_transpose(node);
+    case ast::if_expression:
+        return generate_conditional(node);
     case ast::for_expression:
         return generate_mapping(node);
     case ast::negate:
@@ -435,6 +437,28 @@ expression_ptr model_generator::generate_transpose(ast::node_ptr node)
     transform() = transposition * transform();
 
     return generate_expression(object_node);
+}
+
+expression_ptr model_generator::generate_conditional(ast::node_ptr node)
+{
+    const auto & condition_node = node->as_list()->elements[0];
+    const auto & true_node = node->as_list()->elements[1];
+    const auto & false_node = node->as_list()->elements[2];
+
+    assert(condition_node->semantic_type->is_scalar());
+
+    // TODO: might wanna make a statement for the condition, to avoid
+    // evaluating it for every item of true/false expression streams
+
+    expression_ptr condition = generate_expression(condition_node);
+    expression_ptr true_expr = generate_expression(true_node);
+    expression_ptr false_expr = generate_expression(false_node);
+
+    auto result = make_shared<primitive_expr>(primitive_type_for(node->semantic_type));
+    result->operands = { condition, true_expr, false_expr };
+    result->op = primitive_op::conditional;
+
+    return result;
 }
 
 expression_ptr model_generator::generate_mapping(ast::node_ptr node)
