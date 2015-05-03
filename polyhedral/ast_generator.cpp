@@ -68,12 +68,10 @@ statement *statement_for( const isl::identifier & id )
     return reinterpret_cast<statement*>(id.data);
 }
 
-ast_generator::ast_generator( const vector<statement*> & statements,
-                              const vector<array_ptr> & arrays ):
+ast_generator::ast_generator( const model & m ):
     m_print_ast(false),
     m_printer(m_ctx),
-    m_statements(statements),
-    m_arrays(arrays)
+    m_model(m)
 {
     m_ctx.set_error_action(isl::context::abort_on_error);
 #if 0
@@ -175,7 +173,7 @@ ast_generator::generate()
 
 void ast_generator::polyhedral_model(data & d)
 {
-    for (statement * stmt : m_statements)
+    for (const auto & stmt : m_model.statements)
     {
         polyhedral_model(stmt, d);
     }
@@ -187,14 +185,15 @@ void ast_generator::polyhedral_model(data & d)
     // FIXME: belongs somewhere else...
     // Add additional constraints for infinite inputs and outputs:
     // each input iteration must be after the previous one.
-    for (statement * stmt : m_statements)
+    for (const auto & stmt : m_model.statements)
     {
         if ( stmt->flow_dim >= 0 &&
-             (dynamic_cast<input_access*>(stmt->expr) || !stmt->array) )
+             (dynamic_cast<input_access*>(stmt->expr.get()) || !stmt->array) )
         {
             assert(stmt->domain.size() == 1);
-            auto iter_space = isl::space( m_ctx,
-                                          isl::set_tuple(isl::identifier(stmt->name, stmt), 1) );
+            auto iter_space =
+                    isl::space( m_ctx,
+                                isl::set_tuple(isl::identifier(stmt->name, stmt.get()), 1) );
             auto iter_dep_space = isl::space::from(iter_space, iter_space);
             auto dep = isl::basic_map::universe(iter_dep_space);
             isl::local_space cnstr_space(iter_dep_space);
@@ -207,20 +206,20 @@ void ast_generator::polyhedral_model(data & d)
     }
 }
 
-void ast_generator::polyhedral_model(statement * stmt, data & d)
+void ast_generator::polyhedral_model(statement_ptr stmt, data & d)
 {
     using namespace isl;
     using isl::tuple;
 
     // FIXME: Dirty hack
-    if ( dynamic_cast<input_access*>(stmt->expr) &&
+    if ( dynamic_cast<input_access*>(stmt->expr.get()) &&
          stmt->flow_dim >= 0 )
     {
         stmt->domain = { infinite };
         stmt->flow_dim = 0;
     }
 
-    auto stmt_tuple = isl::set_tuple( isl::identifier(stmt->name, stmt),
+    auto stmt_tuple = isl::set_tuple( isl::identifier(stmt->name, stmt.get()),
                                       stmt->domain.size() );
     auto iter_space = isl::space( m_ctx, stmt_tuple );
     auto iter_domain = isl::basic_set::universe(iter_space);
@@ -262,7 +261,7 @@ void ast_generator::polyhedral_model(statement * stmt, data & d)
         isl::space space(m_ctx, stmt_in_tuple, array_tuple);
 
         // FIXME: Dirty hack
-        if ( dynamic_cast<input_access*>(stmt->expr) &&
+        if ( dynamic_cast<input_access*>(stmt->expr.get()) &&
              stmt->flow_dim >= 0 )
         {
             isl::local_space cnstr_space(space);
@@ -681,7 +680,7 @@ ast_generator::schedule_infinite_domains
     {
         auto id = m.id(isl::space::input);
         auto stmt = statement_for(id);
-        if (!dynamic_cast<input_access*>(stmt->expr))
+        if (!dynamic_cast<input_access*>(stmt->expr.get()))
         {
             period_sched = period_sched | m;
             return true;
@@ -1012,7 +1011,7 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
         return false;
     });
 
-    for (auto & array : m_arrays)
+    for (auto & array : m_model.arrays)
     {
         compute_buffer_size(schedule, d,
                             array, *time_space);
@@ -1020,7 +1019,7 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
 
     delete time_space;
 
-    for (auto & array : m_arrays)
+    for (auto & array : m_model.arrays)
     {
         if (array->buffer_size.empty())
         {
@@ -1176,7 +1175,7 @@ void ast_generator::find_inter_period_deps
 {
     cout << "Sched flot dim = " << m_schedule_flow_dim << endl;
     cout << "Sched period offset = " << m_schedule_period_offset << endl;
-    for( auto & array : m_arrays )
+    for( auto & array : m_model.arrays )
     {
         auto array_space = isl::space( m_ctx,
                                        isl::set_tuple( isl::identifier(array->name),

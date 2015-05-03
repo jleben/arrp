@@ -87,7 +87,7 @@ public:
         {}
     };
 
-    ast_generator( const vector<statement*> &, const vector<array_ptr> & arrays );
+    ast_generator( const model & m );
     ~ast_generator();
 
     pair<struct clast_stmt*,struct clast_stmt*> generate();
@@ -122,7 +122,7 @@ private:
     // Translation to ISL representation:
 
     void polyhedral_model(data &);
-    void polyhedral_model(statement *, data &);
+    void polyhedral_model(statement_ptr, data &);
 #if 0
     void polyhedral_model(isl::union_set & finite_domains,
                           isl::union_set & infinite_domains,
@@ -196,8 +196,7 @@ private:
     isl::context m_ctx;
     isl::printer m_printer;
 
-    vector<statement*> m_statements;
-    vector<array_ptr> m_arrays;
+    model m_model;
 
     int m_schedule_flow_dim = -1;
     int m_schedule_period_offset = 0;

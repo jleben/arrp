@@ -111,21 +111,21 @@ variable_decl_ptr buffer_decl(polyhedral::array_ptr array)
         return make_shared<array_decl>(elem_type, array->name, array->buffer_size);
 }
 
-class_node * state_type_def(const vector<polyhedral::array_ptr> & arrays,
+class_node * state_type_def(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers)
 {
     auto def = new class_node(struct_class, "state");
     def->sections.resize(1);
     auto & sec = def->sections.back();
 
-    for (auto array : arrays)
+    for (auto array : model.arrays)
     {
         if (buffers[array->name].on_stack)
             continue;
         sec.members.push_back(make_shared<data_field>(buffer_decl(array)));
     }
 
-    for (auto array : arrays)
+    for (auto array : model.arrays)
     {
         if (!buffers[array->name].has_phase)
             continue;
@@ -139,7 +139,7 @@ class_node * state_type_def(const vector<polyhedral::array_ptr> & arrays,
 }
 
 unordered_map<string,buffer>
-buffer_analysis(const vector<polyhedral::array_ptr> & arrays)
+buffer_analysis(const polyhedral::model & model)
 {
     using polyhedral::array;
 
@@ -148,7 +148,7 @@ buffer_analysis(const vector<polyhedral::array_ptr> & arrays)
 
     unordered_map<string,buffer> buffers;
 
-    for (const auto & array : arrays)
+    for (const auto & array : model.arrays)
     {
         buffer buf;
         buf.size = volume(array->buffer_size);
@@ -167,7 +167,7 @@ buffer_analysis(const vector<polyhedral::array_ptr> & arrays)
 
         buffers[array->name] = buf;
 
-        if (array->inter_period_dependency || array == arrays.back())
+        if (array->inter_period_dependency || array == model.arrays.back())
             buffers_in_memory.push_back(array.get());
         else
             buffers_on_stack.push_back(array.get());
@@ -221,11 +221,11 @@ buffer_analysis(const vector<polyhedral::array_ptr> & arrays)
 }
 
 
-static void advance_buffers(const vector<polyhedral::array_ptr> & arrays,
+static void advance_buffers(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers,
                             builder * ctx, bool init)
 {
-    for (const auto & array : arrays)
+    for (const auto & array : model.arrays)
     {
         const buffer & buf = buffers[array->name];
 
@@ -370,19 +370,18 @@ func_sig_ptr output_func_sig()
 
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
-              const vector<polyhedral::statement*> & statements,
-              const vector<polyhedral::array_ptr> & arrays,
+              const polyhedral::model & model,
               clast_stmt *finite_schedule,
               clast_stmt *periodic_schedule,
               std::ostream & src_stream,
               std::ostream & hdr_stream)
 {
-    unordered_map<string,buffer> buffers = buffer_analysis(arrays);
+    unordered_map<string,buffer> buffers = buffer_analysis(model);
 
     module m;
     builder b(&m);
     cpp_from_cloog cloog(&b);
-    cpp_from_polyhedral poly(statements, buffers);
+    cpp_from_polyhedral poly(model, buffers);
 
     m.members.push_back(make_shared<include_dir>("cmath"));
     m.members.push_back(make_shared<include_dir>("algorithm"));
@@ -395,12 +394,12 @@ void generate(const string & name,
     add_remainder_function(m,*nmspc);
 
     // FIXME: rather include header:
-    nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
+    nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers)));
     nmspc->members.push_back(make_shared<func_decl>(input_func_sig()));
     nmspc->members.push_back(make_shared<func_decl>(output_func_sig()));
 
     // FIXME: not of much use with infinite I/O
-    add_output_getter_func(m, *nmspc, arrays.back());
+    add_output_getter_func(m, *nmspc, model.arrays.back());
 
     auto stmt_func = [&]
             ( const string & name,
@@ -421,7 +420,7 @@ void generate(const string & name,
 
         b.push(&func->body.statements);
 
-        for (auto array : arrays)
+        for (auto array : model.arrays)
         {
             if (buffers[array->name].on_stack)
                 b.add(make_shared<var_decl_expression>(buffer_decl(array)));
@@ -429,7 +428,7 @@ void generate(const string & name,
 
         cloog.generate(finite_schedule);
 
-        advance_buffers(arrays, buffers, &b, true);
+        advance_buffers(model, buffers, &b, true);
 
         b.pop();
 
@@ -446,7 +445,7 @@ void generate(const string & name,
 
         b.push(&func->body.statements);
 
-        for (auto array : arrays)
+        for (auto array : model.arrays)
         {
             if (buffers[array->name].on_stack)
                 b.add(make_shared<var_decl_expression>(buffer_decl(array)));
@@ -454,7 +453,7 @@ void generate(const string & name,
 
         cloog.generate(periodic_schedule);
 
-        advance_buffers(arrays, buffers, &b, false);
+        advance_buffers(model, buffers, &b, false);
 
         b.pop();
 
@@ -472,7 +471,7 @@ void generate(const string & name,
         nmspc->name = name;
         header.members.push_back(nmspc);
 
-        nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
+        nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers)));
 
         {
             auto sig = signature_for("initialize", args);
@@ -483,7 +482,7 @@ void generate(const string & name,
             nmspc->members.push_back(make_shared<func_decl>(sig));
         }
         {
-            auto sig = output_getter_signature(arrays.back());
+            auto sig = output_getter_signature(model.arrays.back());
             nmspc->members.push_back(make_shared<func_decl>(sig));
         }
         {

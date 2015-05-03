@@ -18,7 +18,8 @@ add_library(streamc-lib ${lib_mode}
   ../frontend/parse.cc
   ../frontend/environment_builder.cpp
   ../frontend/type_checker.cpp
-  ../polyhedral/translator.cpp
+  ../polyhedral/polyhedral-gen.cpp
+  #../polyhedral/translator.cpp
   #../polyhedral/dataflow_model.cpp
   ../polyhedral/ast_generator.cpp
   ../llvm/llvm_ir_from_cloog.cpp

@@ -41,7 +41,7 @@ class cpp_from_polyhedral
 public:
     typedef vector<expression_ptr> index_type;
 
-    cpp_from_polyhedral(const vector<polyhedral::statement*> &,
+    cpp_from_polyhedral(const polyhedral::model &,
                         const unordered_map<string,buffer> & buffers);
 
     void generate_statement(const string & name,
@@ -57,7 +57,7 @@ public:
 private:
 
     expression_ptr generate_expression
-    (polyhedral::expression*, const index_type&, builder*);
+    (polyhedral::expression_ptr, const index_type&, builder*);
 
     expression_ptr generate_primitive
     (polyhedral::primitive_expr*, const index_type&, builder*);
@@ -92,7 +92,7 @@ private:
         return std::make_shared<literal_expression<double>>(v);
     }
 
-    vector<polyhedral::statement*> m_statements;
+    polyhedral::model m_model;
     unordered_map<string,buffer> m_buffers;
     bool m_in_period = false;
 };

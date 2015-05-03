@@ -9,20 +9,20 @@ namespace cpp_gen {
 using index_type = cpp_from_polyhedral::index_type;
 
 cpp_from_polyhedral::cpp_from_polyhedral
-(const vector<polyhedral::statement*> &stmts,
+(const polyhedral::model & model,
  const unordered_map<string,buffer> & buffers):
-    m_statements(stmts),
+    m_model(model),
     m_buffers(buffers)
 {}
 
 void cpp_from_polyhedral::generate_statement
 (const string & name, const index_type & index, builder* ctx)
 {
-    auto stmt_ref = std::find_if(m_statements.begin(), m_statements.end(),
-                                 [&](polyhedral::statement *s){ return s->name == name; });
-    assert(stmt_ref != m_statements.end());
+    auto stmt_ref = std::find_if(m_model.statements.begin(), m_model.statements.end(),
+                                 [&](polyhedral::statement_ptr s){ return s->name == name; });
+    assert(stmt_ref != m_model.statements.end());
 
-    generate_statement(*stmt_ref, index, ctx);
+    generate_statement((*stmt_ref).get(), index, ctx);
 }
 
 void cpp_from_polyhedral::generate_statement
@@ -30,7 +30,7 @@ void cpp_from_polyhedral::generate_statement
 {
     expression_ptr expr;
 
-    if (dynamic_cast<polyhedral::input_access*>(stmt->expr))
+    if (dynamic_cast<polyhedral::input_access*>(stmt->expr.get()))
     {
         // FIXME: different iteration and data domains
         generate_input_access(stmt, index, ctx);
@@ -52,23 +52,23 @@ void cpp_from_polyhedral::generate_statement
 }
 
 expression_ptr cpp_from_polyhedral::generate_expression
-(polyhedral::expression * expr, const index_type & index, builder * ctx)
+(polyhedral::expression_ptr expr, const index_type & index, builder * ctx)
 {
     using namespace polyhedral;
 
     expression_ptr result;
 
-    if (auto operation = dynamic_cast<primitive_expr*>(expr))
+    if (auto operation = dynamic_cast<primitive_expr*>(expr.get()))
     {
         result = generate_primitive(operation, index, ctx);
     }
-    else if (auto input = dynamic_cast<input_access*>(expr))
+    else if (auto input = dynamic_cast<input_access*>(expr.get()))
     {
         int input_num = input->index;
         auto input_name = ctx->current_function()->parameters[input_num]->name;
         result = make_shared<id_expression>(input_name);
     }
-    else if (auto iterator = dynamic_cast<iterator_access*>(expr))
+    else if (auto iterator = dynamic_cast<iterator_access*>(expr.get()))
     {
         assert(iterator->dimension >= 0 && iterator->dimension < index.size());
         auto val = index[iterator->dimension];
@@ -78,20 +78,20 @@ expression_ptr cpp_from_polyhedral::generate_expression
             val = make_shared<bin_op_expression>(op::add, val, literal(iterator->offset));
         return val;
     }
-    else if (auto read = dynamic_cast<array_access*>(expr))
+    else if (auto read = dynamic_cast<array_access*>(expr.get()))
     {
         auto target_index = mapped_index(index, read->pattern, ctx);
         result = generate_buffer_access(read->target, target_index, ctx);
     }
-    else if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
+    else if ( auto const_int = dynamic_cast<constant<int>*>(expr.get()) )
     {
         result = literal(const_int->value);
     }
-    else if ( auto const_double = dynamic_cast<constant<double>*>(expr) )
+    else if ( auto const_double = dynamic_cast<constant<double>*>(expr.get()) )
     {
         result = literal(const_double->value);
     }
-    else if ( auto const_bool = dynamic_cast<constant<bool>*>(expr) )
+    else if ( auto const_bool = dynamic_cast<constant<bool>*>(expr.get()) )
     {
         result = literal(const_bool->value);
     }
@@ -162,7 +162,7 @@ expression_ptr cpp_from_polyhedral::generate_primitive
 
     vector<expression_ptr> operands;
     operands.reserve(expr->operands.size());
-    for (polyhedral::expression * operand_expr : expr->operands)
+    for (auto & operand_expr : expr->operands)
     {
         operands.push_back( generate_expression(operand_expr, index, ctx) );
     }
@@ -289,7 +289,7 @@ expression_ptr cpp_from_polyhedral::generate_primitive
 void cpp_from_polyhedral::generate_input_access
 (polyhedral::statement * stmt, const index_type & index, builder * ctx)
 {
-    int input_num = reinterpret_cast<polyhedral::input_access*>(stmt->expr)->index;
+    int input_num = reinterpret_cast<polyhedral::input_access*>(stmt->expr.get())->index;
 
     if (stmt->flow_dim < 0)
     {
@@ -320,7 +320,7 @@ void cpp_from_polyhedral::generate_input_access
 void cpp_from_polyhedral::generate_output_access
 (polyhedral::statement * stmt, const index_type & index, builder * ctx)
 {
-    auto access = dynamic_cast<polyhedral::array_access*>(stmt->expr);
+    auto access = dynamic_cast<polyhedral::array_access*>(stmt->expr.get());
     assert(access);
 
     index_type source_index = index;

@@ -123,10 +123,10 @@ void printer::print(const expression *expr, ostream &s)
 
         s << " (" << endl;
         indent();
-        for(expression *operand : primitive->operands)
+        for(auto & operand : primitive->operands)
         {
             s << indentation();
-            print(operand, s);
+            print(operand.get(), s);
             if (operand != primitive->operands.back())
                 s << ",";
             s << endl;
@@ -136,39 +136,13 @@ void printer::print(const expression *expr, ostream &s)
     }
     else if (auto it = dynamic_cast<const iterator_access*>(expr))
     {
-        s << "iterator: " << it->offset << " + " << it->ratio << " * "
-          << '[' << it->dimension << ']';
+        s << "iterator: ";
+        print(it->relation, s);
     }
     else if (auto access = dynamic_cast<const array_access*>(expr))
     {
-        s << "read: " << access->target->name << " [" << endl;
-        indent();
-        for (int row = 0; row < access->pattern.output_dimension(); ++row)
-        {
-            s << indentation();
-            for (int col = 0; col < access->pattern.input_dimension(); ++col)
-            {
-                s << std::setw(4) << access->pattern.coefficients(row,col);
-            }
-            s << " | " << access->pattern.constants[row];
-            s << endl;
-        }
-        unindent();
-        s << indentation() << "]";
-#if 0
-        indent();
-        for(const auto & pattern : access->pattern)
-        {
-            s << indentation();
-            s << pattern.source_dimension;
-            s << " -> " << pattern.target_dimension;
-            s << " @ " << pattern.offset;
-            s << " % " << pattern.stride;
-            s << endl;
-        }
-        unindent();
-        s << indentation() << "]";
-#endif
+        s << "read: " << access->target->name << " ";
+        print(access->pattern, s);
     }
     else if (auto access = dynamic_cast<const reduction_access*>(expr))
     {
@@ -212,13 +186,31 @@ void printer::print(const statement *stmt, ostream &s )
         indent();
 
         s << indentation();
-        print(stmt->expr, s);
+        print(stmt->expr.get(), s);
 
         unindent();
     }
     else
         s << "...";
     s << endl;
+}
+
+void printer::print(const mapping & m, ostream & s)
+{
+    s << "[" << endl;
+    indent();
+    for (int row = 0; row < m.output_dimension(); ++row)
+    {
+        s << indentation();
+        for (int col = 0; col < m.input_dimension(); ++col)
+        {
+            s << std::setw(4) << m.coefficients(row,col);
+        }
+        s << " | " << m.constants[row];
+        s << endl;
+    }
+    unindent();
+    s << indentation() << "]";
 }
 
 }

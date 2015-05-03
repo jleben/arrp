@@ -25,7 +25,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/parser.h"
 #include "../frontend/environment_builder.hpp"
 #include "../frontend/type_checker.hpp"
-#include "../polyhedral/translator.hpp"
+//#include "../polyhedral/translator.hpp"
+#include "../polyhedral/polyhedral-gen.hpp"
 #include "../polyhedral/ast_generator.hpp"
 //#include "../llvm/llvm_ir_from_cloog.hpp"
 //#include "../llvm/llvm_from_polyhedral.hpp"
@@ -190,38 +191,36 @@ result::code compile_source(istream & source, const arguments & args)
         assert(sym_iter != env.end());
     }
 
-
-    polyhedral::translator poly(env);
-    poly.translate( sym_iter->second, target.args );
-
-    return compile_polyhedral_model(poly.statements(), poly.arrays(), args);
+    polyhedral::model_generator poly_gen;
+    auto poly_model = poly_gen.generate( sym_iter->second, target.args );
+    return compile_polyhedral_model(poly_model, args);
 }
 
 
 result::code compile_polyhedral_model
-(const vector<stream::polyhedral::statement*> & statements,
- const vector<stream::polyhedral::array_ptr> & arrays,
+(const polyhedral::model & model,
  const arguments & args)
 {
     // Print polyhedral model
 
-    if (args.print[arguments::polyhedral_model_output])
+    //if (args.print[arguments::polyhedral_model_output])
     {
         polyhedral::printer poly_printer;
         cout << endl << "== Polyhedral Model ==" << endl;
-        for( polyhedral::statement * stmt : statements )
+        for( const auto & stmt : model.statements )
         {
             cout << endl;
-            poly_printer.print(stmt, cout);
+            poly_printer.print(stmt.get(), cout);
         }
     }
 
+    return result::ok;
 
     const target_info & target = args.target;
 
     // Construct AST from polyhedral and dataflow models
 
-    polyhedral::ast_generator poly_ast_gen( statements, arrays );
+    polyhedral::ast_generator poly_ast_gen( model );
     poly_ast_gen.set_print_ast_enabled(args.print[arguments::target_ast_output]);
 
     auto ast = poly_ast_gen.generate();
@@ -235,7 +234,7 @@ result::code compile_polyhedral_model
 
     if (args.print[arguments::buffer_size_output])
     {
-        print_buffer_sizes(arrays);
+        print_buffer_sizes(model.arrays);
     }
 
 #if 0
@@ -316,7 +315,7 @@ result::code compile_polyhedral_model
             }
 
             cpp_gen::generate(target.name, target.args,
-                              statements, arrays,
+                              model,
                               ast.first, ast.second,
                               cpp_file,
                               hpp_file);

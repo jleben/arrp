@@ -116,8 +116,23 @@ public:
 
     void resize(int in_dim, int out_dim)
     {
-        coefficients = coefficients.resized(out_dim, in_dim);
-        constants.resize(out_dim, 0);
+        if (in_dim != coefficients.columns() || out_dim != coefficients.rows())
+            coefficients = coefficients.resized(out_dim, in_dim);
+        if (out_dim != constants.size())
+            constants.resize(out_dim, 0);
+    }
+
+    void copy(const mapping & other, int in_offset = 0, int out_offset = 0)
+    {
+        for(int out =  0; out < other.output_dimension(); ++out)
+        {
+            for (int in = 0; in < other.input_dimension(); ++in)
+            {
+               coefficients(in_offset + in, out_offset + out) =
+                        other.coefficients(in, out);
+            }
+            constants[out_offset + out] = other.constants[out];
+        }
     }
 
     matrix<int> coefficients;
@@ -159,6 +174,8 @@ public:
     primitive_type type;
 };
 
+typedef std::shared_ptr<expression> expression_ptr;
+
 template <typename T>
 class constant : public expression
 {
@@ -171,13 +188,13 @@ class primitive_expr : public expression
 {
 public:
     primitive_expr(primitive_type t): expression(t) {}
-    primitive_expr(primitive_type t, primitive_op k, const vector<expression*> & operands):
+    primitive_expr(primitive_type t, primitive_op k, const vector<expression_ptr> & operands):
         expression(t),
         op(k), operands(operands)
     {}
 
     primitive_op op;
-    vector<expression*> operands;
+    vector<expression_ptr> operands;
 };
 
 class iterator_access : public expression
@@ -190,6 +207,8 @@ public:
         offset(offset),
         ratio(ratio)
     {}
+    mapping relation;
+    // TODO: remove the following, use "relation" instead:
     int dimension;
     int offset;
     int ratio;
@@ -229,7 +248,7 @@ public:
     statement(const string & name): name(name) {}
 
     string name;
-    expression * expr = nullptr;
+    expression_ptr expr = nullptr;
     vector<int> domain;
 
     array_ptr array;
@@ -247,6 +266,8 @@ public:
     }
 };
 
+typedef std::shared_ptr<statement> statement_ptr;
+
 class array_access : public expression
 {
 public:
@@ -256,6 +277,11 @@ public:
     array_access(array_ptr target):
         expression(target->type),
         target(target)
+    {}
+    array_access(array_ptr target, const mapping & relation):
+        expression(target->type),
+        target(target),
+        pattern(relation)
     {}
 };
 
@@ -285,6 +311,14 @@ void expression::find( vector<T*> & container )
 
 struct debug : public stream::debug::topic<debug, stream::debug::all>
 { static string id() { return "polyhedral"; } };
+
+
+class model
+{
+public:
+    vector<array_ptr> arrays;
+    vector<statement_ptr> statements;
+};
 
 } // namespace polyhedral
 } // namespace stream
