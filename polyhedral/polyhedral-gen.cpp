@@ -132,7 +132,33 @@ model_generator::generate_array(ast::node_ptr node)
 
 expression_ptr model_generator::generate_expression(ast::node_ptr node)
 {
-    // TODO: get constants from type
+    // Use propagated constants:
+
+    switch(node->semantic_type->get_tag())
+    {
+    case semantic::type::integer_num:
+    {
+        const semantic::integer_num &num = node->semantic_type->as<semantic::integer_num>();
+        if (num.is_constant())
+            return make_shared<constant<int>>(num.constant_value());
+        break;
+    }
+    case semantic::type::real_num:
+    {
+        const semantic::real_num &num = node->semantic_type->as<semantic::real_num>();
+        if (num.is_constant())
+            return make_shared<constant<double>>(num.constant_value());
+        break;
+    }
+    case semantic::type::boolean:
+    {
+        const semantic::boolean & b = node->semantic_type->as<semantic::boolean>();
+        if (b.is_constant())
+            return make_shared<constant<bool>>(b.constant_value());
+        break;
+    }
+    default:;
+    }
 
     switch(node->type)
     {
