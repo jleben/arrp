@@ -85,6 +85,8 @@ model_generator::generate_input
 
     auto array = add_array(type_struct.type);
     array->size = type_struct.size;
+    if (array->size.empty())
+        array->size = {1};
 
     auto stmt = add_statement();
     stmt->expr = make_shared<input_access>(type_struct.type, index);
@@ -112,6 +114,8 @@ model_generator::generate_array(ast::node_ptr node)
     auto a = add_array(expr->type);
     a->size = m_domain;
     a->size.insert(a->size.end(), type_struct.size.begin(), type_struct.size.end());
+    if (a->size.empty())
+        a->size = {1};
 
     auto s = add_statement();
     s->expr = expr;
