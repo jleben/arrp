@@ -74,24 +74,6 @@ ast_generator::ast_generator( const model & m ):
     m_model(m)
 {
     m_ctx.set_error_action(isl::context::abort_on_error);
-#if 0
-    // FIXME: belongs somewhere else...
-    for (statement * stmt : m_statements)
-    {
-        const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
-        if ( actor && dynamic_cast<input_access*>(stmt->expr) )
-        {
-            stmt->iteration_domain = { polyhedral::infinite };
-            stmt->data_to_iteration = mapping(stmt->domain.size(), 1);
-            stmt->data_to_iteration.coefficient(actor->flow_dimension, 0) = 1;
-        }
-        else
-        {
-            stmt->iteration_domain = stmt->domain;
-            stmt->data_to_iteration = mapping::identity(stmt->domain.size());
-        }
-    }
-#endif
 }
 
 ast_generator::~ast_generator()
@@ -358,165 +340,6 @@ isl::matrix ast_generator::constraint_matrix( const mapping & map )
     return matrix;
 }
 
-/*
-  Notation:
-    c_i = number of init iterations
-    c_s = number of steady iterations
-    df = flow dimension
-
-  Create domain mappings:
-    M_i = D[d1,d2,df,...] -> D[-1,d1,d2,df...] : 0 <= df < c_i
-    M_s = D[d1,d2,df,...] -> D[d0',d1,d2,df'...] : df = d0' * c_s + df' + c_i
-  Map domains:
-    D_i = M_i(D)
-    D_s = M_s(D)
-  Map dependencies:
-    Dep_i+s = (M_i U M_s)(Dep)
-*/
-
-#if 0
-void ast_generator::periodic_model
-( const isl::union_set & domains,
-  const isl::union_map & dependencies,
-  isl::union_map & domain_map,
-  isl::union_set & init_domains,
-  isl::union_set & steady_domains,
-  isl::union_map & periodic_dependencies)
-{
-    isl::union_map init_domain_maps(m_ctx);
-    isl::union_map steady_domain_maps(m_ctx);
-
-    domains.for_each( [&](const isl::set & domain)
-    {
-        isl::identifier id = domain.id();
-        auto in_space = domain.get_space();
-        auto out_space = in_space;
-        out_space.insert_dimensions(isl::space::variable,0);
-        out_space.set_id(isl::space::variable, id);
-        auto map_space = isl::space::from(in_space, out_space);
-        auto constraint_space = isl::local_space(map_space);
-        int in_dims = domain.dimensions();
-
-        statement *stmt = statement_for(id);
-        auto actor_ptr = m_dataflow->find_actor_for(stmt);
-        if (actor_ptr)
-        {
-            const dataflow::actor & actor = *actor_ptr;
-
-            // init part
-
-            isl::basic_map init_map = isl::basic_map::universe(map_space);
-
-            for (int in_dim = 0; in_dim < in_dims; ++in_dim)
-            {
-                auto in_var = constraint_space(isl::space::input, in_dim);
-                auto out_var = constraint_space(isl::space::output, in_dim+1);
-                init_map.add_constraint(out_var == in_var);
-            }
-
-            {
-                auto out_flow_var = constraint_space(isl::space::output, actor.flow_dimension+1);
-                init_map.add_constraint(out_flow_var >= 0);
-                init_map.add_constraint(out_flow_var < actor.init_count);
-            }
-            {
-                auto out0_var = constraint_space(isl::space::output, 0);
-                init_map.add_constraint(out0_var == -1);
-            }
-
-            init_domain_maps = init_domain_maps | init_map;
-
-            // steady part
-
-            isl::basic_map steady_map = isl::basic_map::universe(map_space);
-
-            for (int in_dim = 0; in_dim < in_dims; ++in_dim)
-            {
-                auto in_var = constraint_space(isl::space::input, in_dim);
-                auto out_var = constraint_space(isl::space::output, in_dim+1);
-
-                if (in_dim == actor.flow_dimension)
-                {
-                    // in[flow] = (out[0] * steady) + out[flow] + init
-                    auto out0_var = constraint_space(isl::space::output, 0);
-                    auto constraint = in_var == out0_var * actor.steady_count
-                            + out_var + actor.init_count;
-                    steady_map.add_constraint(constraint);
-                }
-                else
-                {
-                    steady_map.add_constraint(out_var == in_var);
-                }
-            }
-
-            {
-                auto out_flow_var = constraint_space(isl::space::output, actor.flow_dimension+1);
-                steady_map.add_constraint(out_flow_var >= 0);
-                steady_map.add_constraint(out_flow_var < actor.steady_count);
-            }
-            {
-                auto out0_var = constraint_space(isl::space::output, 0);
-                steady_map.add_constraint(out0_var >= 0);
-            }
-
-            steady_domain_maps = steady_domain_maps | steady_map;
-        }
-        else
-        {
-            isl::basic_map init_map = isl::basic_map::universe(map_space);
-
-            for (int in_dim = 0; in_dim < in_dims; ++in_dim)
-            {
-                auto in_var = constraint_space(isl::space::input, in_dim);
-                auto out_var = constraint_space(isl::space::output, in_dim+1);
-                init_map.add_constraint(out_var == in_var);
-            }
-            {
-                auto out0_var = constraint_space(isl::space::output, 0);
-                init_map.add_constraint(out0_var == -1);
-            }
-
-            init_domain_maps = init_domain_maps | init_map;
-        }
-
-        return true;
-    });
-
-    if (debug::is_enabled())
-        cout << endl;
-
-    init_domains = init_domain_maps(domains);
-    steady_domains = steady_domain_maps(domains);
-
-    if (debug::is_enabled())
-    {
-        cout << "Init domains:" << endl;
-        m_printer.print(init_domains); cout << endl;
-        cout << "Steady domains:" << endl;
-        m_printer.print(steady_domains); cout << endl;
-    }
-
-    domain_map = init_domain_maps | steady_domain_maps;
-
-    periodic_dependencies = dependencies;
-    periodic_dependencies.map_domain_through(domain_map);
-    periodic_dependencies.map_range_through(domain_map);
-
-    if (debug::is_enabled())
-    {
-        cout << "Periodic dependencies:" << endl;
-        m_printer.print(periodic_dependencies); cout << endl;
-#if 0
-        cout << "Bounded periodic dependencies:" << endl;
-        m_printer.print( periodic_dependencies
-                         .in_domain(periodic_domains)
-                         .in_range(periodic_domains) );
-#endif
-        cout << endl;
-    }
-}
-#endif
-
 isl::union_map ast_generator::make_schedule
 (const isl::union_set & domains, const isl::union_map & dependencies)
 {
@@ -540,48 +363,6 @@ isl::union_map ast_generator::make_schedule
     isl_schedule_free(sched);
 
     return sched_map;
-
-#if 0
-    PlutoOptions *options = pluto_options_alloc();
-    options->silent = 1;
-    options->quiet = 1;
-    options->debug = 0;
-    options->moredebug = 0;
-    options->islsolve = 1;
-    options->fuse = MAXIMAL_FUSE;
-    //options->unroll = 1;
-    //options->polyunroll = 1;
-    //options->ufactor = 2;
-    //options->tile = 1;
-    //options->parallel = 1;
-
-    isl_union_map *schedule =
-            pluto_schedule( domains.get(),
-                            dependencies.get(),
-                            options);
-
-    pluto_options_free(options);
-
-    // Re-set lost IDs:
-
-    isl::union_map original_schedule(schedule);
-    isl::union_map corrected_schedule(m_ctx);
-
-    original_schedule.for_each( [&](isl::map & m)
-    {
-        string name = m.name(isl::space::input);
-        auto name_matches = [&name](statement *stmt){return stmt->name == name;};
-        auto stmt_ref =
-                std::find_if(m_statements.begin(), m_statements.end(),
-                             name_matches);
-        assert(stmt_ref != m_statements.end());
-        m.set_id(isl::space::input, isl::identifier(name, *stmt_ref));
-        corrected_schedule = corrected_schedule | m;
-        return true;
-    });
-
-    return corrected_schedule;
-#endif
 }
 
 isl::union_map
@@ -1036,7 +817,6 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
     }
 }
 
-#if 1
 void ast_generator::compute_buffer_size
 ( const isl::union_map & schedule,
   const data & d,
@@ -1143,31 +923,7 @@ void ast_generator::compute_buffer_size
     }
 
     array->buffer_size = buffer_size;
-
-    // TODO: Clear inter_period_dependency as appropriate.
-
-#if 0
-    // Compute largest re-use distance in number of periods
-
-    {
-        int time_dim_count = time_space.dimension(isl::space::variable);
-        map time_dep = dependency;
-        time_dep.map_domain_through(src_sched);
-        time_dep.map_range_through(sink_sched);
-        auto time_dep_set = time_dep.wrapped();
-        auto expr_space = isl::local_space(time_dep_set.get_space());
-        auto src_period = expr_space(isl::space::variable, 0);
-        auto sink_period = expr_space(isl::space::variable, time_dim_count);
-        auto distance = sink_period - src_period;
-        auto max_distance = time_dep_set.maximum(distance).integer();
-        if (debug_buffer_size::is_enabled())
-            cout << ".. max period distance = " << max_distance << endl;
-        assert(max_distance >= 0);
-        source_stmt->inter_period_dependency = max_distance > 0;
-    }
-#endif
 }
-#endif
 
 void ast_generator::find_inter_period_deps
 ( const isl::union_map & period_schedule,
