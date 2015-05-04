@@ -10,7 +10,9 @@ using namespace std;
 namespace stream {
 namespace polyhedral {
 
-model_generator::model_generator() {}
+model_generator::model_generator(const semantic::environment &env):
+    m_env(env)
+{}
 
 
 model model_generator::generate
@@ -132,6 +134,8 @@ expression_ptr model_generator::generate_expression(ast::node_ptr node)
     {
     case ast::expression_block:
         return generate_block(node);
+    case ast::call_expression:
+        return generate_call(node);
     case ast::identifier:
         return generate_id(node);
     case ast::integer_num:
@@ -206,9 +210,9 @@ expression_ptr model_generator::generate_block(ast::node_ptr node)
     {
         try
         {
-            for ( const auto & stmt : node->as_list()->elements )
+            for ( const auto & stmt : stmt_list->as_list()->elements )
             {
-                // TODO: do_statement(stmt);
+                generate_definition(stmt);
                 if (stmt->semantic_type->is(semantic::type::function))
                     m_context.enter_scope();
             }
@@ -227,44 +231,176 @@ expression_ptr model_generator::generate_block(ast::node_ptr node)
     return result;
 }
 
+model_generator::array_view_ptr
+model_generator::generate_definition(ast::node_ptr node)
+{
+    ast::list_node *stmt = node->as_list();
+    const auto & id_node = stmt->elements[0];
+    const auto & params_node = stmt->elements[1];
+    const auto & body_node = stmt->elements[2];
+
+    const string & id = id_node->as_leaf<string>()->value;
+
+    if (params_node)
+    {
+        // Function definition is obtained as semantic type at function call
+        m_context.bind(id, nullptr);
+        if (debug::is_enabled())
+            cout << "[poly] Binding: " << id << endl;
+        return nullptr;
+    }
+
+    auto array_view = generate_array(body_node);
+
+    m_context.bind(id, array_view);
+
+    return array_view;
+}
+
+expression_ptr model_generator::generate_call(ast::node_ptr node)
+{
+    static unordered_map<string, primitive_op> primitive_ops =
+    {
+        {"log", primitive_op::log},
+        {"log2", primitive_op::log2},
+        {"log10", primitive_op::log10},
+        {"exp", primitive_op::exp},
+        {"exp2", primitive_op::exp2},
+        {"pow", primitive_op::raise},
+        {"sqrt", primitive_op::sqrt},
+        {"sin", primitive_op::sin},
+        {"cos", primitive_op::cos},
+        {"tan", primitive_op::tan},
+        {"asin", primitive_op::asin},
+        {"acos", primitive_op::acos},
+        {"atan", primitive_op::atan},
+        {"ceil", primitive_op::ceil},
+        {"floor", primitive_op::floor},
+        {"abs", primitive_op::abs},
+        {"min", primitive_op::min},
+        {"max", primitive_op::max}
+    };
+
+    const auto & id_node = node->as_list()->elements[0];
+    const auto & args_node = node->as_list()->elements[1];
+
+    // Get callee id
+    assert(id_node->type == ast::identifier);
+    const string & id = id_node->as_leaf<string>()->value;
+
+    // Try primitive
+    auto primitive_op_mapping = primitive_ops.find(id);
+    if (primitive_op_mapping != primitive_ops.end())
+    {
+        auto expr = make_shared<primitive_expr>(primitive_type_for(node->semantic_type));
+        expr->op = primitive_op_mapping->second;
+        for (const auto & arg_node : args_node->as_list()->elements)
+            expr->operands.push_back( generate_expression(arg_node) );
+        return expr;
+    }
+
+    // Process args
+    std::vector<array_view_ptr> args;
+    for (const auto & arg_node : args_node->as_list()->elements)
+    {
+        args.push_back( generate_array(arg_node) );
+    }
+
+    // Try user function
+    auto func = dynamic_cast<semantic::function*>(id_node->semantic_type.get());
+    assert(func->parameters.size() == args.size());
+
+    context::scope_iterator parent_scope;
+    if (context::item local_func = m_context.find(id))
+    {
+        parent_scope = local_func.scope();
+        if (debug::is_enabled())
+            cout << "[poly] Entering local scope for call to: " << id << endl;
+    }
+    else
+    {
+        parent_scope = m_context.root_scope();
+        if (debug::is_enabled())
+            cout << "[poly] Entering root scope for call to: " << id << endl;
+    }
+
+    context::scope_holder func_scope(m_context, parent_scope);
+
+    for (int a = 0; a < args.size(); ++a)
+    {
+        m_context.bind(func->parameters[a], args[a]);
+    }
+
+    expression_ptr result = generate_expression(func->expression());
+
+    if (debug::is_enabled())
+        cout << "[poly] Exiting scope for call to: " << id << endl;
+
+    return result;
+}
+
 expression_ptr model_generator::generate_id(ast::node_ptr node)
 {
     string id = node->as_leaf<string>()->value;
 
     auto context_item = m_context.find(id);
+
+    array_view_ptr view;
+
     if (context_item)
     {
-        const auto & view = context_item.value();
-
-        mapping relation(transform().output_dimension(),
-                         view->array->size.size());
-
-        // Copy relation established so far
-
-        relation.copy(view->relation);
-
-        // Set remaining to identity
-
-        int remaining_ins = transform().output_dimension() - view->relation.input_dimension();
-        assert(view->current_dim + remaining_ins == relation.output_dimension());
-
-        for(int i = 0; i < remaining_ins; ++i)
-        {
-            relation.coefficient(view->relation.input_dimension() + i,
-                                 view->current_dim + i) = 1;
-        }
-
-        // Apply current transform
-
-        relation = relation * transform();
-
-        auto access = make_shared<array_access>(view->array, relation);
-        return access;
+        view = context_item.value();
     }
     else
     {
-        throw error("Not implemented.");
+        // It must be in the environment
+
+        if (debug::is_enabled())
+            cout << "[poly] Entering root scope for id: " << id << endl;
+
+        context::scope_holder root_scope(m_context, m_context.root_scope());
+
+        // Clear domain
+        vector<int> local_domain;
+        std::swap(local_domain, m_domain);
+
+        // Process statement
+        const semantic::symbol & sym = m_env.at(id);
+        assert(sym.source->type == ast::statement);
+
+        view = generate_definition(sym.source);
+
+        // Restore domain
+        std::swap(m_domain, local_domain);
+
+        if (debug::is_enabled())
+            cout << "[poly] Exiting root scope for id: " << id << endl;
     }
+
+    mapping relation(transform().output_dimension(),
+                     view->array->size.size());
+
+    // Copy relation established so far
+
+    relation.copy(view->relation);
+
+    // Set remaining to identity
+
+    int remaining_ins = transform().output_dimension() - view->relation.input_dimension();
+    assert(view->current_dim + remaining_ins >= relation.output_dimension());
+
+    for(int i = 0; i < remaining_ins && i < relation.output_dimension(); ++i)
+    {
+        relation.coefficient(view->relation.input_dimension() + i,
+                             view->current_dim + i) = 1;
+    }
+
+    // Apply current transform
+
+    relation = relation * transform();
+
+    auto access = make_shared<array_access>(view->array, relation);
+    return access;
 }
 
 expression_ptr model_generator::generate_range(ast::node_ptr node)

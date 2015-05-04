@@ -16,7 +16,7 @@ using std::stack;
 class model_generator
 {
 public:
-    model_generator();
+    model_generator(const semantic::environment &);
 
     void generate(ast::node_ptr);
 
@@ -45,6 +45,9 @@ private:
     expression_ptr generate_expression(ast::node_ptr);
 
     expression_ptr generate_block(ast::node_ptr);
+    array_view_ptr generate_definition(ast::node_ptr);
+    expression_ptr generate_call(ast::node_ptr);
+
     expression_ptr generate_id(ast::node_ptr);
     expression_ptr generate_range(ast::node_ptr);
     expression_ptr generate_slice(ast::node_ptr);
@@ -59,6 +62,7 @@ private:
     array_ptr add_array(primitive_type);
     statement_ptr add_statement();
 
+    const semantic::environment &m_env;
     model * m_model;
     context m_context;
     vector<int> m_domain;
