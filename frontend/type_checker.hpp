@@ -72,7 +72,7 @@ private:
     void process_stmt( const sp<ast::node> &, const ast::node_ptr & list );
     type_ptr process_expression( const sp<ast::node> & );
     pair<type_ptr, context_type::scope_iterator>
-    process_identifier( const sp<ast::node> & );
+    process_identifier( const sp<ast::node> &, bool function_allowed = false );
     type_ptr process_negate( const sp<ast::node> & );
     type_ptr process_binop( const sp<ast::node> & );
     type_ptr process_range( const sp<ast::node> & );

@@ -563,12 +563,18 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
 }
 
 pair<type_ptr, type_checker::context_type::scope_iterator>
-type_checker::process_identifier( const sp<ast::node> & root )
+type_checker::process_identifier( const sp<ast::node> & root,
+                                  bool function_allowed )
 {
     string id = root->as_leaf<string>()->value;
+
+    type_ptr type;
+    type_checker::context_type::scope_iterator scope;
+
     if (context_type::item item = m_ctx.find(id))
     {
-        return make_pair(item.value(), item.scope());
+        type = item.value();
+        scope = item.scope();
     }
     else
     {
@@ -580,11 +586,27 @@ type_checker::process_identifier( const sp<ast::node> & root )
             auto success = m_ctx.root_scope()->emplace(id, sym_type);
             assert(success.second);
             (void) success;
-            return make_pair(sym_type, m_ctx.root_scope());
+            type = sym_type;
+            scope = m_ctx.root_scope();
         }
     }
-    assert(false);
-    throw source_error("Name not in scope.", root->line);
+
+    if (!type)
+    {
+        assert(false);
+        throw source_error("Name not in scope.", root->line);
+    }
+
+    if ( dynamic_cast<abstract_function*>(type.get()) &&
+         !function_allowed )
+    {
+        ostringstream msg;
+        msg << "Function name missing arguments: \"" << id << "\"";
+        assert(false);
+        throw source_error(msg.str(), root->line);
+    }
+
+    return make_pair(type, scope);
 }
 
 type_ptr type_checker::process_negate( const sp<ast::node> & root )
@@ -978,7 +1000,7 @@ type_ptr type_checker::process_call( const sp<ast::node> & root )
 
     // Get function
 
-    auto func_info = process_identifier(func_node);
+    auto func_info = process_identifier(func_node, true);
     assert(func_info.first);
 
     func_type_ptr func_type = dynamic_pointer_cast<abstract_function>(func_info.first);
