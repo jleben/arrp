@@ -70,13 +70,9 @@ expression_ptr cpp_from_polyhedral::generate_expression
     }
     else if (auto iterator = dynamic_cast<iterator_access*>(expr.get()))
     {
-        assert(iterator->dimension >= 0 && iterator->dimension < index.size());
-        auto val = index[iterator->dimension];
-        if (iterator->ratio != 1)
-            val = make_shared<bin_op_expression>(op::mult, val, literal(iterator->ratio));
-        if (iterator->offset)
-            val = make_shared<bin_op_expression>(op::add, val, literal(iterator->offset));
-        return val;
+        auto value = mapped_index(index, iterator->relation, ctx);
+        assert(value.size() == 1);
+        return value[0];
     }
     else if (auto read = dynamic_cast<array_access*>(expr.get()))
     {
