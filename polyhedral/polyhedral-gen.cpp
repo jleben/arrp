@@ -72,6 +72,59 @@ model model_generator::generate
             cout << "[poly] Exiting root scope." << endl;
     }
 
+    // FIXME: Should happen in frontend!
+    // Check flow dimensions
+
+    for(auto & stmt : m_model->statements)
+    {
+        int flow_dim = -1;
+        for(int dim = 0; dim < stmt->domain.size(); ++dim)
+        {
+            if (stmt->domain[dim] == infinite)
+            {
+                if (flow_dim >= 0)
+                {
+                    throw error("Statement infinite in multiple dimensions.");
+                }
+                flow_dim = dim;
+            }
+        }
+        stmt->flow_dim = flow_dim;
+    }
+
+    for(auto & a : m_model->arrays)
+    {
+        int flow_dim = -1;
+        for(int dim = 0; dim < a->size.size(); ++dim)
+        {
+            if (a->size[dim] == infinite)
+            {
+                if (flow_dim >= 0)
+                {
+                    throw error("Array infinite in multiple dimensions.");
+                }
+                flow_dim = dim;
+            }
+        }
+        a->flow_dim = flow_dim;
+    }
+
+    // Add output statement;
+
+    assert(!m_model->statements.empty());
+    auto & last_stmt = m_model->statements.back();
+    if (last_stmt->flow_dim >= 0)
+    {
+        auto src = make_shared<array_access>(last_stmt->array);
+        // NOTE: special pattern will be fixed later
+        auto stmt = add_statement();
+        stmt->domain = { infinite };
+        stmt->flow_dim = 0;
+        stmt->expr = src;
+        // NOTE: no array
+    }
+
+
     m_model = nullptr;
 
     return m;
