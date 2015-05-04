@@ -203,7 +203,7 @@ result::code compile_polyhedral_model
 {
     // Print polyhedral model
 
-    //if (args.print[arguments::polyhedral_model_output])
+    if (args.print[arguments::polyhedral_model_output])
     {
         polyhedral::printer poly_printer;
         cout << endl << "== Polyhedral Model ==" << endl;
@@ -213,8 +213,6 @@ result::code compile_polyhedral_model
             poly_printer.print(stmt.get(), cout);
         }
     }
-
-    return result::ok;
 
     const target_info & target = args.target;
 
