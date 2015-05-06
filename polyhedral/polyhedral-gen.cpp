@@ -149,7 +149,7 @@ model_generator::generate_input
 
     assert(m_domain.size() == 0);
 
-    return make_shared<array_view>(array, mapping::identity(m_domain.size()));
+    return make_shared<array_view>(array);
 }
 
 model_generator::array_view_ptr
@@ -176,9 +176,8 @@ model_generator::generate_array(ast::node_ptr node)
     s->array = a;
     s->write_relation = mapping::identity(a->size.size());
 
-    auto view =
-            make_shared<array_view>(a, mapping::identity(m_domain.size()));
-    view->current_dim = m_domain.size();
+    auto view = make_shared<array_view>(a);
+    view->current_in_dim = m_domain.size();
 
     return view;
 }
@@ -460,25 +459,11 @@ expression_ptr model_generator::generate_id(ast::node_ptr node)
             cout << "[poly] Exiting root scope for id: " << id << endl;
     }
 
-    mapping relation(transform().output_dimension(),
-                     view->array->size.size());
-
-    // Copy relation established so far
-
-    relation.copy(view->relation);
-
-    // Set remaining to identity
-
-    int remaining_ins = transform().output_dimension() - view->relation.input_dimension();
-    assert(view->current_dim + remaining_ins >= relation.output_dimension());
-
-    for(int i = 0; i < remaining_ins && i < relation.output_dimension(); ++i)
-    {
-        relation.coefficient(view->relation.input_dimension() + i,
-                             view->current_dim + i) = 1;
-    }
+    auto relation = view->relation;
 
     // Apply current transform
+
+    assert(transform().output_dimension() == relation.input_dimension());
 
     relation = relation * transform();
 
@@ -696,32 +681,26 @@ expression_ptr model_generator::generate_mapping(ast::node_ptr node)
 
         auto source = generate_array(iter.domain);
 
-        assert(source->relation.input_dimension() == m_domain.size());
-
-        // Expand
+        auto map = mapping::identity(source->relation.input_dimension());
 
         int in_dim = m_domain.size();
-        int out_dim = source->current_dim;
+        int out_dim = source->current_in_dim;
 
         {
-            int in_dims = std::max(source->relation.input_dimension(), in_dim+1);
-            int out_dims = std::max(source->relation.output_dimension(), out_dim+1);
-            cout << "source relation: " << in_dims << " -> " << out_dims << endl;
-            source->relation.resize(in_dims, out_dims);
-            cout << "source relation true: "
-                 << source->relation.input_dimension()
-                 << " -> " << source->relation.output_dimension() << endl;
+            // Expand
+            int dims_to_insert = in_dim - source->current_in_dim;
+            if (iter.size > 1)
+                ++dims_to_insert;
+
+            map.insert_input_dim(source->current_in_dim, dims_to_insert);
+        }
+        {
+            // Apply stride
+            map.coefficient(in_dim, out_dim) = iter.hop;
         }
 
-        // Apply stride
-
-        source->relation.coefficient(in_dim, out_dim) = iter.hop;
-
-        // Update current dim
-
-        assert(iter.size >= 1);
-        if (iter.size == 1)
-            ++source->current_dim;
+        source->relation = source->relation * map;
+        source->current_in_dim = in_dim + 1;
 
         sources.push_back(source);
     }

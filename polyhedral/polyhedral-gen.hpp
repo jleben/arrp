@@ -27,12 +27,15 @@ private:
     struct array_view
     {
         array_view() {}
+        array_view(array_ptr a):
+            array(a), relation(mapping::identity(a->size.size()))
+        {}
         array_view(array_ptr a, const mapping & m):
             array(a), relation(m)
         {}
         array_ptr array;
         mapping relation;
-        int current_dim = 0;
+        int current_in_dim = 0;
     };
 
     typedef std::shared_ptr<array_view> array_view_ptr;
