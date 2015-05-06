@@ -180,6 +180,112 @@ public:
         return dst;
     }
 
+    void remove_column( int column_to_remove, int count )
+    {
+        if (count == 0)
+            return;
+
+        assert(count > 0);
+        assert(column_to_remove >= 0 && column_to_remove + count <= m_columns);
+
+        matrix<T> dst(m_rows, m_columns - count);
+
+        for (int row = 0; row < m_rows; ++row)
+        {
+            for (int col = 0; col < column_to_remove; ++col)
+            {
+                dst(row,col) = (*this)(row,col);
+            }
+            for (int col = column_to_remove; col < dst.m_columns; ++col)
+            {
+                dst(row, col) = (*this)(row, col + count);
+            }
+        }
+
+        (*this) = dst;
+    }
+
+    void remove_row( int row_to_remove, int count )
+    {
+        if (count == 0)
+            return;
+
+        assert(count > 0);
+        assert(row_to_remove >= 0 && row_to_remove + count <= m_rows);
+
+        matrix<T> dst(m_rows - count, m_columns);
+
+        for (int row = 0; row < row_to_remove; ++row)
+        {
+            for (int col = 0; col < m_columns; ++col)
+            {
+                dst(row,col) = (*this)(row,col);
+            }
+        }
+        for (int row = row_to_remove; row < dst.m_rows; ++row)
+        {
+            for (int col = 0; col < m_columns; ++col)
+            {
+                dst(row,col) = (*this)(row + count, col);
+            }
+        }
+
+        (*this) = dst;
+    }
+
+    void insert_column( int column_to_insert, int count )
+    {
+        if (count == 0)
+            return;
+
+        assert(count > 0);
+        assert(column_to_insert >= 0 && column_to_insert <= m_columns);
+
+        matrix<T> dst(m_rows, m_columns + count);
+
+        for (int row = 0; row < m_rows; ++row)
+        {
+            for (int col = 0; col < column_to_insert; ++col)
+            {
+                dst(row,col) = (*this)(row,col);
+            }
+            for (int col = column_to_insert; col < m_columns; ++col)
+            {
+                dst(row, col + count) = (*this)(row,col);
+            }
+        }
+
+        (*this) = dst;
+    }
+
+    void insert_row( int row_to_insert, int count )
+    {
+        if (count == 0)
+            return;
+
+        assert(count > 0);
+        assert(row_to_insert >= 0 && row_to_insert < m_rows);
+
+        matrix<T> dst(m_rows + count, m_columns);
+
+        for (int row = 0; row < row_to_insert; ++row)
+        {
+            for (int col = 0; col < m_columns; ++col)
+            {
+                dst(row,col) = (*this)(row,col);
+            }
+        }
+        for (int row = row_to_insert; row < m_rows; ++row)
+        {
+            for (int col = 0; col < m_columns; ++col)
+            {
+                dst(row + count,col) = (*this)(row,col);
+            }
+        }
+
+        (*this) = dst;
+    }
+
 private:
     int m_rows;
     int m_columns;

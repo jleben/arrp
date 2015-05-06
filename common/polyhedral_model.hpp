@@ -135,6 +135,29 @@ public:
         }
     }
 
+    void remove_input_dim(int in_dim, int count = 1)
+    {
+        coefficients.remove_column(in_dim, count);
+    }
+
+    void remove_output_dim(int out_dim, int count = 1)
+    {
+        coefficients.remove_row(out_dim, count);
+        constants.erase(constants.begin() + out_dim,
+                        constants.begin() + out_dim + count);
+    }
+
+    void insert_input_dim(int in_dim, int count = 1)
+    {
+        coefficients.insert_column(in_dim, count);
+    }
+
+    void insert_output_dim(int out_dim, int count = 1)
+    {
+        coefficients.insert_row(out_dim, count);
+        constants.insert(constants.begin() + out_dim, count, 0);
+    }
+
     matrix<int> coefficients;
     vector<int> constants;
 };
