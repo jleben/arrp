@@ -38,13 +38,19 @@ private:
         int current_in_dim = 0;
     };
 
+    enum array_storage_mode
+    {
+        storage_required,
+        storage_not_required
+    };
+
     typedef std::shared_ptr<array_view> array_view_ptr;
 
     typedef stream::context<string, array_view_ptr> context;
 
     array_view_ptr generate_input(const semantic::type_ptr & type, int index);
 
-    array_view_ptr generate_array(ast::node_ptr);
+    array_view_ptr generate_array(ast::node_ptr, array_storage_mode = storage_not_required);
     expression_ptr generate_expression(ast::node_ptr);
 
     expression_ptr generate_block(ast::node_ptr);

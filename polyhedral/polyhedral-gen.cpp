@@ -39,7 +39,7 @@ model model_generator::generate
 
             context::scope_holder expr_scope(m_context);
 
-            generate_array(sym.source_expression());
+            generate_array(sym.source_expression(), storage_required);
 
             if (debug::is_enabled())
                 cout << "[poly] Exiting expression scope: "  << sym.name << endl;
@@ -59,7 +59,7 @@ model model_generator::generate
                 m_context.bind(sym.parameter_names[i], generate_input(args[i], i) );
             }
 
-            generate_array(sym.source_expression());
+            generate_array(sym.source_expression(), storage_required);
 
             if (debug::is_enabled())
                 cout << "[poly] Exiting function scope: "  << sym.name << endl;
@@ -153,7 +153,7 @@ model_generator::generate_input
 }
 
 model_generator::array_view_ptr
-model_generator::generate_array(ast::node_ptr node)
+model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
 {
     auto type_struct = semantic::structure(node->semantic_type);
 
@@ -163,6 +163,16 @@ model_generator::generate_array(ast::node_ptr node)
     expression_ptr expr = generate_expression(node);
 
     m_transform.pop();
+
+    if (mode == storage_not_required)
+    {
+        if (auto read = dynamic_cast<array_access*>(expr.get()))
+        {
+            auto view = make_shared<array_view>(read->target, read->pattern);
+            view->current_in_dim = m_domain.size();
+            return view;
+        }
+    }
 
     auto a = add_array(expr->type);
     a->size = m_domain;
