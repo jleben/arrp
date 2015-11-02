@@ -262,6 +262,8 @@ expression_ptr model_generator::generate_expression(ast::node_ptr node)
         return generate_conditional(node);
     case ast::for_expression:
         return generate_mapping(node);
+    case ast::reduce_expression:
+        return generate_reduction(node);
     case ast::negate:
     case ast::oppose:
     {
@@ -730,6 +732,86 @@ expression_ptr model_generator::generate_mapping(ast::node_ptr node)
     assert(result->type == result_type.element_type);
 
     m_domain.pop_back();
+
+    return result;
+}
+
+expression_ptr model_generator::generate_reduction(ast::node_ptr node)
+{
+    const auto & accum_node = node->as_list()->elements[0];
+    const auto & iter_node = node->as_list()->elements[1];
+    const auto & source_node = node->as_list()->elements[2];
+    const auto & body_node = node->as_list()->elements[3];
+    string accum_id = accum_node->as_leaf<string>()->value;
+    string iter_id = iter_node->as_leaf<string>()->value;
+
+    assert(source_node->semantic_type->is(semantic::type::stream));
+
+    semantic::stream & source_stream = source_node->semantic_type->as<semantic::stream>();
+    assert(source_stream.size.size() == 1);
+    assert(source_stream.size.front() > 0);
+
+    auto source = generate_array(source_node);
+
+    auto reduction_array = add_array(primitive_type_for(node->semantic_type));
+    reduction_array->size = m_domain;
+    reduction_array->size.push_back(source_stream.size.front());
+
+    {
+        auto iterator0 = make_shared<array_access>(source->array, source->relation);
+        assert(iterator0->pattern.input_dimension() == m_domain.size() + 1);
+        iterator0->pattern.coefficient(m_domain.size(), iterator0->pattern.output_dimension()-1)
+                = 0;
+
+        auto init_stmt = add_statement();
+        init_stmt->expr = iterator0;
+        init_stmt->domain = m_domain;
+        init_stmt->domain.push_back(1);
+        init_stmt->array = reduction_array;
+        init_stmt->write_relation = mapping::identity(init_stmt->domain.size());
+    }
+
+    {
+        auto iterator = make_shared<array_view>(source->array, source->relation);
+        int in_dims = iterator->relation.input_dimension();
+        mapping offset = mapping::identity(in_dims);
+        offset.constants.back() = 1;
+        iterator->relation = iterator->relation * offset;
+        iterator->current_in_dim = in_dims;
+
+        auto accumulator = make_shared<array_view>(reduction_array);
+
+        context::scope_holder reduction_scope(m_context);
+        m_context.bind( accum_id, accumulator );
+        m_context.bind( iter_id, iterator );
+
+        m_domain.push_back(source->array->size.back() - 1);
+        m_transform.push(mapping::identity(m_domain.size()));
+
+        expression_ptr reduction_expr = generate_block(body_node);
+
+        auto reduction_stmt = add_statement();
+        reduction_stmt->expr = reduction_expr;
+        reduction_stmt->domain = m_domain;
+        reduction_stmt->array = reduction_array;
+        reduction_stmt->write_relation = mapping::identity(m_domain.size());
+        reduction_stmt->write_relation.constants.back() = 1;
+
+        m_transform.pop();
+        m_domain.pop_back();
+    }
+
+    vector<int> result_domain = m_domain;
+    if (result_domain.empty())
+        result_domain.push_back(1);
+
+    auto result = make_shared<array_access>(reduction_array);
+    result->pattern = mapping::identity(result_domain.size(),
+                                        reduction_array->size.size());
+    result->pattern.constants.back() =
+            reduction_array->size.back() - 1;
+
+    result->pattern = result->pattern * transform();
 
     return result;
 }
