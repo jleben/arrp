@@ -66,12 +66,15 @@ type_structure structure(const type_ptr & t)
     {
     case type::boolean:
         structure.type = primitive_type::boolean;
+        structure.size = {1};
         break;
     case type::integer_num:
         structure.type = primitive_type::integer;
+        structure.size = {1};
         break;
     case type::real_num:
         structure.type = primitive_type::real;
+        structure.size = {1};
         break;
     case type::stream:
     {
@@ -113,17 +116,17 @@ type_ptr operator+ (const type_ptr & a, const type_ptr & b)
     vector<int> & common_size = a_struct.size;
     primitive_type common_type = a_struct.type + b_struct.type;
 
-    if (common_size.size())
+    if (a_struct.is_scalar())
     {
-        return make_shared<stream>(common_size, common_type);
+        return type_for_scalar(common_type);
     }
     else
     {
-        return type_for(common_type);
+        return make_shared<stream>(common_size, common_type);
     }
 }
 
-type_ptr type_for(primitive_type pt)
+type_ptr type_for_scalar(primitive_type pt)
 {
     switch(pt)
     {
@@ -133,6 +136,21 @@ type_ptr type_for(primitive_type pt)
         return make_shared<real_num>();
     case primitive_type::boolean:
         return make_shared<boolean>();
+    default:
+        throw undefined();
+    }
+}
+
+type_ptr type_for_scalar(type::tag tag)
+{
+    switch(tag)
+    {
+    case type::boolean:
+        return make_shared<boolean>();
+    case type::integer_num:
+        return make_shared<integer_num>();
+    case type::real_num:
+        return make_shared<real_num>();
     default:
         throw undefined();
     }

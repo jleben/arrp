@@ -96,7 +96,8 @@ private:
 
 using type_ptr = std::shared_ptr<type>;
 
-type_ptr type_for(primitive_type pt);
+type_ptr type_for_scalar(primitive_type pt);
+type_ptr type_for_scalar(type::tag);
 
 primitive_type primitive_type_for(type::tag);
 primitive_type primitive_type_for(const type_ptr &);
@@ -246,7 +247,7 @@ struct stream : public tagged_type<type::stream>
         new_size.erase( std::remove(new_size.begin(), new_size.end(), 1), new_size.end() );
 
         if (new_size.empty())
-            return type_for(element_type);
+            return type_for_scalar(element_type);
         else
             return std::make_shared<semantic::stream>(new_size, element_type);
     }
@@ -346,6 +347,14 @@ struct type_structure
 {
     vector<int> size;
     primitive_type type;
+
+    bool is_scalar() { return type_structure::is_scalar(size); }
+
+    static
+    bool is_scalar(const vector<int> & size)
+    {
+        return size.size() == 1 && size[0] == 1;
+    }
 };
 
 type_structure structure(const type_ptr & t);

@@ -1271,7 +1271,12 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
     type_ptr result_type = process_block(body_node);
 
     if (!result_type->is(type::real_num))
-        throw source_error("Reduction result type must be a real number.", root->line);
+    {
+        ostringstream text;
+        text << "Reduction result must be a scalar."
+             << " Got " << *result_type << " instead.";
+        throw source_error(text.str(), root->line);
+    }
 
     // Whatever the result type, it will be converted to val1 type (real):
     return val1;
@@ -1317,13 +1322,7 @@ type_checker::process_primitive( const builtin_function_group & group,
 
     type_ptr result_type;
 
-    if (!result_size.empty())
-    {
-        primitive_type result_primitive_type =
-                primitive_type_for(signature.result);
-        result_type = make_shared<stream>(result_size, result_primitive_type);
-    }
-    else
+    if (type_structure::is_scalar(result_size))
     {
         builtin_function f;
         f.op = group.op;
@@ -1332,22 +1331,13 @@ type_checker::process_primitive( const builtin_function_group & group,
         result_type = constant_for(f, args);
 
         if (!result_type)
-        {
-            switch(signature.result)
-            {
-            case type::boolean:
-                result_type = make_shared<boolean>();
-                break;
-            case type::integer_num:
-                result_type = make_shared<integer_num>();
-                break;
-            case type::real_num:
-                result_type = make_shared<real_num>();
-                break;
-            default:
-                assert(false);
-            }
-        }
+            result_type = type_for_scalar(signature.result);
+    }
+    else
+    {
+        primitive_type result_primitive_type =
+                primitive_type_for(signature.result);
+        result_type = make_shared<stream>(result_size, result_primitive_type);
     }
 
     return make_pair(result_type, signature);

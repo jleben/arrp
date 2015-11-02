@@ -138,8 +138,6 @@ model_generator::generate_input
 
     auto array = add_array(type_struct.type);
     array->size = type_struct.size;
-    if (array->size.empty())
-        array->size = {1};
 
     auto stmt = add_statement();
     stmt->expr = make_shared<input_access>(type_struct.type, index);
@@ -157,7 +155,9 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
 {
     auto type_struct = semantic::structure(node->semantic_type);
 
-    int dimensions = m_domain.size() + type_struct.size.size();
+    int dimensions = m_domain.size();
+    if (!type_struct.is_scalar() || m_domain.empty())
+        dimensions += type_struct.size.size();
     m_transform.push(mapping::identity(dimensions));
 
     expression_ptr expr = generate_expression(node);
@@ -176,9 +176,8 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
 
     auto a = add_array(expr->type);
     a->size = m_domain;
-    a->size.insert(a->size.end(), type_struct.size.begin(), type_struct.size.end());
-    if (a->size.empty())
-        a->size = {1};
+    if (!type_struct.is_scalar() || a->size.empty())
+        a->size.insert(a->size.end(), type_struct.size.begin(), type_struct.size.end());
 
     auto s = add_statement();
     s->expr = expr;
