@@ -344,6 +344,22 @@ vector<T> operator+( const vector<T> & v1, const vector<T> & v2 )
 }
 
 template <typename T>
+matrix<T> operator+( const matrix<T> & m1, const matrix<T> & m2)
+{
+    assert(m1.rows() == m2.rows());
+    assert(m1.columns() == m2.columns());
+    matrix<T> dst(m1.rows(), m1.columns());
+    for (int row = 0; row < m1.rows(); ++row)
+    {
+        for (int col = 0; col < m2.columns(); ++col)
+        {
+            dst(row,col) = m1(row,col) + m2(row,col);
+        }
+    }
+    return dst;
+}
+
+template <typename T>
 inline std::ostream & operator<< ( std::ostream & stream, const matrix<T> & m )
 {
     for (int r = 0; r < m.rows(); ++r)
