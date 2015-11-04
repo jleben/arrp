@@ -144,13 +144,6 @@ void printer::print(const expression *expr, ostream &s)
         s << "read: " << access->target->name << " ";
         print(access->pattern, s);
     }
-    else if (auto access = dynamic_cast<const reduction_access*>(expr))
-    {
-        s << "reduction access: "
-          << access->initializer->name
-          << " / "
-          << access->reductor->name;
-    }
     else if (auto access = dynamic_cast<const input_access*>(expr))
     {
         s << "input access: "

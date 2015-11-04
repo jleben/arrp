@@ -182,14 +182,6 @@ public:
     {}
 };
 
-class reduction_access : public expression
-{
-public:
-    reduction_access(primitive_type t): expression(t) {}
-    statement * initializer;
-    statement * reductor;
-};
-
 template<typename T> inline
 void expression::find( vector<T*> & container )
 {
