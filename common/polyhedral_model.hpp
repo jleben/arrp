@@ -72,6 +72,12 @@ public:
     {
     }
 
+    mapping(int size):
+        coefficients(size, size, 0),
+        constants(size, 0)
+    {
+    }
+
     static mapping identity(int in, int out)
     {
         mapping m;
@@ -86,6 +92,11 @@ public:
         m.coefficients = matrix<int>::identity(size);
         m.constants.resize(size, 0);
         return m;
+    }
+
+    static mapping identity_to(const mapping & other )
+    {
+        return mapping::identity(other.input_dimension());
     }
 
     bool operator== ( const mapping & other ) const
@@ -135,6 +146,42 @@ public:
         }
     }
 
+    mapping input_range(int start, int size)
+    {
+        assert(start >= 0);
+        assert(size >= 0);
+        assert(start + size <= input_dimension());
+
+        mapping dst(size, output_dimension());
+        for( int row = 0; row < output_dimension(); ++row)
+        {
+            for (int col = 0; col < size; ++col)
+            {
+                dst.coefficient(row,col) = coefficient(row, start + col);
+            }
+            dst.constant(row) = constant(row);
+        }
+        return dst;
+    }
+
+    mapping output_range(int start, int size)
+    {
+        assert(start >= 0);
+        assert(size >= 0);
+        assert(start + size <= output_dimension());
+
+        mapping dst(input_dimension(), size);
+        for( int row = 0; row < size; ++row)
+        {
+            for (int col = 0; col < input_dimension(); ++col)
+            {
+                dst.coefficient(row,col) = coefficient(row + start, col);
+            }
+            dst.constant(row) = constant(row + start);
+        }
+        return dst;
+    }
+
     void remove_input_dim(int in_dim, int count = 1)
     {
         coefficients.remove_column(in_dim, count);
@@ -177,6 +224,20 @@ inline vector<int> operator*(const mapping & m, const vector<int> & v)
     using namespace ::stream::utility;
 
     return m.coefficients * v + m.constants;
+}
+
+inline mapping operator+ (const mapping & m1, const mapping & m2)
+{
+    assert(m1.input_dimension() == m2.input_dimension());
+    assert(m2.output_dimension() == m2.output_dimension());
+
+    using namespace ::stream::utility;
+
+    mapping dst;
+    dst.coefficients = m1.coefficients + m2.coefficients;
+    dst.constants = m1.constants + m2.constants;
+
+    return dst;
 }
 
 std::ostream & operator<<(std::ostream &, const mapping & m);
