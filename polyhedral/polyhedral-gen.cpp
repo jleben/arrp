@@ -53,11 +53,15 @@ model model_generator::generate
 
             context::scope_holder func_scope(m_context);
 
+            cout << "...generating function inputs..." << endl;
+
             assert(sym.parameter_names.size() == args.size());
             for(int i = 0; i < args.size(); ++i)
             {
                 m_context.bind(sym.parameter_names[i], generate_input(args[i], i) );
             }
+
+            cout << "...generating function body..." << endl;
 
             generate_array(sym.source_expression(), storage_required);
 
@@ -166,6 +170,10 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
 {
     expression_ptr expr = generate_expression(node);
 
+    cout << "Array expr:" << endl;
+    m_printer.print(expr.get(), cout); cout << endl;
+
+#if 0
     if (mode == storage_not_required)
     {
         // Is reduce redundant?
@@ -181,6 +189,7 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
             return expr;
         }
     }
+#endif
 
     if (!m_bound_array_vars.empty())
     {
@@ -188,13 +197,17 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
         expr = make_shared<array_function>(vars, expr);
     }
 
+    cout << "Array wrapped expr:" << endl;
+    m_printer.print(expr.get(), cout); cout << endl;
+
     // Is reduce redundant?
     expr = reduce(expr);
 
-    cout << "Array writer:" << endl;
+    cout << "Array reduced expr:" << endl;
     m_printer.print(expr.get(), cout); cout << endl;
 
     auto array = add_array(expr->type);
+    // FIXME: check semantic type instead of expression type
     if (auto func = dynamic_cast<array_function*>(expr.get()))
     {
         for (auto & var : func->vars)
@@ -543,6 +556,9 @@ expression_ptr model_generator::generate_id(ast::node_ptr node)
             cout << "[poly] Exiting root scope for id: " << id << endl;
     }
 
+    cout << "Lookup:" << endl;
+    m_printer.print(expr.get(), cout); cout << endl;
+
     return expr;
 }
 
@@ -662,6 +678,7 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
     cout << "Slice object:" << endl;
     m_printer.print(object.get(), cout); cout << endl;
 
+    // FIXME: use semantic type instead of assuming array_function
     auto object_func = dynamic_pointer_cast<array_function>(object);
     assert(object_func);
     assert(object_func->vars.size() >= slices.size());
@@ -726,10 +743,7 @@ expression_ptr model_generator::generate_transpose(ast::node_ptr node)
     }
 
     auto object_expr = generate_expression(object_node);
-    auto object_func = dynamic_pointer_cast<array_function>(object_expr);
-    assert(object_func);
-
-    auto application = make_shared<array_func_apply>(object_func, args);
+    auto application = make_shared<array_func_apply>(object_expr, args);
     auto result = make_shared<array_function>(vars, application);
 
     cout << "Transpose:" << endl;
@@ -769,53 +783,65 @@ expression_ptr model_generator::generate_mapping(ast::node_ptr node)
 
     vector<array_view_ptr> sources;
 
+    vector<expression_ptr> windows;
+
+    assert(result_type.size.size());
+
+    int result_size = result_type.size[0];
+    array_var_ptr mapping_index = make_shared<array_variable>(result_size);
+
     for (const auto & iterator_node : iterators_node->as_list()->elements)
     {
         semantic::iterator & iter =
                 iterator_node->semantic_type->as<semantic::iterator>();
 
-        auto source = generate_array_old(iter.domain);
+        cout << "...generating mapping source..." << endl;
 
-        auto map = mapping::identity(source->relation.input_dimension());
+        auto source = generate_array(iter.domain);
 
-        int in_dim = m_domain.size();
-        int out_dim = source->current_in_dim;
+        auto window_expr = make_shared<array_func_apply>(source);
+        window_expr->args = { mapping_index * iter.hop };
 
+        if (iter.size > 1)
         {
-            // Expand
-            int dims_to_insert = in_dim - source->current_in_dim;
-            if (iter.size > 1)
-                ++dims_to_insert;
-
-            map.insert_input_dim(source->current_in_dim, dims_to_insert);
+            auto sub_win_index = make_shared<array_variable>(iter.size);
+            window_expr->args[0] = window_expr->args[0] + sub_win_index;
+            auto window = make_shared<array_function>(sub_win_index, window_expr);
+            windows.push_back(window);
         }
+        else
         {
-            // Apply stride
-            map.coefficient(in_dim, out_dim) = iter.hop;
+            windows.push_back(window_expr);
         }
-
-        source->relation = source->relation * map;
-        source->current_in_dim = in_dim + 1;
-
-        sources.push_back(source);
     }
 
-    context::scope_holder mapping_scope(m_context);
+    cout << "...generating mapping body..." << endl;
 
-    for(int i = 0; i < sources.size(); ++i)
+    expression_ptr expr;
+
     {
-        semantic::iterator & iter =
-                iterators_node->as_list()->elements[i]
-                ->semantic_type->as<semantic::iterator>();
-        m_context.bind(iter.id, sources[i]);
+        context::scope_holder mapping_scope(m_context);
+
+        for(int i = 0; i < windows.size(); ++i)
+        {
+            semantic::iterator & iter =
+                    iterators_node->as_list()->elements[i]
+                    ->semantic_type->as<semantic::iterator>();
+            m_context.bind(iter.id, windows[i]);
+        }
+
+        m_bound_array_vars.push_back(mapping_index);
+
+        expr = generate_block(body_node);
+        assert(expr->type == result_type.element_type);
+
+        m_bound_array_vars.pop_back();
     }
 
-    m_domain.push_back( result_type.size[0] );
+    auto result = make_shared<array_function>(mapping_index, expr);
 
-    expression_ptr result = generate_block(body_node);
-    assert(result->type == result_type.element_type);
-
-    m_domain.pop_back();
+    cout << "Mapping:" << endl;
+    m_printer.print(result.get(), cout); cout << endl;
 
     return result;
 }
@@ -926,68 +952,95 @@ expression_ptr model_generator::generate_unary_op(ast::node_ptr node)
 
 expression_ptr model_generator::generate_binary_op(ast::node_ptr node)
 {
-    expression_ptr operand1 = generate_expression(node->as_list()->elements[0]);
+    auto op1_node = node->as_list()->elements[0];
+    auto op2_node = node->as_list()->elements[1];
 
-    expression_ptr operand2 = generate_expression(node->as_list()->elements[1]);
+    expression_ptr operand1 = generate_expression(op1_node);
+    expression_ptr operand2 = generate_expression(op2_node);
+
+    array_var_vector vars;
+
+    auto struc = semantic::structure(node->semantic_type);
+    if (!struc.is_scalar())
+    {
+        vars = array_var_vector(struc.size);
+    }
+
+    if (!op1_node->semantic_type->is_scalar())
+    {
+        operand1 = make_shared<array_func_apply>(operand1, vars);
+    }
+    if (!op2_node->semantic_type->is_scalar())
+    {
+        operand2 = make_shared<array_func_apply>(operand2, vars);
+    }
 
     // create operation
 
-    auto type = semantic::primitive_type_for(node->semantic_type);
-    auto result = make_shared<primitive_expr>(type);
-
-    result->operands.push_back(operand1);
-    result->operands.push_back(operand2);
+    auto primitive_type = semantic::primitive_type_for(node->semantic_type);
+    auto result_expr = make_shared<primitive_expr>(primitive_type);
+    result_expr->operands.push_back(operand1);
+    result_expr->operands.push_back(operand2);
 
     switch(node->type)
     {
     case ast::add:
-        result->op = primitive_op::add;
+        result_expr->op = primitive_op::add;
         break;
     case ast::subtract:
-        result->op = primitive_op::subtract;
+        result_expr->op = primitive_op::subtract;
         break;
     case ast::multiply:
-        result->op = primitive_op::multiply;
+        result_expr->op = primitive_op::multiply;
         break;
     case ast::divide:
-        result->op = primitive_op::divide;
+        result_expr->op = primitive_op::divide;
         break;
     case ast::divide_integer:
-        result->op = primitive_op::divide_integer;
+        result_expr->op = primitive_op::divide_integer;
         break;
     case ast::modulo:
-        result->op = primitive_op::modulo;
+        result_expr->op = primitive_op::modulo;
         break;
     case ast::raise:
-        result->op = primitive_op::raise;
+        result_expr->op = primitive_op::raise;
         break;
     case ast::lesser:
-        result->op = primitive_op::compare_l;
+        result_expr->op = primitive_op::compare_l;
         break;
     case ast::lesser_or_equal:
-        result->op = primitive_op::compare_leq;
+        result_expr->op = primitive_op::compare_leq;
         break;
     case ast::greater:
-        result->op = primitive_op::compare_g;
+        result_expr->op = primitive_op::compare_g;
         break;
     case ast::greater_or_equal:
-        result->op = primitive_op::compare_geq;
+        result_expr->op = primitive_op::compare_geq;
         break;
     case ast::equal:
-        result->op = primitive_op::compare_eq;
+        result_expr->op = primitive_op::compare_eq;
         break;
     case ast::not_equal:
-        result->op = primitive_op::compare_neq;
+        result_expr->op = primitive_op::compare_neq;
         break;
     case ast::logic_and:
-        result->op = primitive_op::logic_and;
+        result_expr->op = primitive_op::logic_and;
         break;
     case ast::logic_or:
-        result->op = primitive_op::logic_or;
+        result_expr->op = primitive_op::logic_or;
         break;
     default:
         throw runtime_error("Unexpected AST node type.");
     }
+
+    expression_ptr result;
+    if (vars.empty())
+        result = result_expr;
+    else
+        result = make_shared<array_function>(vars, result_expr);
+
+    cout << "Binary op:" << endl;
+    m_printer.print(result.get(), cout); cout << endl;
 
     return result;
 }
@@ -996,9 +1049,12 @@ expression_ptr model_generator::reduce(expression_ptr expr)
 {
     if (auto app = dynamic_cast<array_func_apply*>(expr.get()))
     {
-        const auto args = reduce(app->args);
-        const auto & vars = app->func->vars;
+        auto func = dynamic_pointer_cast<array_function>(reduce(app->func));
+        assert(func);
 
+        auto args = reduce(app->args);
+
+        const auto & vars = func->vars;
         assert(vars.size() >= args.size());
 
         array_context::scope_holder scope(m_array_context);
@@ -1008,7 +1064,7 @@ expression_ptr model_generator::reduce(expression_ptr expr)
             m_array_context.bind(vars[i], args[i]);
         }
 
-        auto reduced_expr = reduce(app->func->expr);
+        auto reduced_expr = reduce(func->expr);
 
         if (args.size() < vars.size())
         {

@@ -70,6 +70,9 @@ class array_var_vector : public vector<array_var_ptr>
 public:
     using vector<array_var_ptr>::vector;
     array_var_vector() {}
+    array_var_vector(array_var_ptr v):
+        vector({v})
+    {}
     array_var_vector(vector<int> sizes)
     {
         for(auto & size : sizes)
@@ -105,6 +108,8 @@ class array_index_vector : public vector<array_index_expr>
 public:
     using vector<array_index_expr>::vector;
     array_index_vector() {}
+    array_index_vector(const array_index_expr & expr):
+        vector({expr}) {}
     array_index_vector(const array_var_vector & vars)
     {
         for (auto & var : vars)
@@ -332,10 +337,12 @@ typedef std::shared_ptr<array_function> array_func_ptr;
 class array_func_apply : public expression
 {
 public:
-    array_func_apply(array_func_ptr f, const array_index_vector & a):
+    array_func_apply(expression_ptr f):
+        expression(f->type), func(f) {}
+    array_func_apply(expression_ptr f, const array_index_vector & a):
         expression(f->type), func(f), args(a) {}
 
-    array_func_ptr func;
+    expression_ptr func;
     array_index_vector args;
 };
 
