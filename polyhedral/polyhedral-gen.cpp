@@ -1026,17 +1026,18 @@ expression_ptr model_generator::reduce(expression_ptr expr)
     // FIXME: maybe we don't need this one - it belongs to AST translation
     else if (auto func = dynamic_cast<array_function*>(expr.get()))
     {
-        if (auto nested_func = dynamic_cast<array_function*>(func->expr.get()))
+        auto reduced_expr = reduce(func->expr);
+        if (auto nested_func = dynamic_cast<array_function*>(reduced_expr.get()))
         {
             array_var_vector combined_vars = func->vars;
             combined_vars.insert(combined_vars.end(),
                                  nested_func->vars.begin(),
                                  nested_func->vars.end());
-            return make_shared<array_function>(combined_vars, reduce(nested_func->expr));
+            return make_shared<array_function>(combined_vars, nested_func->expr);
         }
         else
         {
-            return make_shared<array_function>(func->vars, reduce(func->expr));
+            return make_shared<array_function>(func->vars, reduced_expr);
         }
     }
     else if (auto iter = dynamic_cast<iterator_access*>(expr.get()))
