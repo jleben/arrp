@@ -93,13 +93,12 @@ void array_func_printer::print(const expression *expr, ostream &s)
     {
         s << primitive->op;
 
-        s << " (" << endl;
+        s << " (";
         for(auto & operand : primitive->operands)
         {
             print(operand.get(), s);
             if (operand != primitive->operands.back())
-                s << ",";
-            s << endl;
+                s << ", ";
         }
         s << ")";
     }
