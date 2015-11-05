@@ -921,30 +921,56 @@ expression_ptr model_generator::generate_reduction(ast::node_ptr node)
 
 expression_ptr model_generator::generate_unary_op(ast::node_ptr node)
 {
-    expression_ptr operand = generate_expression(node->as_list()->elements[0]);
+    // create operands
+
+    auto operand_node = node->as_list()->elements[0];
+    expression_ptr operand = generate_expression(operand_node);
+
+    array_var_vector vars;
+
+    auto struc = semantic::structure(node->semantic_type);
+    if (!struc.is_scalar())
+    {
+        vars = array_var_vector(struc.size);
+        assert (!operand_node->semantic_type->is_scalar());
+        operand = make_shared<array_func_apply>(operand, vars);
+    }
 
     // create operation
 
     auto type = primitive_type_for(node->semantic_type);
-    auto result = make_shared<primitive_expr>(type);
+    auto result_expr = make_shared<primitive_expr>(type);
 
-    result->operands.push_back(operand);
+    result_expr->operands.push_back(operand);
 
     switch(node->type)
     {
     case ast::negate:
     case ast::oppose:
-        result->op = primitive_op::negate;
+        result_expr->op = primitive_op::negate;
         break;
     default:
         throw runtime_error("Unexpected AST node type.");
     }
+
+    // create result
+
+    expression_ptr result;
+    if (vars.empty())
+        result = result_expr;
+    else
+        result = make_shared<array_function>(vars, result_expr);
+
+    cout << "Unary op:" << endl;
+    m_printer.print(result.get(), cout); cout << endl;
 
     return result;
 }
 
 expression_ptr model_generator::generate_binary_op(ast::node_ptr node)
 {
+    // create operands
+
     auto op1_node = node->as_list()->elements[0];
     auto op2_node = node->as_list()->elements[1];
 
@@ -1025,6 +1051,8 @@ expression_ptr model_generator::generate_binary_op(ast::node_ptr node)
     default:
         throw runtime_error("Unexpected AST node type.");
     }
+
+    // create result
 
     expression_ptr result;
     if (vars.empty())
