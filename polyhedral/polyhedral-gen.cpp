@@ -207,7 +207,6 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
     m_printer.print(expr.get(), cout); cout << endl;
 
     auto array = add_array(expr->type);
-    // FIXME: check semantic type instead of expression type
     if (auto func = dynamic_cast<array_function*>(expr.get()))
     {
         for (auto & var : func->vars)
@@ -678,11 +677,6 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
     cout << "Slice object:" << endl;
     m_printer.print(object.get(), cout); cout << endl;
 
-    // FIXME: use semantic type instead of assuming array_function
-    auto object_func = dynamic_pointer_cast<array_function>(object);
-    assert(object_func);
-    assert(object_func->vars.size() >= slices.size());
-
     array_var_vector new_vars;
     array_index_vector args;
     expression_ptr expr;
@@ -690,7 +684,6 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
     for (int dim = 0; dim < (int)slices.size(); ++dim)
     {
         slice & s = slices[dim];
-        auto var = object_func->vars[dim];
         if (s.size == 1)
         {
             args.push_back(s.offset);
@@ -703,7 +696,7 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
         }
     }
 
-    expr = make_shared<array_func_apply>(object_func, args);
+    expr = make_shared<array_func_apply>(object, args);
 
     if (!new_vars.empty())
     {
@@ -1079,7 +1072,6 @@ expression_ptr model_generator::reduce(expression_ptr expr)
             return reduced_expr;
         }
     }
-    // FIXME: maybe we don't need this one - it belongs to AST translation
     else if (auto func = dynamic_cast<array_function*>(expr.get()))
     {
         auto reduced_expr = reduce(func->expr);
