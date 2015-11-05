@@ -193,6 +193,9 @@ result::code compile_source(istream & source, const arguments & args)
 
     polyhedral::model_generator poly_gen(env);
     auto poly_model = poly_gen.generate( sym_iter->second, target.args );
+
+    return result::generator_error;
+
     return compile_polyhedral_model(poly_model, args);
 }
 

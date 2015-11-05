@@ -5,13 +5,16 @@
 #include "../utility/context.hpp"
 #include "../common/ast.hpp"
 #include "../common/environment.hpp"
+#include "../common/array_func_printer.hpp"
 
 #include <stack>
+#include <deque>
 
 namespace stream {
 namespace polyhedral {
 
 using std::stack;
+using std::deque;
 
 class model_generator
 {
@@ -24,13 +27,16 @@ public:
                    const vector<semantic::type_ptr> & args);
 
 private:
-    struct array_view
+    struct array_view : expression
     {
-        array_view() {}
+        array_view():
+            expression(primitive_type::integer) {}
         array_view(array_ptr a):
+            expression(primitive_type::integer),
             array(a), relation(mapping::identity(a->size.size()))
         {}
         array_view(array_ptr a, const mapping & m):
+            expression(primitive_type::integer),
             array(a), relation(m)
         {}
         array_ptr array;
@@ -46,11 +52,13 @@ private:
 
     typedef std::shared_ptr<array_view> array_view_ptr;
 
-    typedef stream::context<string, array_view_ptr> context;
+    typedef stream::context<string, expression_ptr> context;
+    typedef stream::context<array_var_ptr, array_index_expr> array_context;
 
-    array_view_ptr generate_input(const semantic::type_ptr & type, int index);
+    expression_ptr generate_input(const semantic::type_ptr & type, int index);
 
-    array_view_ptr generate_array(ast::node_ptr, array_storage_mode = storage_not_required);
+    expression_ptr generate_array(ast::node_ptr, array_storage_mode = storage_not_required);
+    array_view_ptr generate_array_old(ast::node_ptr, array_storage_mode = storage_not_required);
     expression_ptr generate_expression(ast::node_ptr);
 
     expression_ptr generate_block(ast::node_ptr);
@@ -67,6 +75,10 @@ private:
     expression_ptr generate_unary_op(ast::node_ptr);
     expression_ptr generate_binary_op(ast::node_ptr);
 
+    expression_ptr reduce(expression_ptr expr);
+    array_index_vector reduce(const array_index_vector &);
+    array_index_expr reduce(const array_index_expr &);
+
     mapping & transform() { return m_transform.top(); }
 
     array_ptr add_array(primitive_type);
@@ -75,8 +87,11 @@ private:
     const semantic::environment &m_env;
     model * m_model;
     context m_context;
+    array_context m_array_context;
+    deque<array_var_ptr> m_bound_array_vars;
     vector<int> m_domain;
     stack<mapping> m_transform;
+    array_func_printer m_printer;
 };
 
 }

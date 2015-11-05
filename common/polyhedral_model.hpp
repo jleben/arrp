@@ -55,11 +55,112 @@ template<> struct expr_type<bool> { static constexpr primitive_type type = primi
 class statement;
 class array;
 
+class array_variable
+{
+public:
+    array_variable() {}
+    array_variable(int size): size(size) {}
+    int size = 0;
+};
+
+typedef std::shared_ptr<array_variable> array_var_ptr;
+
+class array_var_vector : public vector<array_var_ptr>
+{
+public:
+    using vector<array_var_ptr>::vector;
+    array_var_vector() {}
+    array_var_vector(vector<int> sizes)
+    {
+        for(auto & size : sizes)
+            push_back(std::make_shared<array_variable>(size));
+    }
+};
+
+class array_index_term
+{
+public:
+    array_index_term() {}
+    array_index_term(int s): scalar(s) {}
+    array_index_term(array_var_ptr v, int s = 1): var(v), scalar(s) {}
+    array_var_ptr var;
+    int scalar = 1;
+};
+
+class array_index_expr : public vector<array_index_term>
+{
+public:
+    using vector<array_index_term>::vector;
+    array_index_expr() {}
+    array_index_expr(int c):
+        vector<array_index_term>({array_index_term(c)}) {}
+    array_index_expr(array_var_ptr v):
+        vector<array_index_term>({array_index_term(v)}) {}
+    array_index_expr(const array_index_term & i):
+        vector<array_index_term>({i}) {}
+};
+
+class array_index_vector : public vector<array_index_expr>
+{
+public:
+    using vector<array_index_expr>::vector;
+    array_index_vector() {}
+    array_index_vector(const array_var_vector & vars)
+    {
+        for (auto & var : vars)
+            push_back(var);
+    }
+};
+
+inline array_index_term operator*(array_var_ptr v, int s)
+{
+    return array_index_term(v,s);
+}
+
+inline array_index_expr operator+(array_var_ptr a, int b)
+{
+    return { array_index_term(a), array_index_term(b) };
+}
+
+inline array_index_expr operator+(const array_index_expr & e1,
+                                  const array_index_expr & e2)
+{
+    array_index_expr e(e1);
+
+    for (auto & t2 : e2)
+    {
+        bool added = false;
+        for(auto & t : e)
+        {
+            if (t2.var == t.var)
+            {
+                t.scalar += t2.scalar;
+                added = true;
+                break;
+            }
+        }
+        if (!added)
+        {
+            e.push_back(t2);
+        }
+    }
+
+    return e;
+}
+
+inline array_index_expr operator*(const array_index_expr & e,
+                                  int scalar)
+{
+    array_index_expr e2;
+    for (auto & term : e)
+    {
+        e2.push_back( array_index_term {term.var, term.scalar * scalar} );
+    }
+    return e2;
+}
+
 class expression
 {
-    // TODO: provide easy access to all dependencies,
-    // (of all sub-expressions)
-    // to be updated by slicing and transposition
 public:
     expression(primitive_type t): type(t) {}
 
@@ -72,51 +173,6 @@ public:
 };
 
 typedef std::shared_ptr<expression> expression_ptr;
-
-template <typename T>
-class constant : public expression
-{
-public:
-    constant(const T & v): expression(expr_type<T>::type), value(v) {}
-    T value;
-};
-
-class primitive_expr : public expression
-{
-public:
-    primitive_expr(primitive_type t): expression(t) {}
-    primitive_expr(primitive_type t, primitive_op k, const vector<expression_ptr> & operands):
-        expression(t),
-        op(k), operands(operands)
-    {}
-
-    primitive_op op;
-    vector<expression_ptr> operands;
-};
-
-class iterator_access : public expression
-{
-public:
-    iterator_access(primitive_type t): expression(t) {}
-    iterator_access(primitive_type t, int dimension, int offset=0, int ratio=1):
-        expression(t),
-        dimension(dimension),
-        offset(offset),
-        ratio(ratio)
-    {}
-    mapping relation;
-    // TODO: remove the following, use "relation" instead:
-    int dimension;
-    int offset;
-    int ratio;
-};
-
-class input_access : public expression
-{
-public:
-    input_access(primitive_type t, int index): expression(t), index(index) {}
-    int index;
-};
 
 class array
 {
@@ -165,10 +221,72 @@ public:
 
 typedef std::shared_ptr<statement> statement_ptr;
 
+template <typename T>
+class constant : public expression
+{
+public:
+    constant(const T & v): expression(expr_type<T>::type), value(v) {}
+    T value;
+};
+
+class primitive_expr : public expression
+{
+public:
+    primitive_expr(primitive_type t): expression(t) {}
+    primitive_expr(primitive_type t, primitive_op k, const vector<expression_ptr> & operands):
+        expression(t),
+        op(k), operands(operands)
+    {}
+
+    primitive_op op;
+    vector<expression_ptr> operands;
+};
+
+class iterator_access : public expression
+{
+public:
+    iterator_access(primitive_type t): expression(t) {}
+    iterator_access(primitive_type t, int dimension, int offset=0, int ratio=1):
+        expression(t),
+        dimension(dimension),
+        offset(offset),
+        ratio(ratio)
+    {}
+    iterator_access(const array_index_expr & e):
+        expression(primitive_type::integer),
+        expr(e)
+    {}
+
+    array_index_expr expr;
+
+    // TODO: remove
+    mapping relation;
+
+    // TODO: remove the following, use "relation" instead:
+    int dimension;
+    int offset;
+    int ratio;
+};
+
+class input_access : public expression
+{
+public:
+    input_access(primitive_type t, int index):
+        expression(t), index(index) {}
+    input_access(primitive_type t, int i, const array_index_vector & ai):
+        expression(t), index(i), array_index(ai) {}
+
+    int index; // FIXME: rename?
+    array_index_vector array_index;
+};
+
 class array_access : public expression
 {
 public:
     array_ptr target;
+    array_index_vector index;
+
+    // TODO: remove
     mapping pattern;
 
     array_access(array_ptr target):
@@ -180,6 +298,45 @@ public:
         target(target),
         pattern(relation)
     {}
+    array_access(array_ptr a, const array_index_vector & i):
+        expression(a->type),
+        target(a),
+        index(i)
+    {}
+};
+
+class array_function : public expression
+{
+public:
+    array_function(primitive_type t): expression(t) {}
+    array_function(const vector<int> & size, expression_ptr expr):
+        expression(expr->type),
+        vars(size),
+        expr(expr)
+    {}
+    array_function(array_ptr a):
+        expression(a->type),
+        vars(a->size)
+    {
+        expr = std::make_shared<array_access>(a, array_index_vector(vars));
+    }
+    array_function(const array_var_vector & v, expression_ptr e):
+        expression(e->type), vars(v), expr(e) {}
+
+    array_var_vector vars;
+    expression_ptr expr;
+};
+
+typedef std::shared_ptr<array_function> array_func_ptr;
+
+class array_func_apply : public expression
+{
+public:
+    array_func_apply(array_func_ptr f, const array_index_vector & a):
+        expression(f->type), func(f), args(a) {}
+
+    array_func_ptr func;
+    array_index_vector args;
 };
 
 template<typename T> inline
@@ -200,7 +357,6 @@ void expression::find( vector<T*> & container )
 
 struct debug : public stream::debug::topic<debug, stream::debug::all>
 { static string id() { return "polyhedral"; } };
-
 
 class model
 {

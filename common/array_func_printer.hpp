@@ -1,0 +1,70 @@
+/*
+Compiler for language for stream processing
+
+Copyright (C) 2014  Jakob Leben <jakob.leben@gmail.com>
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+
+#ifndef STREAM_ARRAY_FUNCTION_PRINTER_INCLUDED
+#define STREAM_ARRAY_FUNCTION_PRINTER_INCLUDED
+
+#include "polyhedral_model.hpp"
+
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+
+namespace stream {
+namespace polyhedral {
+
+using std::ostream;
+using std::ostringstream;
+using std::string;
+using std::unordered_map;
+
+class array_func_printer
+{
+public:
+    array_func_printer();
+    void print(const primitive_type t, ostream &);
+    void print(const expression *expr, ostream &);
+    void print(const array_index_expr & expr, ostream &);
+    void print(const vector<array_index_expr> & expr, ostream &);
+    void indent() { ++level; }
+    void unindent() { --level; }
+private:
+    string name(const array_var_ptr & var)
+    {
+        string & name = var_names[var];
+        if (name.empty())
+        {
+            ostringstream text;
+            text << (char) (97 + var_count++);
+            name = text.str();
+        }
+        return name;
+    }
+
+    string indentation() { return string(level * 2, ' '); }
+    int level;
+    unordered_map<array_var_ptr, string> var_names;
+    int var_count = 0;
+};
+
+}
+}
+#endif // STREAM_ARRAY_FUNCTION_PRINTER_INCLUDED

@@ -72,6 +72,10 @@ model model_generator::generate
             cout << "[poly] Exiting root scope." << endl;
     }
 
+    // FIXME: proceed...
+    m_model = nullptr;
+    return m;
+
     // FIXME: Should happen in frontend!
     // Check flow dimensions
 
@@ -130,28 +134,97 @@ model model_generator::generate
     return m;
 }
 
-model_generator::array_view_ptr
+expression_ptr
 model_generator::generate_input
 (const semantic::type_ptr & type, int index)
 {
     auto type_struct = semantic::structure(type);
 
-    auto array = add_array(type_struct.type);
-    array->size = type_struct.size;
+    expression_ptr result;
 
-    auto stmt = add_statement();
-    stmt->expr = make_shared<input_access>(type_struct.type, index);
-    stmt->array = array;
-    stmt->domain = array->size;
-    stmt->write_relation = mapping::identity(array->size.size());
+    if (type_struct.is_scalar())
+    {
+        result = make_shared<input_access>(type_struct.type, index);
+    }
+    else
+    {
+        auto expr = make_shared<input_access>(type_struct.type, index);
+        auto func = make_shared<array_function>(type_struct.size, expr);
+        for(auto & var : func->vars)
+            expr->array_index.push_back(array_index_term(var));
+        result = func;
+    }
 
-    assert(m_domain.size() == 0);
+    cout << "Input:" << endl;
+    m_printer.print(result.get(), cout); cout << endl;
 
-    return make_shared<array_view>(array);
+    return result;
+}
+
+expression_ptr
+model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
+{
+    expression_ptr expr = generate_expression(node);
+
+    if (mode == storage_not_required)
+    {
+        // Is reduce redundant?
+        expr = reduce(expr);
+
+        expression_ptr raw_expr = expr;
+
+        if (auto func = dynamic_cast<array_function*>(raw_expr.get()))
+            raw_expr = func->expr;
+
+        if (dynamic_cast<array_access*>(raw_expr.get()))
+        {
+            return expr;
+        }
+    }
+
+    if (!m_bound_array_vars.empty())
+    {
+        array_var_vector vars(m_bound_array_vars.begin(), m_bound_array_vars.end());
+        expr = make_shared<array_function>(vars, expr);
+    }
+
+    // Is reduce redundant?
+    expr = reduce(expr);
+
+    cout << "Array writer:" << endl;
+    m_printer.print(expr.get(), cout); cout << endl;
+
+    auto array = add_array(expr->type);
+    if (auto func = dynamic_cast<array_function*>(expr.get()))
+    {
+        for (auto & var : func->vars)
+            array->size.push_back(var->size);
+    }
+    else
+    {
+        // TODO: how about empty array->size?
+        array->size = {1};
+    }
+
+    // TODO:
+    // create statement with the expr and writing into the array
+    // translate array index expressions into matrices? maybe in a later compiler step.
+
+    expression_ptr result;
+
+    if (semantic::type_structure::is_scalar(array->size))
+        result = make_shared<array_access>(array);
+    else
+        result = make_shared<array_function>(array);
+
+    cout << "Array reader:" << endl;
+    m_printer.print(result.get(), cout); cout << endl;
+
+    return result;
 }
 
 model_generator::array_view_ptr
-model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
+model_generator::generate_array_old(ast::node_ptr node, array_storage_mode mode)
 {
     auto type_struct = semantic::structure(node->semantic_type);
 
@@ -343,7 +416,7 @@ model_generator::generate_definition(ast::node_ptr node)
         return nullptr;
     }
 
-    auto array_view = generate_array(body_node);
+    auto array_view = generate_array_old(body_node);
 
     m_context.bind(id, array_view);
 
@@ -396,7 +469,7 @@ expression_ptr model_generator::generate_call(ast::node_ptr node)
     std::vector<array_view_ptr> args;
     for (const auto & arg_node : args_node->as_list()->elements)
     {
-        args.push_back( generate_array(arg_node) );
+        args.push_back( generate_array_old(arg_node) );
     }
 
     // Try user function
@@ -438,11 +511,11 @@ expression_ptr model_generator::generate_id(ast::node_ptr node)
 
     auto context_item = m_context.find(id);
 
-    array_view_ptr view;
+    expression_ptr expr;
 
     if (context_item)
     {
-        view = context_item.value();
+        expr = context_item.value();
     }
     else
     {
@@ -461,7 +534,7 @@ expression_ptr model_generator::generate_id(ast::node_ptr node)
         const semantic::symbol & sym = m_env.at(id);
         assert(sym.source->type == ast::statement);
 
-        view = generate_definition(sym.source);
+        expr = generate_definition(sym.source);
 
         // Restore domain
         std::swap(m_domain, local_domain);
@@ -470,16 +543,7 @@ expression_ptr model_generator::generate_id(ast::node_ptr node)
             cout << "[poly] Exiting root scope for id: " << id << endl;
     }
 
-    auto relation = view->relation;
-
-    // Apply current transform
-
-    assert(transform().output_dimension() == relation.input_dimension());
-
-    relation = relation * transform();
-
-    auto access = make_shared<array_access>(view->array, relation);
-    return access;
+    return expr;
 }
 
 expression_ptr model_generator::generate_range(ast::node_ptr node)
@@ -503,15 +567,17 @@ expression_ptr model_generator::generate_range(ast::node_ptr node)
     if (start == end)
         return make_shared<constant<int>>(start);
 
+    int len = std::abs(end - start) + 1;
+
     auto it = make_shared<iterator_access>(primitive_type::integer);
 
-    mapping relation(m_domain.size() + 1, 1);
-    relation.constant(0) = start;
-    relation.coefficient(m_domain.size(), 0) = end > start ? 1 : -1;
+    auto func = make_shared<array_function>(vector<int>({len}), it);
+    it->expr = array_index_term(func->vars[0]) + array_index_term(start);
 
-    it->relation = relation * transform();
+    cout << "Range:" << endl;
+    m_printer.print(func.get(), cout); cout << endl;
 
-    return it;
+    return func;
 }
 
 expression_ptr model_generator::generate_slice(ast::node_ptr node)
@@ -524,22 +590,20 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
     const auto & object_type =
             object_node->semantic_type->as<semantic::stream>();
 
-    mapping slicing(transform().output_dimension(),
-                    m_domain.size() + object_type.dimensionality());
-
-    int in_dim = 0;
-    int out_dim = 0;
-
-    for (;in_dim < m_domain.size(); ++in_dim, ++out_dim)
-    {
-        slicing.coefficient(in_dim, out_dim) = 1;
-    }
-
-    for( const auto & selector_node : selectors_node->as_list()->elements )
+    struct slice
     {
         int offset;
+        int size;
+    };
 
+    vector<slice> slices;
+
+
+    for(int dim = 0; dim < selectors_node->as_list()->elements.size(); ++dim)
+    {
         // TODO: detect affine expressions of loop indeces and parameters
+
+        const auto & selector_node = selectors_node->as_list()->elements[dim];
 
         switch(selector_node->type)
         {
@@ -572,18 +636,14 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
             }
             else
             {
-                end = object_type.size[out_dim];
+                end = object_type.size[dim];
             }
 
-            offset = start - 1;
-
+            int offset = start - 1;
             int size = end - start + 1;
             assert(size > 0);
-            if (size > 1)
-            {
-                slicing.coefficients(out_dim, in_dim) = 1;
-                ++in_dim;
-            }
+
+            slices.push_back(slice{offset, size});
 
             break;
         }
@@ -591,22 +651,52 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
             assert(selector_node->semantic_type->is(semantic::type::integer_num));
             auto & offset_int_t = selector_node->semantic_type->as<semantic::integer_num>();
             assert(offset_int_t.is_constant());
-            offset = offset_int_t.constant_value() - 1;
+            int offset = offset_int_t.constant_value() - 1;
+
+            slices.push_back(slice{offset, 1});
         }
-
-        slicing.constants[out_dim] += offset;
-
-        ++out_dim;
     }
 
-    for (; in_dim < slicing.input_dimension(); ++in_dim, ++out_dim)
+    // FIXME: Rather generate_array?
+    auto object = generate_expression(object_node);
+    cout << "Slice object:" << endl;
+    m_printer.print(object.get(), cout); cout << endl;
+
+    auto object_func = dynamic_pointer_cast<array_function>(object);
+    assert(object_func);
+    assert(object_func->vars.size() >= slices.size());
+
+    array_var_vector new_vars;
+    array_index_vector args;
+    expression_ptr expr;
+
+    for (int dim = 0; dim < (int)slices.size(); ++dim)
     {
-        slicing.coefficients(out_dim, in_dim) = 1;
+        slice & s = slices[dim];
+        auto var = object_func->vars[dim];
+        if (s.size == 1)
+        {
+            args.push_back(s.offset);
+        }
+        else
+        {
+            auto new_var = make_shared<array_variable>(s.size);
+            new_vars.push_back(new_var);
+            args.push_back(new_var + s.offset);
+        }
     }
 
-    transform() = slicing * transform();
+    expr = make_shared<array_func_apply>(object_func, args);
 
-    return generate_expression(object_node);
+    if (!new_vars.empty())
+    {
+        expr = make_shared<array_function>(new_vars, expr);
+    }
+
+    cout << "Slicing:" << endl;
+    m_printer.print(expr.get(), cout); cout << endl;
+
+    return expr;
 }
 
 expression_ptr model_generator::generate_transpose(ast::node_ptr node)
@@ -617,41 +707,35 @@ expression_ptr model_generator::generate_transpose(ast::node_ptr node)
     semantic::stream & object_type =
             object_node->semantic_type->as<semantic::stream>();
 
-    int dimension = transform().output_dimension();
-    assert(dimension == m_domain.size() + object_type.dimensionality());
-
-    vector<int> order(dimension,-1);
-    vector<bool> used_dims(dimension,false);
-
-    int in_dim = 0;
-    for(;in_dim < m_domain.size(); ++in_dim)
-    {
-        order[in_dim] = in_dim;
-    }
+    vector<int> order;
 
     for ( const auto & dim_node : dims_node->as_list()->elements )
     {
-        int out_dim = dim_node->as_leaf<int>()->value - 1;
-        out_dim += m_domain.size();
-        order[out_dim] = in_dim;
-        ++in_dim;
+        order.push_back(dim_node->as_leaf<int>()->value - 1);
     }
-    for(int out_dim = 0; out_dim < dimension; ++out_dim)
+
+    array_var_vector vars(order.size());
+    array_index_vector args(order.size());
+
+    for (int in_dim = 0; in_dim < (int) order.size(); ++in_dim)
     {
-        if (order[out_dim] < 0)
-        {
-            order[out_dim] = in_dim;
-            ++in_dim;
-        }
+        int out_dim = order[in_dim];
+        int size = object_type.size[out_dim];
+        vars[in_dim] = make_shared<array_variable>(size);
+        args[out_dim] = vars[in_dim];
     }
-    assert(in_dim == dimension);
 
-    mapping transposition = mapping::identity(dimension, dimension);
-    transposition.coefficients = transposition.coefficients.reordered( order );
+    auto object_expr = generate_expression(object_node);
+    auto object_func = dynamic_pointer_cast<array_function>(object_expr);
+    assert(object_func);
 
-    transform() = transposition * transform();
+    auto application = make_shared<array_func_apply>(object_func, args);
+    auto result = make_shared<array_function>(vars, application);
 
-    return generate_expression(object_node);
+    cout << "Transpose:" << endl;
+    m_printer.print(result.get(), cout); cout << endl;
+
+    return result;
 }
 
 expression_ptr model_generator::generate_conditional(ast::node_ptr node)
@@ -690,7 +774,7 @@ expression_ptr model_generator::generate_mapping(ast::node_ptr node)
         semantic::iterator & iter =
                 iterator_node->semantic_type->as<semantic::iterator>();
 
-        auto source = generate_array(iter.domain);
+        auto source = generate_array_old(iter.domain);
 
         auto map = mapping::identity(source->relation.input_dimension());
 
@@ -751,7 +835,7 @@ expression_ptr model_generator::generate_reduction(ast::node_ptr node)
     assert(source_stream.size.size() == 1);
     assert(source_stream.size.front() > 0);
 
-    auto source = generate_array(source_node);
+    auto source = generate_array_old(source_node);
 
     auto reduction_array = add_array(primitive_type_for(node->semantic_type));
     reduction_array->size = m_domain;
@@ -906,6 +990,105 @@ expression_ptr model_generator::generate_binary_op(ast::node_ptr node)
     }
 
     return result;
+}
+
+expression_ptr model_generator::reduce(expression_ptr expr)
+{
+    if (auto app = dynamic_cast<array_func_apply*>(expr.get()))
+    {
+        const auto args = reduce(app->args);
+        const auto & vars = app->func->vars;
+
+        assert(vars.size() >= args.size());
+
+        array_context::scope_holder scope(m_array_context);
+
+        for(int i = 0; i < (int) args.size(); ++i)
+        {
+            m_array_context.bind(vars[i], args[i]);
+        }
+
+        auto reduced_expr = reduce(app->func->expr);
+
+        if (args.size() < vars.size())
+        {
+            array_var_vector reduced_vars
+                    (vars.data() + args.size(),
+                     vars.data() + vars.size());
+
+            return make_shared<array_function>(reduced_vars, reduced_expr);
+        }
+        else
+        {
+            return reduced_expr;
+        }
+    }
+    // FIXME: maybe we don't need this one - it belongs to AST translation
+    else if (auto func = dynamic_cast<array_function*>(expr.get()))
+    {
+        if (auto nested_func = dynamic_cast<array_function*>(func->expr.get()))
+        {
+            array_var_vector combined_vars = func->vars;
+            combined_vars.insert(combined_vars.end(),
+                                 nested_func->vars.begin(),
+                                 nested_func->vars.end());
+            return make_shared<array_function>(combined_vars, reduce(nested_func->expr));
+        }
+        else
+        {
+            return make_shared<array_function>(func->vars, reduce(func->expr));
+        }
+    }
+    else if (auto iter = dynamic_cast<iterator_access*>(expr.get()))
+    {
+        return make_shared<iterator_access>(reduce(iter->expr));
+    }
+    else if (auto array = dynamic_cast<array_access*>(expr.get()))
+    {
+        return make_shared<array_access>(array->target, reduce(array->index));
+    }
+    else if (auto input = dynamic_cast<input_access*>(expr.get()))
+    {
+        return make_shared<input_access>(input->type, input->index,
+                                         reduce(input->array_index));
+    }
+    // TODO: operators on array functions
+    else
+    {
+        return expr;
+    }
+}
+
+array_index_vector
+model_generator::reduce(const array_index_vector & in)
+{
+    array_index_vector out;
+    out.reserve(in.size());
+    for(auto & expr : in)
+        out.push_back(reduce(expr));
+    return out;
+}
+
+array_index_expr
+model_generator::reduce(const array_index_expr & e)
+{
+    array_index_expr e2;
+
+    for (auto & term : e)
+    {
+        if (term.var)
+        {
+            if (auto bound = m_array_context.find(term.var))
+            {
+                e2 = e2 + bound.value() * term.scalar;
+                continue;
+            }
+        }
+
+        e2 = e2 + term;
+    }
+
+    return e2;
 }
 
 array_ptr model_generator::add_array(primitive_type type)
