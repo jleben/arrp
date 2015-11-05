@@ -348,7 +348,7 @@ struct type_structure
     vector<int> size;
     primitive_type type;
 
-    bool is_scalar() { return type_structure::is_scalar(size); }
+    bool is_scalar() const { return type_structure::is_scalar(size); }
 
     static
     bool is_scalar(const vector<int> & size)
