@@ -1052,6 +1052,13 @@ expression_ptr model_generator::reduce(expression_ptr expr)
         return make_shared<input_access>(input->type, input->index,
                                          reduce(input->array_index));
     }
+    else if (auto op = dynamic_cast<primitive_expr*>(expr.get()))
+    {
+        vector<expression_ptr> reduced_operands;
+        for (auto & operand : op->operands)
+            reduced_operands.push_back(reduce(operand));
+        return make_shared<primitive_expr>(op->type, op->op, reduced_operands);
+    }
     // TODO: operators on array functions
     else
     {
