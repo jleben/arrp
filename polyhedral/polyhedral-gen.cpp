@@ -699,7 +699,7 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
         }
     }
 
-    expr = make_shared<array_func_apply>(object, args);
+    expr = apply(object, args);
 
     if (!new_vars.empty())
     {
@@ -738,9 +738,8 @@ expression_ptr model_generator::generate_transpose(ast::node_ptr node)
         args[out_dim] = vars[in_dim];
     }
 
-    auto object_expr = generate_expression(object_node);
-    auto application = make_shared<array_func_apply>(object_expr, args);
-    auto result = make_shared<array_function>(vars, application);
+    auto object_expr = apply(generate_expression(object_node), args);
+    auto result = make_shared<array_function>(vars, object_expr);
 
     cout << "Transpose:" << endl;
     m_printer.print(result.get(), cout); cout << endl;
@@ -797,18 +796,19 @@ expression_ptr model_generator::generate_mapping(ast::node_ptr node)
 
         auto source = generate_array(iter.domain);
 
-        auto window_expr = make_shared<array_func_apply>(source);
-        window_expr->args = { mapping_index * iter.hop };
+        array_index_vector args = { mapping_index * iter.hop };
 
         if (iter.size > 1)
         {
             auto sub_win_index = make_shared<array_variable>(iter.size);
-            window_expr->args[0] = window_expr->args[0] + sub_win_index;
+            args[0] = args[0] + sub_win_index;
+            auto window_expr = apply(source, args);
             auto window = make_shared<array_function>(sub_win_index, window_expr);
             windows.push_back(window);
         }
         else
         {
+            auto window_expr = apply(source, args);
             windows.push_back(window_expr);
         }
     }
@@ -866,7 +866,7 @@ expression_ptr model_generator::generate_reduction(ast::node_ptr node)
 
     auto source = generate_array(source_node);
 
-    expression_ptr initializer = make_shared<array_func_apply>(source, array_index_expr(0));
+    expression_ptr initializer = apply(source, array_index_expr(0));
     initializer = reduce(initializer);
     auto initializer_stmt = add_statement();
     initializer_stmt->expr = initializer;
@@ -881,7 +881,7 @@ expression_ptr model_generator::generate_reduction(ast::node_ptr node)
                                       array_index_vector(m_bound_array_vars)
                                       << reduction_index);
 
-    auto iterator = make_shared<array_func_apply>(source, reduction_index + 1);
+    auto iterator = apply(source, reduction_index + 1);
 
     expression_ptr reduction_expr;
 
@@ -938,7 +938,7 @@ expression_ptr model_generator::generate_unary_op(ast::node_ptr node)
     {
         vars = array_var_vector(struc.size);
         assert (!operand_node->semantic_type->is_scalar());
-        operand = make_shared<array_func_apply>(operand, vars);
+        operand = apply(operand, vars);
     }
 
     // create operation
@@ -992,11 +992,11 @@ expression_ptr model_generator::generate_binary_op(ast::node_ptr node)
 
     if (!op1_node->semantic_type->is_scalar())
     {
-        operand1 = make_shared<array_func_apply>(operand1, vars);
+        operand1 = apply(operand1, vars);
     }
     if (!op2_node->semantic_type->is_scalar())
     {
-        operand2 = make_shared<array_func_apply>(operand2, vars);
+        operand2 = apply(operand2, vars);
     }
 
     // create operation
@@ -1075,8 +1075,11 @@ expression_ptr model_generator::reduce(expression_ptr expr)
 {
     if (auto app = dynamic_cast<array_func_apply*>(expr.get()))
     {
-        auto func = dynamic_pointer_cast<array_function>(reduce(app->func));
-        assert(func);
+        auto reduced_func = reduce(app->func);
+
+        auto func = dynamic_pointer_cast<array_function>(reduced_func);
+        if (!func)
+            return reduced_func;
 
         auto args = reduce(app->args);
 
@@ -1178,6 +1181,12 @@ model_generator::reduce(const array_index_expr & e)
     }
 
     return e2;
+}
+
+expression_ptr model_generator::apply(expression_ptr expr, const array_index_vector & args)
+{
+    expression_ptr application = make_shared<array_func_apply>(expr, args);
+    return reduce(application);
 }
 
 array_ptr model_generator::add_array(primitive_type type)
