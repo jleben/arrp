@@ -27,30 +27,11 @@ public:
                    const vector<semantic::type_ptr> & args);
 
 private:
-    struct array_view : expression
-    {
-        array_view():
-            expression(primitive_type::integer) {}
-        array_view(array_ptr a):
-            expression(primitive_type::integer),
-            array(a), relation(mapping::identity(a->size.size()))
-        {}
-        array_view(array_ptr a, const mapping & m):
-            expression(primitive_type::integer),
-            array(a), relation(m)
-        {}
-        array_ptr array;
-        mapping relation;
-        int current_in_dim = 0;
-    };
-
     enum array_storage_mode
     {
         storage_required,
         storage_not_required
     };
-
-    typedef std::shared_ptr<array_view> array_view_ptr;
 
     typedef stream::context<string, expression_ptr> context;
     typedef stream::context<array_var_ptr, array_index_expr> array_context;
@@ -58,11 +39,10 @@ private:
     expression_ptr generate_input(const semantic::type_ptr & type, int index);
 
     expression_ptr generate_array(ast::node_ptr, array_storage_mode = storage_not_required);
-    array_view_ptr generate_array_old(ast::node_ptr, array_storage_mode = storage_not_required);
     expression_ptr generate_expression(ast::node_ptr);
 
     expression_ptr generate_block(ast::node_ptr);
-    array_view_ptr generate_definition(ast::node_ptr);
+    expression_ptr generate_definition(ast::node_ptr);
     expression_ptr generate_call(ast::node_ptr);
 
     expression_ptr generate_id(ast::node_ptr);

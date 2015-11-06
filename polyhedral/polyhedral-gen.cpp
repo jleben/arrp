@@ -230,47 +230,6 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
     return reader;
 }
 
-model_generator::array_view_ptr
-model_generator::generate_array_old(ast::node_ptr node, array_storage_mode mode)
-{
-    auto type_struct = semantic::structure(node->semantic_type);
-
-    int dimensions = m_domain.size();
-    if (!type_struct.is_scalar() || m_domain.empty())
-        dimensions += type_struct.size.size();
-    m_transform.push(mapping::identity(dimensions));
-
-    expression_ptr expr = generate_expression(node);
-
-    m_transform.pop();
-
-    if (mode == storage_not_required)
-    {
-        if (auto read = dynamic_cast<array_access*>(expr.get()))
-        {
-            auto view = make_shared<array_view>(read->target, read->pattern);
-            view->current_in_dim = m_domain.size();
-            return view;
-        }
-    }
-
-    auto a = add_array(expr->type);
-    a->size = m_domain;
-    if (!type_struct.is_scalar() || a->size.empty())
-        a->size.insert(a->size.end(), type_struct.size.begin(), type_struct.size.end());
-
-    auto s = add_statement();
-    s->expr = expr;
-    s->domain = a->size;
-    s->array = a;
-    s->write_relation = mapping::identity(a->size.size());
-
-    auto view = make_shared<array_view>(a);
-    view->current_in_dim = m_domain.size();
-
-    return view;
-}
-
 expression_ptr model_generator::generate_expression(ast::node_ptr node)
 {
     // Use propagated constants:
@@ -404,7 +363,7 @@ expression_ptr model_generator::generate_block(ast::node_ptr node)
     return result;
 }
 
-model_generator::array_view_ptr
+expression_ptr
 model_generator::generate_definition(ast::node_ptr node)
 {
     ast::list_node *stmt = node->as_list();
@@ -423,11 +382,12 @@ model_generator::generate_definition(ast::node_ptr node)
         return nullptr;
     }
 
-    auto array_view = generate_array_old(body_node);
 
-    m_context.bind(id, array_view);
+    auto result = generate_array(body_node);
 
-    return array_view;
+    m_context.bind(id, result);
+
+    return result;
 }
 
 expression_ptr model_generator::generate_call(ast::node_ptr node)
@@ -469,14 +429,18 @@ expression_ptr model_generator::generate_call(ast::node_ptr node)
         expr->op = primitive_op_mapping->second;
         for (const auto & arg_node : args_node->as_list()->elements)
             expr->operands.push_back( generate_expression(arg_node) );
+
+        cout << "Primitive call:" << endl;
+        m_printer.print(expr.get(), cout); cout << endl;
+
         return expr;
     }
 
     // Process args
-    std::vector<array_view_ptr> args;
+    std::vector<expression_ptr> args;
     for (const auto & arg_node : args_node->as_list()->elements)
     {
-        args.push_back( generate_array_old(arg_node) );
+        args.push_back( generate_array(arg_node) );
     }
 
     // Try user function
@@ -508,6 +472,9 @@ expression_ptr model_generator::generate_call(ast::node_ptr node)
 
     if (debug::is_enabled())
         cout << "[poly] Exiting scope for call to: " << id << endl;
+
+    cout << "Call:" << endl << id << " = ";
+    m_printer.print(result.get(), cout); cout << endl;
 
     return result;
 }
