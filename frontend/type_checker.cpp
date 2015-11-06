@@ -1313,9 +1313,11 @@ type_checker::process_primitive( const builtin_function_group & group,
     vector<int> result_size;
     for ( const auto & arg : type_structs )
     {
+        if (arg.is_scalar())
+            continue;
         if (result_size.empty())
             result_size = arg.size;
-        else if (!arg.is_scalar() && result_size != arg.size)
+        else if (result_size != arg.size)
             throw type_error("Argument size mismatch.");
     }
 
