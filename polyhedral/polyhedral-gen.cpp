@@ -1037,7 +1037,6 @@ expression_ptr model_generator::reduce(expression_ptr expr)
             reduced_operands.push_back(reduce(operand));
         return make_shared<primitive_expr>(op->type, op->op, reduced_operands);
     }
-    // TODO: operators on array functions
     else
     {
         return expr;
