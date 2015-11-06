@@ -1052,58 +1052,7 @@ expression_ptr model_generator::generate_binary_op(ast::node_ptr node)
 
 expression_ptr model_generator::reduce(expression_ptr expr)
 {
-    if (auto app = dynamic_cast<array_func_apply*>(expr.get()))
-    {
-        auto reduced_func = reduce(app->func);
-
-        auto func = dynamic_pointer_cast<array_function>(reduced_func);
-        if (!func)
-            return reduced_func;
-
-        auto args = reduce(app->args);
-
-        const auto & vars = func->vars;
-        assert(vars.size() >= args.size());
-
-        array_context::scope_holder scope(m_array_context);
-
-        for(int i = 0; i < (int) args.size(); ++i)
-        {
-            m_array_context.bind(vars[i], args[i]);
-        }
-
-        auto reduced_expr = reduce(func->expr);
-
-        if (args.size() < vars.size())
-        {
-            array_var_vector reduced_vars
-                    (vars.data() + args.size(),
-                     vars.data() + vars.size());
-
-            return make_shared<array_function>(reduced_vars, reduced_expr);
-        }
-        else
-        {
-            return reduced_expr;
-        }
-    }
-    else if (auto func = dynamic_cast<array_function*>(expr.get()))
-    {
-        auto reduced_expr = reduce(func->expr);
-        if (auto nested_func = dynamic_cast<array_function*>(reduced_expr.get()))
-        {
-            array_var_vector combined_vars = func->vars;
-            combined_vars.insert(combined_vars.end(),
-                                 nested_func->vars.begin(),
-                                 nested_func->vars.end());
-            return make_shared<array_function>(combined_vars, nested_func->expr);
-        }
-        else
-        {
-            return make_shared<array_function>(func->vars, reduced_expr);
-        }
-    }
-    else if (auto iter = dynamic_cast<iterator_access*>(expr.get()))
+    if (auto iter = dynamic_cast<iterator_access*>(expr.get()))
     {
         return make_shared<iterator_access>(reduce(iter->expr));
     }
@@ -1164,8 +1113,35 @@ model_generator::reduce(const array_index_expr & e)
 
 expression_ptr model_generator::apply(expression_ptr expr, const array_index_vector & args)
 {
-    expression_ptr application = make_shared<array_func_apply>(expr, args);
-    return reduce(application);
+    if (args.empty())
+        return expr;
+
+    // assuming expression is reduced
+    auto reduced_expr = expr;
+
+    auto func = dynamic_pointer_cast<array_function>(reduced_expr);
+    assert(func);
+
+    // assuming args are reduced
+    // auto args = reduce(app->args);
+
+    const auto & vars = func->vars;
+    assert(vars.size() >= args.size());
+
+    array_context::scope_holder scope(m_array_context);
+
+    for(int i = 0; i < (int) args.size(); ++i)
+    {
+        m_array_context.bind(vars[i], args[i]);
+    }
+
+    auto reduced_func_expr = reduce(func->expr);
+
+    array_var_vector remaining_vars
+            (vars.data() + args.size(),
+             vars.data() + vars.size());
+
+    return bind(remaining_vars, reduced_func_expr);
 }
 
 expression_ptr model_generator::bind(const array_var_vector & vars, expression_ptr expr)
