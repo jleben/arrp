@@ -93,14 +93,14 @@ void array_func_printer::print(const expression *expr, ostream &s)
     {
         s << primitive->op;
 
-        s << " (";
+        s << " ( ";
         for(auto & operand : primitive->operands)
         {
             print(operand.get(), s);
             if (operand != primitive->operands.back())
                 s << ", ";
         }
-        s << ")";
+        s << " )";
     }
     else if (auto it = dynamic_cast<const iterator_access*>(expr))
     {
