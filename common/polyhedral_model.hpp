@@ -78,6 +78,17 @@ public:
         for(auto & size : sizes)
             push_back(std::make_shared<array_variable>(size));
     }
+    template<typename C>
+    array_var_vector(const C & container)
+    {
+        for (auto & var : container)
+            push_back(var);
+    }
+    array_var_vector & operator<< (const array_var_ptr & var)
+    {
+        push_back(var);
+        return *this;
+    }
 };
 
 class array_index_term

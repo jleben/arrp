@@ -152,11 +152,9 @@ model_generator::generate_input
     }
     else
     {
-        auto expr = make_shared<input_access>(type_struct.type, index);
-        auto func = make_shared<array_function>(type_struct.size, expr);
-        for(auto & var : func->vars)
-            expr->array_index.push_back(array_index_term(var));
-        result = func;
+        array_var_vector vars(type_struct.size);
+        auto expr = make_shared<input_access>(type_struct.type, index, vars);
+        result = bind(vars, expr);
     }
 
     cout << "Input:" << endl;
@@ -188,11 +186,8 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
     }
 #endif
 
-    if (!m_bound_array_vars.empty())
-    {
-        array_var_vector vars(m_bound_array_vars.begin(), m_bound_array_vars.end());
-        expr = make_shared<array_function>(vars, expr);
-    }
+    //array_var_vector vars(m_bound_array_vars.begin(), m_bound_array_vars.end());
+    expr = bind(m_bound_array_vars, expr);
 
     //cout << "Array expr:" << endl;
     //m_printer.print(expr.get(), cout); cout << endl;
@@ -226,11 +221,8 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
 
     array_var_vector internal_vars( vars.begin() + m_bound_array_vars.size(),
                                     vars.end() );
-
     expression_ptr reader = make_shared<array_access>(array, vars);
-
-    if (internal_vars.size())
-        reader = make_shared<array_function>(internal_vars, reader);
+    reader = bind(internal_vars, reader);
 
     cout << "Array reader:" << endl;
     m_printer.print(reader.get(), cout); cout << endl;
@@ -589,13 +581,15 @@ expression_ptr model_generator::generate_range(ast::node_ptr node)
 
     auto it = make_shared<iterator_access>(primitive_type::integer);
 
-    auto func = make_shared<array_function>(vector<int>({len}), it);
-    it->expr = array_index_term(func->vars[0]) + array_index_term(start);
+    array_var_ptr var = make_shared<array_variable>(len);
+    it->expr = var + start;
+
+    auto result = bind({var}, it);
 
     cout << "Range:" << endl;
-    m_printer.print(func.get(), cout); cout << endl;
+    m_printer.print(result.get(), cout); cout << endl;
 
-    return func;
+    return result;
 }
 
 expression_ptr model_generator::generate_slice(ast::node_ptr node)
@@ -675,7 +669,6 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
         }
     }
 
-    // FIXME: Rather generate_array?
     auto object = generate_expression(object_node);
     cout << "Slice object:" << endl;
     m_printer.print(object.get(), cout); cout << endl;
@@ -699,12 +692,7 @@ expression_ptr model_generator::generate_slice(ast::node_ptr node)
         }
     }
 
-    expr = apply(object, args);
-
-    if (!new_vars.empty())
-    {
-        expr = make_shared<array_function>(new_vars, expr);
-    }
+    expr = bind(new_vars, apply(object, args));
 
     cout << "Slicing:" << endl;
     m_printer.print(expr.get(), cout); cout << endl;
@@ -739,7 +727,7 @@ expression_ptr model_generator::generate_transpose(ast::node_ptr node)
     }
 
     auto object_expr = apply(generate_expression(object_node), args);
-    auto result = make_shared<array_function>(vars, object_expr);
+    auto result = bind(vars, object_expr);
 
     cout << "Transpose:" << endl;
     m_printer.print(result.get(), cout); cout << endl;
@@ -797,20 +785,17 @@ expression_ptr model_generator::generate_mapping(ast::node_ptr node)
         auto source = generate_array(iter.domain);
 
         array_index_vector args = { mapping_index * iter.hop };
+        array_var_vector vars;
 
         if (iter.size > 1)
         {
             auto sub_win_index = make_shared<array_variable>(iter.size);
             args[0] = args[0] + sub_win_index;
-            auto window_expr = apply(source, args);
-            auto window = make_shared<array_function>(sub_win_index, window_expr);
-            windows.push_back(window);
+            vars = { sub_win_index };
         }
-        else
-        {
-            auto window_expr = apply(source, args);
-            windows.push_back(window_expr);
-        }
+
+        auto window = bind(vars, apply(source, args));
+        windows.push_back(window);
     }
 
     cout << "...generating mapping body..." << endl;
@@ -836,7 +821,7 @@ expression_ptr model_generator::generate_mapping(ast::node_ptr node)
         m_bound_array_vars.pop_back();
     }
 
-    auto result = make_shared<array_function>(mapping_index, expr);
+    auto result = bind(mapping_index, expr);
 
     cout << "Mapping:" << endl;
     m_printer.print(result.get(), cout); cout << endl;
@@ -897,7 +882,9 @@ expression_ptr model_generator::generate_reduction(ast::node_ptr node)
         m_bound_array_vars.pop_back();
     }
 
-    reduction_expr = make_shared<array_function>(reduction_index, reduction_expr);
+    reduction_expr = bind(array_var_vector(m_bound_array_vars) << reduction_index,
+                          reduction_expr);
+    // FIXME: reduction unnecessary?
     reduction_expr = reduce(reduction_expr);
 
     auto reduction_stmt = add_statement();
@@ -960,11 +947,7 @@ expression_ptr model_generator::generate_unary_op(ast::node_ptr node)
 
     // create result
 
-    expression_ptr result;
-    if (vars.empty())
-        result = result_expr;
-    else
-        result = make_shared<array_function>(vars, result_expr);
+    auto result = bind(vars, result_expr);
 
     cout << "Unary op:" << endl;
     m_printer.print(result.get(), cout); cout << endl;
@@ -1059,11 +1042,7 @@ expression_ptr model_generator::generate_binary_op(ast::node_ptr node)
 
     // create result
 
-    expression_ptr result;
-    if (vars.empty())
-        result = result_expr;
-    else
-        result = make_shared<array_function>(vars, result_expr);
+    auto result = bind(vars, result_expr);
 
     cout << "Binary op:" << endl;
     m_printer.print(result.get(), cout); cout << endl;
@@ -1187,6 +1166,29 @@ expression_ptr model_generator::apply(expression_ptr expr, const array_index_vec
 {
     expression_ptr application = make_shared<array_func_apply>(expr, args);
     return reduce(application);
+}
+
+expression_ptr model_generator::bind(const array_var_vector & vars, expression_ptr expr)
+{
+    // assuming that expr is reduced
+
+    auto reduced_expr = expr;
+
+    if (vars.empty())
+        return reduced_expr;
+
+    if (auto nested_func = dynamic_cast<array_function*>(reduced_expr.get()))
+    {
+        array_var_vector combined_vars = vars;
+        combined_vars.insert(combined_vars.end(),
+                             nested_func->vars.begin(),
+                             nested_func->vars.end());
+        return make_shared<array_function>(combined_vars, nested_func->expr);
+    }
+    else
+    {
+        return make_shared<array_function>(vars, reduced_expr);
+    }
 }
 
 array_ptr model_generator::add_array(primitive_type type)

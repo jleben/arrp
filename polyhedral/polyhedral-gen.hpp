@@ -82,6 +82,7 @@ private:
     mapping & transform() { return m_transform.top(); }
 
     expression_ptr apply(expression_ptr, const array_index_vector &);
+    expression_ptr bind(const array_var_vector & vars, expression_ptr);
     array_ptr add_array(primitive_type);
     array_ptr add_array(primitive_type, const array_var_vector &);
     array_ptr add_array(primitive_type, const deque<array_var_ptr> &);
