@@ -501,8 +501,8 @@ expression_ptr model_generator::generate_id(ast::node_ptr node)
         context::scope_holder root_scope(m_context, m_context.root_scope());
 
         // Clear domain
-        vector<int> local_domain;
-        std::swap(local_domain, m_domain);
+        deque<array_var_ptr> local_array_vars;
+        std::swap(local_array_vars, m_bound_array_vars);
 
         // Process statement
         const semantic::symbol & sym = m_env.at(id);
@@ -511,7 +511,7 @@ expression_ptr model_generator::generate_id(ast::node_ptr node)
         expr = generate_definition(sym.source);
 
         // Restore domain
-        std::swap(m_domain, local_domain);
+        std::swap(m_bound_array_vars, local_array_vars);
 
         if (debug::is_enabled())
             cout << "[poly] Exiting root scope for id: " << id << endl;

@@ -58,11 +58,9 @@ private:
     expression_ptr reduce(expression_ptr expr);
     array_index_vector reduce(const array_index_vector &);
     array_index_expr reduce(const array_index_expr &);
-
-    mapping & transform() { return m_transform.top(); }
-
     expression_ptr apply(expression_ptr, const array_index_vector &);
     expression_ptr bind(const array_var_vector & vars, expression_ptr);
+
     array_ptr add_array(primitive_type);
     array_ptr add_array(primitive_type, const array_var_vector &);
     array_ptr add_array(primitive_type, const deque<array_var_ptr> &);
@@ -73,8 +71,6 @@ private:
     context m_context;
     array_context m_array_context;
     deque<array_var_ptr> m_bound_array_vars;
-    vector<int> m_domain;
-    stack<mapping> m_transform;
     array_func_printer m_printer;
 };
 
