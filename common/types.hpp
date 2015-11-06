@@ -353,7 +353,7 @@ struct type_structure
     static
     bool is_scalar(const vector<int> & size)
     {
-        return size.size() == 1 && size[0] == 1;
+        return size.empty() || (size.size() == 1 && size[0] == 1);
     }
 };
 
