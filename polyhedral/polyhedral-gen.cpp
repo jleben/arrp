@@ -704,8 +704,6 @@ expression_ptr model_generator::generate_transpose(ast::node_ptr node)
 
 expression_ptr model_generator::generate_conditional(ast::node_ptr node)
 {
-    // TODO: convert to a primitive operation with 3 operands
-
     const auto & condition_node = node->as_list()->elements[0];
     const auto & true_node = node->as_list()->elements[1];
     const auto & false_node = node->as_list()->elements[2];
@@ -715,13 +713,25 @@ expression_ptr model_generator::generate_conditional(ast::node_ptr node)
     // TODO: might wanna make a statement for the condition, to avoid
     // evaluating it for every item of true/false expression streams
 
-    expression_ptr condition = generate_expression(condition_node);
-    expression_ptr true_expr = generate_expression(true_node);
-    expression_ptr false_expr = generate_expression(false_node);
+    array_var_vector vars;
+    auto struc = semantic::structure(node->semantic_type);
+    if (!struc.is_scalar())
+    {
+        vars = array_var_vector(struc.size);
+    }
 
-    auto result = make_shared<primitive_expr>(primitive_type_for(node->semantic_type));
-    result->operands = { condition, true_expr, false_expr };
-    result->op = primitive_op::conditional;
+    expression_ptr condition = apply(generate_expression(condition_node), vars);
+    expression_ptr true_expr = apply(generate_expression(true_node), vars);
+    expression_ptr false_expr = apply(generate_expression(false_node), vars);
+
+    auto expr = make_shared<primitive_expr>(primitive_type_for(node->semantic_type));
+    expr->operands = { condition, true_expr, false_expr };
+    expr->op = primitive_op::conditional;
+
+    expression_ptr result = bind(vars, expr);
+
+    cout << "Conditional:" << endl;
+    m_printer.print(result.get(), cout); cout << endl;
 
     return result;
 }
@@ -1084,7 +1094,8 @@ expression_ptr model_generator::apply(expression_ptr expr, const array_index_vec
     auto reduced_expr = expr;
 
     auto func = dynamic_pointer_cast<array_function>(reduced_expr);
-    assert(func);
+    if (!func)
+        return reduced_expr;
 
     // assuming args are reduced
     // auto args = reduce(app->args);
