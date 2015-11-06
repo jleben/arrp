@@ -151,5 +151,12 @@ void array_func_printer::print(const expression *expr, ostream &s)
     }
 }
 
+void array_func_printer::print(statement_ptr stmt, ostream & s)
+{
+    s << stmt->name << ": " << stmt->array->name;
+    s << "["; print(stmt->write_index, s); s << "] <= ";
+    print(stmt->expr.get(), s);
+}
+
 }
 }

@@ -110,10 +110,22 @@ public:
     array_index_vector() {}
     array_index_vector(const array_index_expr & expr):
         vector({expr}) {}
+    /*
     array_index_vector(const array_var_vector & vars)
     {
         for (auto & var : vars)
             push_back(var);
+    }*/
+    template<typename C>
+    array_index_vector(const C & container)
+    {
+        for (auto & var : container)
+            push_back(var);
+    }
+    array_index_vector & operator<< (const array_index_expr & expr)
+    {
+        push_back(expr);
+        return *this;
     }
 };
 
@@ -210,6 +222,7 @@ public:
     vector<int> domain;
 
     array_ptr array;
+    array_index_vector write_index;
     mapping write_relation;
 
     int flow_dim = -1;

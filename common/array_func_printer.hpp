@@ -44,6 +44,7 @@ public:
     void print(const expression *expr, ostream &);
     void print(const array_index_expr & expr, ostream &);
     void print(const vector<array_index_expr> & expr, ostream &);
+    void print(statement_ptr, ostream &);
     void indent() { ++level; }
     void unindent() { --level; }
 private:

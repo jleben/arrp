@@ -170,9 +170,6 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
 {
     expression_ptr expr = generate_expression(node);
 
-    cout << "Array expr:" << endl;
-    m_printer.print(expr.get(), cout); cout << endl;
-
 #if 0
     if (mode == storage_not_required)
     {
@@ -197,18 +194,17 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
         expr = make_shared<array_function>(vars, expr);
     }
 
-    cout << "Array wrapped expr:" << endl;
-    m_printer.print(expr.get(), cout); cout << endl;
+    //cout << "Array expr:" << endl;
+    //m_printer.print(expr.get(), cout); cout << endl;
 
-    // Is reduce redundant?
     expr = reduce(expr);
 
-    cout << "Array reduced expr:" << endl;
-    m_printer.print(expr.get(), cout); cout << endl;
+    array_var_vector vars;
 
     auto array = add_array(expr->type);
     if (auto func = dynamic_cast<array_function*>(expr.get()))
     {
+        vars = func->vars;
         for (auto & var : func->vars)
             array->size.push_back(var->size);
     }
@@ -218,21 +214,28 @@ model_generator::generate_array(ast::node_ptr node, array_storage_mode mode)
         array->size = {1};
     }
 
-    // TODO:
-    // create statement with the expr and writing into the array
-    // translate array index expressions into matrices? maybe in a later compiler step.
+    auto stmt = add_statement();
+    stmt->expr = expr;
+    stmt->array = array;
+    stmt->write_index = vars; // identity;
 
-    expression_ptr result;
+    cout << "Statement:" << endl;
+    m_printer.print(stmt, cout); cout << endl;
 
-    if (semantic::type_structure::is_scalar(array->size))
-        result = make_shared<array_access>(array);
-    else
-        result = make_shared<array_function>(array);
+    // create array reader expression
+
+    array_var_vector internal_vars( vars.begin() + m_bound_array_vars.size(),
+                                    vars.end() );
+
+    expression_ptr reader = make_shared<array_access>(array, vars);
+
+    if (internal_vars.size())
+        reader = make_shared<array_function>(internal_vars, reader);
 
     cout << "Array reader:" << endl;
-    m_printer.print(result.get(), cout); cout << endl;
+    m_printer.print(reader.get(), cout); cout << endl;
 
-    return result;
+    return reader;
 }
 
 model_generator::array_view_ptr
@@ -555,7 +558,7 @@ expression_ptr model_generator::generate_id(ast::node_ptr node)
             cout << "[poly] Exiting root scope for id: " << id << endl;
     }
 
-    cout << "Lookup:" << endl;
+    cout << "Lookup:" << endl << id << " = ";
     m_printer.print(expr.get(), cout); cout << endl;
 
     return expr;
@@ -747,6 +750,8 @@ expression_ptr model_generator::generate_transpose(ast::node_ptr node)
 
 expression_ptr model_generator::generate_conditional(ast::node_ptr node)
 {
+    // TODO: convert to a primitive operation with 3 operands
+
     const auto & condition_node = node->as_list()->elements[0];
     const auto & true_node = node->as_list()->elements[1];
     const auto & false_node = node->as_list()->elements[2];
@@ -848,73 +853,73 @@ expression_ptr model_generator::generate_reduction(ast::node_ptr node)
     string accum_id = accum_node->as_leaf<string>()->value;
     string iter_id = iter_node->as_leaf<string>()->value;
 
-    assert(source_node->semantic_type->is(semantic::type::stream));
+    auto source_type = semantic::structure(source_node->semantic_type);
+    assert(source_type.size.size() == 1);
+    assert(source_type.size.front() >= 2);
 
-    semantic::stream & source_stream = source_node->semantic_type->as<semantic::stream>();
-    assert(source_stream.size.size() == 1);
-    assert(source_stream.size.front() > 0);
+    int reduction_len = source_type.size[0];
 
-    auto source = generate_array_old(source_node);
+    auto result_type = semantic::structure(node->semantic_type);
 
-    auto reduction_array = add_array(primitive_type_for(node->semantic_type));
-    reduction_array->size = m_domain;
-    reduction_array->size.push_back(source_stream.size.front());
+    auto reduction_array = add_array(result_type.type, m_bound_array_vars);
+    reduction_array->size.push_back(reduction_len);
+
+    auto source = generate_array(source_node);
+
+    expression_ptr initializer = make_shared<array_func_apply>(source, array_index_expr(0));
+    initializer = reduce(initializer);
+    auto initializer_stmt = add_statement();
+    initializer_stmt->expr = initializer;
+    initializer_stmt->array = reduction_array;
+    initializer_stmt->write_index = array_index_vector(m_bound_array_vars) << 0;
+
+
+    auto reduction_index = make_shared<array_variable>(reduction_len - 1);
+
+    auto accumulator =
+            make_shared<array_access>(reduction_array,
+                                      array_index_vector(m_bound_array_vars)
+                                      << reduction_index);
+
+    auto iterator = make_shared<array_func_apply>(source, reduction_index + 1);
+
+    expression_ptr reduction_expr;
 
     {
-        auto iterator0 = make_shared<array_access>(source->array, source->relation);
-        assert(iterator0->pattern.input_dimension() == m_domain.size() + 1);
-        iterator0->pattern.coefficient(m_domain.size(), iterator0->pattern.output_dimension()-1)
-                = 0;
-
-        auto init_stmt = add_statement();
-        init_stmt->expr = iterator0;
-        init_stmt->domain = m_domain;
-        init_stmt->domain.push_back(1);
-        init_stmt->array = reduction_array;
-        init_stmt->write_relation = mapping::identity(init_stmt->domain.size());
-    }
-
-    {
-        auto iterator = make_shared<array_view>(source->array, source->relation);
-        int in_dims = iterator->relation.input_dimension();
-        mapping offset = mapping::identity(in_dims);
-        offset.constants.back() = 1;
-        iterator->relation = iterator->relation * offset;
-        iterator->current_in_dim = in_dims;
-
-        auto accumulator = make_shared<array_view>(reduction_array);
-
         context::scope_holder reduction_scope(m_context);
         m_context.bind( accum_id, accumulator );
         m_context.bind( iter_id, iterator );
 
-        m_domain.push_back(source->array->size.back() - 1);
-        m_transform.push(mapping::identity(m_domain.size()));
+        m_bound_array_vars.push_back(reduction_index);
 
-        expression_ptr reduction_expr = generate_block(body_node);
+        reduction_expr = generate_block(body_node);
 
-        auto reduction_stmt = add_statement();
-        reduction_stmt->expr = reduction_expr;
-        reduction_stmt->domain = m_domain;
-        reduction_stmt->array = reduction_array;
-        reduction_stmt->write_relation = mapping::identity(m_domain.size());
-        reduction_stmt->write_relation.constants.back() = 1;
-
-        m_transform.pop();
-        m_domain.pop_back();
+        m_bound_array_vars.pop_back();
     }
 
-    vector<int> result_domain = m_domain;
-    if (result_domain.empty())
-        result_domain.push_back(1);
+    reduction_expr = make_shared<array_function>(reduction_index, reduction_expr);
+    reduction_expr = reduce(reduction_expr);
 
-    auto result = make_shared<array_access>(reduction_array);
-    result->pattern = mapping::identity(result_domain.size(),
-                                        reduction_array->size.size());
-    result->pattern.constants.back() =
-            reduction_array->size.back() - 1;
+    auto reduction_stmt = add_statement();
+    reduction_stmt->expr = reduction_expr;
+    reduction_stmt->array = reduction_array;
+    reduction_stmt->write_index =
+            array_index_vector(m_bound_array_vars) << (reduction_index + 1);
 
-    result->pattern = result->pattern * transform();
+    cout << "Reduction initializer:" << endl;
+    m_printer.print(initializer_stmt, cout); cout << endl;
+
+    cout << "Reduction statement:" << endl;
+    m_printer.print(reduction_stmt, cout); cout << endl;
+
+
+    auto result =
+            make_shared<array_access>(reduction_array,
+                                      array_index_vector(m_bound_array_vars)
+                                      << (reduction_len - 1));
+
+    cout << "Reduction result:" << endl;
+    m_printer.print(result.get(), cout); cout << endl;
 
     return result;
 }
@@ -1182,6 +1187,23 @@ array_ptr model_generator::add_array(primitive_type type)
     auto a = make_shared<array>(array_name.str(), type);
     m_model->arrays.push_back(a);
     return a;
+}
+
+array_ptr model_generator::add_array(primitive_type type, const array_var_vector & vars)
+{
+    ostringstream array_name;
+    array_name << "A" << m_model->arrays.size();
+    auto a = make_shared<array>(array_name.str(), type);
+    m_model->arrays.push_back(a);
+    for (auto & var : vars)
+        a->size.push_back(var->size);
+    return a;
+}
+
+array_ptr model_generator::add_array(primitive_type type, const deque<array_var_ptr> & deq)
+{
+    array_var_vector vars(deq.begin(), deq.end());
+    return add_array(type, vars);
 }
 
 statement_ptr model_generator::add_statement()
