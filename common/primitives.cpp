@@ -54,6 +54,22 @@ string name_of_primitive( primitive_op op )
         return "min";
     case primitive_op::max:
         return "max";
+    case primitive_op::compare_eq:
+        return "==";
+    case primitive_op::compare_neq:
+        return "!=";
+    case primitive_op::compare_l:
+        return "<";
+    case primitive_op::compare_g:
+        return ">";
+    case primitive_op::compare_leq:
+        return "<=";
+    case primitive_op::compare_geq:
+        return ">=";
+    case primitive_op::logic_and:
+        return "&&";
+    case primitive_op::logic_or:
+        return "||";
     case primitive_op::conditional:
         return "if";
     default:
