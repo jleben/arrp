@@ -358,18 +358,6 @@ public:
 
 typedef std::shared_ptr<array_function> array_func_ptr;
 
-class array_func_apply : public expression
-{
-public:
-    array_func_apply(expression_ptr f):
-        expression(f->type), func(f) {}
-    array_func_apply(expression_ptr f, const array_index_vector & a):
-        expression(f->type), func(f), args(a) {}
-
-    expression_ptr func;
-    array_index_vector args;
-};
-
 template<typename T> inline
 void expression::find( vector<T*> & container )
 {

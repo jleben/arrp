@@ -138,13 +138,6 @@ void array_func_printer::print(const expression *expr, ostream &s)
         print(func->expr.get(), s);
         s << " }";
     }
-    else if (auto app = dynamic_cast<const array_func_apply*>(expr))
-    {
-        s << "[";
-        print(app->args, s);
-        s << "] => ";
-        print(app->func.get(), s);
-    }
     else
     {
         s << "?";

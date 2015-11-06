@@ -766,8 +766,6 @@ expression_ptr model_generator::generate_mapping(ast::node_ptr node)
 
     auto & result_type = node->semantic_type->as<semantic::stream>();
 
-    vector<array_view_ptr> sources;
-
     vector<expression_ptr> windows;
 
     assert(result_type.size.size());
