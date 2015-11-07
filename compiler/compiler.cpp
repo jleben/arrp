@@ -151,9 +151,6 @@ result::code compile_source(istream & source, const arguments & args)
         cout << env;
     }
 
-    return result::ok;
-
-#if STARTED_WORKING_ON_TYPE_CHECKER
     if (args.target.name.empty())
         return result::ok;
 
@@ -194,6 +191,9 @@ result::code compile_source(istream & source, const arguments & args)
         assert(sym_iter != env.end());
     }
 
+    return result::ok;
+
+#if STARTED_WORKING_ON_POLYHEDRAL_MODEL
     polyhedral::model_generator poly_gen(env);
     auto poly_model = poly_gen.generate( sym_iter->second, target.args );
 

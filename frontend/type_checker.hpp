@@ -77,14 +77,8 @@ private:
     type_ptr process_binop( const sp<ast::node> & );
     type_ptr process_range( const sp<ast::node> & );
     type_ptr process_extent( const sp<ast::node> & );
-    type_ptr process_transpose( const sp<ast::node> & );
-    type_ptr process_slice( const sp<ast::node> & );
     type_ptr process_call( const sp<ast::node> & );
     type_ptr process_conditional( const ast::node_ptr & );
-    type_ptr process_iteration( const sp<ast::node> & );
-    type_ptr process_iterator( const sp<ast::node> & );
-    type_ptr process_reduction( const sp<ast::node> & );
-
     pair<type_ptr, function_signature>
     process_primitive( const builtin_function_group &,
                        const vector<type_ptr> & args  );

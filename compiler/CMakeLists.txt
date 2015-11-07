@@ -21,7 +21,7 @@ add_library(streamc-lib ${lib_mode}
   ../frontend/lex.cc
   ../frontend/parse.cc
   ../frontend/environment_builder.cpp
-  #../frontend/type_checker.cpp
+  ../frontend/type_checker.cpp
   #../polyhedral/polyhedral-gen.cpp
   #../polyhedral/translator.cpp
   #../polyhedral/dataflow_model.cpp

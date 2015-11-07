@@ -534,23 +534,11 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
     case ast::hash_expression:
         expr_type =  process_extent(root);
         break;
-    case ast::transpose_expression:
-        expr_type =  process_transpose(root);
-        break;
-    case ast::slice_expression:
-        expr_type =  process_slice(root);
-        break;
     case ast::call_expression:
         expr_type =  process_call(root);
         break;
     case ast::if_expression:
         expr_type = process_conditional(root);
-        break;
-    case ast::for_expression:
-        expr_type =  process_iteration(root);
-        break;
-    case ast::reduce_expression:
-        expr_type =  process_reduction(root);
         break;
     default:
         assert(false);
@@ -849,6 +837,93 @@ type_ptr type_checker::process_extent( const sp<ast::node> & root )
     return make_shared<integer_num>(size);
 }
 
+type_ptr type_checker::process_call( const sp<ast::node> & root )
+{
+    assert(root->type == ast::call_expression);
+
+    ast::list_node * call = root->as_list();
+    const auto & func_node = call->elements[0];
+    const auto & args_node = call->elements[1];
+
+    if (func_node->type != ast::identifier)
+        throw source_error("Function call object not a function.", root->line);
+
+    // Get function
+
+    auto func_info = process_identifier(func_node, true);
+    assert(func_info.first);
+
+    func_type_ptr func_type = dynamic_pointer_cast<abstract_function>(func_info.first);
+    if (!func_type)
+    {
+        ostringstream text;
+        text << "Function call object not a function: "
+             << "'" << func_node->as_leaf<string>()->value << "'";
+        throw source_error(text.str(), root->line);
+    };
+
+    auto & func_scope = func_info.second;
+
+    // Get args
+
+    std::vector<type_ptr> arg_types;
+    ast::list_node * arg_list = args_node->as_list();
+    for (const auto & arg_node : arg_list->elements)
+    {
+        arg_types.push_back( process_expression(arg_node) );
+    }
+
+    // Process function
+
+    pair<type_ptr, func_type_ptr> result;
+    try
+    {
+        result = process_function(func_type, arg_types, func_scope);
+    }
+    catch (type_error & e)
+    {
+        ostringstream text;
+        text << "In function call to '" << func_type->name << "': "
+             << e.what();
+        throw source_error(text.str(), root->line);
+    }
+
+    const func_type_ptr & func_instance = result.second;
+    const type_ptr & result_type = result.first;
+    assert(func_instance);
+
+    func_node->semantic_type = func_instance;
+    func_node->as_leaf<string>()->value = func_instance->name;
+
+    return result_type;
+}
+
+type_ptr type_checker::process_conditional( const ast::node_ptr & root )
+{
+    assert(root->type == ast::if_expression);
+    const auto & condition_node = root->as_list()->elements[0];
+    const auto & true_node = root->as_list()->elements[1];
+    const auto & false_node = root->as_list()->elements[2];
+
+    auto condition_type = process_expression(condition_node);
+    auto true_type = process_block(true_node);
+    auto false_type = process_block(false_node);
+
+    if (condition_type->get_tag() != type::boolean)
+        throw source_error("Condition expression not a boolean.", condition_node->line);
+
+    try
+    {
+        return true_type + false_type;
+    }
+    catch (undefined)
+    {
+        throw source_error("Incompatible types of true and false parts.", root->line);
+    }
+}
+
+#if 0
+
 type_ptr type_checker::process_transpose( const sp<ast::node> & root )
 {
     assert(root->type == ast::transpose_expression);
@@ -986,92 +1061,6 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
 
     return result_stream.reduced();
 }
-
-type_ptr type_checker::process_call( const sp<ast::node> & root )
-{
-    assert(root->type == ast::call_expression);
-
-    ast::list_node * call = root->as_list();
-    const auto & func_node = call->elements[0];
-    const auto & args_node = call->elements[1];
-
-    if (func_node->type != ast::identifier)
-        throw source_error("Function call object not a function.", root->line);
-
-    // Get function
-
-    auto func_info = process_identifier(func_node, true);
-    assert(func_info.first);
-
-    func_type_ptr func_type = dynamic_pointer_cast<abstract_function>(func_info.first);
-    if (!func_type)
-    {
-        ostringstream text;
-        text << "Function call object not a function: "
-             << "'" << func_node->as_leaf<string>()->value << "'";
-        throw source_error(text.str(), root->line);
-    };
-
-    auto & func_scope = func_info.second;
-
-    // Get args
-
-    std::vector<type_ptr> arg_types;
-    ast::list_node * arg_list = args_node->as_list();
-    for (const auto & arg_node : arg_list->elements)
-    {
-        arg_types.push_back( process_expression(arg_node) );
-    }
-
-    // Process function
-
-    pair<type_ptr, func_type_ptr> result;
-    try
-    {
-        result = process_function(func_type, arg_types, func_scope);
-    }
-    catch (type_error & e)
-    {
-        ostringstream text;
-        text << "In function call to '" << func_type->name << "': "
-             << e.what();
-        throw source_error(text.str(), root->line);
-    }
-
-    const func_type_ptr & func_instance = result.second;
-    const type_ptr & result_type = result.first;
-    assert(func_instance);
-
-    func_node->semantic_type = func_instance;
-    func_node->as_leaf<string>()->value = func_instance->name;
-
-    return result_type;
-}
-
-type_ptr type_checker::process_conditional( const ast::node_ptr & root )
-{
-    assert(root->type == ast::if_expression);
-    const auto & condition_node = root->as_list()->elements[0];
-    const auto & true_node = root->as_list()->elements[1];
-    const auto & false_node = root->as_list()->elements[2];
-
-    auto condition_type = process_expression(condition_node);
-    auto true_type = process_block(true_node);
-    auto false_type = process_block(false_node);
-
-    if (condition_type->get_tag() != type::boolean)
-        throw source_error("Condition expression not a boolean.", condition_node->line);
-
-    try
-    {
-        return true_type + false_type;
-    }
-    catch (undefined)
-    {
-        throw source_error("Incompatible types of true and false parts.", root->line);
-    }
-}
-
 
 type_ptr type_checker::process_iteration( const sp<ast::node> & root )
 {
@@ -1281,7 +1270,7 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
     // Whatever the result type, it will be converted to val1 type (real):
     return val1;
 }
-
+#endif
 pair<type_ptr, function_signature>
 type_checker::process_primitive( const builtin_function_group & group,
                                  const vector<type_ptr> & args )
