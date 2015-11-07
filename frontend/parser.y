@@ -1,14 +1,15 @@
 %filenames parser
 %implementation-header parser_impl.hpp
-%baseclass-preinclude ast.hpp
+%baseclass-preinclude "ast.hpp"
 %scanner scanner.h
 %namespace stream
 
 %token SCANNER_ERROR
 %token INT REAL ID
-%token TRUE FALSE IF THEN ELSE REDUCE FOR EACH TAKES EVERY IN LET
+%token TRUE FALSE IF THEN ELSE LET
 
 %left '='
+%right RIGHT_ARROW
 %left LOGIC_OR
 %left LOGIC_AND
 %left EQ NEQ LESS MORE LESS_EQ MORE_EQ
@@ -18,6 +19,7 @@
 %left DOTDOT
 %right LOGIC_NOT
 %right UMINUS '#'
+// FIXME: review precedence and association
 %left '[' '{' '('
 
 %stype ast::semantic_value
@@ -129,17 +131,17 @@ param_list:
 ;
 
 expr_block:
-  complex_expr
+  expr
   {
     $$ = new ast::list_node( ast::expression_block, $1->line, {nullptr, $1} );
   }
   |
-  '{' complex_expr optional_semicolon '}'
+  '{' expr optional_semicolon '}'
   {
     $$ = new ast::list_node( ast::expression_block, $2->line, {nullptr, $2} );
   }
   |
-  '{' let_block_list ';' complex_expr optional_semicolon '}'
+  '{' let_block_list ';' expr optional_semicolon '}'
   {
     $$ = new ast::list_node( ast::expression_block, $2->line, {$2, $4} );
   }
@@ -172,6 +174,10 @@ let: LET { $$ = new ast::node( ast::kwd_let, d_scanner.lineNr() ); }
 ;
 
 expr:
+  array_func
+  |
+  array_apply
+  |
   LOGIC_NOT expr
   { $$ = new ast::list_node( ast::oppose, $2->line, {$2} ); }
   |
@@ -230,11 +236,7 @@ expr:
   |
   hash
   |
-  transpose
-  |
-  slice
-  |
-  range
+  if_expr
   |
   id
   |
@@ -254,18 +256,33 @@ hash:
   { $$ = new ast::list_node( ast::hash_expression, $3->line, {$3, $5} ); }
 ;
 
-simple_expr:
-  expr
+array_apply:
+  expr '[' expr_list ']'
+  { $$ = new ast::list_node( ast::array_application, $1->line, {$1, $3} ); }
 ;
 
-complex_expr:
-  simple_expr
+array_func:
+  '\\' array_arg_list RIGHT_ARROW expr %prec RIGHT_ARROW
+  { $$ = new ast::list_node( ast::array_function, $2->line, {$2, $4} ); }
+;
+
+array_arg_list:
+  array_arg
+  { $$ = new ast::list_node( ast::anonymous, $1->line, {$1} ); }
   |
-  if_expr
+  array_arg_list ',' array_arg
+  {
+    $$ = $1;
+    $$.as<ast::list_node>()->append( $3 );
+  }
+;
+
+array_arg:
+  id
+  { $$ = new ast::list_node( ast::anonymous, $1->line, {$1, nullptr} ); }
   |
-  for_expr
-  |
-  reduce_expr
+  id '=' expr
+  { $$ = new ast::list_node( ast::anonymous, $1->line, {$1, $3} ); }
 ;
 
 number:
@@ -274,32 +291,12 @@ number:
   real
 ;
 
-range:
-  expr DOTDOT expr
-  { $$ = new ast::list_node( ast::range, $1->line, {$1, $3} ); }
-  |
-  expr DOTDOT
-  { $$ = new ast::list_node( ast::range, $1->line, {$1, nullptr} ); }
-  |
-  DOTDOT expr
-  { $$ = new ast::list_node( ast::range, $2->line, {nullptr, $2} ); }
-;
 
 call:
-  expr '(' complex_expr_list ')'
+  expr '(' expr_list ')'
   {
     $$ = new ast::list_node( ast::call_expression, $1->line, {$1, $3} );
   }
-;
-
-transpose:
-  expr '{' int_list '}'
-  { $$ = new ast::list_node( ast::transpose_expression, $1->line, { $1, $3 } ); }
-;
-
-slice:
-  expr '[' simple_expr_list ']'
-  { $$ = new ast::list_node( ast::slice_expression, $1->line, { $1, $3 } ); }
 ;
 
 int_list:
@@ -313,22 +310,11 @@ int_list:
   }
 ;
 
-complex_expr_list:
-  complex_expr
+expr_list:
+  expr
   { $$ = new ast::list_node( ast::expression_list, $1->line, {$1} ); }
   |
-  complex_expr_list ',' complex_expr
-  {
-    $$ = $1;
-    $$.as<ast::list_node>()->append( $3 );
-  }
-;
-
-simple_expr_list:
-  simple_expr
-  { $$ = new ast::list_node( ast::expression_list, $1->line, {$1} ); }
-  |
-  simple_expr_list ',' simple_expr
+  expr_list ',' expr
   {
     $$ = $1;
     $$.as<ast::list_node>()->append( $3 );
@@ -336,96 +322,12 @@ simple_expr_list:
 ;
 
 if_expr:
-  IF expr THEN expr_block ELSE expr_block
+  IF expr THEN expr ELSE expr
   {
     $$ = new ast::list_node( ast::if_expression, $2->line, {$2, $4,$6} );
   }
 ;
 
-for: FOR
-{ $$ = new ast::node( ast::kwd_for, d_scanner.lineNr() ); }
-;
-
-for_expr:
-  for EACH '(' for_spec_list ')' for_body
-  {
-    $$ = new ast::list_node( ast::for_expression, $1->line, { $4, $6 } );
-  }
-;
-
-for_spec_list:
-  for_spec
-  {
-    $$ = new ast::list_node( ast::for_iteration_list, $1->line, {$1} );
-  }
-  |
-  for_spec_list ';'
-  { $$ = $1; }
-  |
-  for_spec_list ';' for_spec
-  {
-    $$ = $1;
-    $$.as<ast::list_node>()->append( $3 );
-  }
-;
-
-for_spec:
-  for_iterator for_size for_hop IN for_domain
-  {
-    int line;
-    if ($1)
-      line = $1->line;
-    else if ($2)
-      line = $2->line;
-    else if ($3)
-      line = $3->line;
-    else
-      line = $5->line;
-
-    $$ = new ast::list_node( ast::for_iteration, line, {$1,$2,$3,$5} );
-  }
-;
-
-for_iterator:
-  //empty
-  |
-  id
-;
-
-for_size:
-  // empty
-  |
-  TAKES expr
-  { $$ = $2; }
-;
-
-for_hop:
-  // empty
-  |
-  EVERY expr
-  { $$ = $2; }
-;
-
-for_domain: expr
-;
-
-for_body:
-  expr_block
-;
-
-reduce: REDUCE
-{ $$ = new ast::node( ast::kwd_reduce, d_scanner.lineNr() ); }
-;
-
-reduce_expr:
-  reduce '(' id ',' id IN expr ')' reduce_body
-  {
-    $$ = new ast::list_node( ast::reduce_expression, $1->line, {$3,$5,$7,$9} );
-  }
-;
-
-reduce_body: expr_block
-;
 
 int: INT
 {

@@ -62,6 +62,8 @@ struct semantic_value : public node_ptr
 
 enum node_type
 {
+    anonymous,
+
     kwd_let,
     kwd_for,
     kwd_reduce,
@@ -90,17 +92,12 @@ enum node_type
     identifier,
     range,
 
-    //binary_op_expression,
     call_expression,
-    transpose_expression,
-    slice_expression,
     hash_expression,
-
     if_expression,
-    for_expression,
-    for_iteration,
-    for_iteration_list,
-    reduce_expression,
+
+    array_function,
+    array_application,
 
     expression_block,
     statement,

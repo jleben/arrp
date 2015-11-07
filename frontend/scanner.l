@@ -22,6 +22,8 @@
 
 [ \t\n]+ // Skip whitespace
 
+"->" { return Parser::RIGHT_ARROW; }
+\\ { return '\\'; }
 \{ { return '{'; }
 \} { return '}'; }
 \[ { return '['; }
@@ -57,12 +59,6 @@
 "then" { return Parser::THEN; }
 "else" { return Parser::ELSE; }
 "let" { return Parser::LET; }
-"reduce" { return Parser::REDUCE; }
-"for" { return Parser::FOR; }
-"each" { return Parser::EACH; }
-"takes" { return Parser::TAKES; }
-"every" { return Parser::EVERY; }
-"in" { return Parser::IN; }
 ".." { return Parser::DOTDOT; }
 
 [0-9]+\.[0-9]+ { return Parser::REAL; }

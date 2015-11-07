@@ -151,6 +151,9 @@ result::code compile_source(istream & source, const arguments & args)
         cout << env;
     }
 
+    return result::ok;
+
+#if STARTED_WORKING_ON_TYPE_CHECKER
     if (args.target.name.empty())
         return result::ok;
 
@@ -197,13 +200,15 @@ result::code compile_source(istream & source, const arguments & args)
     return result::generator_error;
 
     return compile_polyhedral_model(poly_model, args);
+#endif
 }
 
-
+#if STARTED_WORKING_ON_POLYHEDRAL_MODEL
 result::code compile_polyhedral_model
 (const polyhedral::model & model,
  const arguments & args)
 {
+
     // Print polyhedral model
 
     if (args.print[arguments::polyhedral_model_output])
@@ -545,6 +550,8 @@ void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
         cout << endl;
     }
 }
+
+#endif // STARTED_WORKING_ON_PH_MODEL
 
 } // namespace compiler
 } // namespace stream

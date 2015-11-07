@@ -275,24 +275,6 @@ void environment_builder::process_expr( const sp<ast::node> & root )
             process_expr(dim);
         return;
     }
-    case ast::transpose_expression:
-    {
-        ast::list_node * list = root->as_list();
-        const auto & object = list->elements[0];
-        process_expr(object);
-        return;
-    }
-    case ast::slice_expression:
-    {
-        ast::list_node * list = root->as_list();
-        const auto & object = list->elements[0];
-        const auto & ranges = list->elements[1];
-        process_expr(object);
-        ast::list_node *range_list = ranges->as_list();
-        for (const auto & range : range_list->elements)
-            process_expr(range);
-        return;
-    }
     case ast::call_expression:
     {
         ast::list_node * list = root->as_list();
@@ -311,57 +293,38 @@ void environment_builder::process_expr( const sp<ast::node> & root )
         process_block(root->as_list()->elements[2]);
         return;
     }
-    case ast::for_expression:
+    case ast::array_function:
     {
-        ast::list_node * list = root->as_list();
-        ast::list_node * domain_list = list->elements[0]->as_list();
-        vector<string> ids;
-        for (const auto & domain : domain_list->elements )
+        auto var_list = root->as_list()->elements[0]->as_list();
+        auto expr = root->as_list()->elements[1];
+        for (auto var : var_list->elements)
         {
-            ast::list_node *domain_elems = domain->as_list();
-            const auto & id = domain_elems->elements[0];
-            const auto & size = domain_elems->elements[1];
-            const auto & hop = domain_elems->elements[2];
-            const auto & source = domain_elems->elements[3];
-            if (id)
-                ids.push_back(id->as_leaf<string>()->value);
-            if (size)
-                process_expr(size);
-            if (hop)
-                process_expr(hop);
-            process_expr(source);
+            auto size_expr = var->as_list()->elements[1];
+            if (size_expr)
+                process_expr(size_expr);
         }
-        context_type::scope_holder iteration_scope(m_ctx);
-        for (const auto & id : ids )
+        context_type::scope_holder scope(m_ctx);
+        for (auto var : var_list->elements)
         {
+            auto id = var->as_list()->elements[0]->as_leaf<string>()->value;
             try { m_ctx.bind(id, dummy()); }
             catch (context_error &) {
                 // FIXME: line number;
                 throw name_already_in_scope_error(id, 0);
             }
         }
-        process_block(list->elements[1]);
+        process_expr(expr);
         return;
     }
-    case ast::reduce_expression:
+    case ast::array_application:
     {
-        ast::list_node * list = root->as_list();
-        const string & id1 = list->elements[0]->as_leaf<string>()->value;
-        const string & id2 = list->elements[1]->as_leaf<string>()->value;
-        const auto & domain = list->elements[2];
-        process_expr(domain);
-        context_type::scope_holder iteration_scope(m_ctx);
-        try { m_ctx.bind(id1, dummy()); }
-        catch (context_error &) {
-            // FIXME: line number;
-            throw name_already_in_scope_error(id1, 0);
+        auto array_expr = root->as_list()->elements[0];
+        auto arg_list = root->as_list()->elements[1]->as_list();
+        process_expr(array_expr);
+        for(auto & arg : arg_list->elements)
+        {
+            process_expr(arg);
         }
-        try { m_ctx.bind(id2, dummy()); }
-        catch (context_error &) {
-            // FIXME: line number;
-            throw name_already_in_scope_error(id2, 0);
-        }
-        process_block(list->elements[3]);
         return;
     }
     default:

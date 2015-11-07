@@ -49,26 +49,30 @@ public:
             return;
         }
 
-        string type_name = m_type_names[n->type];
+        if (n->type != anonymous)
+        {
+            string type_name = m_type_names[n->type];
 
-        if (type_name.empty())
-            cout << '<' << n->type << '>';
-        else
-            cout << type_name;
+            if (type_name.empty())
+                cout << '<' << n->type << '>';
+            else
+                cout << type_name;
+            cout << ": ";
+        }
 
         switch (n->type)
         {
         case boolean:
-            cout << ": " << (static_cast<leaf_node<bool>*>(n)->value ? "true" : "false");
+            cout << (static_cast<leaf_node<bool>*>(n)->value ? "true" : "false");
             break;
         case integer_num:
-            cout << ": " << static_cast<leaf_node<int>*>(n)->value;
+            cout  << static_cast<leaf_node<int>*>(n)->value;
             break;
         case real_num:
-            cout << ": " << static_cast<leaf_node<double>*>(n)->value;
+            cout << static_cast<leaf_node<double>*>(n)->value;
             break;
         case identifier:
-            cout << ": \"" << static_cast<leaf_node<string>*>(n)->value << "\"";
+            cout << "\"" << static_cast<leaf_node<string>*>(n)->value << "\"";
             break;
         default:
         {
@@ -78,7 +82,7 @@ public:
 
             if (!parent->elements.empty())
             {
-                cout << ": { " << endl;
+                cout << "{ " << endl;
                 m_level++;
                 for (sp<node> & child : parent->elements)
                 {
@@ -90,7 +94,7 @@ public:
             }
             else
             {
-                cout << ": { }";
+                cout << "{ }";
             }
             break;
         }
@@ -100,6 +104,7 @@ public:
 private:
     void init_type_names()
     {
+        m_type_names[anonymous] = "_";
         m_type_names[kwd_let] = "'let'";
         m_type_names[kwd_for] = "'for'";
         m_type_names[kwd_reduce] = "'reduce'";
@@ -124,14 +129,10 @@ private:
         m_type_names[boolean] = "bool";
         m_type_names[identifier] = "id";
         m_type_names[range] = "range";
-        m_type_names[transpose_expression] = "transpose";
-        m_type_names[slice_expression] = "slice";
         m_type_names[call_expression] = "call";
         m_type_names[if_expression] = "if";
-        m_type_names[for_expression] = "for";
-        m_type_names[for_iteration] = "for-iter";
-        m_type_names[for_iteration_list] = "for-iter-list";
-        m_type_names[reduce_expression] = "reduce";
+        m_type_names[array_function] = "array-func";
+        m_type_names[array_application] = "array-apply";
         m_type_names[hash_expression] = "hash";
         m_type_names[expression_block] = "expr-block";
         m_type_names[statement] = "statement";

@@ -16,8 +16,17 @@ namespace stream
 
 inline void Parser::error(char const *msg)
 {
+    using namespace std;
+
+
     std::cerr << "ERROR [line " << d_scanner.lineNr() << "]: "
-              << msg << std::endl;;
+              << msg << std::endl
+              << "required tokens: " << d_requiredTokens__ << endl
+              << "accepted tokens: " << d_acceptedTokens__ << endl
+              << "token: " << d_token__ << endl
+              << "next token: " << d_nextToken__ << endl
+              << "state: " << d_state__ << endl;
+
 }
 
 // $insert lex

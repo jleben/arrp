@@ -6,6 +6,9 @@ else()
   set(lib_mode SHARED)
 endif()
 
+# For parser
+include_directories(../common)
+
 add_library(streamc-lib ${lib_mode}
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
@@ -18,8 +21,8 @@ add_library(streamc-lib ${lib_mode}
   ../frontend/lex.cc
   ../frontend/parse.cc
   ../frontend/environment_builder.cpp
-  ../frontend/type_checker.cpp
-  ../polyhedral/polyhedral-gen.cpp
+  #../frontend/type_checker.cpp
+  #../polyhedral/polyhedral-gen.cpp
   #../polyhedral/translator.cpp
   #../polyhedral/dataflow_model.cpp
   ../polyhedral/ast_generator.cpp
