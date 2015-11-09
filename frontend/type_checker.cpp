@@ -154,7 +154,8 @@ type::tag max_type(const vector<type::tag> & ins)
     return max_type_tag;
 }
 
-type_checker::type_checker(environment &env):
+type_checker::type_checker(parsing::driver &parser, environment &env):
+    m_parser(parser),
     m_env(env),
     m_func_counter(0),
     m_has_error(false)

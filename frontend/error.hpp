@@ -31,17 +31,11 @@ struct source_error : public error
     using location_type = parsing::location;
 
     source_error(const string & what, const location_type & location):
-        error(msg(what, location))
+        error(what),
+        location(location)
     {}
 
-private:
-    static string msg(const string & what, const location_type & location)
-    {
-        std::ostringstream text;
-        text << "[" << location.begin.line << ':' << location.begin.column << "] "
-             << what;
-        return text.str();
-    }
+    location_type location;
 };
 
 }

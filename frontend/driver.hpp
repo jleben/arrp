@@ -39,7 +39,6 @@ public:
         return m_ast;
     }
 
-private:
     void error(const parser::location_type& l, const std::string& m);
 };
 

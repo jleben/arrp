@@ -60,7 +60,8 @@ private:
     }
 };
 
-environment_builder::environment_builder(environment &env):
+environment_builder::environment_builder(parsing::driver & driver, environment &env):
+    m_driver(driver),
     m_env(env),
     m_has_error(false)
 {

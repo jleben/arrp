@@ -26,12 +26,14 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../common/environment.hpp"
 #include "../common/types.hpp"
 #include "../utility/context.hpp"
+#include "driver.hpp"
 
 #include <unordered_map>
 #include <string>
 #include <utility>
 #include <exception>
 #include <sstream>
+#include <iostream>
 
 namespace stream {
 namespace semantic {
@@ -43,7 +45,7 @@ using std::pair;
 class type_checker
 {
 public:
-    type_checker(environment &env );
+    type_checker(parsing::driver &, environment &env );
 
     type_ptr check( const symbol & sym, const vector<type_ptr> & args );
 
@@ -100,6 +102,13 @@ private:
         std::cerr << "ERROR: " << e.what() << std::endl;
     }
 
+    void report( const source_error & e )
+    {
+        m_has_error = true;
+        m_parser.error(e.location, e.what());
+    }
+
+    parsing::driver & m_parser;
     environment & m_env;
     context_type m_ctx;
 

@@ -143,7 +143,7 @@ result::code compile_source(istream & source, const arguments & args)
     }
 
     stream::semantic::environment env;
-    stream::semantic::environment_builder env_builder(env);
+    stream::semantic::environment_builder env_builder(parser, env);
     if (!env_builder.process(ast_root))
         return result::symbolic_error;
 
@@ -157,7 +157,7 @@ result::code compile_source(istream & source, const arguments & args)
     if (args.target.name.empty())
         return result::ok;
 
-    semantic::type_checker type_checker(env);
+    semantic::type_checker type_checker(parser, env);
 
     const target_info & target = args.target;
 

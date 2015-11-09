@@ -23,6 +23,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "../common/environment.hpp"
 #include "../utility/context.hpp"
+#include "error.hpp"
+#include "driver.hpp"
 
 namespace stream {
 namespace semantic {
@@ -30,7 +32,7 @@ namespace semantic {
 class environment_builder
 {
 public:
-    environment_builder(environment &env);
+    environment_builder(parsing::driver &, environment &env);
 
     bool process( const ast::node_ptr & source );
 
@@ -42,6 +44,8 @@ private:
     void process_stmt( const sp<ast::node> & );
     void process_block( const sp<ast::node> & );
     void process_expr( const sp<ast::node> & );
+
+    parsing::driver & m_driver;
     environment & m_env;
     context<string,dummy> m_ctx;
 
@@ -65,6 +69,12 @@ private:
     {
         m_has_error = true;
         std::cerr << "ERROR: " << e.what() << std::endl;
+    }
+
+    void report( const source_error & e )
+    {
+        m_has_error = true;
+        m_driver.error(e.location, e.what());
     }
 
     bool m_has_error;
