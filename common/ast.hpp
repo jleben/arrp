@@ -27,6 +27,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <cassert>
 #include <iostream>
 
+#include "../frontend/location.hh"
+
 namespace stream
 {
 
@@ -40,6 +42,8 @@ using type_ptr = std::shared_ptr<type>;
 }
 
 namespace ast {
+
+using location_type = parsing::location;
 
 struct node;
 
@@ -118,16 +122,16 @@ template <typename T> struct leaf_node;
 struct node
 {
     node_type type;
-    int line;
+    location_type location;
     semantic::type_ptr semantic_type;
 
     node( const node & other ):
         type(other.type),
-        line(other.line),
+        location(other.location),
         semantic_type(other.semantic_type)
     {}
 
-    node( node_type type, int line = 0 ): type(type), line(line) {}
+    node( node_type type, const location_type & loc ): type(type), location(loc) {}
     virtual ~node() {}
 
     virtual bool is_list() { return false; }
@@ -149,13 +153,14 @@ struct list_node : public node
 {
     vector<sp<node>> elements;
 
-    list_node( node_type type, int line ):
-        node(type, line)
+    list_node( node_type type, const location_type & loc ):
+        node(type, loc)
     {}
 
-    list_node( node_type type, int line,
+
+    list_node( node_type type, const location_type & loc,
                std::initializer_list<sp<node>> elements ):
-        node(type, line),
+        node(type, loc),
         elements(elements)
     {}
 
@@ -197,8 +202,8 @@ struct leaf_node : public node
 {
     T value;
 
-    leaf_node (node_type type, int line, const T & v):
-        node(type, line),
+    leaf_node (node_type type, const location_type & loc, const T & v):
+        node(type, loc),
         value(v)
     {}
 
@@ -233,8 +238,9 @@ struct binary_op_expression : list_node
 {
     binary_op_expression( const sp<node> & lhs,
                           node_type op,
-                          const sp<node> & rhs ):
-        list_node( op, lhs->line, { lhs, rhs } )
+                          const sp<node> & rhs,
+                          const location_type & loc):
+        list_node( op, loc, { lhs, rhs } )
     {}
 };
 

@@ -1,74 +1,86 @@
-%filenames = scanner
-%implementation-header = "scanner_impl.hpp"
-%namespace stream
+%{
+#include "scanner_internal.hpp"
+%}
 
-%x one_line_comment
-%x multi_line_comment
+%option c++
+%option prefix="StreamLang"
+
+%option batch
+%option yywrap nounput
+
+id    [a-zA-Z][a-zA-Z_0-9]*
+int   [0-9]+
+blank [ \t]
+
+%{
+  // Code run each time a pattern is matched.
+  # define YY_USER_ACTION  yylloc->columns (yyleng);
+%}
 
 %%
 
-"//" { begin(StartCondition__::one_line_comment); }
-<one_line_comment>{
-\n { begin(StartCondition__::INITIAL); }
-.
+%{
+  // Code run each time yylex is called.
+  yylloc->step ();
+%}
+
+{blank}+   yylloc->step ();
+[\n]+      yylloc->lines (yyleng); yylloc->step ();
+
+\\ { return (parser::token_type) '\\'; }
+\{ { return (parser::token_type) '{'; }
+\} { return (parser::token_type) '}'; }
+\[ { return (parser::token_type) '['; }
+\] { return (parser::token_type) ']'; }
+\( { return (parser::token_type) '('; }
+\) { return (parser::token_type) ')'; }
+\. { return (parser::token_type) '.'; }
+, { return (parser::token_type) ','; }
+; { return (parser::token_type) ';'; }
+: { return (parser::token_type) ':'; }
+\? { return (parser::token_type) '?'; }
+\+ { return (parser::token_type) '+'; }
+\- { return (parser::token_type) '-'; }
+\* { return (parser::token_type) '*'; }
+\/ { return (parser::token_type) '/'; }
+\^ { return (parser::token_type) '^'; }
+\% { return (parser::token_type) '%'; }
+= { return (parser::token_type) '='; }
+# { return (parser::token_type) '#'; }
+"->" { return parser::token::RIGHT_ARROW; }
+"==" { return parser::token::EQ; }
+"!=" { return parser::token::NEQ; }
+"<" { return parser::token::LESS; }
+">" { return parser::token::MORE; }
+"<=" { return parser::token::LESS_EQ; }
+">=" { return parser::token::MORE_EQ; }
+"not" { return parser::token::LOGIC_NOT; }
+"or" { return parser::token::LOGIC_OR; }
+"and" { return parser::token::LOGIC_AND; }
+"if" { return parser::token::IF; }
+"then" { return parser::token::THEN; }
+"else" { return parser::token::ELSE; }
+"let" { return parser::token::LET; }
+".." { return parser::token::DOTDOT; }
+"true" {
+  *yylval = new ast::leaf_node<bool>( ast::boolean, *yylloc, true );
+  return parser::token::TRUE;
+}
+"false" {
+  *yylval = new ast::leaf_node<bool>( ast::boolean, *yylloc, false );
+  return parser::token::FALSE;
+}
+[0-9]+\.[0-9]+ {
+  *yylval = new ast::leaf_node<double>( ast::real_num, *yylloc, std::stod(yytext) );
+  return parser::token::REAL;
+}
+[0-9]+ {
+  *yylval = new ast::leaf_node<int>( ast::integer_num, *yylloc, std::stoi(yytext) );
+  return parser::token::INT;
+}
+[[:alpha:]_]+[[:alpha:][:digit:]_]* {
+  *yylval = new ast::leaf_node<string>( ast::identifier, *yylloc, yytext );
+  return parser::token::ID;
 }
 
-"/*" { begin(StartCondition__::multi_line_comment); }
-<multi_line_comment>{
-"*/" { begin(StartCondition__::INITIAL); }
-\n
-.
-}
-
-[ \t\n]+ // Skip whitespace
-
-"->" { return Parser::RIGHT_ARROW; }
-\\ { return '\\'; }
-\{ { return '{'; }
-\} { return '}'; }
-\[ { return '['; }
-\] { return ']'; }
-\( { return '('; }
-\) { return ')'; }
-\. { return '.'; }
-, { return ','; }
-; { return ';'; }
-: { return ':'; }
-\? { return '?'; }
-\+ { return '+'; }
-\- { return '-'; }
-\* { return '*'; }
-\/ { return '/'; }
-\^ { return '^'; }
-\% { return '%'; }
-= { return '='; }
-# { return '#'; }
-"==" { return Parser::EQ; }
-"!=" { return Parser::NEQ; }
-"<" { return Parser::LESS; }
-">" { return Parser::MORE; }
-"<=" { return Parser::LESS_EQ; }
-">=" { return Parser::MORE_EQ; }
-"not" { return Parser::LOGIC_NOT; }
-"or" { return Parser::LOGIC_OR; }
-"and" { return Parser::LOGIC_AND; }
-
-"true" { return Parser::TRUE; }
-"false" { return Parser::FALSE; }
-"if" { return Parser::IF; }
-"then" { return Parser::THEN; }
-"else" { return Parser::ELSE; }
-"let" { return Parser::LET; }
-".." { return Parser::DOTDOT; }
-
-[0-9]+\.[0-9]+ { return Parser::REAL; }
-
-[0-9]+ { return Parser::INT; }
-
-[[:alpha:]_]+[[:alpha:][:digit:]_]* { return Parser::ID; }
-
-. {
-  /*std::cerr << "ERROR:" << lineNr()
-  << ": Unrecognized text: " << matched() << std::endl;*/
-  return Parser::SCANNER_ERROR;
-}
+. { return parser::token::INVALID; }

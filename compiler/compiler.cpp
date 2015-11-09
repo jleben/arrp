@@ -22,7 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "compiler.hpp"
 #include "../common/ast_printer.hpp"
 #include "../common/polyhedral_model_printer.hpp"
-#include "../frontend/parser.h"
+#include "../frontend/driver.hpp"
 #include "../frontend/environment_builder.hpp"
 #include "../frontend/type_checker.hpp"
 //#include "../polyhedral/translator.hpp"
@@ -118,17 +118,20 @@ result::code compile(const arguments & args)
 
 result::code compile_source(istream & source, const arguments & args)
 {
-    stream::Parser parser(source);
-    parser.setPrintsTokens(args.print[arguments::tokens_output]);
+    stream::parsing::driver parser(source, cout);
+    // TODO:
+    // parser.setPrintsTokens(args.print[arguments::tokens_output]);
 
     if (args.print[arguments::tokens_output])
         cout << "== Tokens ==" << endl;
 
-    int success = parser.parse();
-    if (success != 0)
+    int parser_error = parser.parse();
+    if (parser_error)
         return result::syntactic_error;
 
     const ast::node_ptr & ast_root = parser.ast();
+    if (!ast_root)
+        return result::ok;
 
     if (args.print[arguments::ast_output])
     {

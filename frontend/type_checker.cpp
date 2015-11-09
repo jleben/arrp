@@ -79,8 +79,9 @@ private:
 class call_error : public source_error
 {
 public:
-    call_error( const string & name, const string & what, int line ):
-        source_error(msg(name, what), line)
+    call_error( const string & name, const string & what,
+                const location_type & loc ):
+        source_error(msg(name, what), loc)
     {}
 private:
     static string msg(const string & name, const string & what)
@@ -542,7 +543,7 @@ type_ptr type_checker::process_expression( const sp<ast::node> & root )
         break;
     default:
         assert(false);
-        throw source_error("Unsupported expression.", root->line);
+        throw source_error("Unsupported expression.", root->location);
     }
 
     root->semantic_type = expr_type;
@@ -582,7 +583,7 @@ type_checker::process_identifier( const sp<ast::node> & root,
     if (!type)
     {
         assert(false);
-        throw source_error("Name not in scope.", root->line);
+        throw source_error("Name not in scope.", root->location);
     }
 
     if ( dynamic_cast<abstract_function*>(type.get()) &&
@@ -591,7 +592,7 @@ type_checker::process_identifier( const sp<ast::node> & root,
         ostringstream msg;
         msg << "Function name missing arguments: \"" << id << "\"";
         assert(false);
-        throw source_error(msg.str(), root->line);
+        throw source_error(msg.str(), root->location);
     }
 
     return make_pair(type, scope);
@@ -622,7 +623,7 @@ type_ptr type_checker::process_negate( const sp<ast::node> & root )
     }
     catch (error & e)
     {
-        throw source_error(string("Negate: ") + e.what(), root->line);
+        throw source_error(string("Negate: ") + e.what(), root->location);
     }
 }
 
@@ -658,7 +659,7 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     case ast::logic_and:
     case ast::logic_or:
         if (!lhs_type->is_scalar() || !rhs_type->is_scalar())
-            throw source_error("Operands to logical operator are not both scalars.", root->line);
+            throw source_error("Operands to logical operator are not both scalars.", root->location);
     default:
         break;
     }
@@ -748,7 +749,7 @@ type_ptr type_checker::process_binop( const sp<ast::node> & root )
     }
     catch (error & e)
     {
-        throw source_error(string("Binary operator: ") + e.what(), root->line);
+        throw source_error(string("Binary operator: ") + e.what(), root->location);
     }
 }
 
@@ -761,7 +762,7 @@ type_ptr type_checker::process_range( const sp<ast::node> & root )
 
     if (!start_node || !end_node)
     {
-        throw source_error("Range not finite.", root->line);
+        throw source_error("Range not finite.", root->location);
     }
 
     auto start_type = process_expression(start_node);
@@ -770,12 +771,12 @@ type_ptr type_checker::process_range( const sp<ast::node> & root )
     bool abort = false;
     if (start_type->get_tag() != type::integer_num)
     {
-        report(source_error("Range start not an integer.", start_node->line));
+        report(source_error("Range start not an integer.", start_node->location));
         abort = true;
     }
     if (end_type->get_tag() != type::integer_num)
     {
-        report(source_error("Range end not an integer.", end_node->line));
+        report(source_error("Range end not an integer.", end_node->location));
         abort = true;
     }
     if (abort)
@@ -786,7 +787,7 @@ type_ptr type_checker::process_range( const sp<ast::node> & root )
 
     if (!start_int.is_constant() || !end_int.is_constant())
     {
-        throw source_error("Range bounds not constant.", root->line);
+        throw source_error("Range bounds not constant.", root->location);
     }
 
     int start_value = start_int.constant_value();
@@ -804,17 +805,17 @@ type_ptr type_checker::process_extent( const sp<ast::node> & root )
     type_ptr object_type = process_expression(object_node);
 
     if (object_type->get_tag() != type::stream)
-        throw source_error("Extent object not a stream.", object_node->line);
+        throw source_error("Extent object not a stream.", object_node->location);
 
     int dim = 1;
     if (dim_node)
     {
         type_ptr dim_type = process_expression(dim_node);
         if (dim_type->get_tag() != type::integer_num)
-            throw source_error("Dimension not an integer.", dim_node->line);
+            throw source_error("Dimension not an integer.", dim_node->location);
         integer_num *dim_int = static_cast<integer_num*>(dim_type.get());
         if (!dim_int->is_constant())
-            throw source_error("Dimension not a constant.", dim_node->line);
+            throw source_error("Dimension not a constant.", dim_node->location);
         dim = dim_int->constant_value();
     }
 
@@ -824,14 +825,14 @@ type_ptr type_checker::process_extent( const sp<ast::node> & root )
     {
         ostringstream msg;
         msg << "Dimension " << dim << " out of bounds.";
-        throw source_error(msg.str(), object_node->line);
+        throw source_error(msg.str(), object_node->location);
     }
 
     int size = s.size[dim-1];
 
     if (size == stream::infinite)
     {
-        throw source_error("Extent in requested dimension is infinite.", root->line);
+        throw source_error("Extent in requested dimension is infinite.", root->location);
     }
 
     return make_shared<integer_num>(size);
@@ -846,7 +847,7 @@ type_ptr type_checker::process_call( const sp<ast::node> & root )
     const auto & args_node = call->elements[1];
 
     if (func_node->type != ast::identifier)
-        throw source_error("Function call object not a function.", root->line);
+        throw source_error("Function call object not a function.", root->location);
 
     // Get function
 
@@ -859,7 +860,7 @@ type_ptr type_checker::process_call( const sp<ast::node> & root )
         ostringstream text;
         text << "Function call object not a function: "
              << "'" << func_node->as_leaf<string>()->value << "'";
-        throw source_error(text.str(), root->line);
+        throw source_error(text.str(), root->location);
     };
 
     auto & func_scope = func_info.second;
@@ -885,7 +886,7 @@ type_ptr type_checker::process_call( const sp<ast::node> & root )
         ostringstream text;
         text << "In function call to '" << func_type->name << "': "
              << e.what();
-        throw source_error(text.str(), root->line);
+        throw source_error(text.str(), root->location);
     }
 
     const func_type_ptr & func_instance = result.second;
@@ -910,7 +911,7 @@ type_ptr type_checker::process_conditional( const ast::node_ptr & root )
     auto false_type = process_block(false_node);
 
     if (condition_type->get_tag() != type::boolean)
-        throw source_error("Condition expression not a boolean.", condition_node->line);
+        throw source_error("Condition expression not a boolean.", condition_node->location);
 
     try
     {
@@ -918,7 +919,7 @@ type_ptr type_checker::process_conditional( const ast::node_ptr & root )
     }
     catch (undefined)
     {
-        throw source_error("Incompatible types of true and false parts.", root->line);
+        throw source_error("Incompatible types of true and false parts.", root->location);
     }
 }
 
@@ -933,13 +934,13 @@ type_ptr type_checker::process_transpose( const sp<ast::node> & root )
 
     type_ptr object_type = process_expression(object_node);
     if (object_type->get_tag() != type::stream)
-        throw source_error("Transpose object not a stream.", object_node->line);
+        throw source_error("Transpose object not a stream.", object_node->location);
     stream & object = object_type->as<stream>();
 
     ast::list_node *dims = dims_node->as_list();
 
     if (dims->elements.size() > object.dimensionality())
-        throw source_error("Transposition has too many dimensions.", root->line);
+        throw source_error("Transposition has too many dimensions.", root->location);
 
     vector<bool> selected_dims(object.dimensionality(), false);
 
@@ -950,9 +951,9 @@ type_ptr type_checker::process_transpose( const sp<ast::node> & root )
     {
         int dim = dim_node->as_leaf<int>()->value;
         if (dim < 1 || dim > object.dimensionality())
-            throw source_error("Dimension selector element out of bounds.", dim_node->line);
+            throw source_error("Dimension selector element out of bounds.", dim_node->location);
         if (selected_dims[dim-1])
-            throw source_error("Duplicate dimension selector element.", dim_node->line);
+            throw source_error("Duplicate dimension selector element.", dim_node->location);
         transposed_size.push_back( object.size[dim-1] );
         selected_dims[dim-1] = true;
     }
@@ -974,14 +975,14 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
 
     type_ptr object_type = process_expression(object_node);
     if (object_type->get_tag() != type::stream)
-        throw source_error("Slice object not a stream.", object_node->line);
+        throw source_error("Slice object not a stream.", object_node->location);
 
     const stream & source_stream = object_type->as<stream>();
 
     ast::list_node *selector_list = selectors_node->as_list();
 
     if (selector_list->elements.size() > source_stream.dimensionality())
-        throw source_error("Too many slice dimensions.", selectors_node->line);
+        throw source_error("Too many slice dimensions.", selectors_node->location);
 
     stream result_stream(source_stream);
     int dim = 0;
@@ -989,7 +990,7 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
     {
         if (source_stream.size[dim] == stream::infinite)
         {
-            throw source_error("Can not slice an infinite dimension.", selector_node->line);
+            throw source_error("Can not slice an infinite dimension.", selector_node->location);
         }
 
         if (selector_node->type == ast::range)
@@ -1004,10 +1005,10 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
             {
                 auto start_type = process_expression(start_node);
                 if (start_type->get_tag() != type::integer_num)
-                    throw source_error("Slice range start not an integer.", start_node->line);
+                    throw source_error("Slice range start not an integer.", start_node->location);
                 auto & start_int = start_type->as<integer_num>();
                 if (!start_int.is_constant())
-                    throw source_error("Slice range start not constant.", start_node->line);
+                    throw source_error("Slice range start not constant.", start_node->location);
                 start = start_int.constant_value();
             }
             else
@@ -1019,10 +1020,10 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
             {
                 auto end_type = process_expression(end_node);
                 if (end_type->get_tag() != type::integer_num)
-                    throw source_error("Slice range start not an integer.", end_node->line);
+                    throw source_error("Slice range start not an integer.", end_node->location);
                 auto & end_int = end_type->as<integer_num>();
                 if (!end_int.is_constant())
-                    throw source_error("Slice range start not constant.", end_node->line);
+                    throw source_error("Slice range start not constant.", end_node->location);
                 end = end_int.constant_value();
             }
             else
@@ -1032,10 +1033,10 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
 
             int size = end - start + 1;
             if (size < 1)
-                throw source_error("Slice range size less than 1.", selector_node->line);
+                throw source_error("Slice range size less than 1.", selector_node->location);
 
             if (start < 1 || end > source_stream.size[dim])
-                throw source_error("Slice range out of bounds.", selector_node->line);
+                throw source_error("Slice range out of bounds.", selector_node->location);
 
             result_stream.size[dim] = size;
         }
@@ -1043,15 +1044,15 @@ type_ptr type_checker::process_slice( const sp<ast::node> & root )
         {
             auto selector = process_expression(selector_node);
             if (selector->get_tag() != type::integer_num)
-                throw source_error("Invalid type of slice selector.", selector_node->line);
+                throw source_error("Invalid type of slice selector.", selector_node->location);
 
             auto & selector_int = selector->as<integer_num>();
             if (!selector_int.is_constant())
-                throw source_error("Slice selector not constant.", selector_node->line);
+                throw source_error("Slice selector not constant.", selector_node->location);
 
             int offset = selector_int.constant_value();
             if (offset < 1 || offset > source_stream.size[dim])
-                throw source_error("Slice selector out of bounds.", selector_node->line);
+                throw source_error("Slice selector out of bounds.", selector_node->location);
 
             result_stream.size[dim] = 1;
         }
@@ -1091,7 +1092,7 @@ type_ptr type_checker::process_iteration( const sp<ast::node> & root )
         if (!iteration_count)
             iteration_count = it.count;
         else if (it.count != iteration_count)
-            throw source_error("Iterations with differing counts.", root->line);
+            throw source_error("Iterations with differing counts.", root->location);
     }
 
     type_ptr result_type;
@@ -1142,13 +1143,13 @@ type_ptr type_checker::process_iterator( const sp<ast::node> & root )
         sp<ast::node> & node = iteration->elements[1];
         sp<type> val = process_expression(node);
         if (val->get_tag() != type::integer_num)
-            throw source_error("Iteration size not an integer.", node->line);
+            throw source_error("Iteration size not an integer.", node->location);
         integer_num *i = static_cast<integer_num*>(val.get());
         if (!i->is_constant())
-            throw source_error("Iteration size not a constant.", node->line);
+            throw source_error("Iteration size not a constant.", node->location);
         it.size = i->constant_value();
         if (it.size < 1)
-            throw source_error("Invalid iteration size.", node->line);
+            throw source_error("Invalid iteration size.", node->location);
     }
 
     if (iteration->elements[2])
@@ -1156,13 +1157,13 @@ type_ptr type_checker::process_iterator( const sp<ast::node> & root )
         sp<ast::node> & node = iteration->elements[2];
         sp<type> val = process_expression(node);
         if (val->get_tag() != type::integer_num)
-            throw source_error("Iteration hop not an integer.",node->line);
+            throw source_error("Iteration hop not an integer.",node->location);
         integer_num *i = static_cast<integer_num*>(val.get());
         if (!i->is_constant())
-            throw source_error("Iteration hop not a constant.",node->line);
+            throw source_error("Iteration hop not a constant.",node->location);
         it.hop = i->constant_value();
         if (it.hop < 1)
-            throw source_error("Invalid hop size.",node->line);
+            throw source_error("Invalid hop size.",node->location);
     }
 
     sp<ast::node> & domain_node = iteration->elements[3];
@@ -1191,7 +1192,7 @@ type_ptr type_checker::process_iterator( const sp<ast::node> & root )
         break;
     }
     default:
-        throw source_error("Unsupported iteration domain type.", iteration->line);
+        throw source_error("Unsupported iteration domain type.", iteration->location);
     }
 
     // Compute iteration count:
@@ -1204,9 +1205,9 @@ type_ptr type_checker::process_iterator( const sp<ast::node> & root )
     {
         int iterable_size = domain_size - std::max(it.size, it.hop);
         if (iterable_size < 0)
-            throw source_error("Iteration size larger than stream size.", iteration->line);
+            throw source_error("Iteration size larger than stream size.", iteration->location);
         if (iterable_size % it.hop != 0)
-            throw source_error("Iteration does not cover stream size.", iteration->line);
+            throw source_error("Iteration does not cover stream size.", iteration->location);
         it.count = iterable_size / it.hop + 1;
     }
 
@@ -1240,17 +1241,17 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
         if (domain_type->as<stream>().dimensionality() > 1)
             throw source_error("Reduction of streams with more than"
                                " 1 dimension not supported.",
-                               root->line);
+                               root->location);
 
         if (domain_type->as<stream>().size[0] == stream::infinite)
             throw source_error("Reduction of infinite dimension not supported.",
-                               root->line);
+                               root->location);
 
         val1 = val2 = make_shared<real_num>();
         break;
     }
     default:
-        throw source_error("Invalid reduction domain type.", root->line);
+        throw source_error("Invalid reduction domain type.", root->location);
     }
 
     context_type::scope_holder reduction_scope(m_ctx);
@@ -1264,7 +1265,7 @@ type_ptr type_checker::process_reduction( const sp<ast::node> & root )
         ostringstream text;
         text << "Reduction result must be a scalar."
              << " Got " << *result_type << " instead.";
-        throw source_error(text.str(), root->line);
+        throw source_error(text.str(), root->location);
     }
 
     // Whatever the result type, it will be converted to val1 type (real):

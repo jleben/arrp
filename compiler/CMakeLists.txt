@@ -18,8 +18,6 @@ add_library(streamc-lib ${lib_mode}
   ../common/polyhedral_model.cpp
   ../common/polyhedral_model_printer.cpp
   ../common/array_func_printer.cpp
-  ../frontend/lex.cc
-  ../frontend/parse.cc
   ../frontend/environment_builder.cpp
   ../frontend/type_checker.cpp
   #../polyhedral/polyhedral-gen.cpp
@@ -35,7 +33,7 @@ add_library(streamc-lib ${lib_mode}
   compiler.cpp
 )
 
-add_dependencies(streamc-lib parser)
+target_link_libraries(streamc-lib parser)
 
 set_property( TARGET streamc-lib PROPERTY OUTPUT_NAME streamc )
 

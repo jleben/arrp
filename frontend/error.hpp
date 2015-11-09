@@ -22,20 +22,24 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_LANG_FRONTEND_ERROR_INCLUDED
 
 #include "../common/error.hpp"
+#include "location.hh"
 
 namespace stream {
 
 struct source_error : public error
 {
-    source_error(const string & what, int line):
-        error(msg(what, line))
+    using location_type = parsing::location;
+
+    source_error(const string & what, const location_type & location):
+        error(msg(what, location))
     {}
 
 private:
-    static string msg(const string & what, int line)
+    static string msg(const string & what, const location_type & location)
     {
         std::ostringstream text;
-        text << "[line " << line << "] " << what;
+        text << "[" << location.begin.line << ':' << location.begin.column << "] "
+             << what;
         return text.str();
     }
 };

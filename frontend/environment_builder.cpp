@@ -31,8 +31,9 @@ namespace semantic {
 class name_already_in_scope_error : public source_error
 {
 public:
-    name_already_in_scope_error(const string & name, int line):
-        source_error(msg(name),line)
+    name_already_in_scope_error(const string & name,
+                                const location_type & loc):
+        source_error(msg(name),loc)
     {}
 private:
     string msg(const string & name)
@@ -46,8 +47,9 @@ private:
 class name_not_in_scope_error : public source_error
 {
 public:
-    name_not_in_scope_error(const string & name, int line):
-        source_error(msg(name),line)
+    name_not_in_scope_error(const string & name,
+                            const location_type & loc):
+        source_error(msg(name),loc)
     {}
 private:
     string msg(const string & name)
@@ -153,7 +155,7 @@ void environment_builder::process_stmt( const sp<ast::node> & root )
             }
             catch (context_error &)
             {
-                report( name_already_in_scope_error(param_name, param->line) );
+                report( name_already_in_scope_error(param_name, param->location) );
                 param_name_error = true;
             }
         }
@@ -178,7 +180,7 @@ void environment_builder::process_stmt( const sp<ast::node> & root )
         }
         catch (context_error&)
         {
-            throw name_already_in_scope_error(id, root->line);
+            throw name_already_in_scope_error(id, root->location);
         }
     }
     else
@@ -188,7 +190,7 @@ void environment_builder::process_stmt( const sp<ast::node> & root )
         sym.parameter_names = parameters;
         bool success = m_env.emplace(id, sym).second;
         if (!success)
-            throw name_already_in_scope_error(id, root->line);
+            throw name_already_in_scope_error(id, root->location);
     }
 }
 
@@ -222,7 +224,7 @@ void environment_builder::process_expr( const sp<ast::node> & root )
         {
             ostringstream msg;
             msg << "Name not in scope: '" << id << "'";
-            throw source_error(msg.str(), root->line);
+            throw source_error(msg.str(), root->location);
         }
         return;
     }
@@ -306,11 +308,12 @@ void environment_builder::process_expr( const sp<ast::node> & root )
         context_type::scope_holder scope(m_ctx);
         for (auto var : var_list->elements)
         {
-            auto id = var->as_list()->elements[0]->as_leaf<string>()->value;
+            auto id_node = var->as_list()->elements[0]->as_leaf<string>();
+            auto id = id_node->value;
             try { m_ctx.bind(id, dummy()); }
             catch (context_error &) {
                 // FIXME: line number;
-                throw name_already_in_scope_error(id, 0);
+                throw name_already_in_scope_error(id, id_node->location);
             }
         }
         process_expr(expr);
@@ -329,7 +332,7 @@ void environment_builder::process_expr( const sp<ast::node> & root )
     }
     default:
         assert(false);
-        throw source_error("Unsupported expression.", root->line);
+        throw source_error("Unsupported expression.", root->location);
     }
 }
 
