@@ -22,9 +22,11 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "compiler.hpp"
 #include "../common/ast_printer.hpp"
 #include "../common/polyhedral_model_printer.hpp"
+#include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
-#include "../frontend/environment_builder.hpp"
-#include "../frontend/type_checker.hpp"
+#include "../frontend/functional_gen.hpp"
+//#include "../frontend/environment_builder.hpp"
+//#include "../frontend/type_checker.hpp"
 //#include "../polyhedral/translator.hpp"
 #include "../polyhedral/polyhedral-gen.hpp"
 #include "../polyhedral/ast_generator.hpp"
@@ -129,7 +131,7 @@ result::code compile_source(istream & source, const arguments & args)
     if (parser_error)
         return result::syntactic_error;
 
-    const ast::node_ptr & ast_root = parser.ast();
+    auto ast_root = parser.ast();
     if (!ast_root)
         return result::ok;
 
@@ -140,6 +142,18 @@ result::code compile_source(istream & source, const arguments & args)
         stream::ast::printer printer;
         printer.print(ast_root.get());
         cout << endl;
+    }
+
+    functional::generator fgen;
+    vector<functional::func_def_ptr> funcs;
+    try
+    {
+        funcs = fgen.generate(ast_root);
+    }
+    catch (source_error & e)
+    {
+        parser.error(e.location, e.what());
+        return result::semantic_error;
     }
 
     return result::ok;
