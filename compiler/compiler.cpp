@@ -142,6 +142,9 @@ result::code compile_source(istream & source, const arguments & args)
         cout << endl;
     }
 
+    return result::ok;
+
+#if 0
     stream::semantic::environment env;
     stream::semantic::environment_builder env_builder(parser, env);
     if (!env_builder.process(ast_root))
@@ -195,6 +198,7 @@ result::code compile_source(istream & source, const arguments & args)
     }
 
     return result::ok;
+#endif
 
 #if STARTED_WORKING_ON_POLYHEDRAL_MODEL
     polyhedral::model_generator poly_gen(env);

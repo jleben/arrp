@@ -128,7 +128,7 @@ namespace stream { namespace parsing {
   public:
 #ifndef YYSTYPE
     /// Symbol semantic values.
-    typedef stream::ast::semantic_value semantic_type;
+    typedef stream::ast::semantic_value_type semantic_type;
 #else
     typedef YYSTYPE semantic_type;
 #endif
@@ -460,8 +460,8 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 321,     ///< Last index in yytable_.
-      yynnts_ = 24,  ///< Number of nonterminal symbols.
+      yylast_ = 305,     ///< Last index in yytable_.
+      yynnts_ = 22,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,

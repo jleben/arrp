@@ -63,23 +63,23 @@ blank [ \t]
 "let" { return parser::token::LET; }
 ".." { return parser::token::DOTDOT; }
 "true" {
-  *yylval = new ast::leaf_node<bool>( ast::boolean, *yylloc, true );
+  *yylval = ast::make_const( *yylloc, true );
   return parser::token::TRUE;
 }
 "false" {
-  *yylval = new ast::leaf_node<bool>( ast::boolean, *yylloc, false );
+  *yylval = ast::make_const( *yylloc, false );
   return parser::token::FALSE;
 }
 [0-9]+\.[0-9]+ {
-  *yylval = new ast::leaf_node<double>( ast::real_num, *yylloc, std::stod(yytext) );
+  *yylval = ast::make_const( *yylloc, std::stod(yytext) );
   return parser::token::REAL;
 }
 [0-9]+ {
-  *yylval = new ast::leaf_node<int>( ast::integer_num, *yylloc, std::stoi(yytext) );
+  *yylval = ast::make_const( *yylloc, std::stoi(yytext) );
   return parser::token::INT;
 }
 [[:alpha:]_]+[[:alpha:][:digit:]_]* {
-  *yylval = new ast::leaf_node<string>( ast::identifier, *yylloc, yytext );
+  *yylval = ast::make_id( *yylloc, yytext );
   return parser::token::ID;
 }
 

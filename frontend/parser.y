@@ -11,7 +11,7 @@
 %locations
 
 %define api.namespace {stream::parsing}
-%define api.value.type {stream::ast::semantic_value}
+%define api.value.type {stream::ast::semantic_value_type}
 %parse-param { class stream::parsing::driver& driver }
 
 %define parse.error verbose
@@ -48,6 +48,9 @@
 
 #undef yylex
 #define yylex driver.scanner.lex
+
+using namespace stream::ast;
+using op_type = stream::primitive_op;
 }
 
 %%
@@ -57,14 +60,14 @@ program:
   stmt_list optional_semicolon
   {
     $$ = $1;
-    $$->type = ast::program;
+    $$->type = program;
     $$->location = @$;
     driver.m_ast = $$;
   }
   |
   // empty
   {
-    $$ = new ast::list_node(ast::program, location_type());
+    $$ = make_list(program, location_type(), {});
     driver.m_ast = $$;
   }
 ;
@@ -72,13 +75,13 @@ program:
 stmt_list:
   stmt
   {
-    $$ = new ast::list_node( ast::statement_list, @$, { $1 } );
+    $$ = make_list( @$, { $1 } );
   }
   |
   stmt_list ';' stmt
   {
     $$ = $1;
-    $$.as<ast::list_node>()->append( $3 );
+    $$->as_list()->append( $3 );
     $$->location = @$;
   }
 ;
@@ -86,26 +89,26 @@ stmt_list:
 stmt:
   id '(' param_list ')' '=' expr_block
   {
-    $$ = new ast::list_node( ast::statement, @$, {$1, $3, $6} );
+    $$ = make_list( func_def, @$, {$1, $3, $6} );
   }
   |
   id '=' expr_block
   {
-    $$ = new ast::list_node( ast::statement, @$, {$1, nullptr, $3} );
+    $$ = make_list( func_def, @$, {$1, nullptr, $3} );
   }
 ;
 
 param_list:
   // empty
-  { $$ = new ast::list_node( ast::id_list, @$ ); }
+  { $$ = make_list( @$, {} ); }
   |
   id
-  { $$ = new ast::list_node( ast::id_list, @$, {$1} ); }
+  { $$ = make_list( @$, {$1} ); }
   |
   param_list ',' id
   {
     $$ = $1;
-    $$.as<ast::list_node>()->append( $3 );
+    $$->as_list()->append( $3 );
     $$->location = @$;
   }
 ;
@@ -113,17 +116,17 @@ param_list:
 expr_block:
   expr
   {
-    $$ = new ast::list_node( ast::expression_block, @$, {nullptr, $1} );
+    $$ = make_list( @$, {nullptr, $1} );
   }
   |
   '{' expr optional_semicolon '}'
   {
-    $$ = new ast::list_node( ast::expression_block, @$, {nullptr, $2} );
+    $$ = make_list( @$, {nullptr, $2} );
   }
   |
   '{' let_block_list ';' expr optional_semicolon '}'
   {
-    $$ = new ast::list_node( ast::expression_block, @$, {$2, $4} );
+    $$ = make_list( @$, {$2, $4} );
   }
 ;
 
@@ -133,131 +136,144 @@ let_block_list:
   let_block_list ';' let_block
   {
     $$ = $1;
-    $$.as<ast::list_node>()->append( $3.as<ast::list_node>()->elements );
+    $$->as_list()->append( $3->as_list()->elements );
     $$->location = @$;
   }
 ;
 
 let_block:
-  let stmt
+  LET stmt
   {
-    $$ = new ast::list_node( ast::statement_list, @$, {$2} );
+    $$ = make_list( @$, {$2} );
   }
   |
-  let '{' stmt_list optional_semicolon '}'
+  LET '{' stmt_list optional_semicolon '}'
   {
     $$ = $3;
     $$->location = @$;
   }
 ;
 
-let: LET { $$ = new ast::node( ast::kwd_let, @$ ); }
-;
-
 expr:
-  array_func
-  |
-  array_apply
-  |
-  LOGIC_NOT expr
-  { $$ = new ast::list_node( ast::oppose, @$, {$2} ); }
-  |
-  expr LOGIC_OR expr
-  { $$ = new ast::binary_op_expression( $1, ast::logic_or, $3, @$ ); }
-  |
-  expr LOGIC_AND expr
-  { $$ = new ast::binary_op_expression( $1, ast::logic_and, $3, @$ ); }
-  |
-  expr EQ expr
-  { $$ = new ast::binary_op_expression( $1, ast::equal, $3, @$ ); }
-  |
-  expr NEQ expr
-  { $$ = new ast::binary_op_expression( $1, ast::not_equal, $3, @$ ); }
-  |
-  expr LESS expr
-  { $$ = new ast::binary_op_expression( $1, ast::lesser, $3, @$ ); }
-  |
-  expr LESS_EQ expr
-  { $$ = new ast::binary_op_expression( $1, ast::lesser_or_equal, $3, @$ ); }
-  |
-  expr MORE expr
-  { $$ = new ast::binary_op_expression( $1, ast::greater, $3, @$ ); }
-  |
-  expr MORE_EQ expr
-  { $$ = new ast::binary_op_expression( $1, ast::greater_or_equal, $3, @$ ); }
-  |
-  expr '+' expr
-  { $$ = new ast::binary_op_expression( $1, ast::add, $3, @$ ); }
-  |
-  expr '-' expr
-  { $$ = new ast::binary_op_expression( $1, ast::subtract, $3, @$ ); }
-  |
-  '-' expr %prec UMINUS
-  { $$ = new ast::list_node( ast::negate, @$, {$2} ); }
-  |
-  expr '*' expr
-  { $$ = new ast::binary_op_expression( $1, ast::multiply, $3, @$ ); }
-  |
-  expr '/' expr
-  { $$ = new ast::binary_op_expression( $1, ast::divide, $3, @$ ); }
-  |
-  expr ':' expr
-  { $$ = new ast::binary_op_expression( $1, ast::divide_integer, $3, @$ ); }
-  |
-  expr '%' expr
-  { $$ = new ast::binary_op_expression( $1, ast::modulo, $3, @$ ); }
-  |
-  expr '^' expr
-  { $$ = new ast::binary_op_expression( $1, ast::raise, $3, @$ ); }
-  |
-  '(' expr ')'
-  { $$ = $2; $$->location = @$; }
-  |
-  call
-  |
-  hash
-  |
-  if_expr
-  |
   id
   |
   number
   |
   boolean
-;
-
-hash:
-  '#' expr // implied dimension 1
-  { $$ = new ast::list_node( ast::hash_expression, @$, {$2, nullptr} ); }
+  |
+  if_expr
+  |
+  func_apply
+  |
+  array_func
+  |
+  array_apply
+  |
+  LOGIC_NOT expr
+  { $$ = make_list( primitive, @$, {make_const(@1,op_type::negate), $2} ); }
+  |
+  expr LOGIC_OR expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::logic_or), $1, $3} ); }
+  |
+  expr LOGIC_AND expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::logic_and), $1, $3} ); }
+  |
+  expr EQ expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::compare_eq), $1, $3} ); }
+  |
+  expr NEQ expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::compare_neq), $1, $3} ); }
+  |
+  expr LESS expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::compare_l), $1, $3} ); }
+  |
+  expr LESS_EQ expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::compare_leq), $1, $3} ); }
+  |
+  expr MORE expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::compare_g), $1, $3} ); }
+  |
+  expr MORE_EQ expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::compare_geq), $1, $3} ); }
+  |
+  expr '+' expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::add), $1, $3} ); }
+  |
+  expr '-' expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::subtract), $1, $3} ); }
+  |
+  '-' expr %prec UMINUS
+  { $$ = make_list( primitive, @$, {make_const(@1,op_type::negate), $2} ); }
+  |
+  expr '*' expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::multiply), $1, $3} ); }
+  |
+  expr '/' expr
+    { $$ = make_list( primitive, @$, {make_const(@2,op_type::divide), $1, $3} ); }
+  |
+  expr ':' expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::divide_integer), $1, $3} ); }
+  |
+  expr '%' expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::modulo), $1, $3} ); }
+  |
+  expr '^' expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::raise), $1, $3} ); }
+  |
+  '(' expr ')'
+  { $$ = $2; }
 ;
 
 array_apply:
   expr '[' expr_list ']'
-  { $$ = new ast::list_node( ast::array_application, @$, {$1, $3} ); }
+  { $$ = make_list( ast::array_apply, @$, {$1, $3} ); }
 ;
 
 array_func:
   '\\' array_arg_list RIGHT_ARROW expr
-  { $$ = new ast::list_node( ast::array_function, @$, {$2, $4} ); }
+  { $$ = make_list( ast::array_def, @$, {$2, $4} ); }
 ;
 
 array_arg_list:
   array_arg
-  { $$ = new ast::list_node( ast::anonymous, @$, {$1} ); }
+  { $$ = make_list( array_params, @$, {$1} ); }
   |
   array_arg_list ',' array_arg
   {
     $$ = $1;
-    $$.as<ast::list_node>()->append( $3 );
+    $$->as_list()->append( $3 );
   }
 ;
 
 array_arg:
   id
-  { $$ = new ast::list_node( ast::anonymous, @$, {$1, nullptr} ); }
+  { $$ = make_list( array_param, @$, {$1, nullptr} ); }
   |
   id '=' expr
-  { $$ = new ast::list_node( ast::anonymous, @$, {$1, $3} ); }
+  { $$ = make_list( array_param, @$, {$1, $3} ); }
+;
+
+func_apply:
+  expr '(' expr_list ')'
+  {
+    $$ = make_list( ast::func_apply, @$, {$1, $3} );
+  }
+;
+
+expr_list:
+  expr
+  { $$ = make_list( @$, {$1} ); }
+  |
+  expr_list ',' expr
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+  }
+;
+
+if_expr:
+  IF expr THEN expr ELSE expr
+  { $$ = make_list( primitive, @$, {make_const(@1,op_type::conditional), $2, $4, $6} ); }
 ;
 
 number:
@@ -265,33 +281,6 @@ number:
   |
   real
 ;
-
-
-call:
-  expr '(' expr_list ')'
-  {
-    $$ = new ast::list_node( ast::call_expression, @$, {$1, $3} );
-  }
-;
-
-expr_list:
-  expr
-  { $$ = new ast::list_node( ast::expression_list, @$, {$1} ); }
-  |
-  expr_list ',' expr
-  {
-    $$ = $1;
-    $$.as<ast::list_node>()->append( $3 );
-  }
-;
-
-if_expr:
-  IF expr THEN expr ELSE expr
-  {
-    $$ = new ast::list_node( ast::if_expression, @$, {$2, $4,$6} );
-  }
-;
-
 
 int: INT
 ;

@@ -33,9 +33,7 @@ class printer
 public:
     printer():
         m_level(0)
-    {
-        init_type_names();
-    }
+    {}
 
     void print( node * n )
     {
@@ -49,36 +47,61 @@ public:
             return;
         }
 
-        if (n->type != anonymous)
-        {
-            string type_name = m_type_names[n->type];
-
-            if (type_name.empty())
-                cout << '<' << n->type << '>';
-            else
-                cout << type_name;
-            cout << ": ";
-        }
-
         switch (n->type)
         {
-        case boolean:
-            cout << (static_cast<leaf_node<bool>*>(n)->value ? "true" : "false");
+        case constant:
+        {
+            if (auto b = dynamic_cast<leaf_node<bool>*>(n))
+                cout << (b->value ? "true" : "false");
+            else if(auto i = dynamic_cast<leaf_node<int>*>(n))
+                cout << i->value;
+            else if(auto d = dynamic_cast<leaf_node<double>*>(n))
+                cout << d->value;
+            else if(auto s = dynamic_cast<leaf_node<string>*>(n))
+                cout << s->value;
+            else if(auto op = dynamic_cast<leaf_node<primitive_op>*>(n))
+                cout << name_of_primitive(op->value);
+            else
+                cout << "?";
             break;
-        case integer_num:
-            cout  << static_cast<leaf_node<int>*>(n)->value;
-            break;
-        case real_num:
-            cout << static_cast<leaf_node<double>*>(n)->value;
-            break;
+        }
         case identifier:
-            cout << "\"" << static_cast<leaf_node<string>*>(n)->value << "\"";
+        {
+            cout << "id: " << '"' << n->as_leaf<string>()->value << '"';
             break;
+        }
         default:
         {
+            switch(n->type)
+            {
+            case anonymous:
+                break;
+            case program:
+                cout << "program"; break;
+            case array_def:
+                cout << "array-def"; break;
+            case array_params:
+                cout << "array-params"; break;
+            case array_param:
+                cout << "array-param"; break;
+            case array_apply:
+                cout << "array-apply"; break;
+            case func_def:
+                cout << "func-def"; break;
+            case func_apply:
+                cout << "func-apply"; break;
+            case primitive:
+                cout << "primitive"; break;
+            default:
+                cout << "?";
+            }
+
             list_node *parent = dynamic_cast<list_node*>(n);
             if (!parent)
                 break;
+
+            if (n->type != anonymous)
+                cout << ": ";
 
             if (!parent->elements.empty())
             {
@@ -102,54 +125,12 @@ public:
     }
 
 private:
-    void init_type_names()
-    {
-        m_type_names[anonymous] = "_";
-        m_type_names[kwd_let] = "'let'";
-        m_type_names[kwd_for] = "'for'";
-        m_type_names[kwd_reduce] = "'reduce'";
-        m_type_names[oppose] = "not";
-        m_type_names[logic_or] = "or";
-        m_type_names[logic_and] = "and";
-        m_type_names[negate] = "-";
-        m_type_names[add] = "+";
-        m_type_names[subtract] = "-";
-        m_type_names[multiply] = "*";
-        m_type_names[divide] = "/";
-        m_type_names[divide_integer] = ":";
-        m_type_names[modulo] = "%";
-        m_type_names[lesser] = "<";
-        m_type_names[greater] = ">";
-        m_type_names[lesser_or_equal] = "<=";
-        m_type_names[greater_or_equal] = ">=";
-        m_type_names[equal] = "==";
-        m_type_names[not_equal] = "!=";
-        m_type_names[integer_num] = "int";
-        m_type_names[real_num] = "real";
-        m_type_names[boolean] = "bool";
-        m_type_names[identifier] = "id";
-        m_type_names[range] = "range";
-        m_type_names[call_expression] = "call";
-        m_type_names[if_expression] = "if";
-        m_type_names[array_function] = "array-func";
-        m_type_names[array_application] = "array-apply";
-        m_type_names[hash_expression] = "hash";
-        m_type_names[expression_block] = "expr-block";
-        m_type_names[statement] = "statement";
-        m_type_names[id_list] = "id-list";
-        m_type_names[int_list] = "int-list";
-        m_type_names[expression_list] = "expr-list";
-        m_type_names[statement_list] = "stmt-list";
-        m_type_names[program] = "program";
-    }
-
     string indent()
     {
         return string(m_level * 2, ' ');
     }
 
     int m_level;
-    string m_type_names[ast::node_type_count];
 };
 
 } // namespace ast

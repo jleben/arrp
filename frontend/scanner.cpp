@@ -851,7 +851,7 @@ case 38:
 YY_RULE_SETUP
 #line 65 "scanner.l"
 {
-  *yylval = new ast::leaf_node<bool>( ast::boolean, *yylloc, true );
+  *yylval = ast::make_const( *yylloc, true );
   return parser::token::TRUE;
 }
 	YY_BREAK
@@ -859,7 +859,7 @@ case 39:
 YY_RULE_SETUP
 #line 69 "scanner.l"
 {
-  *yylval = new ast::leaf_node<bool>( ast::boolean, *yylloc, false );
+  *yylval = ast::make_const( *yylloc, false );
   return parser::token::FALSE;
 }
 	YY_BREAK
@@ -867,7 +867,7 @@ case 40:
 YY_RULE_SETUP
 #line 73 "scanner.l"
 {
-  *yylval = new ast::leaf_node<double>( ast::real_num, *yylloc, std::stod(yytext) );
+  *yylval = ast::make_const( *yylloc, std::stod(yytext) );
   return parser::token::REAL;
 }
 	YY_BREAK
@@ -875,7 +875,7 @@ case 41:
 YY_RULE_SETUP
 #line 77 "scanner.l"
 {
-  *yylval = new ast::leaf_node<int>( ast::integer_num, *yylloc, std::stoi(yytext) );
+  *yylval = ast::make_const( *yylloc, std::stoi(yytext) );
   return parser::token::INT;
 }
 	YY_BREAK
@@ -883,7 +883,7 @@ case 42:
 YY_RULE_SETUP
 #line 81 "scanner.l"
 {
-  *yylval = new ast::leaf_node<string>( ast::identifier, *yylloc, yytext );
+  *yylval = ast::make_id( *yylloc, yytext );
   return parser::token::ID;
 }
 	YY_BREAK
