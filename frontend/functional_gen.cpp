@@ -169,18 +169,9 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
         auto var = make_shared<array_var>();
         auto name = name_node->as_leaf<string>()->value;
         if (size_node)
-        {
-            auto size_expr = do_expr(size_node);
-            if (auto i = dynamic_pointer_cast<constant<int>>(size_expr))
-                var->range = i->value;
-            else
-                throw source_error("Array variable range not a constant integer.",
-                                   size_node->location);
-        }
+            var->range = do_expr(size_node);
         else
-        {
-            var->range = array_var::unconstrained;
-        }
+            var->range = make_shared<constant<int>>(array_var::unconstrained);
         params.emplace_back(name,var,param->location);
     }
 
