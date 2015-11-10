@@ -61,9 +61,17 @@ array_type type_checker::check(expr_ptr expr)
         assert(ctx_item);
         return ctx_item.value();
     }
+    else if (auto ref = dynamic_pointer_cast<func_ref>(expr))
+    {
+        return check(ref->id->def, {}, ref->location);
+    }
     else if (auto fapp = dynamic_pointer_cast<func_app>(expr))
     {
         return check(fapp);
+    }
+    else if (auto def = dynamic_pointer_cast<array_def>(expr))
+    {
+        return check(def);
     }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
@@ -113,6 +121,28 @@ array_type type_checker::check(std::shared_ptr<func_app> app)
         arg_types.push_back( check(arg) );
 
     return check(ref->id->def, arg_types, app->location);
+}
+
+array_type type_checker::check(std::shared_ptr<array_def> def)
+{
+    auto expr_type = check(def->expr);
+
+    vector<int> size(def->vars.size() + expr_type.size.size());
+    int i = 0;
+    for(; i < def->vars.size(); ++i)
+    {
+        auto & var = def->vars[i];
+        if (auto c = dynamic_cast<constant<int>*>(var->range.get()))
+            size[i] = c->value;
+        else
+            size[i] = array_var::unconstrained;
+    }
+    for(; i < size.size(); ++i)
+    {
+        size[i] = expr_type.size[i - def->vars.size()];
+    }
+
+    return array_type(primitive_type::integer, size);
 }
 
 }

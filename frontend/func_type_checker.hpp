@@ -47,6 +47,7 @@ private:
     array_type check(expr_ptr);
     array_type check(std::shared_ptr<primitive>);
     array_type check(std::shared_ptr<func_app>);
+    array_type check(std::shared_ptr<array_def>);
 };
 
 }
