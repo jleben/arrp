@@ -42,6 +42,10 @@ private:
     func_def_ptr do_stmt(ast::node_ptr);
     expr_ptr do_block(ast::node_ptr, vector<func_def_ptr> & defs);
     expr_ptr do_expr(ast::node_ptr);
+    expr_ptr do_primitive(ast::node_ptr);
+    expr_ptr do_array_def(ast::node_ptr);
+    expr_ptr do_array_apply(ast::node_ptr);
+    expr_ptr do_func_apply(ast::node_ptr);
 };
 
 }

@@ -60,7 +60,6 @@ enum node_type
 
     constant,
     identifier,
-
     primitive,
 
     array_def,

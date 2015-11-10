@@ -22,6 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "compiler.hpp"
 #include "../common/ast_printer.hpp"
 #include "../common/polyhedral_model_printer.hpp"
+#include "../common/func_model_printer.hpp"
 #include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
@@ -154,6 +155,12 @@ result::code compile_source(istream & source, const arguments & args)
     {
         parser.error(e.location, e.what());
         return result::semantic_error;
+    }
+
+    {
+        functional::printer printer;
+        for (const auto & func : funcs)
+            printer.print(func, cout);
     }
 
     return result::ok;

@@ -22,7 +22,8 @@ generator::generate(ast::node_ptr ast)
         auto stmt_list = ast->as_list();
         for (auto & stmt : stmt_list->elements)
         {
-            defs.push_back( do_stmt(stmt) );
+            auto def = do_stmt(stmt);
+            defs.push_back(def);
         }
     }
 
@@ -35,8 +36,6 @@ func_def_ptr generator::do_stmt(ast::node_ptr root)
     auto params_node = root->as_list()->elements[1];
     auto block = root->as_list()->elements[2];
 
-    cout << "func def: " << name << endl;
-
     vector<tuple<string,func_var_ptr,parsing::location>> params;
     if (params_node)
     {
@@ -44,10 +43,11 @@ func_def_ptr generator::do_stmt(ast::node_ptr root)
         {
             auto name = param->as_leaf<string>()->value;
             auto var = make_shared<func_var>();
-            cout << "param: " << name << endl;
             params.emplace_back(name,var,param->location);
         }
     }
+
+    m_context.bind(name, make_shared<func_var>(name));
 
     vector<func_def_ptr> defs;
     expr_ptr expr;
@@ -114,16 +114,138 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         auto item = m_context.find(name);
         if (!item)
             throw source_error("Undefined name.", root->location);
-        cout << "Found id: " << name << endl;
         return item.value();
     }
     case ast::primitive:
+    {
+        return do_primitive(root);
+    }
     case ast::array_def:
+    {
+        return do_array_def(root);
+    }
     case ast::array_apply:
+    {
+        return do_array_apply(root);
+    }
     case ast::func_apply:
+    {
+        return do_func_apply(root);
+    }
     default:
         throw source_error("Unsupported expression.", root->location);
     }
+}
+
+expr_ptr generator::do_primitive(ast::node_ptr root)
+{
+    auto type_node = root->as_list()->elements[0];
+    auto type = type_node->as_leaf<primitive_op>()->value;
+
+    vector<expr_ptr> operands;
+    for(int i = 1; i < root->as_list()->elements.size(); ++i)
+    {
+        auto expr_node = root->as_list()->elements[i];
+        operands.push_back( do_expr(expr_node) );
+    }
+
+    auto op = make_shared<primitive>(type, operands);
+
+    return op;
+}
+
+expr_ptr generator::do_array_def(ast::node_ptr root)
+{
+    auto params_node = root->as_list()->elements[0];
+    auto expr_node = root->as_list()->elements[1];
+
+    vector<tuple<string,array_var_ptr,parsing::location>> params;
+
+    for (auto & param : params_node->as_list()->elements)
+    {
+        auto name_node = param->as_list()->elements[0];
+        auto size_node = param->as_list()->elements[1];
+
+        auto var = make_shared<array_var>();
+        auto name = name_node->as_leaf<string>()->value;
+        if (size_node)
+        {
+            auto size_expr = do_expr(size_node);
+            if (auto i = dynamic_pointer_cast<constant<int>>(size_expr))
+                var->range = i->value;
+            else
+                throw source_error("Array variable range not a constant integer.",
+                                   size_node->location);
+        }
+        else
+        {
+            var->range = array_var::unconstrained;
+        }
+        params.emplace_back(name,var,param->location);
+    }
+
+    expr_ptr expr;
+
+    {
+        context_type::scope_holder scope(m_context);
+        for (auto & param : params)
+        {
+            try {
+                m_context.bind(get<0>(param), get<1>(param));
+            } catch (context_error & e) {
+                throw source_error(e.what(), get<2>(param));
+            }
+        }
+
+        expr = do_expr(expr_node);
+    }
+
+    auto array = make_shared<array_def>();
+    for (auto & param : params)
+        array->vars.push_back(get<1>(param));
+    array->expr = expr;
+
+    return array;
+}
+
+expr_ptr generator::do_array_apply(ast::node_ptr root)
+{
+    auto object_node = root->as_list()->elements[0];
+    auto args_node = root->as_list()->elements[1];
+
+    auto object = do_expr(object_node);
+
+    vector<expr_ptr> args;
+    for (auto & arg_node : args_node->as_list()->elements)
+    {
+        args.push_back(do_expr(arg_node));
+    }
+
+    auto result = make_shared<array_app>();
+    result->object = object;
+    result->args = args;
+
+    return result;
+}
+
+expr_ptr generator::do_func_apply(ast::node_ptr root)
+{
+    auto object_node = root->as_list()->elements[0];
+    auto args_node = root->as_list()->elements[1];
+
+    auto object = do_expr(object_node);
+
+    vector<expr_ptr> args;
+    for (auto & arg_node : args_node->as_list()->elements)
+    {
+        args.push_back(do_expr(arg_node));
+    }
+
+    auto result = make_shared<func_app>();
+    result->object = object;
+    result->args = args;
+
+    return result;
 }
 
 }
