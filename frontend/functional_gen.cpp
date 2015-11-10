@@ -47,8 +47,6 @@ func_def_ptr generator::do_stmt(ast::node_ptr root)
         }
     }
 
-    m_context.bind(name, make_shared<func_var>(name));
-
     vector<func_def_ptr> defs;
     expr_ptr expr;
 
@@ -74,6 +72,8 @@ func_def_ptr generator::do_stmt(ast::node_ptr root)
     func->defs = defs;
     func->expr = expr;
     func->location = root->location;
+
+    m_context.bind(func->name, make_shared<func_id>(func));
 
     return func;
 }
@@ -120,6 +120,8 @@ expr_ptr generator::do_expr(ast::node_ptr root)
             return make_shared<array_var_ref>(avar, root->location);
         else if(auto fvar = dynamic_pointer_cast<func_var>(v))
             return make_shared<func_var_ref>(fvar, root->location);
+        else if (auto fid = dynamic_pointer_cast<func_id>(v))
+            return make_shared<func_ref>(fid, root->location);
         else
             throw source_error("Invalid reference type.", root->location);
     }
@@ -177,13 +179,12 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
         auto name = name_node->as_leaf<string>()->value;
 
         auto var = make_shared<array_var>();
-        var->location = name_node->location;
         if (size_node)
             var->range = do_expr(size_node);
         else
             var->range = nullptr;
 
-        params.emplace_back(name,var,param->location);
+        params.emplace_back(name, var, param->location);
     }
 
     expr_ptr expr;

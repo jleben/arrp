@@ -59,24 +59,21 @@ void printer::print(expr_ptr expr, ostream & out)
     {
         out << const_double->value;
     }
-    else if (auto avar = dynamic_pointer_cast<array_var>(expr))
+    else if (auto avar_ref = dynamic_pointer_cast<array_var_ref>(expr))
     {
-        out << name(avar);
+        out << name(avar_ref->var);
     }
-    else if (auto fvar = dynamic_pointer_cast<func_var>(expr))
+    else if (auto fvar_ref = dynamic_pointer_cast<func_var_ref>(expr))
     {
+        auto fvar = fvar_ref->var;
         if (fvar->name.empty())
             out << name(fvar);
         else
             out << fvar->name;
     }
-    else if (auto avar_ref = dynamic_pointer_cast<array_var_ref>(expr))
+    else if (auto fref = dynamic_pointer_cast<func_ref>(expr))
     {
-        print(avar_ref->var, out);
-    }
-    else if (auto fvar_ref = dynamic_pointer_cast<func_var_ref>(expr))
-    {
-        print(fvar_ref->var, out);
+        out << fref->id->def->name;
     }
     else if (auto prim = dynamic_pointer_cast<const primitive>(expr))
     {
