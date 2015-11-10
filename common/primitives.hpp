@@ -68,6 +68,22 @@ inline ostream & operator<<(ostream & s, primitive_op op)
     return s;
 }
 
+inline ostream & operator<<(ostream & s, primitive_type t)
+{
+    switch(t)
+    {
+    case primitive_type::boolean:
+        s << "boolean"; break;
+    case primitive_type::integer:
+        s << "integer"; break;
+    case primitive_type::real:
+        s << "real"; break;
+    default:
+        s << "?";
+    }
+    return s;
+}
+
 }
 
 #endif // STREAM_LANG_INTRINSICS_INCLUDED
