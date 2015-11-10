@@ -36,6 +36,8 @@ typedef parsing::location location_type;
 class expression
 {
 public:
+    expression() {}
+    expression(const location_type & loc): location(loc) {}
     virtual ~expression() {}
     location_type location;
 };
@@ -54,6 +56,14 @@ public:
 };
 typedef std::shared_ptr<array_var> array_var_ptr;
 
+class array_var_ref : public expression
+{
+public:
+    array_var_ref(array_var_ptr v, const location_type & loc):
+        expression(loc), var(v) {}
+    array_var_ptr var;
+};
+
 class func_var : public var
 {
 public:
@@ -63,12 +73,21 @@ public:
 };
 typedef std::shared_ptr<func_var> func_var_ptr;
 
+class func_var_ref : public expression
+{
+public:
+    func_var_ref(func_var_ptr v, const location_type & loc):
+        expression(loc), var(v) {}
+    func_var_ptr var;
+};
 
 template <typename T>
 class constant : public expression
 {
 public:
     constant(const T & v): value(v) {}
+    constant(const T & v, const location_type & loc):
+        expression(loc), value(v) {}
     T value;
 };
 
@@ -112,6 +131,7 @@ class func_def
 {
 public:
     string name;
+    location_type location;
     vector<func_var_ptr> vars;
     vector<func_def_ptr> defs;
     expr_ptr expr;

@@ -70,6 +70,14 @@ void printer::print(expr_ptr expr, ostream & out)
         else
             out << fvar->name;
     }
+    else if (auto avar_ref = dynamic_pointer_cast<array_var_ref>(expr))
+    {
+        print(avar_ref->var, out);
+    }
+    else if (auto fvar_ref = dynamic_pointer_cast<func_var_ref>(expr))
+    {
+        print(fvar_ref->var, out);
+    }
     else if (auto prim = dynamic_pointer_cast<const primitive>(expr))
     {
         out << prim->type;
@@ -91,7 +99,7 @@ void printer::print(expr_ptr expr, ostream & out)
             for (auto var : array->vars)
             {
                 out << name(var);
-                //if (var->range != array_var::unconstrained)
+                if (var->range)
                 {
                     out << "[";
                     print(var->range, out);

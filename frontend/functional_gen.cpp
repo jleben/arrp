@@ -73,6 +73,7 @@ func_def_ptr generator::do_stmt(ast::node_ptr root)
         func->vars.push_back(get<1>(param));
     func->defs = defs;
     func->expr = expr;
+    func->location = root->location;
 
     return func;
 }
@@ -100,11 +101,11 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     case ast::constant:
     {
         if (auto b = dynamic_pointer_cast<ast::leaf_node<bool>>(root))
-            return make_shared<constant<bool>>(b->value);
+            return make_shared<constant<bool>>(b->value, root->location);
         else if(auto i = dynamic_pointer_cast<ast::leaf_node<int>>(root))
-            return make_shared<constant<int>>(i->value);
+            return make_shared<constant<int>>(i->value, root->location);
         else if(auto d = dynamic_pointer_cast<ast::leaf_node<double>>(root))
-            return make_shared<constant<double>>(d->value);
+            return make_shared<constant<double>>(d->value, root->location);
         else
             throw source_error("Invalid constant type.", root->location);
     }
@@ -114,7 +115,13 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         auto item = m_context.find(name);
         if (!item)
             throw source_error("Undefined name.", root->location);
-        return item.value();
+        auto v = item.value();
+        if (auto avar = dynamic_pointer_cast<array_var>(v))
+            return make_shared<array_var_ref>(avar, root->location);
+        else if(auto fvar = dynamic_pointer_cast<func_var>(v))
+            return make_shared<func_var_ref>(fvar, root->location);
+        else
+            throw source_error("Invalid reference type.", root->location);
     }
     case ast::primitive:
     {
@@ -150,6 +157,7 @@ expr_ptr generator::do_primitive(ast::node_ptr root)
     }
 
     auto op = make_shared<primitive>(type, operands);
+    op->location = root->location;
 
     return op;
 }
@@ -166,12 +174,15 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
         auto name_node = param->as_list()->elements[0];
         auto size_node = param->as_list()->elements[1];
 
-        auto var = make_shared<array_var>();
         auto name = name_node->as_leaf<string>()->value;
+
+        auto var = make_shared<array_var>();
+        var->location = name_node->location;
         if (size_node)
             var->range = do_expr(size_node);
         else
-            var->range = make_shared<constant<int>>(array_var::unconstrained);
+            var->range = nullptr;
+
         params.emplace_back(name,var,param->location);
     }
 
@@ -195,6 +206,7 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
     for (auto & param : params)
         array->vars.push_back(get<1>(param));
     array->expr = expr;
+    array->location = root->location;
 
     return array;
 }
@@ -215,6 +227,7 @@ expr_ptr generator::do_array_apply(ast::node_ptr root)
     auto result = make_shared<array_app>();
     result->object = object;
     result->args = args;
+    result->location = root->location;
 
     return result;
 }
@@ -235,6 +248,7 @@ expr_ptr generator::do_func_apply(ast::node_ptr root)
     auto result = make_shared<func_app>();
     result->object = object;
     result->args = args;
+    result->location = root->location;
 
     return result;
 }
