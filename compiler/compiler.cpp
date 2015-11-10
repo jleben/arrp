@@ -26,6 +26,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
+#include "../frontend/func_type_checker.hpp"
 //#include "../frontend/environment_builder.hpp"
 //#include "../frontend/type_checker.hpp"
 //#include "../polyhedral/translator.hpp"
@@ -156,11 +157,46 @@ result::code compile_source(istream & source, const arguments & args)
         parser.error(e.location, e.what());
         return result::semantic_error;
     }
+    catch(error & e)
+    {
+        cout << "ERROR: " << e.what() << endl;
+        return result::semantic_error;
+    }
 
     {
         functional::printer printer;
         for (const auto & func : funcs)
             printer.print(func, cout);
+    }
+
+    functional::type_checker type_checker;
+    try
+    {
+        // FIXME: choice of function to compile
+        auto criteria = [](functional::func_def_ptr f) -> bool {
+            return f->name == "main";
+        };
+        auto func = std::find_if(funcs.begin(), funcs.end(), criteria);
+        if (func == funcs.end())
+        {
+            throw error("No function named \"main\".");
+        }
+        auto type = type_checker.check(*func, {});
+        cout << "result type:" << endl;
+        cout << type.elem_type;
+        for (auto & i : type.size)
+            cout << " " << i;
+        cout << endl;
+    }
+    catch (source_error & e)
+    {
+        parser.error(e.location, e.what());
+        return result::semantic_error;
+    }
+    catch(error & e)
+    {
+        cout << "ERROR: " << e.what() << endl;
+        return result::semantic_error;
     }
 
     return result::ok;
