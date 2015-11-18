@@ -90,7 +90,7 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto array = dynamic_pointer_cast<const array_def>(expr))
     {
-        out << "\\ ";
+        out << "[";
         {
             int count = array->vars.size();
             for (auto var : array->vars)
@@ -98,9 +98,8 @@ void printer::print(expr_ptr expr, ostream & out)
                 out << name(var);
                 if (var->range)
                 {
-                    out << "[";
+                    out << ":";
                     print(var->range, out);
-                    out << "]";
                 }
                 if (--count)
                     out << ", ";
@@ -108,6 +107,7 @@ void printer::print(expr_ptr expr, ostream & out)
         }
         out << " -> ";
         print(array->expr, out);
+        out << "]";
     }
     else if (auto aapp = dynamic_pointer_cast<array_app>(expr))
     {

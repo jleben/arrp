@@ -230,7 +230,7 @@ array_apply:
 ;
 
 array_func:
-  '\\' array_arg_list RIGHT_ARROW expr
+  '[' array_arg_list RIGHT_ARROW expr ']'
   { $$ = make_list( ast::array_def, @$, {$2, $4} ); }
 ;
 
@@ -249,7 +249,7 @@ array_arg:
   id
   { $$ = make_list( array_param, @$, {$1, nullptr} ); }
   |
-  id '=' expr
+  id ':' expr
   { $$ = make_list( array_param, @$, {$1, $3} ); }
 ;
 
