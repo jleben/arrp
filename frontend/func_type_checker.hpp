@@ -3,6 +3,7 @@
 
 #include "../common/primitives.hpp"
 #include "../common/functional_model.hpp"
+#include "../common/linear_algebra.hpp"
 #include "../utility/context.hpp"
 
 #include <memory>
@@ -48,6 +49,8 @@ private:
     array_type check(std::shared_ptr<primitive>);
     array_type check(std::shared_ptr<func_app>);
     array_type check(std::shared_ptr<array_def>);
+    array_type check(std::shared_ptr<array_app>);
+    linexpr linear(expr_ptr);
 };
 
 }

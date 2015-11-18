@@ -73,6 +73,10 @@ array_type type_checker::check(expr_ptr expr)
     {
         return check(def);
     }
+    else if (auto aapp = dynamic_pointer_cast<array_app>(expr))
+    {
+        return check(aapp);
+    }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
         return check(op);
@@ -127,22 +131,159 @@ array_type type_checker::check(std::shared_ptr<array_def> def)
 {
     auto expr_type = check(def->expr);
 
-    vector<int> size(def->vars.size() + expr_type.size.size());
+    vector<int> result_size(def->vars.size() + expr_type.size.size());
     int i = 0;
     for(; i < def->vars.size(); ++i)
     {
         auto & var = def->vars[i];
         if (auto c = dynamic_cast<constant<int>*>(var->range.get()))
-            size[i] = c->value;
+        {
+            if (c->value < 1)
+            {
+                location_type loc;
+                loc.begin = loc.end = def->location.begin;
+                loc.columns(1);
+
+                ostringstream msg;
+                msg << "Non-positive variable range (" <<  c->value << ")";
+                throw source_error(msg.str(), loc);
+            }
+            result_size[i] = c->value;
+        }
         else
-            size[i] = array_var::unconstrained;
+        {
+            result_size[i] = array_var::unconstrained;
+        }
     }
-    for(; i < size.size(); ++i)
+    for(; i < result_size.size(); ++i)
     {
-        size[i] = expr_type.size[i - def->vars.size()];
+        result_size[i] = expr_type.size[i - def->vars.size()];
     }
 
-    return array_type(primitive_type::integer, size);
+    for (int dim = 0; dim < result_size.size(); ++dim)
+    {
+        if (result_size[dim] == array_var::unconstrained && dim != 0)
+        {
+            location_type loc;
+            loc.begin = loc.end = def->location.begin;
+            loc.columns(1);
+
+            throw source_error("Only the first dimension can be unconstrained.", loc);
+        }
+    }
+
+    return array_type(primitive_type::integer, result_size);
+}
+
+array_type type_checker::check(std::shared_ptr<array_app> app)
+{
+    auto object_type = check(app->object);
+
+    if (app->args.size() > object_type.size.size())
+    {
+        ostringstream msg;
+        msg << "Too many arguments: "
+            << object_type.size.size() << " expected, "
+            << app->args.size() << " given.";
+        throw source_error(msg.str(), app->location);
+    }
+
+    for (int arg_idx = 0; arg_idx < (int) app->args.size(); ++arg_idx)
+    {
+        auto & arg = app->args[arg_idx];
+        auto expr = linear(arg);
+        linexpr max_expr;
+        for (auto & term : expr)
+        {
+            int value = term.second;
+            if (term.first)
+            {
+                auto avar = dynamic_pointer_cast<array_var>(term.first);
+                if (!avar)
+                    throw source_error("Expression contains invalid variable type.",
+                                       arg->location);
+                if (auto c = dynamic_pointer_cast<constant<int>>(avar->range))
+                    value *= std::max(0, c->value - 1);
+                else // unconstrained
+                {
+                    max_expr = max_expr + term;
+                    continue;
+                }
+            }
+            max_expr = max_expr + value;
+        }
+        int var_count = max_expr.var_count();
+        if (var_count > 1)
+            throw source_error("More than 2 unconstrained variables.",
+                               arg->location);
+        if (var_count == 1)
+        {
+            if (object_type.size[arg_idx] != array_var::unconstrained)
+                throw source_error("Unbounded argument to bounded variable.",
+                                   arg->location);
+        }
+        else
+        {
+            assert(max_expr.is_constant());
+            int max_value = max_expr.constant();
+            int range = object_type.size[arg_idx];
+            if (range != array_var::unconstrained && max_value >= range)
+            {
+                ostringstream msg;
+                msg << "Argument bounds (" << max_value << ")"
+                    << " larger than variable bounds (" << range << ")";
+                throw source_error(msg.str(),
+                                   arg->location);
+            }
+        }
+    }
+
+    array_type result_type(object_type.elem_type);
+    if (app->args.size() < object_type.size.size())
+        result_type.size = vector<int>(object_type.size.begin() + app->args.size(),
+                                       object_type.size.end());
+
+    return result_type;
+}
+
+linexpr type_checker::linear(expr_ptr e)
+{
+    if (auto c = dynamic_pointer_cast<constant<int>>(e))
+    {
+        return linexpr(c->value);
+    }
+    else if (auto v = dynamic_pointer_cast<array_var_ref>(e))
+    {
+        return linexpr(v->var);
+    }
+    // TODO: Function variables: get bound value, not type
+    else if (auto op = dynamic_pointer_cast<primitive>(e))
+    {
+        switch(op->type)
+        {
+        case primitive_op::add:
+            return (linear(op->operands[0]) + linear(op->operands[1]));
+        case primitive_op::subtract:
+            return (linear(op->operands[0]) + -linear(op->operands[1]));
+        case primitive_op::negate:
+            return (-linear(op->operands[0]));
+        case primitive_op::multiply:
+        {
+            auto lhs = linear(op->operands[0]);
+            auto rhs = linear(op->operands[1]);
+            if (!lhs.is_constant() && !rhs.is_constant())
+                throw source_error("Not a linear expression.", e->location);
+            if (lhs.is_constant())
+                return rhs * lhs.constant();
+            else
+                return lhs * rhs.constant();
+        }
+        default:
+            throw source_error("Not a linear expression.", e->location);
+        }
+    }
+    else
+        throw source_error("Not a linear expression.", e->location);
 }
 
 }
