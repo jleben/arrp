@@ -26,7 +26,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
-#include "../frontend/func_reducer.hpp"
+//#include "../frontend/func_reducer.hpp"
 #include "../frontend/func_type_checker.hpp"
 //#include "../frontend/environment_builder.hpp"
 //#include "../frontend/type_checker.hpp"
@@ -148,7 +148,7 @@ result::code compile_source(istream & source, const arguments & args)
     }
 
     functional::generator fgen;
-    vector<functional::func_def_ptr> funcs;
+    vector<functional::func_id_ptr> funcs;
     try
     {
         funcs = fgen.generate(ast_root);
@@ -167,33 +167,24 @@ result::code compile_source(istream & source, const arguments & args)
     {
         functional::printer printer;
         for (const auto & func : funcs)
-            printer.print(func, cout);
+            printer.print(func->def, cout);
     }
 
     try
     {
         // FIXME: choice of function to compile
-        auto criteria = [](functional::func_def_ptr f) -> bool {
-            return f->name == "main";
+        auto criteria = [](functional::func_id_ptr f) -> bool {
+            return f->def->name == "main";
         };
-        auto func = std::find_if(funcs.begin(), funcs.end(), criteria);
-        if (func == funcs.end())
+        auto func_it = std::find_if(funcs.begin(), funcs.end(), criteria);
+        if (func_it == funcs.end())
         {
             throw error("No function named \"main\".");
         }
-
-        functional::func_reducer func_reducer;
-        auto reduced_func = func_reducer.reduce(*func, {}, functional::location_type());
-
-        {
-            cout << "-- Reduced:" << endl;
-            functional::printer printer;
-            printer.print(reduced_func, cout);
-        }
-
+        auto func = *func_it;
 
         functional::type_checker type_checker;
-        auto type = type_checker.check(reduced_func, {});
+        auto type = type_checker.check(func, {});
         cout << "-- Result type:" << endl;
         cout << type.elem_type;
         for (auto & i : type.size)

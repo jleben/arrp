@@ -41,8 +41,8 @@ void printer::print(func_def_ptr func, ostream & out)
         out << endl;
         indent();
         out << indentation() << "where { " << endl;
-        for(const auto & def : func->defs)
-            print(def, out);
+        for(const auto & nested_func : func->defs)
+            print(nested_func->def, out);
         unindent();
         out << indentation() << "}";
     }
@@ -79,7 +79,7 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto fref = dynamic_pointer_cast<func_ref>(expr))
     {
-        out << fref->func->name;
+        out << fref->func->def->name;
     }
     else if (auto prim = dynamic_pointer_cast<const primitive>(expr))
     {

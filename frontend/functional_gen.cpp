@@ -6,7 +6,7 @@ using namespace std;
 namespace stream {
 namespace functional {
 
-vector<func_def_ptr>
+vector<func_id_ptr>
 generator::generate(ast::node_ptr ast)
 {
     if (ast->type != ast::program)
@@ -14,7 +14,7 @@ generator::generate(ast::node_ptr ast)
         throw source_error("Invalid AST root.", ast->location);
     }
 
-    vector<func_def_ptr> defs;
+    vector<func_id_ptr> funcs;
 
     {
         context_type::scope_holder scope(m_context);
@@ -22,15 +22,15 @@ generator::generate(ast::node_ptr ast)
         auto stmt_list = ast->as_list();
         for (auto & stmt : stmt_list->elements)
         {
-            auto def = do_stmt(stmt);
-            defs.push_back(def);
+            auto func = do_stmt(stmt);
+            funcs.push_back(func);
         }
     }
 
-    return defs;
+    return funcs;
 }
 
-func_def_ptr generator::do_stmt(ast::node_ptr root)
+func_id_ptr generator::do_stmt(ast::node_ptr root)
 {
     auto name = root->as_list()->elements[0]->as_leaf<string>()->value;
     auto params_node = root->as_list()->elements[1];
@@ -47,7 +47,7 @@ func_def_ptr generator::do_stmt(ast::node_ptr root)
         }
     }
 
-    vector<func_def_ptr> defs;
+    vector<func_id_ptr> nested_funcs;
     expr_ptr expr;
 
     {
@@ -62,23 +62,24 @@ func_def_ptr generator::do_stmt(ast::node_ptr root)
             }
         }
 
-        expr = do_block(block, defs);
+        expr = do_block(block, nested_funcs);
     }
 
     auto func = make_shared<func_def>();
     func->name = name;
     for (auto & param : params)
         func->vars.push_back(get<1>(param));
-    func->defs = defs;
+    func->defs = nested_funcs;
     func->expr = expr;
     func->location = root->location;
 
-    m_context.bind(func->name, make_shared<func_id>(func));
+    auto id = make_shared<func_id>(func);
+    m_context.bind(func->name, id);
 
-    return func;
+    return id;
 }
 
-expr_ptr generator::do_block(ast::node_ptr root, vector<func_def_ptr> & defs)
+expr_ptr generator::do_block(ast::node_ptr root, vector<func_id_ptr> & defs)
 {
     auto stmts_node = root->as_list()->elements[0];
     auto expr_node = root->as_list()->elements[1];
@@ -121,7 +122,7 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         else if(auto fvar = dynamic_pointer_cast<func_var>(v))
             return make_shared<func_var_ref>(fvar, root->location);
         else if (auto fid = dynamic_pointer_cast<func_id>(v))
-            return make_shared<func_ref>(fid->def, root->location);
+            return make_shared<func_ref>(fid, root->location);
         else
             throw source_error("Invalid reference type.", root->location);
     }

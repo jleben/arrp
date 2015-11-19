@@ -8,21 +8,23 @@ using namespace std;
 namespace stream {
 namespace functional {
 
-array_type type_checker::check(func_def_ptr func, const vector<array_type> & args)
+array_type type_checker::check(func_id_ptr func, const vector<array_type> & args)
 {
     return check(func, args, location_type());
 }
 
 array_type type_checker::check
-(func_def_ptr func,
+(func_id_ptr func,
  const vector<array_type> & args,
  const location_type & loc)
 {
-    if (args.size() != func->vars.size())
+    auto & def = func->def;
+
+    if (args.size() != def->vars.size())
     {
         ostringstream msg;
-        msg << "Function " << func->name
-            << " expects " << func->vars.size() << " arguments"
+        msg << "Function " << def->name
+            << " expects " << def->vars.size() << " arguments"
             << " but " << args.size() << " given.";
         throw source_error(msg.str(), loc);
     }
@@ -31,10 +33,10 @@ array_type type_checker::check
 
     for (int i = 0; i < args.size(); ++i)
     {
-        m_context.bind(func->vars[i], args[i]);
+        m_context.bind(def->vars[i], args[i]);
     }
 
-    return check(func->expr);
+    return check(def->expr);
 }
 
 array_type type_checker::check(expr_ptr expr)
@@ -67,7 +69,7 @@ array_type type_checker::check(expr_ptr expr)
     }
     else if (auto ref = dynamic_pointer_cast<func_ref>(expr))
     {
-        // FIXME: redundant check of definition
+        // FIXME: redundant repeated checks of functions with no args
         return check(ref->func, {}, ref->location);
     }
     else if (auto fapp = dynamic_pointer_cast<func_app>(expr))

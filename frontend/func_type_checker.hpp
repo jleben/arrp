@@ -35,7 +35,7 @@ public:
 class type_checker
 {
 public:
-    array_type check(func_def_ptr, const vector<array_type> & args);
+    array_type check(func_id_ptr, const vector<array_type> & args);
 
 private:
     using context_type = context<func_var_ptr, array_type>;
@@ -44,7 +44,7 @@ private:
 
 private:
     array_type check
-    (func_def_ptr, const vector<array_type> & args, const location_type & loc);
+    (func_id_ptr, const vector<array_type> & args, const location_type & loc);
     array_type check(expr_ptr);
     array_type check(std::shared_ptr<primitive>);
     array_type check(std::shared_ptr<func_app>);
