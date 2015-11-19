@@ -61,6 +61,10 @@ array_type type_checker::check(expr_ptr expr)
         assert(ctx_item);
         return ctx_item.value();
     }
+    else if (auto ref = dynamic_pointer_cast<expr_ref>(expr))
+    {
+        return check(ref->expr);
+    }
     else if (auto ref = dynamic_pointer_cast<func_ref>(expr))
     {
         // FIXME: redundant check of definition

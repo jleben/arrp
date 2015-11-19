@@ -59,6 +59,12 @@ void printer::print(expr_ptr expr, ostream & out)
     {
         out << const_double->value;
     }
+    else if (auto ref = dynamic_pointer_cast<expr_ref>(expr))
+    {
+        out << '{';
+        print(ref->expr, out);
+        out << '}';
+    }
     else if (auto avar_ref = dynamic_pointer_cast<array_var_ref>(expr))
     {
         out << name(avar_ref->var);

@@ -26,6 +26,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
+#include "../frontend/func_reducer.hpp"
 #include "../frontend/func_type_checker.hpp"
 //#include "../frontend/environment_builder.hpp"
 //#include "../frontend/type_checker.hpp"
@@ -169,7 +170,6 @@ result::code compile_source(istream & source, const arguments & args)
             printer.print(func, cout);
     }
 
-    functional::type_checker type_checker;
     try
     {
         // FIXME: choice of function to compile
@@ -181,8 +181,20 @@ result::code compile_source(istream & source, const arguments & args)
         {
             throw error("No function named \"main\".");
         }
-        auto type = type_checker.check(*func, {});
-        cout << "result type:" << endl;
+
+        functional::func_reducer func_reducer;
+        auto reduced_func = func_reducer.reduce(*func, {}, functional::location_type());
+
+        {
+            cout << "-- Reduced:" << endl;
+            functional::printer printer;
+            printer.print(reduced_func, cout);
+        }
+
+
+        functional::type_checker type_checker;
+        auto type = type_checker.check(reduced_func, {});
+        cout << "-- Result type:" << endl;
         cout << type.elem_type;
         for (auto & i : type.size)
             cout << " " << i;

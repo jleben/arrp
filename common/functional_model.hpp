@@ -142,6 +142,14 @@ public:
     func_var_ptr var;
 };
 
+class expr_ref : public expression
+{
+public:
+    expr_ref(expr_ptr e, const location_type & loc):
+        expression(loc), expr(e) {}
+    expr_ptr expr;
+};
+
 class func_ref : public expression
 {
 public:
