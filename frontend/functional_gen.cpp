@@ -121,7 +121,7 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         else if(auto fvar = dynamic_pointer_cast<func_var>(v))
             return make_shared<func_var_ref>(fvar, root->location);
         else if (auto fid = dynamic_pointer_cast<func_id>(v))
-            return make_shared<func_ref>(fid, root->location);
+            return make_shared<func_ref>(fid->def, root->location);
         else
             throw source_error("Invalid reference type.", root->location);
     }

@@ -73,7 +73,7 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto fref = dynamic_pointer_cast<func_ref>(expr))
     {
-        out << fref->id->def->name;
+        out << fref->func->name;
     }
     else if (auto prim = dynamic_pointer_cast<const primitive>(expr))
     {

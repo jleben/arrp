@@ -63,7 +63,8 @@ array_type type_checker::check(expr_ptr expr)
     }
     else if (auto ref = dynamic_pointer_cast<func_ref>(expr))
     {
-        return check(ref->id->def, {}, ref->location);
+        // FIXME: redundant check of definition
+        return check(ref->func, {}, ref->location);
     }
     else if (auto fapp = dynamic_pointer_cast<func_app>(expr))
     {
@@ -124,7 +125,7 @@ array_type type_checker::check(std::shared_ptr<func_app> app)
     for( auto & arg : app->args )
         arg_types.push_back( check(arg) );
 
-    return check(ref->id->def, arg_types, app->location);
+    return check(ref->func, arg_types, app->location);
 }
 
 array_type type_checker::check(std::shared_ptr<array_def> def)

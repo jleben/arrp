@@ -134,15 +134,6 @@ public:
     expr_ptr expr;
 };
 
-class func_id : public var
-{
-public:
-    func_id() {}
-    func_id(func_def_ptr def): def(def) {}
-    func_def_ptr def;
-};
-typedef std::shared_ptr<func_id> func_id_ptr;
-
 class func_var_ref : public expression
 {
 public:
@@ -155,9 +146,9 @@ class func_ref : public expression
 {
 public:
     func_ref() {}
-    func_ref(func_id_ptr id, const location_type & loc):
-        expression(loc), id(id) {}
-    func_id_ptr id;
+    func_ref(func_def_ptr func, const location_type & loc):
+        expression(loc), func(func) {}
+    func_def_ptr func;
 };
 
 }

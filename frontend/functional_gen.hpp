@@ -34,8 +34,16 @@ public:
     vector<func_def_ptr> generate(ast::node_ptr ast);
 
 private:
-    using context_type = context<string,var_ptr>;
+    class func_id : public var
+    {
+    public:
+        func_id() {}
+        func_id(func_def_ptr def): def(def) {}
+        func_def_ptr def;
+    };
+    typedef std::shared_ptr<func_id> func_id_ptr;
 
+    using context_type = context<string,var_ptr>;
     context_type m_context;
 
 private:
