@@ -32,6 +32,8 @@ private:
 expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
                               const location_type & loc)
 {
+    m_trace.push(loc);
+
     vector<func_var_ptr> vars;
 
     reduce_context_type::scope_holder scope(m_reduce_context);
@@ -60,6 +62,8 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
     }
 
     auto reduced_expr = reduce(expr);
+
+    m_trace.pop();
 
     if (vars.size())
         return make_shared<function>(vars, reduced_expr, loc);
@@ -163,7 +167,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else
     {
-        throw source_error("Unexpected expression type.", expr->location);
+        throw reduction_error("Unexpected expression type.", expr->location);
     }
 }
 
@@ -289,7 +293,7 @@ expr_ptr func_reducer::copy(expr_ptr expr)
     }
     else
     {
-        throw source_error("Unexpected expression type.", expr->location);
+        throw reduction_error("Unexpected expression type.", expr->location);
     }
 }
 
@@ -301,7 +305,7 @@ expr_ptr func_reducer::no_function(expr_ptr expr)
 expr_ptr func_reducer::no_function(expr_ptr expr, const location_type & loc)
 {
     if (auto f = dynamic_pointer_cast<function>(expr))
-        throw source_error("An abstraction is not allowed here.", loc);
+        throw reduction_error("An abstraction is not allowed here.", loc);
     return expr;
 }
 

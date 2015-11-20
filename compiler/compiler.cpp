@@ -204,6 +204,21 @@ result::code compile_source(istream & source, const arguments & args)
         cout << endl;
 #endif
     }
+    catch (functional::func_reduce_error & e)
+    {
+        parser.error(e.location, e.what());
+        while(!e.trace.empty())
+        {
+            auto location = e.trace.top();
+            e.trace.pop();
+            cout << ".. from " << '['
+                 << location.begin.line << ':' << location.begin.column
+                 << "-"
+                 << location.end.line << ':' << location.end.column
+                 << ']' << endl;
+        }
+        return result::semantic_error;
+    }
     catch (source_error & e)
     {
         parser.error(e.location, e.what());
