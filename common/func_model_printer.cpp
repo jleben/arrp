@@ -21,32 +21,10 @@ void print_list(const L & list, const string & separator = ", ")
     }
 }
 
-void printer::print(func_def_ptr func, ostream & out)
+void printer::print(id_ptr id, ostream & out)
 {
-    out << indentation();
-    out << func->name;
-    out << "(";
-    int i = 0;
-    for (const auto & var : func->vars)
-    {
-        out << name(var);
-        if(++i < func->vars.size())
-            out << ", ";
-    }
-    out << ")";
-    out << " = ";
-    print(func->expr, out);
-    if (func->defs.size())
-    {
-        out << endl;
-        indent();
-        out << indentation() << "where { " << endl;
-        for(const auto & nested_func : func->defs)
-            print(nested_func->def, out);
-        unindent();
-        out << indentation() << "}";
-    }
-    out << endl;
+    out << id->name << " = ";
+    print(id->expr, out);
 }
 
 void printer::print(expr_ptr expr, ostream & out)
@@ -59,27 +37,9 @@ void printer::print(expr_ptr expr, ostream & out)
     {
         out << const_double->value;
     }
-    else if (auto ref = dynamic_pointer_cast<expr_ref>(expr))
+    else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
-        out << '{';
-        print(ref->expr, out);
-        out << '}';
-    }
-    else if (auto avar_ref = dynamic_pointer_cast<array_var_ref>(expr))
-    {
-        out << name(avar_ref->var);
-    }
-    else if (auto fvar_ref = dynamic_pointer_cast<func_var_ref>(expr))
-    {
-        auto fvar = fvar_ref->var;
-        if (fvar->name.empty())
-            out << name(fvar);
-        else
-            out << fvar->name;
-    }
-    else if (auto fref = dynamic_pointer_cast<func_ref>(expr))
-    {
-        out << fref->func->def->name;
+        out << name(ref->var);
     }
     else if (auto prim = dynamic_pointer_cast<const primitive>(expr))
     {
@@ -94,12 +54,12 @@ void printer::print(expr_ptr expr, ostream & out)
         }
         out << ")";
     }
-    else if (auto array = dynamic_pointer_cast<const array_def>(expr))
+    else if (auto ar = dynamic_pointer_cast<const array>(expr))
     {
         out << "[";
         {
-            int count = array->vars.size();
-            for (auto var : array->vars)
+            int count = ar->vars.size();
+            for (auto var : ar->vars)
             {
                 out << name(var);
                 if (var->range)
@@ -112,34 +72,62 @@ void printer::print(expr_ptr expr, ostream & out)
             }
         }
         out << " -> ";
-        print(array->expr, out);
+        print(ar->expr, out);
         out << "]";
     }
-    else if (auto aapp = dynamic_pointer_cast<array_app>(expr))
+    else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
-        print(aapp->object, out);
+        print(app->object, out);
         out << "[";
         int i = 0;
-        for (const auto & arg : aapp->args)
+        for (const auto & arg : app->args)
         {
             print(arg, out);
-            if(++i < aapp->args.size())
+            if(++i < app->args.size())
                 out << ", ";
         }
         out << "]";
     }
-    else if (auto fapp = dynamic_pointer_cast<func_app>(expr))
+    else if (auto app = dynamic_pointer_cast<func_app>(expr))
     {
-        print(fapp->object, out);
+        print(app->object, out);
         out << "(";
         int i = 0;
-        for (const auto & arg : fapp->args)
+        for (const auto & arg : app->args)
         {
             print(arg, out);
-            if(++i < fapp->args.size())
+            if(++i < app->args.size())
                 out << ", ";
         }
         out << ")";
+    }
+    else if (auto func = dynamic_pointer_cast<function>(expr))
+    {
+        out << "\\";
+        int i = 0;
+        for (const auto & var : func->vars)
+        {
+            out << name(var);
+            if(++i < func->vars.size())
+                out << ", ";
+        };
+        out << " -> ";
+        print(func->expr, out);
+        out << "\\";
+    }
+    else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
+    {
+        out << "{";
+        print(scope->expr, out);
+        out << " where ";
+        int i = 0;
+        for(const auto & id : scope->ids)
+        {
+            if (i++ > 0)
+                out << "; ";
+            print(id, out);
+        }
+        out << "}";
     }
     else
     {

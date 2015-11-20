@@ -6,7 +6,7 @@ using namespace std;
 namespace stream {
 namespace functional {
 
-vector<func_id_ptr>
+vector<id_ptr>
 generator::generate(ast::node_ptr ast)
 {
     if (ast->type != ast::program)
@@ -14,7 +14,7 @@ generator::generate(ast::node_ptr ast)
         throw source_error("Invalid AST root.", ast->location);
     }
 
-    vector<func_id_ptr> funcs;
+    vector<id_ptr> ids;
 
     {
         context_type::scope_holder scope(m_context);
@@ -22,32 +22,33 @@ generator::generate(ast::node_ptr ast)
         auto stmt_list = ast->as_list();
         for (auto & stmt : stmt_list->elements)
         {
-            auto func = do_stmt(stmt);
-            funcs.push_back(func);
+            auto id = do_stmt(stmt);
+            ids.push_back(id);
         }
     }
 
-    return funcs;
+    return ids;
 }
 
-func_id_ptr generator::do_stmt(ast::node_ptr root)
+id_ptr generator::do_stmt(ast::node_ptr root)
 {
-    auto name = root->as_list()->elements[0]->as_leaf<string>()->value;
+    auto name_node = root->as_list()->elements[0]->as_leaf<string>();
+    auto name = name_node->value;
     auto params_node = root->as_list()->elements[1];
     auto block = root->as_list()->elements[2];
 
-    vector<tuple<string,func_var_ptr,parsing::location>> params;
+    vector<func_var_ptr> params;
     if (params_node)
     {
         for(auto & param : params_node->as_list()->elements)
         {
             auto name = param->as_leaf<string>()->value;
-            auto var = make_shared<func_var>();
-            params.emplace_back(name,var,param->location);
+            auto var = make_shared<func_var>(name, param->location);
+            params.push_back(var);
         }
     }
 
-    vector<func_id_ptr> nested_funcs;
+    vector<id_ptr> local_ids;
     expr_ptr expr;
 
     {
@@ -56,30 +57,32 @@ func_id_ptr generator::do_stmt(ast::node_ptr root)
         for (auto & param : params)
         {
             try {
-                m_context.bind(get<0>(param), get<1>(param));
+                m_context.bind(param->name, param);
             } catch (context_error & e) {
-                throw source_error(e.what(), get<2>(param));
+                throw source_error(e.what(), param->location);
             }
         }
 
-        expr = do_block(block, nested_funcs);
+        expr = do_block(block, local_ids);
     }
 
-    auto func = make_shared<func_def>();
-    func->name = name;
-    for (auto & param : params)
-        func->vars.push_back(get<1>(param));
-    func->defs = nested_funcs;
-    func->expr = expr;
-    func->location = root->location;
+    if (!local_ids.empty())
+    {
+        expr = make_shared<expr_scope>(local_ids, expr, block->location);
+    }
 
-    auto id = make_shared<func_id>(func);
-    m_context.bind(func->name, id);
+    if (!params.empty())
+    {
+        expr = make_shared<function>(params, expr, root->location);
+    }
+
+    auto id = make_shared<identifier>(name, expr, name_node->location);
+    m_context.bind(name, id);
 
     return id;
 }
 
-expr_ptr generator::do_block(ast::node_ptr root, vector<func_id_ptr> & defs)
+expr_ptr generator::do_block(ast::node_ptr root, vector<id_ptr> & local_ids)
 {
     auto stmts_node = root->as_list()->elements[0];
     auto expr_node = root->as_list()->elements[1];
@@ -88,7 +91,7 @@ expr_ptr generator::do_block(ast::node_ptr root, vector<func_id_ptr> & defs)
     {
         for (auto & stmt : stmts_node->as_list()->elements)
         {
-            defs.push_back( do_stmt(stmt) );
+            local_ids.push_back( do_stmt(stmt) );
         }
     }
 
@@ -116,15 +119,8 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         auto item = m_context.find(name);
         if (!item)
             throw source_error("Undefined name.", root->location);
-        auto v = item.value();
-        if (auto avar = dynamic_pointer_cast<array_var>(v))
-            return make_shared<array_var_ref>(avar, root->location);
-        else if(auto fvar = dynamic_pointer_cast<func_var>(v))
-            return make_shared<func_var_ref>(fvar, root->location);
-        else if (auto fid = dynamic_pointer_cast<func_id>(v))
-            return make_shared<func_ref>(fid, root->location);
-        else
-            throw source_error("Invalid reference type.", root->location);
+        auto var = item.value();
+        return make_shared<reference>(var, root->location);
     }
     case ast::primitive:
     {
@@ -170,7 +166,7 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
     auto params_node = root->as_list()->elements[0];
     auto expr_node = root->as_list()->elements[1];
 
-    vector<tuple<string,array_var_ptr,parsing::location>> params;
+    vector<array_var_ptr> params;
 
     for (auto & param : params_node->as_list()->elements)
     {
@@ -179,13 +175,13 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
 
         auto name = name_node->as_leaf<string>()->value;
 
-        auto var = make_shared<array_var>();
+        expr_ptr range;
         if (size_node)
-            var->range = do_expr(size_node);
-        else
-            var->range = nullptr;
+            range = do_expr(size_node);
 
-        params.emplace_back(name, var, param->location);
+        auto var = make_shared<array_var>(name, range, param->location);
+
+        params.push_back(var);
     }
 
     expr_ptr expr;
@@ -195,22 +191,22 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
         for (auto & param : params)
         {
             try {
-                m_context.bind(get<0>(param), get<1>(param));
+                m_context.bind(param->name, param);
             } catch (context_error & e) {
-                throw source_error(e.what(), get<2>(param));
+                throw source_error(e.what(), param->location);
             }
         }
 
         expr = do_expr(expr_node);
     }
 
-    auto array = make_shared<array_def>();
+    auto ar = make_shared<array>();
     for (auto & param : params)
-        array->vars.push_back(get<1>(param));
-    array->expr = expr;
-    array->location = root->location;
+        ar->vars.push_back(param);
+    ar->expr = expr;
+    ar->location = root->location;
 
-    return array;
+    return ar;
 }
 
 expr_ptr generator::do_array_apply(ast::node_ptr root)

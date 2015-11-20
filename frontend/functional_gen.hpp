@@ -31,15 +31,15 @@ namespace functional {
 class generator
 {
 public:
-    vector<func_id_ptr> generate(ast::node_ptr ast);
+    vector<id_ptr> generate(ast::node_ptr ast);
 
 private:
     using context_type = context<string,var_ptr>;
     context_type m_context;
 
 private:
-    func_id_ptr do_stmt(ast::node_ptr);
-    expr_ptr do_block(ast::node_ptr, vector<func_id_ptr> & defs);
+    id_ptr do_stmt(ast::node_ptr);
+    expr_ptr do_block(ast::node_ptr, vector<id_ptr> & local_vars);
     expr_ptr do_expr(ast::node_ptr);
     expr_ptr do_primitive(ast::node_ptr);
     expr_ptr do_array_def(ast::node_ptr);

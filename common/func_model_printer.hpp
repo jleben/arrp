@@ -40,12 +40,17 @@ class printer
 {
 public:
     printer();
-    void print(func_def_ptr, ostream &);
+    void print(id_ptr id, ostream &);
     void print(expr_ptr expr, ostream &);
     void indent() { ++level; }
     void unindent() { --level; }
 
 private:
+    string name(const var_ptr & var)
+    {
+        return var->name;
+    }
+#if 0
     string name(const array_var_ptr & var)
     {
         string & name = array_var_names[var];
@@ -69,7 +74,7 @@ private:
         }
         return name;
     }
-
+#endif
     string indentation() { return string(level * 2, ' '); }
     int level = 0;
     unordered_map<func_var_ptr, string> func_var_names;

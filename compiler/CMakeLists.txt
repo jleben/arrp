@@ -20,8 +20,8 @@ add_library(streamc-lib ${lib_mode}
   ../common/array_func_printer.cpp
   ../common/func_model_printer.cpp
   ../frontend/functional_gen.cpp
-  #../frontend/func_reducer.cpp
-  ../frontend/func_type_checker.cpp
+  ../frontend/func_reducer.cpp
+  #../frontend/func_type_checker.cpp
   #../frontend/environment_builder.cpp
   #../frontend/type_checker.cpp
   #../polyhedral/polyhedral-gen.cpp

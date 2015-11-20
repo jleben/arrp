@@ -36,7 +36,13 @@ typedef parsing::location location_type;
 class var
 {
 public:
+    var() {}
+    var(const string & name, const location_type & loc):
+        name(name), location(loc)
+    {}
     virtual ~var() {}
+    string name;
+    location_type location;
 };
 
 typedef std::shared_ptr<var> var_ptr;
@@ -78,24 +84,18 @@ class array_var : public var
 public:
     enum { unconstrained = -1 };
     array_var() {}
-    array_var(expr_ptr range): range(range) {}
+    array_var(const string & name, expr_ptr range,
+              const location_type & loc):
+        var(name, loc), range(range) {}
     expr_ptr range;
 };
 typedef std::shared_ptr<array_var> array_var_ptr;
 
-class array_def : public expression
+class array : public expression
 {
 public:
     vector<array_var_ptr> vars;
     expr_ptr expr;
-};
-
-class array_var_ref : public expression
-{
-public:
-    array_var_ref(array_var_ptr v, const location_type & loc):
-        expression(loc), var(v) {}
-    array_var_ptr var;
 };
 
 class array_app : public expression
@@ -116,58 +116,46 @@ class func_var : public var
 {
 public:
     func_var() {}
-    func_var(const string & name): name(name) {}
-    string name;
+    func_var(const string & name, const location_type & loc): var(name,loc) {}
 };
 typedef std::shared_ptr<func_var> func_var_ptr;
 
-class func_var_ref : public expression
+class identifier : public var
 {
 public:
-    func_var_ref(func_var_ptr v, const location_type & loc):
+    identifier(const string & name, expr_ptr e, const location_type & loc):
+        var(name,loc), expr(e) {}
+    expr_ptr expr;
+};
+typedef std::shared_ptr<identifier> id_ptr;
+
+
+class reference : public expression
+{
+public:
+    reference(var_ptr v, const location_type & loc):
         expression(loc), var(v) {}
-    func_var_ptr var;
+    var_ptr var;
 };
 
-class func_def;
-typedef std::shared_ptr<func_def> func_def_ptr;
-
-
-class func_id : public var
+class function : public expression
 {
 public:
-    func_id() {}
-    func_id(func_def_ptr def): def(def) {}
-    func_def_ptr def;
-};
-typedef std::shared_ptr<func_id> func_id_ptr;
-
-class func_def
-{
-public:
-    string name;
-    location_type location;
+    function() {}
+    function(const vector<func_var_ptr> & v, expr_ptr e, const location_type & loc):
+        expression(loc), vars(v), expr(e) {}
     vector<func_var_ptr> vars;
-    vector<func_id_ptr> defs;
     expr_ptr expr;
 };
 
-
-class expr_ref : public expression
+class expr_scope : public expression
 {
 public:
-    expr_ref(expr_ptr e, const location_type & loc):
-        expression(loc), expr(e) {}
+    expr_scope() {}
+    expr_scope(const vector<id_ptr> & ids, expr_ptr e, const location_type & loc):
+        expression(loc), ids(ids), expr(e){}
+    vector<id_ptr> ids;
     expr_ptr expr;
-};
-
-class func_ref : public expression
-{
-public:
-    func_ref() {}
-    func_ref(func_id_ptr func, const location_type & loc):
-        expression(loc), func(func) {}
-    func_id_ptr func;
 };
 
 }

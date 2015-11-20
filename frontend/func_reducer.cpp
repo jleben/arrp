@@ -20,7 +20,7 @@ private:
     {
         ostringstream text;
         text << " Wrong number of arguments ("
-             << "required: " << required << ", "
+             << "expected: " << required << ", "
              << "actual: " << actual
              << ")."
                 ;
@@ -28,41 +28,143 @@ private:
     }
 };
 
-func_def_ptr func_reducer::reduce(func_def_ptr func, const vector<expr_ptr> & args,
-                                  const location_type & loc)
+
+expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
+                              const location_type & loc)
 {
-    if (func->vars.size() != args.size())
-        throw wrong_arg_count_error(func->vars.size(), args.size(), loc);
+    vector<func_var_ptr> vars;
 
-    auto reduced_func = make_shared<func_def>();
-    reduced_func->name = func->name;
-    reduced_func->location = func->location;
+    reduce_context_type::scope_holder scope(m_reduce_context);
 
-    context_type::scope_holder scope(m_context);
-
-    for (int i = 0; i < args.size(); ++i)
+    if (args.size())
     {
-        m_context.bind(func->vars[i], args[i]);
-    }
+        auto func = dynamic_pointer_cast<function>(expr);
+        if (!func)
+            throw wrong_arg_count_error(0, args.size(), loc);
+        else if(func->vars.size() < args.size())
+            throw wrong_arg_count_error(func->vars.size(), args.size(), loc);
 
-    for (auto def : func->defs)
-    {
-        if (def->vars.empty())
+        for (int i = 0; i < args.size(); ++i)
         {
-            // FIXME: location
-            auto reduced_def = reduce(def, {}, location_type());
-            // FIXME: have to have func_id to bind to!
-            m_func_context.bind(def, reduced_def);
+            m_reduce_context.bind(func->vars[i], args[i]);
         }
+
+        if (func->vars.size() > args.size())
+        {
+            vars.insert(vars.end(),
+                        func->vars.begin() + args.size(),
+                        func->vars.end());
+        }
+
+        expr = func->expr;
     }
 
-    auto reduced_expr = reduce(func->expr);
-    reduced_func->expr = reduced_expr;
+    auto reduced_expr = reduce(expr);
 
-    return reduced_func;
+    if (vars.size())
+        return make_shared<function>(vars, reduced_expr, loc);
+    else
+        return reduced_expr;
 }
 
 expr_ptr func_reducer::reduce(expr_ptr expr)
+{
+    if (auto i = dynamic_pointer_cast<constant<int>>(expr))
+    {
+        return i;
+    }
+    else if (auto d = dynamic_pointer_cast<constant<double>>(expr))
+    {
+        return d;
+    }
+    else if (auto b = dynamic_pointer_cast<constant<bool>>(expr))
+    {
+        return b;
+    }
+    else if (auto op = dynamic_pointer_cast<primitive>(expr))
+    {
+        // FIXME: Can we operate on functions?
+        for (auto & operand : op->operands)
+            operand = reduce(operand);
+        return op;
+    }
+    else if (auto ref = dynamic_pointer_cast<reference>(expr))
+    {
+        if (auto a_var = dynamic_pointer_cast<array_var>(ref->var))
+        {
+            return ref;
+        }
+        else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
+        {
+            // TODO: remember location of reference
+            auto binding = m_reduce_context.find(f_var);
+            if (binding)
+                return binding.value();
+            else
+                return ref;
+        }
+        else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+        {
+            // TODO: Remember that the id was already reduced.
+            // TODO: remember location of reference
+            id->expr = reduce(id->expr);
+            return id->expr;
+        }
+        else
+        {
+            throw error("Unexpected reference type.");
+        }
+    }
+    else if (auto arr = dynamic_pointer_cast<array>(expr))
+    {
+        for (auto & var : arr->vars)
+        {
+            if (var->range)
+                var->range = reduce(var->range);
+        }
+        arr->expr = reduce(arr->expr);
+        return arr;
+    }
+    else if (auto app = dynamic_pointer_cast<array_app>(expr))
+    {
+        app->object = reduce(app->object);
+        for(auto & arg : app->args)
+            arg = reduce(arg);
+        return app;
+    }
+    else if (auto func = dynamic_pointer_cast<function>(expr))
+    {
+        auto reduced_expr = reduce(func->expr);
+        if (auto func2 = dynamic_pointer_cast<function>(reduced_expr))
+        {
+            func->vars.insert(func->vars.end(), func2->vars.begin(), func2->vars.end());
+            reduced_expr = func2->expr;
+        }
+        func->expr = reduced_expr;
+        return func;
+    }
+    else if (auto app = dynamic_pointer_cast<func_app>(expr))
+    {
+        auto func = reduce(app->object);
+
+        vector<expr_ptr> reduced_args;
+        for (auto & arg : app->args)
+            reduced_args.push_back(reduce(arg));
+
+        auto reduced_func = apply(copy(func), reduced_args, app->location);
+        return reduced_func;
+    }
+    else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
+    {
+        return reduce(scope->expr);
+    }
+    else
+    {
+        throw source_error("Unexpected expression type.", expr->location);
+    }
+}
+
+expr_ptr func_reducer::copy(expr_ptr expr)
 {
     if (auto i = dynamic_pointer_cast<constant<int>>(expr))
     {
@@ -76,87 +178,109 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     {
         return make_shared<constant<bool>>(*b);
     }
-    else if (auto ref = dynamic_pointer_cast<func_ref>(expr))
-    {
-        auto ctx_item = m_func_context.find(ref->func);
-        if (ctx_item)
-            return make_shared<func_ref>(ctx_item.value(), ref->location);
-        else
-            return make_shared<func_ref>(*ref);
-    }
-    else if (auto ref = dynamic_pointer_cast<func_var_ref>(expr))
-    {
-        auto ctx_item = m_context.find(ref->var);
-        assert(ctx_item);
-        auto bound_expr = ctx_item.value();
-        return make_shared<expr_ref>(bound_expr, ref->location);
-    }
-    else if (auto fapp = dynamic_pointer_cast<func_app>(expr))
-    {
-        auto object = reduce(fapp->object);
-        auto ref = dynamic_pointer_cast<func_ref>(object);
-        if (!ref)
-        {
-            throw source_error("Object of function application not a function.",
-                               fapp->object->location);
-        }
-
-        vector<expr_ptr> reduced_args;
-        for (auto & arg : fapp->args)
-            reduced_args.push_back(reduce(arg));
-
-        auto reduced_func = reduce(ref->func, reduced_args, fapp->location);
-        auto reduced_ref = make_shared<func_ref>(reduced_func, ref->location);
-        return reduced_ref;
-    }
-    else if (auto def = dynamic_pointer_cast<array_def>(expr))
-    {
-        auto reduced = make_shared<array_def>();
-
-        for (auto & var : def->vars)
-        {
-            expr_ptr rrange;
-            if (var->range)
-                rrange = reduce(var->range);
-            auto rvar = make_shared<array_var>(rrange);
-            reduced->vars.push_back(rvar);
-        }
-
-        array_context_type::scope_holder scope(m_array_context);
-
-        for (int v = 0; v < def->vars.size(); ++v)
-        {
-            m_array_context.bind(def->vars[v], reduced->vars[v]);
-        }
-
-        reduced->expr = reduce(def->expr);
-        reduced->location = def->location;
-
-        return reduced;
-    }
-    else if (auto ref = dynamic_pointer_cast<array_var_ref>(expr))
-    {
-        auto ctx_item = m_array_context.find(ref->var);
-        assert(ctx_item);
-        return make_shared<array_var_ref>(ctx_item.value(), ref->location);
-    }
-    else if (auto aapp = dynamic_pointer_cast<array_app>(expr))
-    {
-        auto reduced = make_shared<array_app>();
-        reduced->object = reduce(aapp->object);
-        for (auto & arg : aapp->args)
-            reduced->args.push_back(reduce(arg));
-        reduced->location = aapp->location;
-        return reduced;
-    }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
-        auto reduced = make_shared<primitive>();
-        reduced->location = op->location;
-        reduced->type = op->type;
+        auto new_op = make_shared<primitive>();
+        new_op->location = op->location;
+        new_op->type = op->type;
         for (auto & operand : op->operands)
-            reduced->operands.push_back(reduce(operand));
-        return reduced;
+            new_op->operands.push_back(copy(operand));
+        return new_op;
+    }
+    else if (auto arr = dynamic_pointer_cast<array>(expr))
+    {
+        auto new_arr = make_shared<array>();
+        new_arr->location = arr->location;
+
+        copy_context_type::scope_holder scope(m_copy_context);
+
+        for (auto & var : arr->vars)
+        {
+            expr_ptr new_range;
+            if (var->range)
+                new_range = copy(var->range);
+            auto new_var = make_shared<array_var>(var->name, new_range, var->location);
+            new_arr->vars.push_back(new_var);
+            m_copy_context.bind(var, new_var);
+        }
+
+        new_arr->expr = copy(arr->expr);
+
+        return new_arr;
+    }
+    else if (auto app = dynamic_pointer_cast<array_app>(expr))
+    {
+        auto new_app = make_shared<array_app>();
+        new_app->location = app->location;
+        new_app->object = copy(app->object);
+        for (auto & arg : app->args)
+            new_app->args.push_back(copy(arg));
+        return new_app;
+    }
+    else if (auto ref = dynamic_pointer_cast<reference>(expr))
+    {
+        if (auto a_var = dynamic_pointer_cast<array_var>(ref->var))
+        {
+            auto binding = m_copy_context.find(a_var);
+            assert(binding);
+            return make_shared<reference>(binding.value(), ref->location);
+        }
+        else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
+        {
+            auto binding = m_copy_context.find(f_var);
+            assert(binding);
+            return make_shared<reference>(binding.value(), ref->location);
+        }
+        else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+        {
+            auto binding = m_copy_context.find(id);
+            assert(binding);
+            return make_shared<reference>(binding.value(), ref->location);
+        }
+        else
+        {
+            throw error("Unexpected reference type.");
+        }
+    }
+    else if (auto func = dynamic_pointer_cast<function>(expr))
+    {
+        auto new_func = make_shared<function>();
+        new_func->location = func->location;
+
+        copy_context_type::scope_holder scope(m_copy_context);
+
+        for (auto & var : func->vars)
+        {
+            auto new_var = make_shared<func_var>(*var);
+            new_func->vars.push_back(new_var);
+            m_copy_context.bind(var, new_var);
+        }
+
+        new_func->expr = copy(func->expr);
+
+        return new_func;
+    }
+    else if (auto app = dynamic_pointer_cast<func_app>(expr))
+    {
+        auto new_app = make_shared<func_app>();
+        new_app->location = app->location;
+        new_app->object = copy(app->object);
+        for (auto & arg : app->args)
+            new_app->args.push_back( copy(arg) );
+        return new_app;
+    }
+    else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
+    {
+        auto new_scope = make_shared<expr_scope>();
+        new_scope->location = scope->location;
+        for(auto & id : scope->ids)
+        {
+            auto new_expr = copy(id->expr);
+            auto new_id = make_shared<identifier>(id->name, new_expr, id->location);
+            new_scope->ids.push_back(id);
+        }
+        new_scope->expr = copy(scope->expr);
+        return new_scope;
     }
     else
     {

@@ -26,8 +26,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
-//#include "../frontend/func_reducer.hpp"
-#include "../frontend/func_type_checker.hpp"
+#include "../frontend/func_reducer.hpp"
+//#include "../frontend/func_type_checker.hpp"
 //#include "../frontend/environment_builder.hpp"
 //#include "../frontend/type_checker.hpp"
 //#include "../polyhedral/translator.hpp"
@@ -148,10 +148,10 @@ result::code compile_source(istream & source, const arguments & args)
     }
 
     functional::generator fgen;
-    vector<functional::func_id_ptr> funcs;
+    vector<functional::id_ptr> ids;
     try
     {
-        funcs = fgen.generate(ast_root);
+        ids = fgen.generate(ast_root);
     }
     catch (source_error & e)
     {
@@ -166,23 +166,35 @@ result::code compile_source(istream & source, const arguments & args)
 
     {
         functional::printer printer;
-        for (const auto & func : funcs)
-            printer.print(func->def, cout);
+        for (const auto & id : ids)
+        {
+            printer.print(id, cout);
+            cout << endl;
+        }
     }
 
     try
     {
         // FIXME: choice of function to compile
-        auto criteria = [](functional::func_id_ptr f) -> bool {
-            return f->def->name == "main";
+        auto criteria = [](functional::id_ptr id) -> bool {
+            return id->name == "main";
         };
-        auto func_it = std::find_if(funcs.begin(), funcs.end(), criteria);
-        if (func_it == funcs.end())
+        auto id = std::find_if(ids.begin(), ids.end(), criteria);
+        if (id == ids.end())
         {
             throw error("No function named \"main\".");
         }
-        auto func = *func_it;
+        auto expr = (*id)->expr;
 
+        functional::func_reducer reducer;
+        expr = reducer.apply(expr, {}, functional::location_type());
+        {
+            cout << "-- Reduced:" << endl;
+            functional::printer printer;
+            printer.print(expr, cout);
+        }
+
+#if 0
         functional::type_checker type_checker;
         auto type = type_checker.check(func, {});
         cout << "-- Result type:" << endl;
@@ -190,6 +202,7 @@ result::code compile_source(istream & source, const arguments & args)
         for (auto & i : type.size)
             cout << " " << i;
         cout << endl;
+#endif
     }
     catch (source_error & e)
     {
@@ -203,6 +216,7 @@ result::code compile_source(istream & source, const arguments & args)
     }
 
     return result::ok;
+
 
 #if 0
     stream::semantic::environment env;
