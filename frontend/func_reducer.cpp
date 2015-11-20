@@ -108,7 +108,10 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             // TODO: Remember that the id was already reduced.
             // TODO: remember location of reference
             id->expr = reduce(id->expr);
-            return id->expr;
+            if (auto func = dynamic_pointer_cast<function>(id->expr))
+                return id->expr;
+            else
+                return ref;
         }
         else
         {
@@ -234,8 +237,10 @@ expr_ptr func_reducer::copy(expr_ptr expr)
         else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
             auto binding = m_copy_context.find(id);
-            assert(binding);
-            return make_shared<reference>(binding.value(), ref->location);
+            if (binding)
+                return make_shared<reference>(binding.value(), ref->location);
+            else
+                return make_shared<reference>(*ref);
         }
         else
         {
