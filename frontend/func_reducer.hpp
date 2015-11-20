@@ -15,6 +15,8 @@ public:
 private:
     expr_ptr reduce(expr_ptr);
     expr_ptr copy(expr_ptr);
+    expr_ptr no_function(expr_ptr);
+    expr_ptr no_function(expr_ptr, const location_type &);
 
     using copy_context_type = context<var_ptr, var_ptr>;
     using reduce_context_type = context<var_ptr, expr_ptr>;

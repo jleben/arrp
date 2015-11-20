@@ -85,7 +85,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     {
         // FIXME: Can we operate on functions?
         for (auto & operand : op->operands)
-            operand = reduce(operand);
+            operand = no_function(reduce(operand), operand->location);
         return op;
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
@@ -123,16 +123,16 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
         for (auto & var : arr->vars)
         {
             if (var->range)
-                var->range = reduce(var->range);
+                var->range = no_function(reduce(var->range), var->range->location);
         }
-        arr->expr = reduce(arr->expr);
+        arr->expr = no_function(reduce(arr->expr), arr->expr->location);
         return arr;
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
-        app->object = reduce(app->object);
+        app->object = no_function(reduce(app->object), app->object->location);
         for(auto & arg : app->args)
-            arg = reduce(arg);
+            arg = no_function(reduce(arg), app->object->location);
         return app;
     }
     else if (auto func = dynamic_pointer_cast<function>(expr))
@@ -291,6 +291,18 @@ expr_ptr func_reducer::copy(expr_ptr expr)
     {
         throw source_error("Unexpected expression type.", expr->location);
     }
+}
+
+expr_ptr func_reducer::no_function(expr_ptr expr)
+{
+    return no_function(expr, expr->location);
+}
+
+expr_ptr func_reducer::no_function(expr_ptr expr, const location_type & loc)
+{
+    if (auto f = dynamic_pointer_cast<function>(expr))
+        throw source_error("An abstraction is not allowed here.", loc);
+    return expr;
 }
 
 }
