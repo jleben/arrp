@@ -3,11 +3,13 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace stream {
 
 using std::string;
 using std::ostream;
+using std::vector;
 
 enum class primitive_type
 {
@@ -61,6 +63,17 @@ enum class primitive_op
 };
 
 string name_of_primitive( primitive_op op );
+
+struct prim_op_overload
+{
+    prim_op_overload() {}
+    prim_op_overload(std::initializer_list<primitive_type> l):
+        types(l) {}
+    vector<primitive_type> types;
+};
+
+vector<prim_op_overload> overloads(primitive_op);
+
 
 inline ostream & operator<<(ostream & s, primitive_op op)
 {
