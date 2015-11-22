@@ -19,8 +19,11 @@ add_library(streamc-lib ${lib_mode}
   ../common/polyhedral_model_printer.cpp
   ../common/array_func_printer.cpp
   ../common/func_model_printer.cpp
+  ../frontend/prim_reduction.cpp
   ../frontend/functional_gen.cpp
   ../frontend/func_reducer.cpp
+  ../frontend/linear_expr_gen.cpp
+  ../frontend/array_reduction.cpp
   #../frontend/func_type_checker.cpp
   #../frontend/environment_builder.cpp
   #../frontend/type_checker.cpp

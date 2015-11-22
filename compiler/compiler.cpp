@@ -27,6 +27,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/func_reducer.hpp"
+#include "../frontend/array_reduction.hpp"
 //#include "../frontend/func_type_checker.hpp"
 //#include "../frontend/environment_builder.hpp"
 //#include "../frontend/type_checker.hpp"
@@ -186,14 +187,26 @@ result::code compile_source(istream & source, const arguments & args)
         }
         auto expr = (*id)->expr;
 
-        functional::func_reducer reducer;
-        expr = reducer.apply(expr, {}, functional::location_type());
         {
-            cout << "-- Reduced:" << endl;
-            functional::printer printer;
-            printer.print(expr, cout);
+            functional::func_reducer reducer;
+            expr = reducer.apply(expr, {}, functional::location_type());
+            {
+                cout << "-- Reduced functions:" << endl;
+                functional::printer printer;
+                printer.print(expr, cout);
+                cout << endl;
+            }
         }
-
+        {
+            functional::array_reducer reducer;
+            expr = reducer.reduce(expr);
+            {
+                cout << "-- Reduced arrays:" << endl;
+                functional::printer printer;
+                printer.print(expr, cout);
+                cout << endl;
+            }
+        }
 #if 0
         functional::type_checker type_checker;
         auto type = type_checker.check(func, {});
