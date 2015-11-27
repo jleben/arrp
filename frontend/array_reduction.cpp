@@ -142,7 +142,11 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 
         auto expr = beta_reduce(arr->expr);
 
-        // TODO: reduce primitive ops after replacing vars
+        // Reduce primitive ops
+        if (auto prim = dynamic_pointer_cast<primitive>(expr))
+        {
+            expr = reduce(prim);
+        }
 
         if (arr->vars.size() > app->args.size())
         {
