@@ -29,7 +29,7 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
             // TODO: Remember that the id was already reduced.
             id->expr = reduce(id->expr);
         }
-        return ref;
+        return eta_expand(ref);
     }
 
     return expr;
@@ -77,11 +77,14 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 {
     app->object = reduce(app->object);
 
-    vector<int> bounds = array_size(app->object);
-
-    if (bounds.empty())
+    auto arr = dynamic_pointer_cast<array>(app->object);
+    if (!arr)
+    {
         throw source_error("Object of array application not an array.",
                            app->object->location);
+    }
+
+    vector<int> bounds = array_size(arr);
 
     if (bounds.size() < app->args.size())
     {
@@ -124,7 +127,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
         // TODO: store the linear expression
     }
 
-    if (auto arr = dynamic_pointer_cast<array>(app->object))
     {
         context_type::scope_holder scope(m_context);
 
@@ -136,7 +138,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
             m_context.bind(var, arg);
         }
 
-        auto expr = replace_vars_in(arr->expr);
+        auto expr = beta_reduce(arr->expr);
 
         // TODO: reduce primitive ops after replacing vars
 
@@ -178,27 +180,32 @@ vector<int> array_reducer::array_size(expr_ptr expr)
 
     if (auto arr = dynamic_pointer_cast<array>(expr))
     {
-        vector<int> s;
-        for (auto & var : arr->vars)
-        {
-            if (var->range)
-            {
-                auto c = dynamic_pointer_cast<constant<int>>(var->range);
-                assert(c);
-                s.push_back(c->value);
-            }
-            else
-            {
-                s.push_back(array_var::unconstrained);
-            }
-        }
-        return s;
+        return array_size(arr);
     }
 
     return vector<int>();
 }
 
-expr_ptr array_reducer::replace_vars_in(expr_ptr expr)
+vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
+{
+    vector<int> s;
+    for (auto & var : arr->vars)
+    {
+        if (var->range)
+        {
+            auto c = dynamic_pointer_cast<constant<int>>(var->range);
+            assert(c);
+            s.push_back(c->value);
+        }
+        else
+        {
+            s.push_back(array_var::unconstrained);
+        }
+    }
+    return s;
+}
+
+expr_ptr array_reducer::beta_reduce(expr_ptr expr)
 {
     if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
@@ -212,24 +219,50 @@ expr_ptr array_reducer::replace_vars_in(expr_ptr expr)
     }
     if (auto arr = dynamic_pointer_cast<array>(expr))
     {
-        arr->expr = replace_vars_in(arr->expr);
+        arr->expr = beta_reduce(arr->expr);
         return arr;
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
-        app->object = replace_vars_in(app->object);
+        app->object = beta_reduce(app->object);
         for (auto & arg : app->args)
-            arg = replace_vars_in(arg);
+            arg = beta_reduce(arg);
         return app;
     }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
         for (auto & operand : op->operands)
-            operand = replace_vars_in(operand);
+            operand = beta_reduce(operand);
         return op;
     }
     else
         return expr;
+}
+
+expr_ptr array_reducer::eta_expand(std::shared_ptr<reference> ref)
+{
+    auto id = dynamic_pointer_cast<identifier>(ref->var);
+    if (!id)
+        return ref;
+    auto arr = dynamic_pointer_cast<array>(id->expr);
+    if (!arr)
+        return ref;
+
+    auto new_arr = make_shared<array>();
+    auto new_app = make_shared<array_app>();
+
+    for (auto & var : arr->vars)
+    {
+        assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range) );
+        auto new_var = make_shared<array_var>(*var);
+        new_arr->vars.push_back(new_var);
+        new_app->args.push_back(make_shared<reference>(new_var, location_type()));
+    }
+
+    new_app->object = ref;
+    new_arr->expr = new_app;
+
+    return new_arr;
 }
 
 }
