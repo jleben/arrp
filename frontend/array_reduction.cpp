@@ -168,9 +168,12 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
 vector<int> array_reducer::array_size(expr_ptr expr)
 {
-    if (auto id = dynamic_pointer_cast<identifier>(expr))
+    if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
-        expr = id->expr;
+        if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+        {
+            expr = id->expr;
+        }
     }
 
     if (auto arr = dynamic_pointer_cast<array>(expr))
