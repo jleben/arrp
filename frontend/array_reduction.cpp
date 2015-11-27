@@ -3,6 +3,8 @@
 #include "prim_reduction.hpp"
 #include "error.hpp"
 
+#include <sstream>
+
 using namespace std;
 
 namespace stream {
@@ -164,8 +166,61 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 {
     for (auto & operand : op->operands)
         operand = reduce(operand);
-    // FIXME: handle array-type operands
-    return reduce_primitive(op);
+
+    vector<int> size;
+
+    for (auto & operand : op->operands)
+    {
+        auto operand_size = array_size(operand);
+        if (operand_size.empty())
+            continue;
+        if (!size.empty() && operand_size != size)
+        {
+            throw source_error("Operand size mismatch.", op->location);
+        }
+        size = operand_size;
+    }
+
+    if (size.size())
+    {
+        auto arr = make_shared<array>();
+
+        for (auto s : size)
+        {
+            expr_ptr range = nullptr;
+            if (s != array_var::unconstrained)
+                range = make_shared<constant<int>>(s);
+            auto v = make_shared<array_var>(new_var_name(), range, location_type());
+            arr->vars.push_back(v);
+        }
+
+        for (auto & operand : op->operands)
+        {
+            auto op_arr = dynamic_pointer_cast<array>(operand);
+            if (!op_arr)
+                continue;
+            assert(arr->vars.size() == op_arr->vars.size());
+
+            context_type::scope_holder scope(m_context);
+
+            for (int i = 0; i < arr->vars.size(); ++i)
+            {
+                auto ref = make_shared<reference>(arr->vars[i], location_type());
+                m_context.bind(op_arr->vars[i], ref);
+            }
+
+            auto reduced_operand = beta_reduce(op_arr->expr);
+            operand = reduced_operand;
+        }
+
+        arr->expr = reduce_primitive(op);
+
+        return arr;
+    }
+    else
+    {
+        return reduce_primitive(op);
+    }
 }
 
 vector<int> array_reducer::array_size(expr_ptr expr)
@@ -264,6 +319,15 @@ expr_ptr array_reducer::eta_expand(std::shared_ptr<reference> ref)
 
     return new_arr;
 }
+
+string array_reducer::new_var_name()
+{
+    ++var_count;
+    ostringstream text;
+    text << "_v" << var_count;
+    return text.str();
+}
+
 
 }
 }

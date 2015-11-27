@@ -21,6 +21,10 @@ private:
     expr_ptr eta_expand(std::shared_ptr<reference>);
     using context_type = context<var_ptr, expr_ptr>;
     context_type m_context;
+
+
+    string new_var_name();
+    int var_count = 0;
 };
 
 }
