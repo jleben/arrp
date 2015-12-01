@@ -1,5 +1,6 @@
 #include "func_reducer.hpp"
 #include "error.hpp"
+#include "../common/func_model_printer.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -28,6 +29,35 @@ private:
     }
 };
 
+id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
+{
+    if (m_ids.find(id) == m_ids.end())
+    {
+        id->expr = reduce(id->expr);
+        m_ids.insert(id);
+    }
+
+    if (!args.empty())
+    {
+        auto new_name = new_id_name(id->name);
+        auto new_expr = copy(id->expr);
+        auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
+
+        new_id->expr = apply(new_id->expr, args, location_type());
+
+        return new_id;
+    }
+    else
+    {
+        // Call beta reduce to get rid of scopes
+        // FIXME: Let reduce(expr) get rid of local scope ids
+        // that do not depend on function args, which will eliminate
+        // scopes altogether in non-function id definitions.
+        id->expr = beta_reduce(id->expr);
+
+        return id;
+    }
+}
 
 expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
                               const location_type & loc)
@@ -36,7 +66,7 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
     vector<func_var_ptr> vars;
 
-    reduce_context_type::scope_holder scope(m_reduce_context);
+    reduce_context_type::scope_holder scope(m_beta_reduce_context);
 
     if (args.size())
     {
@@ -48,7 +78,7 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
         for (int i = 0; i < args.size(); ++i)
         {
-            m_reduce_context.bind(func->vars[i], args[i]);
+            m_beta_reduce_context.bind(func->vars[i], args[i]);
         }
 
         if (func->vars.size() > args.size())
@@ -61,7 +91,7 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
         expr = func->expr;
     }
 
-    auto reduced_expr = reduce(expr);
+    auto reduced_expr = beta_reduce(expr);
 
     m_trace.pop();
 
@@ -73,19 +103,7 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
 expr_ptr func_reducer::reduce(expr_ptr expr)
 {
-    if (auto i = dynamic_pointer_cast<constant<int>>(expr))
-    {
-        return i;
-    }
-    else if (auto d = dynamic_pointer_cast<constant<double>>(expr))
-    {
-        return d;
-    }
-    else if (auto b = dynamic_pointer_cast<constant<bool>>(expr))
-    {
-        return b;
-    }
-    else if (auto op = dynamic_pointer_cast<primitive>(expr))
+    if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
         // FIXME: Can we operate on functions?
         for (auto & operand : op->operands)
@@ -94,24 +112,16 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
-        if (auto a_var = dynamic_pointer_cast<array_var>(ref->var))
+        if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
-            return ref;
-        }
-        else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
-        {
+            if (m_ids.find(id) == m_ids.end())
+            {
+                id->expr = reduce(id->expr);
+                m_ids.insert(id);
+            }
+
             // TODO: remember location of reference
-            auto binding = m_reduce_context.find(f_var);
-            if (binding)
-                return binding.value();
-            else
-                return ref;
-        }
-        else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
-        {
-            // TODO: Remember that the id was already reduced.
-            // TODO: remember location of reference
-            id->expr = reduce(id->expr);
+
             if (auto func = dynamic_pointer_cast<function>(id->expr))
                 return id->expr;
             else
@@ -119,7 +129,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
         }
         else
         {
-            throw error("Unexpected reference type.");
+            return ref;
         }
     }
     else if (auto arr = dynamic_pointer_cast<array>(expr))
@@ -158,16 +168,31 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
         for (auto & arg : app->args)
             reduced_args.push_back(reduce(arg));
 
-        auto reduced_func = apply(copy(func), reduced_args, app->location);
+        auto func_copy = copy(func);
+        auto reduced_func = apply(func_copy, reduced_args, app->location);
         return reduced_func;
     }
     else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
     {
-        return reduce(scope->expr);
+        scope->expr = reduce(scope->expr);
+
+        // TODO:
+        // - eliminate local functions (they get inlined)
+        // - move out ids that do not depend on function args
+
+        auto func = dynamic_pointer_cast<function>(scope->expr);
+        if (func)
+        {
+            scope->expr = func->expr;
+            func->expr = scope;
+            return func;
+        }
+
+        return scope;
     }
     else
     {
-        throw reduction_error("Unexpected expression type.", expr->location);
+        return expr;
     }
 }
 
@@ -235,14 +260,21 @@ expr_ptr func_reducer::copy(expr_ptr expr)
         else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
         {
             auto binding = m_copy_context.find(f_var);
-            assert(binding);
-            return make_shared<reference>(binding.value(), ref->location);
+            if (binding)
+                return make_shared<reference>(binding.value(), ref->location);
+            else
+                return make_shared<reference>(*ref);
         }
         else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
             auto binding = m_copy_context.find(id);
             if (binding)
-                return make_shared<reference>(binding.value(), ref->location);
+            {
+                auto bound_id = dynamic_pointer_cast<identifier>(binding.value());
+                assert(bound_id);
+                m_ids.insert(bound_id);
+                return make_shared<reference>(bound_id, ref->location);
+            }
             else
                 return make_shared<reference>(*ref);
         }
@@ -280,13 +312,17 @@ expr_ptr func_reducer::copy(expr_ptr expr)
     }
     else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
     {
+        copy_context_type::scope_holder scope_scope(m_copy_context);
+
         auto new_scope = make_shared<expr_scope>();
         new_scope->location = scope->location;
         for(auto & id : scope->ids)
         {
             auto new_expr = copy(id->expr);
-            auto new_id = make_shared<identifier>(id->name, new_expr, id->location);
-            new_scope->ids.push_back(id);
+            auto new_name = new_id_name(id->name);
+            auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
+            new_scope->ids.push_back(new_id);
+            m_copy_context.bind(id, new_id);
         }
         new_scope->expr = copy(scope->expr);
         return new_scope;
@@ -294,6 +330,60 @@ expr_ptr func_reducer::copy(expr_ptr expr)
     else
     {
         throw reduction_error("Unexpected expression type.", expr->location);
+    }
+}
+
+expr_ptr func_reducer::beta_reduce(expr_ptr expr)
+{
+    if (auto op = dynamic_pointer_cast<primitive>(expr))
+    {
+        // FIXME: Can we operate on functions?
+        for (auto & operand : op->operands)
+            operand = beta_reduce(operand);
+        return op;
+    }
+    else if (auto ref = dynamic_pointer_cast<reference>(expr))
+    {
+        if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
+        {
+            // TODO: remember location of reference
+            auto binding = m_beta_reduce_context.find(f_var);
+            if (binding)
+                return binding.value();
+            else
+                return ref;
+        }
+        else
+            return ref;
+    }
+    else if (auto arr = dynamic_pointer_cast<array>(expr))
+    {
+        for (auto & var : arr->vars)
+        {
+            if (var->range)
+                var->range = beta_reduce(var->range);
+        }
+        arr->expr = beta_reduce(arr->expr);
+        return arr;
+    }
+    else if (auto app = dynamic_pointer_cast<array_app>(expr))
+    {
+        app->object = beta_reduce(app->object);
+        for(auto & arg : app->args)
+            arg = beta_reduce(arg);
+        return app;
+    }
+    else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
+    {
+        for (auto id : scope->ids)
+        {
+            id->expr = beta_reduce(id->expr);
+        }
+        return beta_reduce(scope->expr);
+    }
+    else
+    {
+        return expr;
     }
 }
 
@@ -307,6 +397,15 @@ expr_ptr func_reducer::no_function(expr_ptr expr, const location_type & loc)
     if (auto f = dynamic_pointer_cast<function>(expr))
         throw reduction_error("An abstraction is not allowed here.", loc);
     return expr;
+}
+
+string func_reducer::new_id_name(const string & base)
+{
+    int & count = id_counts[base];
+    ++count;
+    ostringstream text;
+    text << base << ':' << count;
+    return text.str();
 }
 
 }

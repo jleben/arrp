@@ -180,30 +180,46 @@ result::code compile_source(istream & source, const arguments & args)
         auto criteria = [](functional::id_ptr id) -> bool {
             return id->name == "main";
         };
-        auto id = std::find_if(ids.begin(), ids.end(), criteria);
-        if (id == ids.end())
+        auto id_it = std::find_if(ids.begin(), ids.end(), criteria);
+        if (id_it == ids.end())
         {
             throw error("No function named \"main\".");
         }
-        auto expr = (*id)->expr;
+        auto id = *id_it;
+
+        unordered_set<functional::id_ptr> array_ids;
 
         {
             functional::func_reducer reducer;
-            expr = reducer.apply(expr, {}, functional::location_type());
+            id = reducer.reduce(id, {});
+            array_ids = reducer.ids();
+
             {
                 cout << "-- Reduced functions:" << endl;
                 functional::printer printer;
-                printer.print(expr, cout);
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+                cout << "-->" << endl;
+                printer.print(id, cout);
                 cout << endl;
             }
         }
         {
             functional::array_reducer reducer;
-            expr = reducer.reduce(expr);
+            id->expr = reducer.reduce(id->expr);
             {
                 cout << "-- Reduced arrays:" << endl;
                 functional::printer printer;
-                printer.print(expr, cout);
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+                cout << "-->" << endl;
+                printer.print(id, cout);
                 cout << endl;
             }
         }
