@@ -4,13 +4,18 @@
 #include "../common/functional_model.hpp"
 #include "../utility/context.hpp"
 
+#include <unordered_set>
+
 namespace stream {
 namespace functional {
+
+using std::unordered_set;
 
 class array_reducer
 {
 public:
     expr_ptr reduce(expr_ptr);
+    const unordered_set<id_ptr> & ids() const { return m_ids; }
 private:
     expr_ptr reduce(std::shared_ptr<array>);
     expr_ptr reduce(std::shared_ptr<array_app>);
@@ -22,9 +27,10 @@ private:
     using context_type = context<var_ptr, expr_ptr>;
     context_type m_context;
 
-
     string new_var_name();
     int var_count = 0;
+
+    unordered_set<id_ptr> m_ids;
 };
 
 }

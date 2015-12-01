@@ -28,8 +28,11 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     {
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
-            // TODO: Remember that the id was already reduced.
-            id->expr = reduce(id->expr);
+            if (m_ids.find(id) == m_ids.end())
+            {
+                id->expr = reduce(id->expr);
+                m_ids.insert(id);
+            }
         }
         return eta_expand(ref);
     }

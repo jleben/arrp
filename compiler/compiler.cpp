@@ -210,6 +210,8 @@ result::code compile_source(istream & source, const arguments & args)
         {
             functional::array_reducer reducer;
             id->expr = reducer.reduce(id->expr);
+            array_ids = reducer.ids();
+
             {
                 cout << "-- Reduced arrays:" << endl;
                 functional::printer printer;
