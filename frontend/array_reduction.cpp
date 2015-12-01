@@ -10,6 +10,17 @@ using namespace std;
 namespace stream {
 namespace functional {
 
+static bool is_constant(expr_ptr expr)
+{
+    if (dynamic_cast<constant<int>*>(expr.get()))
+        return true;
+    if (dynamic_cast<constant<double>*>(expr.get()))
+        return true;
+    if (dynamic_cast<constant<bool>*>(expr.get()))
+        return true;
+    return false;
+}
+
 expr_ptr array_reducer::reduce(expr_ptr expr)
 {
     if (auto arr = dynamic_pointer_cast<array>(expr))
@@ -28,13 +39,22 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     {
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
-            if (m_ids.find(id) == m_ids.end())
+            bool was_reduced = m_ids.find(id) != m_ids.end();
+            if (!was_reduced)
             {
                 id->expr = reduce(id->expr);
-                m_ids.insert(id);
             }
+
+            bool is_const = is_constant(id->expr);
+            if (is_const)
+                return id->expr;
+
+            if (!was_reduced)
+                m_ids.insert(id);
+
+            return eta_expand(ref);
         }
-        return eta_expand(ref);
+        return ref;
     }
 
     return expr;
