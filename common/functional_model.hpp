@@ -26,11 +26,13 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <memory>
 #include <vector>
+#include <utility>
 
 namespace stream {
 namespace functional {
 
 using std::vector;
+using std::pair;
 typedef parsing::location location_type;
 
 class var
@@ -95,6 +97,7 @@ class array : public expression
 {
 public:
     vector<array_var_ptr> vars;
+    vector<pair<expr_ptr,expr_ptr>> bounded_exprs;
     expr_ptr expr;
 };
 

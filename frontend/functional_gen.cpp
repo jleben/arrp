@@ -164,7 +164,9 @@ expr_ptr generator::do_primitive(ast::node_ptr root)
 expr_ptr generator::do_array_def(ast::node_ptr root)
 {
     auto params_node = root->as_list()->elements[0];
-    auto expr_node = root->as_list()->elements[1];
+    auto body_node = root->as_list()->elements[1]->as_list();
+    auto bounded_exprs_node = body_node->elements[0];
+    auto expr_node = body_node->elements[1];
 
     vector<array_var_ptr> params;
 
@@ -185,6 +187,7 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
     }
 
     expr_ptr expr;
+    vector<pair<expr_ptr,expr_ptr>> bounded_exprs;
 
     {
         context_type::scope_holder scope(m_context);
@@ -197,12 +200,23 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
             }
         }
 
+        if (bounded_exprs_node)
+        {
+            for (auto bounded : bounded_exprs_node->as_list()->elements)
+            {
+                auto bounds = bounded->as_list()->elements[0];
+                auto expr = bounded->as_list()->elements[1];
+                bounded_exprs.emplace_back( do_expr(bounds), do_expr(expr) );
+            }
+        }
+
         expr = do_expr(expr_node);
     }
 
     auto ar = make_shared<array>();
     for (auto & param : params)
         ar->vars.push_back(param);
+    ar->bounded_exprs = bounded_exprs;
     ar->expr = expr;
     ar->location = root->location;
 

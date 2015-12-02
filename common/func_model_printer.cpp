@@ -37,6 +37,10 @@ void printer::print(expr_ptr expr, ostream & out)
     {
         out << const_double->value;
     }
+    else if (auto const_bool = dynamic_pointer_cast<const constant<bool>>(expr))
+    {
+        out << (const_bool->value ? "true" : "false");
+    }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         out << name(ref->var);
@@ -72,6 +76,17 @@ void printer::print(expr_ptr expr, ostream & out)
             }
         }
         out << " -> ";
+        if (!ar->bounded_exprs.empty())
+        {
+            for (auto & expr : ar->bounded_exprs)
+            {
+                print(expr.first, out);
+                out << ": ";
+                print(expr.second, out);
+                out << "; ";
+            }
+            out << "else: ";
+        }
         print(ar->expr, out);
         out << "]";
     }

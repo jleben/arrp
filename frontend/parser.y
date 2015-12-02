@@ -236,6 +236,9 @@ array_func:
 
 array_body:
   expr
+  {
+    $$ = make_list( @$, { nullptr, $1 } );
+  }
   |
   expr_in_domain_list ';' ELSE ':' expr
   {
