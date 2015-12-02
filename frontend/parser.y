@@ -31,7 +31,7 @@
 %left LOGIC_AND
 %left EQ NEQ LESS MORE LESS_EQ MORE_EQ
 %left '+' '-'
-%left '*' '/' ':' '%'
+%left '*' '/' INT_DIV '%'
 %left '^'
 %left DOTDOT
 %right LOGIC_NOT
@@ -211,7 +211,7 @@ expr:
   expr '/' expr
     { $$ = make_list( primitive, @$, {make_const(@2,op_type::divide), $1, $3} ); }
   |
-  expr ':' expr
+  expr INT_DIV expr
   { $$ = make_list( primitive, @$, {make_const(@2,op_type::divide_integer), $1, $3} ); }
   |
   expr '%' expr
@@ -230,8 +230,34 @@ array_apply:
 ;
 
 array_func:
-  '[' array_arg_list RIGHT_ARROW expr ']'
+  '[' array_arg_list RIGHT_ARROW array_body ']'
   { $$ = make_list( ast::array_def, @$, {$2, $4} ); }
+;
+
+array_body:
+  expr
+  |
+  expr_in_domain_list ';' ELSE ':' expr
+  {
+    $$ = make_list( @$, { $1, $5 } );
+  }
+;
+
+expr_in_domain_list:
+  expr_in_domain
+  { $$ = make_list( @$, {$1} ); }
+  |
+  expr_in_domain_list ';' expr_in_domain
+  {
+    $$ = $1;
+    $$->location = @$;
+    $$->as_list()->append( $3 );
+  }
+;
+
+expr_in_domain:
+  expr ':' expr
+  { $$ = make_list( @$, { $1, $3 } ); }
 ;
 
 array_arg_list:

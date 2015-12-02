@@ -167,9 +167,10 @@ namespace stream { namespace parsing {
         MORE = 274,
         LESS_EQ = 275,
         MORE_EQ = 276,
-        DOTDOT = 277,
-        LOGIC_NOT = 278,
-        UMINUS = 279
+        INT_DIV = 277,
+        DOTDOT = 278,
+        LOGIC_NOT = 279,
+        UMINUS = 280
       };
     };
 
@@ -460,13 +461,13 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 311,     ///< Last index in yytable_.
-      yynnts_ = 22,  ///< Number of nonterminal symbols.
+      yylast_ = 349,     ///< Last index in yytable_.
+      yynnts_ = 25,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 42  ///< Number of tokens.
+      yyntokens_ = 43  ///< Number of tokens.
     };
 
 
@@ -477,7 +478,7 @@ namespace stream { namespace parsing {
 
 #line 13 "parser.y" // lalr1.cc:372
 } } // stream::parsing
-#line 481 "parser.hpp" // lalr1.cc:372
+#line 482 "parser.hpp" // lalr1.cc:372
 
 
 
