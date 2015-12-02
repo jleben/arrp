@@ -139,6 +139,13 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             if (var->range)
                 var->range = no_function(reduce(var->range), var->range->location);
         }
+        for (auto & bounded : arr->bounded_exprs)
+        {
+            auto & d = bounded.first;
+            auto & e = bounded.second;
+            d = no_function(reduce(d), d->location);
+            e = no_function(reduce(e), e->location);
+        }
         arr->expr = no_function(reduce(arr->expr), arr->expr->location);
         return arr;
     }
@@ -234,6 +241,12 @@ expr_ptr func_reducer::copy(expr_ptr expr)
             auto new_var = make_shared<array_var>(var->name, new_range, var->location);
             new_arr->vars.push_back(new_var);
             m_copy_context.bind(var, new_var);
+        }
+
+        for (auto & bounded : arr->bounded_exprs)
+        {
+            new_arr->bounded_exprs.emplace_back
+                    (copy(bounded.first), copy(bounded.second));
         }
 
         new_arr->expr = copy(arr->expr);
@@ -362,6 +375,11 @@ expr_ptr func_reducer::beta_reduce(expr_ptr expr)
         {
             if (var->range)
                 var->range = beta_reduce(var->range);
+        }
+        for (auto & bounded : arr->bounded_exprs)
+        {
+            bounded.first = beta_reduce(bounded.first);
+            bounded.second = beta_reduce(bounded.second);
         }
         arr->expr = beta_reduce(arr->expr);
         return arr;
