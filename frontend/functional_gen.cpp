@@ -77,7 +77,12 @@ id_ptr generator::do_stmt(ast::node_ptr root)
     }
 
     auto id = make_shared<identifier>(name, expr, name_node->location);
-    m_context.bind(name, id);
+
+    try  {
+        m_context.bind(name, id);
+    } catch (context_error & e) {
+        throw source_error(e.what(), name_node->location);
+    }
 
     return id;
 }
