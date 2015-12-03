@@ -1,5 +1,7 @@
 #include "func_model_printer.hpp"
 
+#include <cmath>
+
 using namespace std;
 
 namespace stream {
@@ -57,6 +59,10 @@ void printer::print(expr_ptr expr, ostream & out)
                 out << ", ";
         }
         out << ")";
+    }
+    else if (auto ae = dynamic_pointer_cast<const affine_expr>(expr))
+    {
+        print(ae->expr, out);
     }
     else if (auto c = dynamic_pointer_cast<const case_expr>(expr))
     {
@@ -148,6 +154,27 @@ void printer::print(expr_ptr expr, ostream & out)
     {
         out << "?";
     }
+}
+
+void printer::print(const linexpr & expr, ostream & out)
+{
+    out << "{";
+    int t = 0;
+    for(const auto & term : expr)
+    {
+        const auto var = term.first;
+        int coef = term.second;
+        int abs_coef = std::abs(coef);
+        char sign = (coef > 0 ? '+' : '-');
+        if (t > 0 || coef < 0)
+            out << sign;
+        if (!var || abs_coef != 1)
+            out << abs_coef;
+        if (var)
+            out << var->name;
+        ++t;
+    }
+    out << "}";
 }
 
 }
