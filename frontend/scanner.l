@@ -61,6 +61,7 @@ blank [ \t]
 "if" { return parser::token::IF; }
 "then" { return parser::token::THEN; }
 "else" { return parser::token::ELSE; }
+"case" { return parser::token::CASE; }
 "let" { return parser::token::LET; }
 ".." { return parser::token::DOTDOT; }
 "true" {

@@ -61,6 +61,7 @@ enum node_type
     constant,
     identifier,
     primitive,
+    case_expr,
 
     array_def,
     array_params,

@@ -9,6 +9,8 @@ namespace functional {
 
 linexpr to_linear_expr(expr_ptr);
 
+expr_ptr to_linear_set(expr_ptr);
+
 linexpr maximum(const linexpr &);
 
 }

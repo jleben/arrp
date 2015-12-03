@@ -58,6 +58,17 @@ void printer::print(expr_ptr expr, ostream & out)
         }
         out << ")";
     }
+    else if (auto c = dynamic_pointer_cast<const case_expr>(expr))
+    {
+        out << "case ";
+        for (auto & a_case : c->cases)
+        {
+            print(a_case.first, out);
+            out << ": ";
+            print(a_case.second, out);
+            out << "; ";
+        }
+    }
     else if (auto ar = dynamic_pointer_cast<const array>(expr))
     {
         out << "[";
@@ -76,17 +87,6 @@ void printer::print(expr_ptr expr, ostream & out)
             }
         }
         out << " -> ";
-        if (!ar->bounded_exprs.empty())
-        {
-            for (auto & expr : ar->bounded_exprs)
-            {
-                print(expr.first, out);
-                out << ": ";
-                print(expr.second, out);
-                out << "; ";
-            }
-            out << "else: ";
-        }
         print(ar->expr, out);
         out << "]";
     }

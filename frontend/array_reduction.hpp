@@ -4,6 +4,7 @@
 #include "../common/functional_model.hpp"
 #include "../utility/context.hpp"
 
+#include <isl-cpp/context.hpp>
 #include <unordered_set>
 
 namespace stream {
@@ -20,12 +21,16 @@ private:
     expr_ptr reduce(std::shared_ptr<array>);
     expr_ptr reduce(std::shared_ptr<array_app>);
     expr_ptr reduce(std::shared_ptr<primitive>);
+    expr_ptr reduce(std::shared_ptr<case_expr>);
     vector<int> array_size(expr_ptr);
     vector<int> array_size(std::shared_ptr<array>);
     expr_ptr beta_reduce(expr_ptr);
     expr_ptr eta_expand(std::shared_ptr<reference>);
+
     using context_type = context<var_ptr, expr_ptr>;
     context_type m_context;
+
+    isl::context m_isl_ctx;
 
     string new_var_name();
     int var_count = 0;

@@ -21,9 +21,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_FUNCTIONAL_MODEL_INCLUDED
 #define STREAM_FUNCTIONAL_MODEL_INCLUDED
 
-#include "../common/primitives.hpp"
+#include "primitives.hpp"
+#include "linear_algebra.hpp"
 #include "../frontend/location.hh"
-
 #include <memory>
 #include <vector>
 #include <utility>
@@ -76,9 +76,19 @@ public:
     primitive(primitive_op t,
               const vector<expr_ptr> & operands):
         type(t), operands(operands) {}
+    template<typename ...Ts>
+    primitive(primitive_op t,
+              Ts ... operands):
+        type(t), operands({ operands ... }) {}
 
     primitive_op type;
     vector<expr_ptr> operands;
+};
+
+class case_expr : public expression
+{
+public:
+    vector<pair<expr_ptr,expr_ptr>> cases;
 };
 
 class array_var : public var
@@ -97,7 +107,6 @@ class array : public expression
 {
 public:
     vector<array_var_ptr> vars;
-    vector<pair<expr_ptr,expr_ptr>> bounded_exprs;
     expr_ptr expr;
 };
 
@@ -159,6 +168,22 @@ public:
         expression(loc), ids(ids), expr(e){}
     vector<id_ptr> ids;
     expr_ptr expr;
+};
+
+class affine_expr : public expression
+{
+public:
+    affine_expr() {}
+    affine_expr(const linexpr & e): expr(e) {}
+    linexpr expr;
+};
+
+class affine_set : public expression
+{
+public:
+    affine_set() {}
+    affine_set(const linear_set & s): set(s) {}
+    linear_set set;
 };
 
 }

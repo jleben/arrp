@@ -110,6 +110,17 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             operand = no_function(reduce(operand), operand->location);
         return op;
     }
+    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
+    {
+        for (auto & a_case : c->cases)
+        {
+            auto & d = a_case.first;
+            auto & e = a_case.second;
+            d = no_function(reduce(d), d->location);
+            e = no_function(reduce(e), e->location);
+        }
+        return c;
+    }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
@@ -138,13 +149,6 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
         {
             if (var->range)
                 var->range = no_function(reduce(var->range), var->range->location);
-        }
-        for (auto & bounded : arr->bounded_exprs)
-        {
-            auto & d = bounded.first;
-            auto & e = bounded.second;
-            d = no_function(reduce(d), d->location);
-            e = no_function(reduce(e), e->location);
         }
         arr->expr = no_function(reduce(arr->expr), arr->expr->location);
         return arr;
@@ -226,6 +230,17 @@ expr_ptr func_reducer::copy(expr_ptr expr)
             new_op->operands.push_back(copy(operand));
         return new_op;
     }
+    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
+    {
+        auto result = make_shared<case_expr>();
+        result->location = c->location;
+        for (auto & a_case : c->cases)
+        {
+            result->cases.emplace_back
+                    (copy(a_case.first), copy(a_case.second));
+        }
+        return result;
+    }
     else if (auto arr = dynamic_pointer_cast<array>(expr))
     {
         auto new_arr = make_shared<array>();
@@ -241,12 +256,6 @@ expr_ptr func_reducer::copy(expr_ptr expr)
             auto new_var = make_shared<array_var>(var->name, new_range, var->location);
             new_arr->vars.push_back(new_var);
             m_copy_context.bind(var, new_var);
-        }
-
-        for (auto & bounded : arr->bounded_exprs)
-        {
-            new_arr->bounded_exprs.emplace_back
-                    (copy(bounded.first), copy(bounded.second));
         }
 
         new_arr->expr = copy(arr->expr);
@@ -355,6 +364,15 @@ expr_ptr func_reducer::beta_reduce(expr_ptr expr)
             operand = beta_reduce(operand);
         return op;
     }
+    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
+    {
+        for (auto & a_case : c->cases)
+        {
+            a_case.first = beta_reduce(a_case.first);
+            a_case.second = beta_reduce(a_case.second);
+        }
+        return c;
+    }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
@@ -375,11 +393,6 @@ expr_ptr func_reducer::beta_reduce(expr_ptr expr)
         {
             if (var->range)
                 var->range = beta_reduce(var->range);
-        }
-        for (auto & bounded : arr->bounded_exprs)
-        {
-            bounded.first = beta_reduce(bounded.first);
-            bounded.second = beta_reduce(bounded.second);
         }
         arr->expr = beta_reduce(arr->expr);
         return arr;

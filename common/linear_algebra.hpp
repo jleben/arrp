@@ -1,16 +1,18 @@
 #ifndef STREAM_LANG_FUNCTIONAL_LINEAR_ALGEBRA_INCLUDED
 #define STREAM_LANG_FUNCTIONAL_LINEAR_ALGEBRA_INCLUDED
 
-#include "functional_model.hpp"
-
 #include <vector>
 #include <utility>
+#include <memory>
 
 namespace stream {
 namespace functional {
 
 using std::vector;
 using std::pair;
+
+class var;
+typedef std::shared_ptr<var> var_ptr;
 
 class linexpr
 {
@@ -132,6 +134,38 @@ public:
     iterator end() { return terms.end(); }
     const_iterator begin() const { return terms.begin(); }
     const_iterator end() const { return terms.end(); }
+};
+
+class linear_set
+{
+public:
+    enum constraint_type
+    {
+        equal,
+        lesser,
+        greater,
+        lesser_or_equal,
+        greater_or_equal,
+        not_equal,
+    };
+
+    struct constraint
+    {
+        linexpr lhs;
+        linexpr rhs;
+        constraint_type type;
+    };
+
+    linear_set operator&& (const linear_set & other) const
+    {
+        linear_set set;
+        set.constraints = constraints;
+        set.constraints.insert(set.constraints.end(),
+                               other.constraints.begin(), other.constraints.end());
+        return set;
+    }
+
+    vector<constraint> constraints;
 };
 
 }

@@ -21,7 +21,7 @@
 %token END 0  "end of file"
 %token INVALID "invalid token"
 %token INT REAL ID TRUE FALSE
-%token IF THEN
+%token IF THEN CASE
 %token LET
 
 %left '='
@@ -236,31 +236,8 @@ array_func:
 
 array_body:
   expr
-  {
-    $$ = make_list( @$, { nullptr, $1 } );
-  }
   |
-  expr_in_domain_list ';' ELSE ':' expr
-  {
-    $$ = make_list( @$, { $1, $5 } );
-  }
-;
-
-expr_in_domain_list:
-  expr_in_domain
-  { $$ = make_list( @$, {$1} ); }
-  |
-  expr_in_domain_list ';' expr_in_domain
-  {
-    $$ = $1;
-    $$->location = @$;
-    $$->as_list()->append( $3 );
-  }
-;
-
-expr_in_domain:
-  expr ':' expr
-  { $$ = make_list( @$, { $1, $3 } ); }
+  case_expr
 ;
 
 array_arg_list:
@@ -303,6 +280,28 @@ expr_list:
 if_expr:
   IF expr THEN expr ELSE expr
   { $$ = make_list( primitive, @$, {make_const(@1,op_type::conditional), $2, $4, $6} ); }
+;
+
+case_expr:
+  CASE expr_in_domain_list ';' ELSE ':' expr %prec ELSE
+  { $$ = make_list( ast::case_expr, @$, { $2, $6 } ); }
+;
+
+expr_in_domain_list:
+  expr_in_domain
+  { $$ = make_list( @$, {$1} ); }
+  |
+  expr_in_domain_list ';' expr_in_domain
+  {
+    $$ = $1;
+    $$->location = @$;
+    $$->as_list()->append( $3 );
+  }
+;
+
+expr_in_domain:
+  expr ':' expr
+  { $$ = make_list( @$, { $1, $3 } ); }
 ;
 
 number:

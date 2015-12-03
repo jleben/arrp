@@ -75,5 +75,86 @@ linexpr maximum(const linexpr & expr)
     return max_expr;
 }
 
+linear_set::constraint to_linear_constraint(expr_ptr expr)
+{
+    if (auto op = dynamic_pointer_cast<primitive>(expr))
+    {
+        linear_set::constraint c;
+
+        switch(op->type)
+        {
+        case primitive_op::compare_eq:
+            c.type = linear_set::equal; break;
+        case primitive_op::compare_neq:
+            c.type = linear_set::not_equal; break;
+        case primitive_op::compare_l:
+            c.type = linear_set::lesser; break;
+        case primitive_op::compare_g:
+            c.type = linear_set::greater; break;
+        case primitive_op::compare_leq:
+            c.type = linear_set::lesser_or_equal; break;
+        case primitive_op::compare_geq:
+            c.type = linear_set::greater_or_equal; break;
+        default:
+            throw source_error("Not a linear constraint.", expr->location);
+        }
+
+        assert(op->operands.size() == 2);
+
+        c.lhs = to_linear_expr(op->operands[0]);
+        c.rhs = to_linear_expr(op->operands[1]);
+
+        return c;
+    }
+    else
+    {
+        throw source_error("Not a linear constraint.", expr->location);
+    }
+}
+
+expr_ptr to_linear_set(expr_ptr expr)
+{
+    if (auto op = dynamic_pointer_cast<primitive>(expr))
+    {
+        switch(op->type)
+        {
+        case primitive_op::compare_eq:
+        case primitive_op::compare_neq:
+        case primitive_op::compare_l:
+        case primitive_op::compare_g:
+        case primitive_op::compare_leq:
+        case primitive_op::compare_geq:
+        {
+            assert(op->operands.size() == 2);
+            auto lhs_expr = to_linear_expr(op->operands[0]);
+            auto rhs_expr = to_linear_expr(op->operands[1]);
+            op->operands[0] = make_shared<affine_expr>(lhs_expr);
+            op->operands[1] = make_shared<affine_expr>(rhs_expr);
+            return op;
+        }
+        case primitive_op::negate:
+        {
+            assert(op->operands.size() == 1);
+            op->operands[0] = to_linear_set(op->operands[0]);
+            return op;
+        }
+        case primitive_op::logic_and:
+        case primitive_op::logic_or:
+        {
+            assert(op->operands.size() == 2);
+            op->operands[0] = to_linear_set(op->operands[0]);
+            op->operands[1] = to_linear_set(op->operands[1]);
+            return op;
+        }
+        default:
+            throw source_error("Not a linear constraint.", expr->location);
+        }
+    }
+    else
+    {
+        throw source_error("Not a linear constraint.", expr->location);
+    }
+}
+
 }
 }

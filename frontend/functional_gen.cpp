@@ -131,6 +131,10 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     {
         return do_primitive(root);
     }
+    case ast::case_expr:
+    {
+        return do_case_expr(root);
+    }
     case ast::array_def:
     {
         return do_array_def(root);
@@ -166,12 +170,45 @@ expr_ptr generator::do_primitive(ast::node_ptr root)
     return op;
 }
 
+expr_ptr generator::do_case_expr(ast::node_ptr root)
+{
+    auto cases_node = root->as_list()->elements[0];
+    auto else_node = root->as_list()->elements[1];
+
+    vector<pair<expr_ptr,expr_ptr>> cases;
+
+    expr_ptr else_domain;
+
+    for (auto a_case : cases_node->as_list()->elements)
+    {
+        auto domain_node = a_case->as_list()->elements[0];
+        auto expr_node = a_case->as_list()->elements[1];
+        auto domain = do_expr(domain_node);
+        auto expr = do_expr(expr_node);
+        cases.emplace_back(domain, expr);
+
+        auto domain_copy = do_expr(domain_node);
+        if (else_domain)
+            else_domain = make_shared<primitive>
+                    (primitive_op::logic_or, else_domain, domain_copy);
+        else
+            else_domain = domain_copy;
+    }
+
+    else_domain = make_shared<primitive>(primitive_op::negate, else_domain);
+    // FIXME: location of else_domain?
+    cases.emplace_back(else_domain, do_expr(else_node));
+
+    auto result = make_shared<case_expr>();
+    result->location = root->location;
+    result->cases = cases;
+    return result;
+}
+
 expr_ptr generator::do_array_def(ast::node_ptr root)
 {
     auto params_node = root->as_list()->elements[0];
-    auto body_node = root->as_list()->elements[1]->as_list();
-    auto bounded_exprs_node = body_node->elements[0];
-    auto expr_node = body_node->elements[1];
+    auto expr_node = root->as_list()->elements[1];
 
     vector<array_var_ptr> params;
 
@@ -192,7 +229,6 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
     }
 
     expr_ptr expr;
-    vector<pair<expr_ptr,expr_ptr>> bounded_exprs;
 
     {
         context_type::scope_holder scope(m_context);
@@ -205,23 +241,12 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
             }
         }
 
-        if (bounded_exprs_node)
-        {
-            for (auto bounded : bounded_exprs_node->as_list()->elements)
-            {
-                auto bounds = bounded->as_list()->elements[0];
-                auto expr = bounded->as_list()->elements[1];
-                bounded_exprs.emplace_back( do_expr(bounds), do_expr(expr) );
-            }
-        }
-
         expr = do_expr(expr_node);
     }
 
     auto ar = make_shared<array>();
     for (auto & param : params)
         ar->vars.push_back(param);
-    ar->bounded_exprs = bounded_exprs;
     ar->expr = expr;
     ar->location = root->location;
 

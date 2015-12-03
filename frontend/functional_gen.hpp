@@ -42,6 +42,7 @@ private:
     expr_ptr do_block(ast::node_ptr, vector<id_ptr> & local_vars);
     expr_ptr do_expr(ast::node_ptr);
     expr_ptr do_primitive(ast::node_ptr);
+    expr_ptr do_case_expr(ast::node_ptr);
     expr_ptr do_array_def(ast::node_ptr);
     expr_ptr do_array_apply(ast::node_ptr);
     expr_ptr do_func_apply(ast::node_ptr);

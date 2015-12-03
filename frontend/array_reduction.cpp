@@ -35,6 +35,10 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     {
         return reduce(op);
     }
+    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
+    {
+        return reduce(c);
+    }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
@@ -250,6 +254,78 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     }
 }
 
+expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
+{
+    vector<int> common_size;
+
+    for (auto & a_case : cexpr->cases)
+    {
+        auto & domain = a_case.first;
+        auto & expr = a_case.second;
+        auto src_expr = expr;
+
+        domain = to_linear_set(domain);
+        expr = reduce(expr);
+
+        auto size = array_size(expr);
+        if (size.empty())
+            continue;
+        if (!common_size.empty() && size != common_size)
+        {
+            throw source_error("Subdomain has elements of different size"
+                               " than other subdomains.",
+                               src_expr->location);
+        }
+        common_size = size;
+    }
+
+    if (!common_size.empty())
+    {
+        auto arr = make_shared<array>();
+
+        for (auto s : common_size)
+        {
+            expr_ptr range = nullptr;
+            if (s != array_var::unconstrained)
+                range = make_shared<constant<int>>(s);
+            auto v = make_shared<array_var>(new_var_name(), range, location_type());
+            arr->vars.push_back(v);
+        }
+
+        for (auto & a_case : cexpr->cases)
+        {
+            auto & expr = a_case.second;
+
+            auto inner_array = dynamic_pointer_cast<array>(expr);
+            if (!inner_array)
+                continue;
+            assert(arr->vars.size() == inner_array->vars.size());
+
+            context_type::scope_holder scope(m_context);
+
+            for (int i = 0; i < arr->vars.size(); ++i)
+            {
+                auto ref = make_shared<reference>(arr->vars[i], location_type());
+                m_context.bind(inner_array->vars[i], ref);
+            }
+
+            expr = beta_reduce(inner_array->expr);
+
+            if (dynamic_pointer_cast<case_expr>(expr))
+            {
+                // FIXME: location of reduced expression
+                throw source_error("Nested cases not supported.", expr->location);
+            }
+        }
+
+        arr->expr = cexpr;
+
+        return arr;
+    }
+
+    return cexpr;
+}
+
 vector<int> array_reducer::array_size(expr_ptr expr)
 {
     if (auto ref = dynamic_pointer_cast<reference>(expr))
@@ -299,7 +375,16 @@ expr_ptr array_reducer::beta_reduce(expr_ptr expr)
         }
         return ref;
     }
-    if (auto arr = dynamic_pointer_cast<array>(expr))
+    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
+    {
+        for (auto & a_case : c->cases)
+        {
+            a_case.first = beta_reduce(a_case.first);
+            a_case.second = beta_reduce(a_case.second);
+        }
+        return c;
+    }
+    else if (auto arr = dynamic_pointer_cast<array>(expr))
     {
         arr->expr = beta_reduce(arr->expr);
         return arr;
