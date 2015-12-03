@@ -225,6 +225,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
             arr->vars.push_back(v);
         }
 
+        // Reduce arrays in operands:
+
         for (auto & operand : op->operands)
         {
             auto op_arr = dynamic_pointer_cast<array>(operand);
@@ -242,6 +244,17 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
             auto reduced_operand = beta_reduce(op_arr->expr);
             operand = reduced_operand;
+        }
+
+        // Check subdomains in operands:
+
+        for (auto & operand : op->operands)
+        {
+            if (dynamic_pointer_cast<case_expr>(operand))
+            {
+                throw source_error("Case expression not supported as operand.",
+                                   operand->location);
+            }
         }
 
         arr->expr = reduce_primitive(op);
