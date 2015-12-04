@@ -1,6 +1,7 @@
 #include "func_reducer.hpp"
 #include "error.hpp"
 #include "../common/func_model_printer.hpp"
+#include "../utility/stacker.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -246,6 +247,8 @@ expr_ptr func_reducer::copy(expr_ptr expr)
         auto new_arr = make_shared<array>();
         new_arr->location = arr->location;
 
+        stacker<array_ptr> stackit(new_arr, m_array_copy_stack);
+
         copy_context_type::scope_holder scope(m_copy_context);
 
         for (auto & var : arr->vars)
@@ -304,6 +307,12 @@ expr_ptr func_reducer::copy(expr_ptr expr)
         {
             throw error("Unexpected reference type.");
         }
+    }
+    else if (auto r = dynamic_pointer_cast<array_self_ref>(expr))
+    {
+        assert(!m_array_copy_stack.empty());
+        auto arr = m_array_copy_stack.top();
+        return make_shared<array_self_ref>(arr, r->location);
     }
     else if (auto func = dynamic_pointer_cast<function>(expr))
     {

@@ -55,6 +55,7 @@ private:
     reduce_context_type m_beta_reduce_context;
 
     stack<location_type> m_trace;
+    stack<array_ptr> m_array_copy_stack;
 
     unordered_set<id_ptr> m_ids;
 
