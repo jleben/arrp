@@ -28,9 +28,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/func_reducer.hpp"
 #include "../frontend/array_reduction.hpp"
-//#include "../frontend/func_type_checker.hpp"
-//#include "../frontend/environment_builder.hpp"
-//#include "../frontend/type_checker.hpp"
 //#include "../polyhedral/translator.hpp"
 #include "../polyhedral/polyhedral-gen.hpp"
 #include "../polyhedral/ast_generator.hpp"
@@ -225,15 +222,6 @@ result::code compile_source(istream & source, const arguments & args)
                 cout << endl;
             }
         }
-#if 0
-        functional::type_checker type_checker;
-        auto type = type_checker.check(func, {});
-        cout << "-- Result type:" << endl;
-        cout << type.elem_type;
-        for (auto & i : type.size)
-            cout << " " << i;
-        cout << endl;
-#endif
     }
     catch (functional::func_reduce_error & e)
     {
@@ -263,62 +251,6 @@ result::code compile_source(istream & source, const arguments & args)
 
     return result::ok;
 
-
-#if 0
-    stream::semantic::environment env;
-    stream::semantic::environment_builder env_builder(parser, env);
-    if (!env_builder.process(ast_root))
-        return result::symbolic_error;
-
-    if (args.print[arguments::symbols_output])
-    {
-        cout << endl;
-        cout << "== Environment ==" << endl;
-        cout << env;
-    }
-
-    if (args.target.name.empty())
-        return result::ok;
-
-    semantic::type_checker type_checker(parser, env);
-
-    const target_info & target = args.target;
-
-    cout << endl;
-    cout << "== Generating: " << target.name;
-    cout << "(";
-    if (target.args.size())
-        cout << *target.args.front();
-    for ( int i = 1; i < target.args.size(); ++i )
-    {
-        cout << ", ";
-        cout << *target.args[i];
-    }
-    cout << ")" << endl;
-
-    auto sym_iter = env.find(target.name);
-    if (sym_iter == env.end())
-    {
-        cerr << "ERROR: no symbol '" << target.name << "' available." << endl;
-        return result::command_line_error;
-    }
-
-    semantic::type_ptr result_type =
-            type_checker.check(sym_iter->second, target.args);
-
-    if (type_checker.has_error())
-        return result::semantic_error;
-
-    cout << "Type: " << *result_type << endl;
-
-    if (result_type->is(semantic::type::function))
-    {
-        sym_iter = env.find(result_type->as<semantic::function>().name);
-        assert(sym_iter != env.end());
-    }
-
-    return result::ok;
-#endif
 
 #if STARTED_WORKING_ON_POLYHEDRAL_MODEL
     polyhedral::model_generator poly_gen(env);

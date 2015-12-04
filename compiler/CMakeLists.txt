@@ -24,9 +24,6 @@ add_library(streamc-lib ${lib_mode}
   ../frontend/func_reducer.cpp
   ../frontend/linear_expr_gen.cpp
   ../frontend/array_reduction.cpp
-  #../frontend/func_type_checker.cpp
-  #../frontend/environment_builder.cpp
-  #../frontend/type_checker.cpp
   #../polyhedral/polyhedral-gen.cpp
   #../polyhedral/translator.cpp
   #../polyhedral/dataflow_model.cpp
