@@ -107,6 +107,20 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
     app->object = reduce(app->object);
 
     auto arr = dynamic_pointer_cast<array>(app->object);
+    bool is_self = false;
+
+    if (arr)
+    {
+        if (arr->is_recursive)
+            throw source_error("Direct application of recursive arrays not supported.",
+                               app->location);
+    }
+    else if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object))
+    {
+        arr = arr_self->arr;
+        is_self = true;
+    }
+
     if (!arr)
     {
         throw source_error("Object of array application not an array.",
@@ -115,7 +129,18 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 
     vector<int> bounds = array_size(arr);
 
-    if (bounds.size() < app->args.size())
+    if (is_self)
+    {
+        if (bounds.size() != app->args.size())
+        {
+            ostringstream msg;
+            msg << "Array self reference partially applied."
+                << " Expected " << bounds.size() << " arguments, but "
+                << app->args.size() << " given.";
+            throw source_error(msg.str(), app->location);
+        }
+    }
+    else if (bounds.size() < app->args.size())
     {
         ostringstream msg;
         msg << "Too many arguments in array application: "
@@ -153,41 +178,12 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
             }
         }
 
-        // TODO: store the linear expression
+        arg = make_shared<affine_expr>(lin_arg);
     }
 
+    if (!is_self)
     {
-        context_type::scope_holder scope(m_context);
-
-        assert(arr->vars.size() >= app->args.size());
-        for (int arg_idx = 0; arg_idx < app->args.size(); ++arg_idx)
-        {
-            auto & arg = app->args[arg_idx];
-            auto & var = arr->vars[arg_idx];
-            m_context.bind(var, arg);
-        }
-
-        auto expr = beta_reduce(arr->expr);
-
-        // Reduce primitive ops
-        if (auto prim = dynamic_pointer_cast<primitive>(expr))
-        {
-            expr = reduce(prim);
-        }
-
-        if (arr->vars.size() > app->args.size())
-        {
-            vector<array_var_ptr> remaining_vars(arr->vars.begin() + app->args.size(),
-                                                 arr->vars.end());
-            arr->vars = remaining_vars;
-            arr->expr = expr;
-            arr->location = app->location;
-            return arr;
-        }
-        else
-        {
-            return expr;
-        }
+        return apply(arr, app->args);
     }
 
     return app;
@@ -202,6 +198,13 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     for (auto & operand : op->operands)
     {
+        if (auto arr = dynamic_pointer_cast<array>(operand))
+        {
+            if (arr->is_recursive)
+                throw source_error("Recursive arrays not supported as operands.",
+                                   arr->location);
+        }
+
         auto operand_size = array_size(operand);
         if (operand_size.empty())
             continue;
@@ -216,6 +219,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     {
         auto arr = make_shared<array>();
 
+        // Create vars for result array
+
         for (auto s : size)
         {
             expr_ptr range = nullptr;
@@ -229,21 +234,15 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
         for (auto & operand : op->operands)
         {
-            auto op_arr = dynamic_pointer_cast<array>(operand);
-            if (!op_arr)
-                continue;
-            assert(arr->vars.size() == op_arr->vars.size());
-
-            context_type::scope_holder scope(m_context);
-
+            vector<expr_ptr> args;
             for (int i = 0; i < arr->vars.size(); ++i)
             {
-                auto ref = make_shared<reference>(arr->vars[i], location_type());
-                m_context.bind(op_arr->vars[i], ref);
+                linexpr arg_expr(arr->vars[i]);
+                auto arg = make_shared<affine_expr>(arg_expr, location_type());
+                args.push_back(arg);
             }
 
-            auto reduced_operand = beta_reduce(op_arr->expr);
-            operand = reduced_operand;
+            operand = apply(operand, args);
         }
 
         // Check subdomains in operands:
@@ -309,20 +308,16 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         {
             auto & expr = a_case.second;
 
-            auto inner_array = dynamic_pointer_cast<array>(expr);
-            if (!inner_array)
-                continue;
-            assert(arr->vars.size() == inner_array->vars.size());
-
-            context_type::scope_holder scope(m_context);
-
+            // Reduce array
+            vector<expr_ptr> args;
             for (int i = 0; i < arr->vars.size(); ++i)
             {
-                auto ref = make_shared<reference>(arr->vars[i], location_type());
-                m_context.bind(inner_array->vars[i], ref);
+                linexpr arg_expr(arr->vars[i]);
+                auto arg = make_shared<affine_expr>(arg_expr, location_type());
+                args.push_back(arg);
             }
 
-            expr = beta_reduce(inner_array->expr);
+            expr = apply(expr, args);
 
             if (dynamic_pointer_cast<case_expr>(expr))
             {
@@ -376,7 +371,53 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
     return s;
 }
 
-expr_ptr array_reducer::beta_reduce(expr_ptr expr)
+expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
+{
+    if (auto app = dynamic_pointer_cast<array_app>(expr))
+    {
+        // This handles recursive array applications
+        app->args.insert(app->args.end(), args.begin(), args.end());
+        return app;
+    }
+    else if (auto arr = dynamic_pointer_cast<array>(expr))
+    {
+        assert(arr->vars.size() >= args.size());
+
+        context_type::scope_holder scope(m_context);
+
+        for (int i = 0; i < args.size(); ++i)
+        {
+            m_context.bind(arr->vars[i], args[i]);
+        }
+
+        auto expr = substitute(arr->expr);
+
+        // Reduce primitive ops
+        if (auto prim = dynamic_pointer_cast<primitive>(expr))
+        {
+            expr = reduce(prim);
+        }
+
+        if (arr->vars.size() > args.size())
+        {
+            vector<array_var_ptr> remaining_vars(arr->vars.begin() + args.size(),
+                                                 arr->vars.end());
+            arr->vars = remaining_vars;
+            arr->expr = expr;
+            arr->location = location_type();
+            // FIXME: location
+            return arr;
+        }
+        else
+        {
+            return expr;
+        }
+    }
+
+    return expr;
+}
+
+expr_ptr array_reducer::substitute(expr_ptr expr)
 {
     if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
@@ -392,27 +433,27 @@ expr_ptr array_reducer::beta_reduce(expr_ptr expr)
     {
         for (auto & a_case : c->cases)
         {
-            a_case.first = beta_reduce(a_case.first);
-            a_case.second = beta_reduce(a_case.second);
+            a_case.first = substitute(a_case.first);
+            a_case.second = substitute(a_case.second);
         }
         return c;
     }
     else if (auto arr = dynamic_pointer_cast<array>(expr))
     {
-        arr->expr = beta_reduce(arr->expr);
+        arr->expr = substitute(arr->expr);
         return arr;
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
-        app->object = beta_reduce(app->object);
+        app->object = substitute(app->object);
         for (auto & arg : app->args)
-            arg = beta_reduce(arg);
+            arg = substitute(arg);
         return app;
     }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
         for (auto & operand : op->operands)
-            operand = beta_reduce(operand);
+            operand = substitute(operand);
         return op;
     }
     else

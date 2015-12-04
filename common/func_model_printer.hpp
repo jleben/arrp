@@ -22,6 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_FUNCTIONAL_MODEL_PRINTER_INCLUDED
 
 #include "functional_model.hpp"
+#include "linear_algebra.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -42,6 +43,7 @@ public:
     printer();
     void print(id_ptr id, ostream &);
     void print(expr_ptr expr, ostream &);
+    void print(const linexpr & expr, ostream &);
     void indent() { ++level; }
     void unindent() { --level; }
 

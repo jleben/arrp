@@ -1,5 +1,6 @@
 #include "functional_gen.hpp"
 #include "error.hpp"
+#include "../utility/stacker.hpp"
 
 using namespace std;
 
@@ -127,6 +128,17 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         auto var = item.value();
         return make_shared<reference>(var, root->location);
     }
+    case ast::array_self_ref:
+    {
+        if (m_array_stack.empty())
+        {
+            throw source_error("Array self reference without array.",
+                               root->location);
+        }
+        auto arr = m_array_stack.top();
+        arr->is_recursive = true;
+        return make_shared<array_self_ref>(arr, root->location);
+    }
     case ast::primitive:
     {
         return do_primitive(root);
@@ -210,6 +222,10 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
     auto params_node = root->as_list()->elements[0];
     auto expr_node = root->as_list()->elements[1];
 
+    auto ar = make_shared<array>();
+    ar->location = root->location;
+    stacker<array_ptr> ar_stacker(ar, m_array_stack);
+
     vector<array_var_ptr> params;
 
     for (auto & param : params_node->as_list()->elements)
@@ -244,11 +260,9 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
         expr = do_expr(expr_node);
     }
 
-    auto ar = make_shared<array>();
     for (auto & param : params)
         ar->vars.push_back(param);
     ar->expr = expr;
-    ar->location = root->location;
 
     return ar;
 }

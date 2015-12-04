@@ -21,7 +21,7 @@
 %token END 0  "end of file"
 %token INVALID "invalid token"
 %token INT REAL ID TRUE FALSE
-%token IF THEN CASE
+%token IF THEN CASE THIS
 %token LET
 
 %left '='
@@ -155,6 +155,8 @@ let_block:
 ;
 
 expr:
+  THIS
+  |
   id
   |
   number

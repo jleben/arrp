@@ -108,7 +108,9 @@ class array : public expression
 public:
     vector<array_var_ptr> vars;
     expr_ptr expr;
+    bool is_recursive = false;
 };
+typedef std::shared_ptr<array> array_ptr;
 
 class array_app : public expression
 {
@@ -150,6 +152,14 @@ public:
     var_ptr var;
 };
 
+class array_self_ref : public expression
+{
+public:
+    array_self_ref(array_ptr arr, const location_type & loc):
+        expression(loc), arr(arr) {}
+    array_ptr arr;
+};
+
 class function : public expression
 {
 public:
@@ -174,7 +184,8 @@ class affine_expr : public expression
 {
 public:
     affine_expr() {}
-    affine_expr(const linexpr & e): expr(e) {}
+    affine_expr(const linexpr & e, const location_type & loc = location_type()):
+        expression(loc), expr(e) {}
     linexpr expr;
 };
 

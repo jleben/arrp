@@ -63,6 +63,7 @@ enum node_type
     primitive,
     case_expr,
 
+    array_self_ref,
     array_def,
     array_params,
     array_param,
@@ -190,6 +191,12 @@ inline leaf_node<T> *node::as_leaf()
 {
     assert(is_leaf());
     return static_cast<leaf_node<T>*>(this);
+}
+
+inline
+node_ptr make_node(ast::node_type type, const location_type & loc)
+{
+    return std::make_shared<node>(type, loc);
 }
 
 inline

@@ -47,6 +47,10 @@ void printer::print(expr_ptr expr, ostream & out)
     {
         out << name(ref->var);
     }
+    else if (auto aref = dynamic_pointer_cast<array_self_ref>(expr))
+    {
+        out << "this";
+    }
     else if (auto prim = dynamic_pointer_cast<const primitive>(expr))
     {
         out << prim->type;

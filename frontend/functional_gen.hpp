@@ -25,8 +25,12 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../common/functional_model.hpp"
 #include "../utility/context.hpp"
 
+#include <stack>
+
 namespace stream {
 namespace functional {
+
+using std::stack;
 
 class generator
 {
@@ -46,6 +50,8 @@ private:
     expr_ptr do_array_def(ast::node_ptr);
     expr_ptr do_array_apply(ast::node_ptr);
     expr_ptr do_func_apply(ast::node_ptr);
+
+    stack<array_ptr> m_array_stack;
 };
 
 }

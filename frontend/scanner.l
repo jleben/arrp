@@ -72,6 +72,10 @@ blank [ \t]
   *yylval = ast::make_const( *yylloc, false );
   return parser::token::FALSE;
 }
+"this" {
+  *yylval = ast::make_node(ast::array_self_ref, *yylloc);
+  return parser::token::THIS;
+}
 [0-9]+\.[0-9]+ {
   *yylval = ast::make_const( *yylloc, std::stod(yytext) );
   return parser::token::REAL;
