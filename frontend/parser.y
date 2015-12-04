@@ -155,8 +155,6 @@ let_block:
 ;
 
 expr:
-  THIS
-  |
   id
   |
   number
@@ -170,6 +168,8 @@ expr:
   array_func
   |
   array_apply
+  |
+  array_self_apply
   |
   LOGIC_NOT expr
   { $$ = make_list( primitive, @$, {make_const(@1,op_type::negate), $2} ); }
@@ -228,6 +228,11 @@ expr:
 
 array_apply:
   expr '[' expr_list ']'
+  { $$ = make_list( ast::array_apply, @$, {$1, $3} ); }
+;
+
+array_self_apply:
+  THIS '[' expr_list ']'
   { $$ = make_list( ast::array_apply, @$, {$1, $3} ); }
 ;
 
