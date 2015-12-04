@@ -178,7 +178,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
             }
         }
 
-        arg = make_shared<affine_expr>(lin_arg);
+        // arg = make_shared<affine_expr>(lin_arg);
     }
 
     if (!is_self)
@@ -276,7 +276,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         auto & expr = a_case.second;
         auto src_expr = expr;
 
-        domain = to_linear_set(domain);
+        to_linear_set(domain);
         expr = reduce(expr);
 
         auto size = array_size(expr);

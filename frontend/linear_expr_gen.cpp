@@ -126,24 +126,22 @@ expr_ptr to_linear_set(expr_ptr expr)
         case primitive_op::compare_geq:
         {
             assert(op->operands.size() == 2);
-            auto lhs_expr = to_linear_expr(op->operands[0]);
-            auto rhs_expr = to_linear_expr(op->operands[1]);
-            op->operands[0] = make_shared<affine_expr>(lhs_expr);
-            op->operands[1] = make_shared<affine_expr>(rhs_expr);
+            to_linear_expr(op->operands[0]);
+            to_linear_expr(op->operands[1]);
             return op;
         }
         case primitive_op::negate:
         {
             assert(op->operands.size() == 1);
-            op->operands[0] = to_linear_set(op->operands[0]);
+            to_linear_set(op->operands[0]);
             return op;
         }
         case primitive_op::logic_and:
         case primitive_op::logic_or:
         {
             assert(op->operands.size() == 2);
-            op->operands[0] = to_linear_set(op->operands[0]);
-            op->operands[1] = to_linear_set(op->operands[1]);
+            to_linear_set(op->operands[0]);
+            to_linear_set(op->operands[1]);
             return op;
         }
         default:
