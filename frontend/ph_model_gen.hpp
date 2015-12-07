@@ -48,14 +48,17 @@ private:
         }
     };
 
-    void process(id_ptr id, polyhedral::model &);
-
     polyhedral::array_ptr make_array(id_ptr id);
 
-    polyhedral::stmt_ptr make_stmt(polyhedral::array_ptr array,
-                                   const vector<array_var_ptr> &,
+    void make_statements(id_ptr id, polyhedral::model &);
+
+    polyhedral::stmt_ptr make_stmt(const vector<array_var_ptr> &,
                                    const string & name,
-                                   expr_ptr subdomain_expr);
+                                   expr_ptr subdomain_expr,
+                                   expr_ptr expr);
+
+    expr_ptr make_affine_array_reads(polyhedral::stmt_ptr,
+                                     expr_ptr, const space_map &);
 
     isl::set to_affine_set(expr_ptr, const space_map &);
     isl::expression to_affine_expr(expr_ptr, const space_map &);
@@ -63,6 +66,7 @@ private:
     isl::context m_isl_ctx;
     isl::printer m_isl_printer;
     unordered_map<id_ptr, polyhedral::array_ptr> m_arrays;
+    id_ptr m_current_id;
 };
 
 }
