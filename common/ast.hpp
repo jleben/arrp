@@ -68,6 +68,7 @@ enum node_type
     array_params,
     array_param,
     array_apply,
+    array_size,
 
     func_def,
     func_apply,

@@ -113,6 +113,16 @@ void printer::print(expr_ptr expr, ostream & out)
         }
         out << "]";
     }
+    else if (auto as = dynamic_pointer_cast<array_size>(expr))
+    {
+        out << '#';
+        print(as->object, out);
+        if (as->dimension)
+        {
+            out << '@';
+            print(as->dimension, out);
+        }
+    }
     else if (auto app = dynamic_pointer_cast<func_app>(expr))
     {
         print(app->object, out);

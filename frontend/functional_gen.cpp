@@ -155,6 +155,15 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     {
         return do_array_apply(root);
     }
+    case ast::array_size:
+    {
+        expr_ptr object = do_expr(root->as_list()->elements[0]);
+        expr_ptr dim;
+        auto dim_node = root->as_list()->elements[1];
+        if (dim_node)
+            dim = do_expr(dim_node);
+        return make_shared<array_size>(object, dim, root->location);
+    }
     case ast::func_apply:
     {
         return do_func_apply(root);

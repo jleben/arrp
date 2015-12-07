@@ -21,6 +21,18 @@ static bool is_constant(expr_ptr expr)
     return false;
 }
 
+void array_reducer::process(id_ptr id)
+{
+    // FIXME: Don't store propagated constants.
+
+    bool was_processed = m_ids.find(id) != m_ids.end();
+    if (!was_processed)
+    {
+        id->expr = eta_expand(reduce(id->expr));
+        m_ids.insert(id);
+    }
+}
+
 expr_ptr array_reducer::reduce(expr_ptr expr)
 {
     if (auto arr = dynamic_pointer_cast<array>(expr))
@@ -30,6 +42,10 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
         return reduce(app);
+    }
+    else if (auto as = dynamic_pointer_cast<functional::array_size>(expr))
+    {
+        return reduce(as);
     }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
@@ -43,20 +59,10 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     {
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
-            bool was_reduced = m_ids.find(id) != m_ids.end();
-            if (!was_reduced)
-            {
-                id->expr = reduce(id->expr);
-            }
-
+            process(id);
             bool is_const = is_constant(id->expr);
             if (is_const)
                 return id->expr;
-
-            if (!was_reduced)
-                m_ids.insert(id);
-
-            return eta_expand(ref);
         }
         return ref;
     }
@@ -106,7 +112,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 {
     app->object = reduce(app->object);
 
-    auto arr = dynamic_pointer_cast<array>(app->object);
+    auto object = eta_expand(app->object);
+    auto arr = dynamic_pointer_cast<array>(object);
     bool is_self = false;
 
     if (arr)
@@ -187,6 +194,50 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
     }
 
     return app;
+}
+
+expr_ptr array_reducer::reduce(std::shared_ptr<functional::array_size> as)
+{
+    as->object = reduce(as->object);
+
+    auto size = array_size(as->object);
+    if (size.size() < 1)
+    {
+        throw source_error("Not an array.",
+                           as->object->location);
+    }
+
+    int dim;
+    if (as->dimension)
+    {
+        as->dimension = reduce(as->dimension);
+        auto cint = dynamic_pointer_cast<constant<int>>(as->dimension);
+        if (!cint)
+        {
+            throw source_error("Array dimension index not a constant integer.",
+                               as->location);
+        }
+        int val = cint->value;
+        if (val < 1 || val > (int)size.size())
+        {
+            throw source_error("Array dimension index out of bounds.",
+                               as->location);
+        }
+        dim = val - 1;
+    }
+    else
+    {
+        dim = 0;
+    }
+
+    int dim_size = size[dim];
+    if (dim_size < 0)
+    {
+        throw source_error("Array dimension is infinite.",
+                           as->location);
+    }
+
+    return make_shared<constant<int>>(dim_size);
 }
 
 expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
@@ -458,6 +509,14 @@ expr_ptr array_reducer::substitute(expr_ptr expr)
     }
     else
         return expr;
+}
+
+expr_ptr array_reducer::eta_expand(expr_ptr expr)
+{
+    auto ref = dynamic_pointer_cast<reference>(expr);
+    if (ref)
+        return eta_expand(ref);
+    return expr;
 }
 
 expr_ptr array_reducer::eta_expand(std::shared_ptr<reference> ref)

@@ -15,17 +15,22 @@ using std::unordered_set;
 class array_reducer
 {
 public:
-    expr_ptr reduce(expr_ptr);
+    void process(id_ptr);
+
     const unordered_set<id_ptr> & ids() const { return m_ids; }
 private:
+    void reduce(id_ptr id);
+    expr_ptr reduce(expr_ptr);
     expr_ptr reduce(std::shared_ptr<array>);
     expr_ptr reduce(std::shared_ptr<array_app>);
+    expr_ptr reduce(std::shared_ptr<functional::array_size>);
     expr_ptr reduce(std::shared_ptr<primitive>);
     expr_ptr reduce(std::shared_ptr<case_expr>);
     vector<int> array_size(expr_ptr);
     vector<int> array_size(std::shared_ptr<array>);
     expr_ptr apply(expr_ptr, const vector<expr_ptr> & args);
     expr_ptr substitute(expr_ptr);
+    expr_ptr eta_expand(expr_ptr);
     expr_ptr eta_expand(std::shared_ptr<reference>);
 
     using context_type = context<var_ptr, expr_ptr>;

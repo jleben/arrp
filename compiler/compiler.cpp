@@ -207,7 +207,7 @@ result::code compile_source(istream & source, const arguments & args)
         }
         {
             functional::array_reducer reducer;
-            id->expr = reducer.reduce(id->expr);
+            reducer.process(id);
             array_ids = reducer.ids();
 
             {

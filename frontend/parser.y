@@ -38,6 +38,7 @@
 %right UMINUS '#'
 // FIXME: review precedence and association
 %left '[' '{' '('
+%right '@'
 
 %start program
 
@@ -171,6 +172,8 @@ expr:
   |
   array_self_apply
   |
+  array_size
+  |
   LOGIC_NOT expr
   { $$ = make_list( primitive, @$, {make_const(@1,op_type::negate), $2} ); }
   |
@@ -264,6 +267,14 @@ array_arg:
   |
   id ':' expr
   { $$ = make_list( array_param, @$, {$1, $3} ); }
+;
+
+array_size:
+  '#' expr
+  { $$ = make_list( array_size, @$, { $2, nullptr } ); }
+  |
+  '#' expr '@' expr
+  { $$ = make_list( array_size, @$, { $2, $4 } ); }
 ;
 
 func_apply:

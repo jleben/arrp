@@ -161,6 +161,14 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             arg = no_function(reduce(arg), app->object->location);
         return app;
     }
+    else if (auto as = dynamic_pointer_cast<array_size>(expr))
+    {
+        as->object = no_function(reduce(as->object), as->object->location);
+        auto & dim = as->dimension;
+        if (dim)
+            dim = no_function(reduce(dim), dim->location);
+        return as;
+    }
     else if (auto func = dynamic_pointer_cast<function>(expr))
     {
         auto reduced_expr = reduce(func->expr);
@@ -273,6 +281,16 @@ expr_ptr func_reducer::copy(expr_ptr expr)
         for (auto & arg : app->args)
             new_app->args.push_back(copy(arg));
         return new_app;
+    }
+    else if (auto as = dynamic_pointer_cast<array_size>(expr))
+    {
+        auto new_as = make_shared<array_size>();
+        new_as->location = as->location;
+        new_as->object = copy(as->object);
+        auto &dim = as->dimension;
+        if (dim)
+            new_as->dimension = copy(dim);
+        return new_as;
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
@@ -412,6 +430,14 @@ expr_ptr func_reducer::beta_reduce(expr_ptr expr)
         for(auto & arg : app->args)
             arg = beta_reduce(arg);
         return app;
+    }
+    else if (auto as = dynamic_pointer_cast<array_size>(expr))
+    {
+        as->object = beta_reduce(as->object);
+        auto & dim = as->dimension;
+        if (dim)
+            dim = beta_reduce(dim);
+        return as;
     }
     else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
     {

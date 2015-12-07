@@ -87,6 +87,8 @@ expr_ptr reduce_primitive(std::shared_ptr<primitive> op)
             return try_reduce([&](){ return c_i(to_i(a[0]) * to_i(a[1])); } );
         case primitive_op::divide_integer:
             return try_reduce([&](){ return c_i(to_i(a[0]) / to_i(a[1])); } );
+        case primitive_op::negate:
+            return try_reduce([&](){ return c_i(-to_i(a[0])); });
         default:
             return op;
         }

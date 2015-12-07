@@ -119,6 +119,16 @@ public:
     vector<expr_ptr> args;
 };
 
+class array_size : public expression
+{
+public:
+    array_size() {}
+    array_size(expr_ptr o, expr_ptr d, const location_type & l):
+        expression(l), object(o), dimension(d) {}
+    expr_ptr object;
+    expr_ptr dimension;
+};
+
 class func_app : public expression
 {
 public:
