@@ -2,7 +2,7 @@
 #define STREAM_LANG_COMPILER_INCLUDED
 
 #include "arg_parser.hpp"
-#include "../common/polyhedral_model.hpp"
+#include "../common/ph_model.hpp"
 
 #include <iostream>
 

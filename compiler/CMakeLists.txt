@@ -15,7 +15,7 @@ add_library(streamc-lib ${lib_mode}
   ../common/primitives.cpp
   ../common/types.cpp
   ../common/environment.cpp
-  ../common/polyhedral_model.cpp
+  #../common/polyhedral_model.cpp
   ../common/polyhedral_model_printer.cpp
   ../common/array_func_printer.cpp
   ../common/func_model_printer.cpp
@@ -24,6 +24,7 @@ add_library(streamc-lib ${lib_mode}
   ../frontend/func_reducer.cpp
   ../frontend/linear_expr_gen.cpp
   ../frontend/array_reduction.cpp
+  ../frontend/ph_model_gen.cpp
   #../polyhedral/polyhedral-gen.cpp
   #../polyhedral/translator.cpp
   #../polyhedral/dataflow_model.cpp

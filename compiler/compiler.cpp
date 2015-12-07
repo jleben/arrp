@@ -21,19 +21,20 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "arg_parser.hpp"
 #include "compiler.hpp"
 #include "../common/ast_printer.hpp"
-#include "../common/polyhedral_model_printer.hpp"
+//#include "../common/polyhedral_model_printer.hpp"
 #include "../common/func_model_printer.hpp"
 #include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/func_reducer.hpp"
 #include "../frontend/array_reduction.hpp"
+#include "../frontend/ph_model_gen.hpp"
 //#include "../polyhedral/translator.hpp"
-#include "../polyhedral/polyhedral-gen.hpp"
-#include "../polyhedral/ast_generator.hpp"
+//#include "../polyhedral/polyhedral-gen.hpp"
+//#include "../polyhedral/ast_generator.hpp"
 //#include "../llvm/llvm_ir_from_cloog.hpp"
 //#include "../llvm/llvm_from_polyhedral.hpp"
-#include "../cpp/cpp_target.hpp"
+//#include "../cpp/cpp_target.hpp"
 //#include "../interface/cpp-intf-gen.hpp"
 
 #include <json++/json.hh>
@@ -221,6 +222,12 @@ result::code compile_source(istream & source, const arguments & args)
                 printer.print(id, cout);
                 cout << endl;
             }
+        }
+        {
+            array_ids.insert(id);
+            functional::polyhedral_gen gen;
+            polyhedral::model phm;
+            gen.process(array_ids, phm);
         }
     }
     catch (functional::func_reduce_error & e)
