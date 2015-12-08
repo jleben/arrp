@@ -7,6 +7,27 @@ using namespace std;
 namespace stream {
 namespace functional {
 
+unordered_map<string, primitive_op> generator::m_prim_ops =
+{
+    { "exp", primitive_op::exp },
+    { "exp2", primitive_op::exp2 },
+    { "log", primitive_op::log },
+    {  "log2", primitive_op::log2 },
+     { "log10", primitive_op::log10 },
+     { "sqrt", primitive_op::sqrt },
+     { "sin", primitive_op::sin },
+     { "cos", primitive_op::cos },
+     { "tan", primitive_op::tan },
+     { "asin", primitive_op::asin },
+     { "acos", primitive_op::acos },
+     { "atan", primitive_op::atan },
+     { "ceil", primitive_op::ceil },
+     { "floor", primitive_op::floor },
+     { "abs", primitive_op::abs },
+     { "min", primitive_op::min },
+     { "max", primitive_op::max },
+};
+
 vector<id_ptr>
 generator::generate(ast::node_ptr ast)
 {
@@ -302,13 +323,26 @@ expr_ptr generator::do_func_apply(ast::node_ptr root)
     auto object_node = root->as_list()->elements[0];
     auto args_node = root->as_list()->elements[1];
 
-    auto object = do_expr(object_node);
-
     vector<expr_ptr> args;
     for (auto & arg_node : args_node->as_list()->elements)
     {
         args.push_back(do_expr(arg_node));
     }
+
+    if (object_node->type == ast::identifier)
+    {
+        auto & name = object_node->as_leaf<string>()->value;
+        auto op_it = m_prim_ops.find(name);
+        if (op_it != m_prim_ops.end())
+        {
+            auto op_type = op_it->second;
+            auto op = make_shared<primitive>(op_type, args);
+            op->location = root->location;
+            return op;
+        }
+    }
+
+    auto object = do_expr(object_node);
 
     auto result = make_shared<func_app>();
     result->object = object;

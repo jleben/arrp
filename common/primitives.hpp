@@ -13,6 +13,7 @@ using std::vector;
 
 enum class primitive_type
 {
+    undefined,
     boolean,
     integer,
     real
@@ -74,6 +75,12 @@ struct prim_op_overload
 
 vector<prim_op_overload> overloads(primitive_op);
 
+struct ambiguous_type {};
+struct no_type {};
+
+primitive_type result_type(primitive_op, vector<primitive_type> & args);
+
+primitive_type common_type(primitive_type, primitive_type);
 
 inline ostream & operator<<(ostream & s, primitive_op op)
 {

@@ -13,27 +13,28 @@ add_library(streamc-lib ${lib_mode}
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../common/primitives.cpp
-  ../common/types.cpp
+  #../common/types.cpp
   ../common/environment.cpp
   #../common/polyhedral_model.cpp
-  ../common/polyhedral_model_printer.cpp
-  ../common/array_func_printer.cpp
+  #../common/polyhedral_model_printer.cpp
+  #../common/array_func_printer.cpp
   ../common/func_model_printer.cpp
   ../frontend/prim_reduction.cpp
   ../frontend/functional_gen.cpp
   ../frontend/func_reducer.cpp
   ../frontend/linear_expr_gen.cpp
   ../frontend/array_reduction.cpp
+  ../frontend/type_check.cpp
   ../frontend/ph_model_gen.cpp
   #../polyhedral/polyhedral-gen.cpp
   #../polyhedral/translator.cpp
   #../polyhedral/dataflow_model.cpp
-  ../polyhedral/ast_generator.cpp
-  ../llvm/llvm_ir_from_cloog.cpp
+  #../polyhedral/ast_generator.cpp
+  #../llvm/llvm_ir_from_cloog.cpp
   #../llvm/llvm_from_polyhedral.cpp
-  ../cpp/cpp_target.cpp
-  ../cpp/cpp_from_cloog.cpp
-  ../cpp/cpp_from_polyhedral.cpp
+  #../cpp/cpp_target.cpp
+  #../cpp/cpp_from_cloog.cpp
+  #../cpp/cpp_from_polyhedral.cpp
   #../interface/cpp-intf-gen.cpp
   compiler.cpp
 )

@@ -138,4 +138,82 @@ vector<prim_op_overload> overloads(primitive_op op)
     }
 }
 
+primitive_type result_type(primitive_op op, vector<primitive_type> & args)
+{
+    using type = primitive_type;
+
+    auto candidates = overloads(op);
+    if (candidates.empty())
+        throw no_type();
+
+    for (auto & arg : args)
+    {
+        if (arg == type::undefined)
+        {
+            auto t = candidates.front().types.back();
+            for(int c = 1; c < candidates.size(); ++c)
+            {
+                if (candidates[c].types.back() != t)
+                    return type::undefined;
+            }
+            return t;
+        }
+    }
+
+    vector<int> promoted;
+
+    for (int c = 0; c < candidates.size(); ++c)
+    {
+        if (args.size() != candidates[c].types.size() -1)
+            continue;
+
+        bool is_valid = true;
+        bool is_exact = true;
+        for (int i = 0; i < args.size(); ++i)
+        {
+            auto pt = candidates[c].types[i];
+            auto at = args[i];
+            if (pt == at)
+                continue;
+            is_exact = false;
+            auto t = common_type(pt,at);
+            if (t == pt)
+                continue;
+            is_valid = false;
+            break;
+        }
+        if (is_exact)
+            return candidates[c].types.back();
+        if (is_valid)
+            promoted.push_back(c);
+    }
+
+    if (promoted.empty())
+    {
+        throw no_type();
+    }
+    if (promoted.size() > 1)
+    {
+        throw ambiguous_type();
+    }
+    return candidates[promoted.front()].types.back();
+}
+
+primitive_type common_type(primitive_type t1, primitive_type t2)
+{
+    using type = primitive_type;
+
+    if (t1 == t2)
+        return t1;
+    if (t1 == type::undefined)
+        return t2;
+    if (t2 == type::undefined)
+        return t1;
+    if ( (t1 == type::real && t2 == type::integer) ||
+         (t2 == type::real && t1 == type::integer) )
+        return type::real;
+
+    throw no_type();
+}
+
 }

@@ -28,6 +28,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/func_reducer.hpp"
 #include "../frontend/array_reduction.hpp"
+#include "../frontend/type_check.hpp"
 #include "../frontend/ph_model_gen.hpp"
 //#include "../polyhedral/translator.hpp"
 //#include "../polyhedral/polyhedral-gen.hpp"
@@ -221,6 +222,15 @@ result::code compile_source(istream & source, const arguments & args)
                 cout << "-->" << endl;
                 printer.print(id, cout);
                 cout << endl;
+            }
+        }
+        {
+            functional::type_checker checker;
+            checker.process(array_ids);
+            cout << "-- Types: " << endl;
+            for (const auto & id : array_ids)
+            {
+                cout << id->name << " = " << id->type << endl;
             }
         }
         {

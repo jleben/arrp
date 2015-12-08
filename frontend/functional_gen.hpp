@@ -22,15 +22,20 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_FUNCTIONAL_MODEL_GENERATOR_INCLUDED
 
 #include "../common/ast.hpp"
+#include "../common/primitives.hpp"
 #include "../common/functional_model.hpp"
 #include "../utility/context.hpp"
 
 #include <stack>
+#include <unordered_map>
+#include <string>
 
 namespace stream {
 namespace functional {
 
+using std::string;
 using std::stack;
+using std::unordered_map;
 
 class generator
 {
@@ -52,6 +57,7 @@ private:
     expr_ptr do_func_apply(ast::node_ptr);
 
     stack<array_ptr> m_array_stack;
+    static unordered_map<string, primitive_op> m_prim_ops;
 };
 
 }

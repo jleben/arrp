@@ -150,6 +150,7 @@ public:
     identifier(const string & name, expr_ptr e, const location_type & loc):
         var(name,loc), expr(e) {}
     expr_ptr expr;
+    primitive_type type = primitive_type::undefined; // FIXME: Could be more elegant?
 };
 typedef std::shared_ptr<identifier> id_ptr;
 

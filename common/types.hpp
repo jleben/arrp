@@ -225,6 +225,8 @@ struct stream : public tagged_type<type::stream>
             s << "i:"; break;
         case primitive_type::real:
             s << "r:"; break;
+        default:
+            s << "u:"; break;
         }
 
         for (int i = 0; i < size.size(); ++i)
