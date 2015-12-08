@@ -95,7 +95,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         }
     }
 
-    arr->expr = reduce(arr->expr);
+    arr->expr = eta_expand(reduce(arr->expr));
 
     if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr))
     {
@@ -243,7 +243,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<functional::array_size> as)
 expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 {
     for (auto & operand : op->operands)
-        operand = reduce(operand);
+        operand = eta_expand(reduce(operand));
 
     vector<int> size;
 
@@ -286,12 +286,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
         for (auto & operand : op->operands)
         {
             vector<expr_ptr> args;
-            for (int i = 0; i < arr->vars.size(); ++i)
-            {
-                linexpr arg_expr(arr->vars[i]);
-                auto arg = make_shared<affine_expr>(arg_expr, location_type());
-                args.push_back(arg);
-            }
+            for (auto & v : arr->vars)
+                args.push_back(make_shared<reference>(v, location_type()));
 
             operand = apply(operand, args);
         }
@@ -328,7 +324,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         auto src_expr = expr;
 
         to_linear_set(domain);
-        expr = reduce(expr);
+        expr = eta_expand(reduce(expr));
 
         auto size = array_size(expr);
         if (size.empty())
@@ -361,12 +357,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 
             // Reduce array
             vector<expr_ptr> args;
-            for (int i = 0; i < arr->vars.size(); ++i)
-            {
-                linexpr arg_expr(arr->vars[i]);
-                auto arg = make_shared<affine_expr>(arg_expr, location_type());
-                args.push_back(arg);
-            }
+            for (auto & v : arr->vars)
+                args.push_back(make_shared<reference>(v, location_type()));
 
             expr = apply(expr, args);
 
