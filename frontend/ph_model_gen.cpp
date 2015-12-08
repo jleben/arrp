@@ -221,9 +221,13 @@ expr_ptr polyhedral_gen::make_affine_array_reads
             assert(id);
             arr = m_arrays.at(id);
         }
-        else if (auto sref = dynamic_pointer_cast<array_self_ref>(e))
+        else if (auto sref = dynamic_pointer_cast<array_self_ref>(app->object))
         {
             arr = m_arrays.at(m_current_id);
+        }
+        else
+        {
+            throw error("Unexpected expression.");
         }
 
         auto space = isl::space::from(sm.space, arr->domain.get_space());
