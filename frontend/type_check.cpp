@@ -87,10 +87,20 @@ primitive_type type_checker::process(expr_ptr expr, id_ptr id)
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
-        auto id = dynamic_pointer_cast<identifier>(ref->var);
-        assert(id);
-        process(id);
-        return id->type;
+        if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+        {
+            assert(id);
+            process(id);
+            return id->type;
+        }
+        else if (auto v = dynamic_pointer_cast<array_var>(ref->var))
+        {
+            return primitive_type::integer;
+        }
+        else
+        {
+            throw error("Unexpected reference type.");
+        }
     }
     else if (auto self_ref = dynamic_pointer_cast<array_self_ref>(expr))
     {
