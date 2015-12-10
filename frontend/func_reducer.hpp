@@ -26,6 +26,10 @@ public:
 
 class func_reducer
 {
+    // FIXME: when array vars are passed as function arguments,
+    // they can propagate into other top-level expressions,
+    // outside the array to which the var belongs.
+
 public:
     id_ptr reduce(id_ptr, const vector<expr_ptr> & args);
 
