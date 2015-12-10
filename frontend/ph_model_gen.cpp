@@ -127,6 +127,7 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
     {
         if (auto case_expr = dynamic_pointer_cast<functional::case_expr>(arr->expr))
         {
+            vector<ph::stmt_ptr> case_stmts;
             for(int c = 0; c < (int)case_expr->cases.size(); ++c)
             {
                 auto & a_case = case_expr->cases[c];
@@ -139,7 +140,39 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
                 }
 
                 auto s = make_stmt(arr->vars, name, a_case.first, a_case.second);
+                case_stmts.push_back(s);
                 output.statements.push_back(s);
+            }
+
+            auto ph_arr = m_arrays.at(id);
+
+            auto array_domain = ph_arr->domain;
+            array_domain.clear_id();
+
+            auto combined_domain = isl::set(array_domain.get_space());
+            for (auto & stmt : case_stmts)
+            {
+                auto domain = stmt->domain;
+                domain.clear_id();
+                if (!domain.is_disjoint(combined_domain))
+                {
+                    throw source_error("Cases are not disjoint.",
+                                       case_expr->location);
+                }
+                combined_domain = combined_domain | domain;
+            }
+
+            if (false)
+            {
+                combined_domain.coalesce();
+                cout << "Combined domains:" << endl;
+                m_isl_printer.print(combined_domain); cout << endl;
+            }
+
+            if (!(combined_domain == array_domain))
+            {
+                throw source_error("Cases do not cover entire array.",
+                                   case_expr->location);
             }
         }
         else
