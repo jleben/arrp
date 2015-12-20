@@ -200,30 +200,42 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
  expr_ptr subdomain_expr, expr_ptr expr)
 {
     auto array = m_arrays.at(m_current_id);
-    auto domain = array->domain;
-    domain.set_name(name);
 
-    auto space = domain.get_space();
+    ph::stmt_ptr stmt;
+
+    {
+        auto domain = array->domain;
+        domain.set_name(name);
+
+        stmt = make_shared<ph::statement>(domain);
+
+        stmt->array = array;
+
+        auto id = stmt->domain.id();
+        id.data = stmt.get();
+        stmt->domain.set_id(id);
+    }
+
+    auto space = stmt->domain.get_space();
     auto local_space = isl::local_space(space);
     space_map sm(space, local_space, vars);
 
     if (subdomain_expr)
     {
         auto subdomain = to_affine_set(subdomain_expr, sm);
-        domain = domain & subdomain;
+        stmt->domain = stmt->domain & subdomain;
     }
 
     cout << "Statement domain:" << endl;
-    m_isl_printer.print(domain); cout << endl;
+    m_isl_printer.print(stmt->domain); cout << endl;
 
-    auto write_rel = isl::basic_map::identity(domain.get_space(),
-                                              array->domain.get_space());
+    stmt->write_relation = isl::basic_map::identity
+            (stmt->domain.get_space(),
+             array->domain.get_space());
 
     cout << "Write relation: " << endl;
-    m_isl_printer.print(write_rel); cout << endl;
+    m_isl_printer.print(stmt->write_relation); cout << endl;
 
-    auto stmt = make_shared<ph::statement>(name, domain, write_rel);
-    stmt->array = array;
     stmt->expr = make_affine_array_reads(stmt, expr, sm);
 
     cout << "All read relations:" << endl;
