@@ -117,7 +117,7 @@ ast_generator::generate()
     }
 #endif
 
-    d.schedule = make_schedule(all_domains, d.dependencies).in_domain(all_domains);
+    d.schedule = make_schedule(all_domains, d.dependencies);
 
     make_periodic_schedule(d.schedule);
 
@@ -546,6 +546,7 @@ isl::union_map ast_generator::make_schedule
     assert(sched);
 
     isl::union_map sched_map( isl_schedule_get_map(sched) );
+    sched_map = sched_map.in_domain(domains);
 
     if (debug::is_enabled())
     {
@@ -614,10 +615,10 @@ ast_generator::schedule_finite_domains
 pair<isl::union_map, isl::union_map>
 ast_generator::make_periodic_schedule(const isl::union_map & schedule)
 {
-    compute_period_duration(schedule);
-    compute_prelude_duration(schedule);
-
-    return make_pair(isl::union_map(m_model.context), isl::union_map(m_model.context));
+    int period_dur = compute_period_duration(schedule);
+    int prelude_dur = compute_prelude_duration(schedule);
+    auto sched_period = periodic_schedule(schedule, prelude_dur, period_dur);
+    return make_pair(isl::union_map(m_model.context), sched_period);
 }
 
 
@@ -859,14 +860,16 @@ int ast_generator::compute_prelude_duration(const isl::union_map & schedule)
 {
     using namespace isl;
 
-    // Find earliest time by which all finite statements
-    // are completed, and all infinite statements have begun.
+    // Find time in schedule after which
+    // the periodic schedule can be extracted.
+    // The schedule before this time will become the "prelude."
 
-    // The periodic schedule can be a slice of the schedule
-    // with appropriate size (see compute_period)
-    // and beginning at this time.
-
-    // The schedule up to this time will be the "prelude".
+    // That is,
+    // find earliest time by which all finite statements are completed,
+    // and all infinite statements are in steady state.
+    // Steady state = the infinite scheduling hyperplane does not
+    // cut through any hyperplane bounding the infinite dimension
+    // of the domain.
 
     // Assumption: schedule is bounded to iteration domains.
 
@@ -881,9 +884,31 @@ int ast_generator::compute_prelude_duration(const isl::union_map & schedule)
         auto time = space(isl::space::variable, 0);
         if (stmt->is_infinite)
         {
-            auto earliest_time = sched_range.minimum(time);
-            assert(earliest_time.is_integer());
-            offset = std::max(offset, (int) earliest_time.integer());
+            // Get domain of schedule.
+            // Translate it by 1.
+            // Subtract it from original domain.
+            // Get latest time of the remaining domain.
+
+            auto domain = stmt_sched.domain();
+
+            auto domain_map_space =
+                    space::from(domain.get_space(), domain.get_space());
+            isl_multi_aff * translation =
+                    isl_multi_aff_identity(domain_map_space.copy());
+            isl_aff * i = isl_multi_aff_get_aff(translation, 0);
+            i = isl_aff_set_constant_si(i, -1);
+            isl_multi_aff_set_aff(translation, 0, i);
+
+            auto translated_domain =
+                    isl::set(isl_set_preimage_multi_aff(domain.copy(), translation));
+
+            auto remaining = domain - translated_domain;
+            auto sched = stmt_sched(remaining);
+            auto time = sched.get_space()(isl::space::variable, 0);
+            auto latest_time = sched.maximum(time);
+
+            assert(latest_time.is_integer());
+            offset = std::max(offset, (int) latest_time.integer());
         }
         else
         {
@@ -900,6 +925,74 @@ int ast_generator::compute_prelude_duration(const isl::union_map & schedule)
     }
 
     return offset;
+}
+
+isl::union_map ast_generator::periodic_schedule
+(const isl::union_map & schedule, int prelude, int period)
+{
+    using namespace isl;
+
+    isl::union_map sched_period(m_model.context);
+
+    schedule.for_each([&](isl::map & stmt_sched)
+    {
+        auto stmt = statement_for(stmt_sched.id(isl::space::input));
+        assert(stmt);
+
+        if (!stmt->is_infinite)
+            return true;
+
+        auto range = stmt_sched.range();
+        auto time = range.get_space()(isl::space::variable, 0);
+        range.add_constraint(time >= prelude);
+        range.add_constraint(time < (prelude + period));
+
+        stmt_sched = stmt_sched.in_range(range);
+
+        // Compute domain indexes corresponding to schedule period
+        auto domain = stmt_sched.domain();
+        auto i = domain.get_space()(space::variable, 0);
+        auto min_i = domain.minimum(i);
+        assert(min_i.is_integer());
+
+        // Translate domain to 0
+        if (min_i.integer() != 0)
+        {
+            auto domain_map_space =
+                    space::from(domain.get_space(), domain.get_space());
+            isl_multi_aff * translation =
+                    isl_multi_aff_identity(domain_map_space.copy());
+            isl_aff * i = isl_multi_aff_get_aff(translation, 0);
+            i = isl_aff_set_constant_val(i, min_i.copy());
+            isl_multi_aff_set_aff(translation, 0, i);
+
+            auto translated_sched =
+                    isl_map_preimage_domain_multi_aff
+                    (stmt_sched.copy(), translation);
+
+            stmt_sched = translated_sched;
+        }
+
+        // store original offset
+        int offset = min_i.integer();
+        if (!stmt->array->period_offset)
+            stmt->array->period_offset = offset;
+        else if (stmt->array->period_offset != offset)
+            cerr << "WARNING: different offsets for same buffer." << endl;
+
+        sched_period = sched_period | stmt_sched;
+
+        return true;
+    });
+
+    if (debug::is_enabled())
+    {
+        cout << "Periodic schedule:" << endl;
+        print_each_in(sched_period);
+        cout << endl;
+    }
+
+    return sched_period;
 }
 
 #if 0

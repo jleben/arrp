@@ -185,6 +185,8 @@ private:
 
     int compute_period_duration(const isl::union_map & schedule);
     int compute_prelude_duration(const isl::union_map & schedule);
+    isl::union_map periodic_schedule
+    (const isl::union_map & schedule, int prelude, int period);
 
     int common_offset(isl::union_map & schedule, int flow_dim);
 
