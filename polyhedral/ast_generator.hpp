@@ -183,8 +183,8 @@ private:
                            const isl::union_map & infinite_schedule,
                            isl::union_map & combined_schedule);
 
-    int compute_period(const isl::union_map & schedule,
-                       int & flow_dim, int & n_dims_out);
+    int compute_period_duration(const isl::union_map & schedule);
+    int compute_prelude_duration(const isl::union_map & schedule);
 
     int common_offset(isl::union_map & schedule, int flow_dim);
 

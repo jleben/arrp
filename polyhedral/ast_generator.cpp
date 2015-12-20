@@ -614,9 +614,9 @@ ast_generator::schedule_finite_domains
 pair<isl::union_map, isl::union_map>
 ast_generator::make_periodic_schedule(const isl::union_map & schedule)
 {
-    int flow_dim = -1;
-    int n_dims = 0;
-    compute_period(schedule, flow_dim, n_dims);
+    compute_period_duration(schedule);
+    compute_prelude_duration(schedule);
+
     return make_pair(isl::union_map(m_model.context), isl::union_map(m_model.context));
 }
 
@@ -748,14 +748,14 @@ ast_generator::schedule_infinite_domains
 }
 
 #if 1
-int ast_generator::compute_period
-(const isl::union_map & schedule, int & flow_dim_out, int & n_dims_out)
+int ast_generator::compute_period_duration
+(const isl::union_map & schedule)
 {
     // NOTE: Assuming that all the dependencies
     // are uniform in the infinite dimension of the schedule.
     // This means that, for each statement,
-    // all instances of its infinite scheduling hyperplane
-    // do exactly the same work and constitute a repeating period.
+    // each instance of its infinite scheduling hyperplane
+    // does exactly the same work and constitutes a repeating period.
     // To get to the common period for all statements, we need to
     // get the least common multiple of the distances between
     // their infinite scheduling hyperplane instances.
@@ -765,20 +765,12 @@ int ast_generator::compute_period
     // For each statement, get the scheduling coefficient
     // for its infinite dimension.
 
-    vector<pair<stmt_ptr,int>> ks;
+    vector<pair<statement*,int>> ks;
 
     schedule.for_each( [&](const isl::map & stmt_sched)
     {
-        auto name = stmt_sched.get_space().name(isl::space::input);
-        stmt_ptr stmt;
-        for (auto & s : m_model.statements)
-        {
-            if (s->name == name)
-            {
-                stmt = s;
-                break;
-            }
-        }
+        auto id = stmt_sched.id(isl::space::input);
+        auto stmt = statement_for(id);
         assert(stmt);
 
         if (!stmt->is_infinite)
@@ -835,7 +827,7 @@ int ast_generator::compute_period
 
     if (debug::is_enabled())
     {
-        cout << "Least common period = " << least_common_period << endl;
+        cout << "Period duration = " << least_common_period << endl;
     }
 
     // Compute how much of a statement's infinite dimension is covered
@@ -863,49 +855,54 @@ int ast_generator::compute_period
 }
 #endif
 
-#if 0
-int ast_generator::common_offset(isl::union_map & schedule, int flow_dim)
+int ast_generator::compute_prelude_duration(const isl::union_map & schedule)
 {
     using namespace isl;
 
+    // Find earliest time by which all finite statements
+    // are completed, and all infinite statements have begun.
+
+    // The periodic schedule can be a slice of the schedule
+    // with appropriate size (see compute_period)
+    // and beginning at this time.
+
+    // The schedule up to this time will be the "prelude".
+
     // Assumption: schedule is bounded to iteration domains.
 
-    int common_offset = std::numeric_limits<int>::min();
+    int offset = std::numeric_limits<int>::min();
 
-    schedule.for_each( [&](map & m)
+    schedule.for_each( [&](map & stmt_sched)
     {
-        auto id = m.id(isl::space::input);
+        auto id = stmt_sched.id(isl::space::input);
         auto stmt = statement_for(id);
-        if (stmt->flow_dim < 0)
-            return true;
-
-        auto space = m.get_space();
-        int in_dims = space.dimension(space::input);
-
-        // add constraint: iter[flow] < 0
-        local_space cnstr_space(space);
-        auto dim0_idx = cnstr_space(space::input, stmt->flow_dim);
-        m.add_constraint(dim0_idx < 0);
-        assert(!m.is_empty());
-
-        set s(m.wrapped());
-        auto flow_idx = s.get_space()(space::variable, in_dims + flow_dim);
-        int max_flow_idx = s.maximum(flow_idx).integer();
-        int offset = max_flow_idx + 1;
-
-        if (debug::is_enabled())
+        auto sched_range = stmt_sched.range();
+        isl::local_space space(sched_range.get_space());
+        auto time = space(isl::space::variable, 0);
+        if (stmt->is_infinite)
         {
-            //cout << id.name << " offset = " << offset << endl;
+            auto earliest_time = sched_range.minimum(time);
+            assert(earliest_time.is_integer());
+            offset = std::max(offset, (int) earliest_time.integer());
         }
-
-        common_offset = std::max(common_offset, offset);
-
+        else
+        {
+            auto latest_time = sched_range.maximum(time);
+            assert(latest_time.is_integer());
+            offset = std::max(offset, (int) latest_time.integer() + 1);
+        }
         return true;
     });
 
-    return common_offset;
+    if (debug::is_enabled())
+    {
+        cout << "Prelude duration = " << offset << endl;
+    }
+
+    return offset;
 }
 
+#if 0
 void
 ast_generator::combine_schedules
 (const isl::union_map & finite_schedule,
@@ -1005,7 +1002,9 @@ ast_generator::combine_schedules
         cout << endl;
     }
 }
+#endif
 
+#if 0
 void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
                                           const data & d )
 {
@@ -1043,7 +1042,9 @@ void ast_generator::compute_buffer_sizes( const isl::union_map & schedule,
         }
     }
 }
+#endif
 
+#if 0
 void ast_generator::compute_buffer_size
 ( const isl::union_map & schedule,
   const data & d,
@@ -1151,7 +1152,9 @@ void ast_generator::compute_buffer_size
 
     array->buffer_size = buffer_size;
 }
+#endif
 
+#if 0
 void ast_generator::find_inter_period_deps
 ( const isl::union_map & period_schedule,
   const data & d )
@@ -1212,6 +1215,7 @@ void ast_generator::find_inter_period_deps
     }
 }
 #endif
+
 void ast_generator::print_each_in( const isl::union_set & us )
 {
     us.for_each ( [&](const isl::set & s){
