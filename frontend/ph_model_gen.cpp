@@ -20,7 +20,7 @@ namespace ph = stream::polyhedral;
 polyhedral_gen::polyhedral_gen():
     m_isl_printer(m_isl_ctx)
 {
-
+    m_isl_ctx.set_error_action(isl::context::abort_on_error);
 }
 
 polyhedral::model
