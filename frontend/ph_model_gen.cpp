@@ -23,8 +23,12 @@ polyhedral_gen::polyhedral_gen():
 
 }
 
-void polyhedral_gen::process(const unordered_set<id_ptr> & input, ph::model & output)
+polyhedral::model
+polyhedral_gen::process(const unordered_set<id_ptr> & input)
 {
+    polyhedral::model output;
+    output.context = m_isl_ctx;
+
     for (const auto & id : input)
     {
         auto a = make_array(id);
@@ -38,6 +42,8 @@ void polyhedral_gen::process(const unordered_set<id_ptr> & input, ph::model & ou
         make_statements(id, output);
     }
     m_current_id = nullptr;
+
+    return output;
 }
 
 ph::array_ptr polyhedral_gen::make_array(id_ptr id)
@@ -135,7 +141,7 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
                 string name;
                 {
                     ostringstream text;
-                    text << id->name << '.' << c;
+                    text << id->name << c;
                     name = text.str();
                 }
 
@@ -217,7 +223,7 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
     m_isl_printer.print(write_rel); cout << endl;
 
     auto stmt = make_shared<ph::statement>(name, domain, write_rel);
-
+    stmt->array = array;
     stmt->expr = make_affine_array_reads(stmt, expr, sm);
 
     cout << "All read relations:" << endl;

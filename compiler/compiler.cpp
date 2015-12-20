@@ -236,8 +236,7 @@ result::code compile_source(istream & source, const arguments & args)
         {
             array_ids.insert(id);
             functional::polyhedral_gen gen;
-            polyhedral::model phm;
-            gen.process(array_ids, phm);
+            auto ph_model = gen.process(array_ids);
         }
     }
     catch (functional::func_reduce_error & e)
