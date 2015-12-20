@@ -32,7 +32,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/ph_model_gen.hpp"
 //#include "../polyhedral/translator.hpp"
 //#include "../polyhedral/polyhedral-gen.hpp"
-//#include "../polyhedral/ast_generator.hpp"
+#include "../polyhedral/ast_generator.hpp"
 //#include "../llvm/llvm_ir_from_cloog.hpp"
 //#include "../llvm/llvm_from_polyhedral.hpp"
 //#include "../cpp/cpp_target.hpp"
@@ -237,6 +237,12 @@ result::code compile_source(istream & source, const arguments & args)
             array_ids.insert(id);
             functional::polyhedral_gen gen;
             auto ph_model = gen.process(array_ids);
+
+            polyhedral::ast_generator poly_ast_gen( ph_model );
+            //poly_ast_gen.set_print_ast_enabled(args.print[arguments::target_ast_output]);
+            poly_ast_gen.set_print_ast_enabled(true);
+
+            auto ast = poly_ast_gen.generate();
         }
     }
     catch (functional::func_reduce_error & e)

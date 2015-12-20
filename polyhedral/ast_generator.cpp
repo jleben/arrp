@@ -24,7 +24,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <cloog/isl/cloog.h>
 
 #include <isl/schedule.h>
+#include <isl/schedule_node.h>
 
+#include <isl-cpp/space.hpp>
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
 #include <isl-cpp/expression.hpp>
@@ -70,11 +72,9 @@ statement *statement_for( const isl::identifier & id )
 
 ast_generator::ast_generator( const model & m ):
     m_print_ast(false),
-    m_printer(m_ctx),
+    m_printer(m.context),
     m_model(m)
-{
-    m_ctx.set_error_action(isl::context::abort_on_error);
-}
+{}
 
 ast_generator::~ast_generator()
 {
@@ -86,9 +86,10 @@ ast_generator::generate()
     if (debug::is_enabled())
         cout << endl << "### AST Generation ###" << endl;
 
-    data d(m_ctx);
-    polyhedral_model(d);
+    data d(m_model.context);
+    prepare_data(d);
 
+#if 1
     if (debug::is_enabled())
     {
         cout << "Domains: " << endl;
@@ -101,7 +102,26 @@ ast_generator::generate()
         cout << "Dependencies:" << endl;
         print_each_in(d.dependencies);
     }
+#endif
 
+    auto all_domains = d.finite_domains | d.infinite_domains;
+
+#if 0
+    if (debug::is_enabled())
+    {
+        cout << "All domains:" << endl;
+        m_printer.print(all_domains); cout << endl;
+
+        cout << "All deps:" << endl;
+        m_printer.print(d.dependencies); cout << endl;
+    }
+#endif
+
+    d.schedule = make_schedule(all_domains, d.dependencies).in_domain(all_domains);
+
+    make_periodic_schedule(d.schedule);
+
+#if 0
     d.finite_schedule =
             schedule_finite_domains(d.finite_domains, d.dependencies);
 
@@ -109,8 +129,10 @@ ast_generator::generate()
             schedule_infinite_domains(d.infinite_domains, d.dependencies,
                                       d.infinite_schedule);
 
-
-    isl::union_map combined_schedule(m_ctx);
+#endif
+    return pair<clast_stmt*,clast_stmt*>(nullptr, nullptr);
+#if 0
+    isl::union_map combined_schedule(m_model.context);
     combine_schedules(d.finite_schedule, d.infinite_schedule, combined_schedule);
 
     compute_buffer_sizes(combined_schedule, d);
@@ -151,8 +173,55 @@ ast_generator::generate()
             = make_ast( periodic_schedules.second );
 
     return make_pair(finite_ast, period_ast);
+#endif
 }
 
+void ast_generator::prepare_data(data & d)
+{
+
+    for (const auto & stmt : m_model.statements)
+    {
+        {
+            auto time_var = stmt->domain.get_space()(isl::space::variable, 0);
+            try {
+                auto result = stmt->domain.maximum(time_var);
+                if (result.is_infinity())
+                {
+                    stmt->is_infinite = true;
+                    d.infinite_domains = d.infinite_domains | stmt->domain;
+                    cout << "Infinite domain: " << endl;
+                    m_printer.print(stmt->domain); cout << endl;
+                }
+                else
+                {
+                    stmt->is_infinite = false;
+                    d.finite_domains = d.finite_domains | stmt->domain;
+                    cout << "Finite domain: " << endl;
+                    m_printer.print(stmt->domain); cout << endl;
+                }
+            } catch (isl::error &) {
+                throw error("Could not check whether statement domain is infinite.");
+            }
+        }
+#if 1
+        d.write_relations = d.write_relations |
+                (isl::map(stmt->write_relation).in_domain(stmt->domain));
+
+        d.read_relations = d.read_relations |
+                (stmt->read_relations.in_domain(stmt->domain));
+#else
+        d.write_relations = d.write_relations |
+                (stmt->write_relation);
+
+        d.read_relations = d.read_relations |
+                (stmt->read_relations);
+#endif
+    }
+
+    d.dependencies = d.read_relations.inverse()(d.write_relations);
+}
+
+#if 0
 void ast_generator::polyhedral_model(data & d)
 {
     for (const auto & stmt : m_model.statements)
@@ -174,7 +243,7 @@ void ast_generator::polyhedral_model(data & d)
         {
             assert(stmt->domain.size() == 1);
             auto iter_space =
-                    isl::space( m_ctx,
+                    isl::space( m_model.context,
                                 isl::set_tuple(isl::identifier(stmt->name, stmt.get()), 1) );
             auto iter_dep_space = isl::space::from(iter_space, iter_space);
             auto dep = isl::basic_map::universe(iter_dep_space);
@@ -203,7 +272,7 @@ void ast_generator::polyhedral_model(statement_ptr stmt, data & d)
 
     auto stmt_tuple = isl::set_tuple( isl::identifier(stmt->name, stmt.get()),
                                       stmt->domain.size() );
-    auto iter_space = isl::space( m_ctx, stmt_tuple );
+    auto iter_space = isl::space( m_model.context, stmt_tuple );
     auto iter_domain = isl::basic_set::universe(iter_space);
     {
         auto constraint_space = isl::local_space(iter_space);
@@ -240,7 +309,7 @@ void ast_generator::polyhedral_model(statement_ptr stmt, data & d)
         stmt_in_tuple.id = stmt_tuple.id;
         stmt_in_tuple.elements = stmt_tuple.elements;
 
-        isl::space space(m_ctx, stmt_in_tuple, array_tuple);
+        isl::space space(m_model.context, stmt_in_tuple, array_tuple);
 
         // FIXME: Dirty hack
         if ( dynamic_cast<input_access*>(stmt->expr.get()) &&
@@ -258,7 +327,7 @@ void ast_generator::polyhedral_model(statement_ptr stmt, data & d)
         else
         {
             auto equalities = constraint_matrix(stmt->write_relation);
-            auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
+            auto inequalities = isl::matrix(m_model.context, 0, equalities.column_count());
             auto relation = isl::basic_map(space, equalities, inequalities);
 
             d.write_relations = d.write_relations | relation;
@@ -280,7 +349,7 @@ void ast_generator::polyhedral_model(statement_ptr stmt, data & d)
             stmt_in_tuple.id = stmt_tuple.id;
             stmt_in_tuple.elements = stmt_tuple.elements;
 
-            isl::space space(m_ctx, stmt_in_tuple, array_tuple);
+            isl::space space(m_model.context, stmt_in_tuple, array_tuple);
 
             // FIXME: Dirty hack
             if ( !stmt->array )
@@ -297,7 +366,7 @@ void ast_generator::polyhedral_model(statement_ptr stmt, data & d)
             else
             {
                 auto equalities = constraint_matrix(access->pattern);
-                auto inequalities = isl::matrix(m_ctx, 0, equalities.column_count());
+                auto inequalities = isl::matrix(m_model.context, 0, equalities.column_count());
                 auto relation = isl::basic_map(space, equalities, inequalities);
 
                 d.read_relations = d.read_relations | relation;
@@ -313,7 +382,7 @@ isl::matrix ast_generator::constraint_matrix( const mapping & map )
     // output dim + input dim + a constant
     int cols = map.output_dimension() + map.input_dimension() + 1;
 
-    isl::matrix matrix(m_ctx, rows, cols);
+    isl::matrix matrix(m_model.context, rows, cols);
 
     for (int r = 0; r < rows; ++r)
         for (int c = 0; c < cols; ++c)
@@ -339,26 +408,155 @@ isl::matrix ast_generator::constraint_matrix( const mapping & map )
 
     return matrix;
 }
+#endif
+
+isl_bool print_schedule_node_info(isl_schedule_node *node, void *user)
+{
+    auto type = isl_schedule_node_get_type(node);
+    if (type == isl_schedule_node_band)
+    {
+        cout << "band is permutable = "
+             << isl_schedule_node_band_get_permutable(node) << endl;
+    }
+    else
+    {
+        cout << "not a band" << endl;
+    }
+
+    return isl_bool_true;
+}
+
+
+isl_bool
+ast_generator::add_schedule_constraints
+(struct isl_scheduler * sched)
+{
+    int sched_dim = isl_scheduler_get_current_dim(sched);
+    if (sched_dim != 0)
+        return isl_bool_false;
+
+    {
+        isl_schedule_node * node = isl_scheduler_get_current_node(sched);
+        while(node)
+        {
+            auto type = isl_schedule_node_get_type(node);
+            if (type == isl_schedule_node_sequence)
+            {
+                cout << "The schedule has a sequence node before a band node." << endl;
+                isl_schedule_node_free(node);
+                return isl_bool_error;
+            }
+            if (!isl_schedule_node_has_parent(node))
+                break;
+            node = isl_schedule_node_parent(node);
+        }
+    }
+
+    isl::basic_set coefs(isl_scheduler_get_user_coefs(sched));
+    auto cnstr_space = isl::local_space(coefs.get_space());
+
+    bool new_constraints = false;
+
+    for (auto & stmt : m_model.statements)
+    {
+        if (!stmt->is_infinite)
+            continue;
+
+        int coef_pos = isl_scheduler_get_user_coef_pos
+                (sched, stmt->domain.get_space().get());
+        if (coef_pos < 0)
+        {
+            cout << "Warning: coefficients not found for statement "
+                 << stmt->name << endl;
+        }
+
+        int n_params = stmt->domain.get_space().dimension(isl::space::parameter);
+        int var_coef_pos = coef_pos + n_params;
+        auto coef = cnstr_space(isl::space::variable, var_coef_pos);
+        coefs.add_constraint(coef > 0);
+        new_constraints = true;
+    }
+
+    if (!new_constraints)
+        return isl_bool_false;
+
+    isl_scheduler_set_user_coefs(sched, coefs.copy());
+    return isl_bool_true;
+}
 
 isl::union_map ast_generator::make_schedule
 (const isl::union_set & domains, const isl::union_map & dependencies)
 {
+    // Collect sensible proximity dependencies.
+    // Drop those which can not possible be satisfied
+    // = a source has infinite number of sinks
+
+    isl::union_map proximity_deps(dependencies.ctx());
+
+    dependencies.for_each([&](const isl::map & m)
+    {
+        m.for_each([&](const isl::basic_map & dep)
+        {
+            int source_dim = m.get_space().dimension(isl::space::input);
+            int sink_dim = m.get_space().dimension(isl::space::output);
+
+            auto sink_pairs = (dep * dep).wrapped();
+
+            isl::local_space space(sink_pairs.get_space());
+            auto sink_a = space(isl::space::variable, source_dim);
+            auto sink_b = space(isl::space::variable, source_dim + sink_dim);
+            auto max_sink_distance = sink_pairs.maximum(sink_b - sink_a);
+
+            if (!max_sink_distance.is_infinity())
+            {
+                if (debug::is_enabled()) {
+                    cout << "Accepting proximity dependence:";
+                    m_printer.print(dep); cout << endl;
+                }
+
+                proximity_deps = proximity_deps | dep;
+            }
+            else
+            {
+                if (debug::is_enabled()) {
+                    cout << "Rejecting proximity dependence:";
+                    m_printer.print(dep); cout << endl;
+                }
+            }
+
+            return true;
+        });
+        return true;
+    });
+
     // FIXME: statements with no dependencies
     // seem to always end up with an empty schedule.
-
-    //isl_options_set_schedule_fuse(m_ctx.get(), ISL_SCHEDULE_FUSE_MAX);
 
     isl_schedule_constraints *constr =
             isl_schedule_constraints_on_domain(domains.copy());
 
+    constr = isl_schedule_constraints_set_constraint_filter
+            (constr, &add_schedule_constraints_helper, this);
+
     constr = isl_schedule_constraints_set_validity(constr, dependencies.copy());
-    constr = isl_schedule_constraints_set_proximity(constr, dependencies.copy());
+    constr = isl_schedule_constraints_set_proximity(constr, proximity_deps.copy());
 
     isl_schedule * sched =
             isl_schedule_constraints_compute_schedule(constr);
     assert(sched);
 
-    isl_union_map *sched_map = isl_schedule_get_map(sched);
+    isl::union_map sched_map( isl_schedule_get_map(sched) );
+
+    if (debug::is_enabled())
+    {
+        cout << "Schedule:" << endl;
+        isl_printer_print_schedule(m_printer.get(), sched);
+        cout << endl;
+
+        cout << endl << "Schedule map:" << endl;
+        print_each_in(sched_map);
+        cout << endl;
+    }
 
     isl_schedule_free(sched);
 
@@ -414,6 +612,16 @@ ast_generator::schedule_finite_domains
 }
 
 pair<isl::union_map, isl::union_map>
+ast_generator::make_periodic_schedule(const isl::union_map & schedule)
+{
+    int flow_dim = -1;
+    int n_dims = 0;
+    compute_period(schedule, flow_dim, n_dims);
+    return make_pair(isl::union_map(m_model.context), isl::union_map(m_model.context));
+}
+
+
+pair<isl::union_map, isl::union_map>
 ast_generator::schedule_infinite_domains
 (const isl::union_set & infinite_domains, const isl::union_map & dependencies,
  isl::union_map & infinite_sched)
@@ -421,7 +629,7 @@ ast_generator::schedule_infinite_domains
     using namespace isl;
 
     if (infinite_domains.is_empty())
-        return make_pair(isl::union_map(m_ctx), isl::union_map(m_ctx));
+        return make_pair(isl::union_map(m_model.context), isl::union_map(m_model.context));
 
     infinite_sched = make_schedule(infinite_domains, dependencies).in_domain(infinite_domains);
 
@@ -435,6 +643,8 @@ ast_generator::schedule_infinite_domains
     if (infinite_sched.is_empty())
         throw error("Could not compute infinite schedule.");
 
+    return make_pair(isl::union_map(m_model.context), isl::union_map(m_model.context));
+#if 0
     //auto infinite_sched_in_domain = infinite_sched.in_domain(infinite_domains);
 
     int flow_dim = -1;
@@ -445,7 +655,7 @@ ast_generator::schedule_infinite_domains
     int least_common_offset =
             common_offset(infinite_sched, flow_dim);
 
-    auto period_range = set::universe(isl::space(m_ctx, set_tuple(n_dims)));
+    auto period_range = set::universe(isl::space(m_model.context, set_tuple(n_dims)));
     {
         local_space cnstr_space(period_range.get_space());
         auto flow_var = cnstr_space(isl::space::variable, flow_dim);
@@ -455,17 +665,20 @@ ast_generator::schedule_infinite_domains
 
     auto period_sched_part = infinite_sched.in_range(period_range);
 
-    isl::union_map period_sched(m_ctx);
+    isl::union_map period_sched(m_model.context);
 
     period_sched_part.for_each( [&](map & m)
     {
         auto id = m.id(isl::space::input);
         auto stmt = statement_for(id);
+        // TODO:
+#if 0
         if (!dynamic_cast<input_access*>(stmt->expr.get()))
         {
             period_sched = period_sched | m;
             return true;
         }
+#endif
 
         auto domain = m.domain();
         local_space domain_space(domain.get_space());
@@ -499,7 +712,7 @@ ast_generator::schedule_infinite_domains
         cout << endl;
     }
 
-    isl::union_map init_sched(m_ctx);
+    isl::union_map init_sched(m_model.context);
 
     infinite_sched.for_each( [&](map & m)
     {
@@ -531,79 +744,87 @@ ast_generator::schedule_infinite_domains
     m_schedule_period_offset = least_common_offset;
 
     return make_pair(init_sched, period_sched);
+#endif
 }
 
+#if 1
 int ast_generator::compute_period
 (const isl::union_map & schedule, int & flow_dim_out, int & n_dims_out)
 {
-    vector<pair<statement*,int>> ks;
+    // NOTE: Assuming that all the dependencies
+    // are uniform in the infinite dimension of the schedule.
+    // This means that, for each statement,
+    // all instances of its infinite scheduling hyperplane
+    // do exactly the same work and constitute a repeating period.
+    // To get to the common period for all statements, we need to
+    // get the least common multiple of the distances between
+    // their infinite scheduling hyperplane instances.
+    // That is, the LCM of the scheduling coefficients for the infinite
+    // dimensionf of each statement.
 
-    int sched_flow_dim = -1;
+    // For each statement, get the scheduling coefficient
+    // for its infinite dimension.
 
-    schedule.for_each( [&] (const isl::map & m)
+    vector<pair<stmt_ptr,int>> ks;
+
+    schedule.for_each( [&](const isl::map & stmt_sched)
     {
-        auto id = m.id(isl::space::input);
-        statement *stmt = statement_for(id);
-        assert(stmt->flow_dim >= 0);
-        int flow_dim = stmt->flow_dim;
-
-        m.for_each( [&] (const isl::basic_map & bm)
+        auto name = stmt_sched.get_space().name(isl::space::input);
+        stmt_ptr stmt;
+        for (auto & s : m_model.statements)
         {
-            // Find first output dimension which iterates
-            // the infinite input dimension.
-
-            auto space = bm.get_space();
-            int in_dims = space.dimension(isl::space::input);
-            int out_dims = space.dimension(isl::space::output);
-
-            n_dims_out = out_dims;
-
-            auto eq = bm.equalities_matrix();
-            int rows = eq.row_count();
-
-            int first_out_dim = out_dims;
-            int first_flow_k = 0;
-            int first_flow_c = 0;
-
-            for (int r = 0; r < rows; ++r)
+            if (s->name == name)
             {
-                int flow_k = eq(r, flow_dim).value().integer();
-                if (flow_k)
+                stmt = s;
+                break;
+            }
+        }
+        assert(stmt);
+
+        if (!stmt->is_infinite)
+            return true;
+
+        // Get scheduling coefficient for the infinite dimension
+
+        // NOTE: Assuming that the schedule does not differ across
+        // the infinite domain (but may differ across others).
+
+        stmt_sched.for_each( [&] (const isl::basic_map & stmt_sched_part)
+        {
+            // NOTE: Assuming that the schedule is a bijection,
+            // the coefficients of interest must be only in equalities.
+
+            // - Get the equalities matrix
+            // - Among the rows, find the one that defines the first
+            // dimension of the schedule.
+            // - From this row, get the coefficient for the first dimension
+            // of the statement.
+            auto equalities = stmt_sched_part.equalities_matrix();
+            auto space = stmt_sched_part.get_space();
+            int n_rows = equalities.row_count();
+            int n_in = space.dimension(isl::space::input);
+            int stmt_coef_col = 0;
+            int sched_coef_col = n_in;
+            for (int row = 0; row < n_rows; ++row)
+            {
+                int sched_coef = equalities(row, sched_coef_col).value().integer();
+                if (sched_coef)
                 {
-                    for (int out = 0; out < out_dims; ++out)
-                    {
-                        int out_k = eq(r, out + in_dims).value().integer();
-                        if (out_k)
-                        {
-                            if (out < first_out_dim)
-                            {
-                                first_out_dim = out;
-                                first_flow_k = std::abs(flow_k);
-                                first_flow_c = eq(r, in_dims + out_dims).value().integer();
-                                if (out_k > 0)
-                                    first_flow_c *= -1;
-                            }
-                            break;
-                        }
-                    }
+                    int stmt_coef = equalities(row, stmt_coef_col).value().integer();
+                    ks.push_back(make_pair(stmt, std::abs(stmt_coef)));
+                    // continue to next partial schedule for this stmt
+                    return true;
                 }
             }
-
-            ks.push_back(make_pair(stmt,first_flow_k));
-
-            //cout << id.name << " flow coef @ " << first_out_dim << " = " << first_flow_k << endl;
-
-            if (sched_flow_dim == -1)
-                sched_flow_dim = first_out_dim;
-            else if (sched_flow_dim != first_out_dim)
-                cerr << "WARNING: different schedule flow dimensions" << endl;
-
-            return true;
+            throw error("The first dimension of the schedule does not involve"
+                        " the infinite statement dimension.");
         });
+
         return true;
     });
 
-    flow_dim_out = sched_flow_dim;
+    // Find least common multiple of the coefficients.
+    // This is the common period of statements.
 
     int least_common_period = 1;
     for (const auto & k : ks)
@@ -612,22 +833,26 @@ int ast_generator::compute_period
         least_common_period = lcm(least_common_period, period);
     }
 
-    // Compute span of period in statement flow dimension.
+    if (debug::is_enabled())
+    {
+        cout << "Least common period = " << least_common_period << endl;
+    }
+
+    // Compute how much of a statement's infinite dimension is covered
+    // by the period.
     // This equals the offset in buffer indexes added at each period.
     for (const auto & k : ks)
     {
-        statement *stmt = k.first;
+        auto stmt = k.first;
         int period = k.second;
         int span = least_common_period / period;
-        //cout << "Period advances " << stmt->name << " by " << span << endl;
 
-        // FIXME: Dirty hack
-        if (!stmt->array)
-            continue;
+        if (debug::is_enabled())
+        {
+            cout << "Period spans " << span
+                 << " iterations of " << stmt->name << endl;
+        }
 
-        // FIXME:
-        // Assuming write relation is simple
-        // (array flow dimension = statement flow dimension)
         if (!stmt->array->period)
             stmt->array->period = span;
         if (stmt->array->period != span)
@@ -636,7 +861,9 @@ int ast_generator::compute_period
 
     return least_common_period;
 }
+#endif
 
+#if 0
 int ast_generator::common_offset(isl::union_map & schedule, int flow_dim)
 {
     using namespace isl;
@@ -698,7 +925,7 @@ ast_generator::combine_schedules
         return false;
     });
 
-    //isl::union_map finite_schedule_part(m_ctx);
+    //isl::union_map finite_schedule_part(m_model.context);
 
     finite_schedule.for_each( [&]( isl::map & sched )
     {
@@ -729,7 +956,7 @@ ast_generator::combine_schedules
         return true;
     });
 
-    //isl::union_map infinite_schedule_part(m_ctx);
+    //isl::union_map infinite_schedule_part(m_model.context);
 
     infinite_schedule.for_each( [&]( isl::map & sched )
     {
@@ -831,7 +1058,7 @@ void ast_generator::compute_buffer_size
     using namespace isl;
     using isl::expression;
 
-    auto array_space = isl::space( m_ctx,
+    auto array_space = isl::space( m_model.context,
                                    isl::set_tuple( isl::identifier(array->name),
                                                    array->size.size() ) );
 
@@ -933,7 +1160,7 @@ void ast_generator::find_inter_period_deps
     cout << "Sched period offset = " << m_schedule_period_offset << endl;
     for( auto & array : m_model.arrays )
     {
-        auto array_space = isl::space( m_ctx,
+        auto array_space = isl::space( m_model.context,
                                        isl::set_tuple( isl::identifier(array->name),
                                                        array->size.size() ) );
         auto array_universe = isl::basic_set::universe(array_space);
@@ -984,7 +1211,7 @@ void ast_generator::find_inter_period_deps
         }
     }
 }
-
+#endif
 void ast_generator::print_each_in( const isl::union_set & us )
 {
     us.for_each ( [&](const isl::set & s){

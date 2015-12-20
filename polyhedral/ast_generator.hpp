@@ -21,7 +21,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_POLYHEDRAL_AST_GENERATOR_INCLUDED
 #define STREAM_POLYHEDRAL_AST_GENERATOR_INCLUDED
 
-#include "../common/polyhedral_model.hpp"
+#include "../common/ph_model.hpp"
 #include "../utility/debug.hpp"
 
 #include <isl/set.h>
@@ -90,7 +90,8 @@ public:
     ast_generator( const model & m );
     ~ast_generator();
 
-    pair<struct clast_stmt*,struct clast_stmt*> generate();
+    pair<struct clast_stmt*,struct clast_stmt*>
+    generate();
 
     void set_print_ast_enabled(bool flag)
     {
@@ -107,6 +108,7 @@ private:
             write_relations(ctx),
             read_relations(ctx),
             dependencies(ctx),
+            schedule(ctx),
             finite_schedule(ctx),
             infinite_schedule(ctx)
         {}
@@ -115,15 +117,28 @@ private:
         isl::union_map write_relations;
         isl::union_map read_relations;
         isl::union_map dependencies;
+        isl::union_map schedule;
+
         isl::union_map finite_schedule;
         isl::union_map infinite_schedule;
     };
 
-    // Translation to ISL representation:
+    void prepare_data(data &);
 
+    isl_bool add_schedule_constraints(struct isl_scheduler *sched);
+
+    static
+    isl_bool add_schedule_constraints_helper(struct isl_scheduler * sched, void * data)
+    {
+        auto me = reinterpret_cast<ast_generator*>(data);
+        return me->add_schedule_constraints(sched);
+    }
+
+
+    // Translation to ISL representation:
+#if 0
     void polyhedral_model(data &);
     void polyhedral_model(statement_ptr, data &);
-#if 0
     void polyhedral_model(isl::union_set & finite_domains,
                           isl::union_set & infinite_domains,
                           isl::union_map & data_iter_map,
@@ -131,9 +146,10 @@ private:
 
     pair<isl::basic_set, isl::basic_map> polyhedral_domain( statement * );
     isl::union_map polyhedral_dependencies( statement * );
-    #endif
 
     isl::matrix constraint_matrix( const mapping & );
+#endif
+
 #if 0
     void periodic_model( const isl::union_set & domains,
                          const isl::union_map & dependencies,
@@ -146,6 +162,8 @@ private:
 
     isl::union_map make_schedule(const isl::union_set & domains,
                                  const isl::union_map & dependencies);
+    pair<isl::union_map, isl::union_map>
+    make_periodic_schedule(const isl::union_map & schedule);
 
     isl::union_map make_init_schedule(isl::union_set & domains,
                                       isl::union_map & dependencies);
@@ -193,7 +211,6 @@ private:
 
     bool m_print_ast;
 
-    isl::context m_ctx;
     isl::printer m_printer;
 
     model m_model;

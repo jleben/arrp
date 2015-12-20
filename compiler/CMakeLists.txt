@@ -29,7 +29,7 @@ add_library(streamc-lib ${lib_mode}
   #../polyhedral/polyhedral-gen.cpp
   #../polyhedral/translator.cpp
   #../polyhedral/dataflow_model.cpp
-  #../polyhedral/ast_generator.cpp
+  ../polyhedral/ast_generator.cpp
   #../llvm/llvm_ir_from_cloog.cpp
   #../llvm/llvm_from_polyhedral.cpp
   #../cpp/cpp_target.cpp
