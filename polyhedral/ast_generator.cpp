@@ -119,7 +119,7 @@ ast_generator::generate()
 
     d.schedule = make_schedule(all_domains, d.dependencies);
 
-    make_periodic_schedule(d.schedule);
+    auto periodic_schedule = make_periodic_schedule(d.schedule);
 
 #if 0
     d.finite_schedule =
@@ -617,8 +617,9 @@ ast_generator::make_periodic_schedule(const isl::union_map & schedule)
 {
     int period_dur = compute_period_duration(schedule);
     int prelude_dur = compute_prelude_duration(schedule);
+    auto sched_prelude = prelude_schedule(schedule, prelude_dur);
     auto sched_period = periodic_schedule(schedule, prelude_dur, period_dur);
-    return make_pair(isl::union_map(m_model.context), sched_period);
+    return make_pair(sched_prelude, sched_period);
 }
 
 
@@ -925,6 +926,44 @@ int ast_generator::compute_prelude_duration(const isl::union_map & schedule)
     }
 
     return offset;
+}
+
+isl::union_map ast_generator::prelude_schedule
+(const isl::union_map & schedule, int prelude)
+{
+    using namespace isl;
+
+    isl::union_map sched_prelude(m_model.context);
+
+    schedule.for_each([&](isl::map & stmt_sched)
+    {
+        auto stmt = statement_for(stmt_sched.id(isl::space::input));
+        assert(stmt);
+
+        if (!stmt->is_infinite)
+        {
+            sched_prelude = sched_prelude | stmt_sched;
+            return true;
+        }
+
+        auto range = stmt_sched.range();
+        auto time = range.get_space()(isl::space::variable, 0);
+        range.add_constraint(time < prelude);
+
+        stmt_sched = stmt_sched.in_range(range);
+
+        sched_prelude = sched_prelude | stmt_sched;
+        return true;
+    });
+
+    if (debug::is_enabled())
+    {
+        cout << "Prelude schedule:" << endl;
+        print_each_in(sched_prelude);
+        cout << endl;
+    }
+
+    return sched_prelude;
 }
 
 isl::union_map ast_generator::periodic_schedule

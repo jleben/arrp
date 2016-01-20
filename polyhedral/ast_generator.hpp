@@ -185,6 +185,8 @@ private:
 
     int compute_period_duration(const isl::union_map & schedule);
     int compute_prelude_duration(const isl::union_map & schedule);
+    isl::union_map prelude_schedule
+    (const isl::union_map & schedule, int prelude);
     isl::union_map periodic_schedule
     (const isl::union_map & schedule, int prelude, int period);
 
