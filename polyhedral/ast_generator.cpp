@@ -832,6 +832,8 @@ int ast_generator::compute_period_duration
         cout << "Period duration = " << least_common_period << endl;
     }
 
+    // FIXME: Check correctness of the following:
+
     // Compute how much of a statement's infinite dimension is covered
     // by the period.
     // This equals the offset in buffer indexes added at each period.
@@ -987,6 +989,8 @@ isl::union_map ast_generator::periodic_schedule
         range.add_constraint(time < (prelude + period));
 
         stmt_sched = stmt_sched.in_range(range);
+
+        // FIXME: Check correctness of the following:
 
         // Compute domain indexes corresponding to schedule period
         auto domain = stmt_sched.domain();
