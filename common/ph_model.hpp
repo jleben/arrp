@@ -121,6 +121,45 @@ public:
     vector<stmt_ptr> statements;
 };
 
+class model_summary
+{
+public:
+    model_summary(const model & m):
+        domains(m.context),
+        write_relations(m.context),
+        read_relations(m.context),
+        dependencies(m.context)
+    {
+        for (const auto & stmt : m.statements)
+        {
+            domains = domains | stmt->domain;
+
+            write_relations = write_relations |
+                    isl::map(stmt->write_relation).in_domain(stmt->domain);
+
+            read_relations = read_relations |
+                    stmt->read_relations.in_domain(stmt->domain);
+        }
+
+        dependencies = read_relations.inverse()(write_relations);
+    }
+
+    isl::union_set domains;
+    isl::union_map write_relations;
+    isl::union_map read_relations;
+    isl::union_map dependencies;
+};
+
+class schedule
+{
+public:
+    schedule(const isl::context & ctx):
+        full(ctx), prelude(ctx), period(ctx) {}
+    isl::union_map full;
+    isl::union_map prelude;
+    isl::union_map period;
+};
+
 } // namespace polyhedral
 } // namespace stream
 

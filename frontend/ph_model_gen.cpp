@@ -226,20 +226,36 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
         stmt->domain = stmt->domain & subdomain;
     }
 
-    cout << "Statement domain:" << endl;
-    m_isl_printer.print(stmt->domain); cout << endl;
+    {
+        // Is the domain bounded?
+        auto time_var = stmt->domain.get_space()(isl::space::variable, 0);
+        try {
+            auto result = stmt->domain.maximum(time_var);
+            stmt->is_infinite = result.is_infinity();
+        } catch (isl::error &) {
+            throw error("Could not check whether statement domain is infinite.");
+        }
+    }
 
     stmt->write_relation = isl::basic_map::identity
             (stmt->domain.get_space(),
              array->domain.get_space());
 
-    cout << "Write relation: " << endl;
-    m_isl_printer.print(stmt->write_relation); cout << endl;
-
     stmt->expr = make_affine_array_reads(stmt, expr, sm);
 
-    cout << "All read relations:" << endl;
-    m_isl_printer.print(stmt->read_relations); cout << endl;
+    {
+        // Debug output
+        cout << "Statement domain "
+             << (stmt->is_infinite ? "(unbounded)" : "(bounded)")
+             << ":" << endl;
+        m_isl_printer.print(stmt->domain); cout << endl;
+
+        cout << "Write relation: " << endl;
+        m_isl_printer.print(stmt->write_relation); cout << endl;
+
+        cout << "Read relations:" << endl;
+        m_isl_printer.print(stmt->read_relations); cout << endl;
+    }
 
     return stmt;
 }
@@ -297,9 +313,6 @@ expr_ptr polyhedral_gen::make_affine_array_reads
         }
 
         stmt->read_relations = stmt->read_relations | rel;
-
-        cout << "Read relation:" << endl;
-        m_isl_printer.print(rel); cout << endl;
 
         auto read_expr = make_shared<ph::array_read>(arr, rel, app->location);
         return read_expr;
