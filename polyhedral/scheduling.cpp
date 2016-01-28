@@ -130,6 +130,10 @@ isl_bool
 scheduler::add_schedule_constraints
 (struct isl_scheduler * sched)
 {
+    // Schedule validity test
+    // FIXME: It is possible that the schedule contains a
+    // "set" node before a "band" node.
+
     int sched_dim = isl_scheduler_get_current_dim(sched);
     if (sched_dim != 0)
         return isl_bool_false;
@@ -150,6 +154,14 @@ scheduler::add_schedule_constraints
             node = isl_schedule_node_parent(node);
         }
     }
+
+    // FIXME: Add constraint:
+    // Streaming coefficients for dependent statements are equal to
+    // the ratio of the amounts of array they consume/produce in
+    // a single streaming iteration.
+
+    // Add constraint:
+    // The coefficient for streaming statement dimension > 0.
 
     isl::basic_set coefs(isl_scheduler_get_user_coefs(sched));
     auto cnstr_space = isl::local_space(coefs.get_space());
@@ -376,6 +388,9 @@ int scheduler::compute_period_duration
             cout << "Period spans " << span
                  << " iterations of " << stmt->name << endl;
         }
+
+        // FIXME: Use the statement's write relation,
+        // do not assume it is identity.
 
         if (!stmt->array->period)
             stmt->array->period = span;
