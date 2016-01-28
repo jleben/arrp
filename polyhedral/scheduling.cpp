@@ -280,14 +280,17 @@ int scheduler::compute_period_duration
 {
     // NOTE: Assuming that all the dependencies
     // are uniform in the infinite dimension of the schedule.
-    // This means that, for each statement,
-    // each instance of its infinite scheduling hyperplane
+
+    // This implies that, for each statement S,
+    // each p(S) instances of its infinite scheduling hyperplane
+    // corresponding to 1 step in its infinite domain dimension
     // does exactly the same work and constitutes a repeating period.
+    // p(S) = scheduling coefficient for that schedule and that domain
+    // dimension.
+
     // To get to the common period for all statements, we need to
-    // get the least common multiple of the distances between
-    // their infinite scheduling hyperplane instances.
-    // That is, the LCM of the scheduling coefficients for the infinite
-    // dimensionf of each statement.
+    // get the least common multiple of all p(S).
+
 
     // For each statement, get the scheduling coefficient
     // for its infinite dimension.
