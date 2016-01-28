@@ -31,6 +31,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
 
+#include <cloog/cloog.h>
+
 #include <vector>
 #include <string>
 #include <iostream>
@@ -158,6 +160,15 @@ public:
     isl::union_map full;
     isl::union_map prelude;
     isl::union_map period;
+};
+
+class ast
+{
+public:
+    CloogOptions * options;
+    CloogState * state;
+    clast_stmt * prelude;
+    clast_stmt * period;
 };
 
 } // namespace polyhedral

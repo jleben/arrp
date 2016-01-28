@@ -32,9 +32,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/ph_model_gen.hpp"
 #include "../polyhedral/scheduling.hpp"
 #include "../polyhedral/storage_alloc.hpp"
-//#include "../polyhedral/translator.hpp"
-//#include "../polyhedral/polyhedral-gen.hpp"
-//#include "../polyhedral/ast_generator.hpp"
+#include "../polyhedral/ast_gen.hpp"
 //#include "../llvm/llvm_ir_from_cloog.hpp"
 //#include "../llvm/llvm_from_polyhedral.hpp"
 //#include "../cpp/cpp_target.hpp"
@@ -239,23 +237,39 @@ result::code compile_source(istream & source, const arguments & args)
             }
         }
         {
+            // Create polyhedral model
+
             array_ids.insert(id);
             functional::polyhedral_gen gen;
             auto ph_model = gen.process(array_ids);
 
+            // Compute polyhedral schedule
+
             polyhedral::scheduler poly_scheduler( ph_model );
             auto schedule = poly_scheduler.schedule();
 
+            // Allocate storage (buffers)
+
             polyhedral::storage_allocator storage_alloc( ph_model );
             storage_alloc.allocate(schedule);
-#if 1
+
             // Print buffers
 
             if (args.print[arguments::buffer_size_output])
             {
                 print_buffer_sizes(ph_model.arrays);
             }
-#endif
+
+            // Generate AST for schedule
+
+            auto ast = polyhedral::make_ast(schedule);
+            if (args.print[arguments::ast_output])
+            {
+                cout << endl << "== Prelude AST ==" << endl;
+                clast_pprint(stdout, ast.prelude, 0, ast.options);
+                cout << endl << "== Period AST ==" << endl;
+                clast_pprint(stdout, ast.period, 0, ast.options);
+            }
         }
     }
     catch (functional::func_reduce_error & e)
