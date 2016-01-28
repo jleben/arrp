@@ -125,25 +125,25 @@ void storage_allocator::compute_buffer_size
     // = Create map: t -> src,
     //   Such that: time(src) <= t and time(sink(src)) <= t, for all sink
     auto buffered = written_not_later & read_later;
-
+#if 0
     if (debug::is_enabled())
     {
         cout << ".. Buffered: " << endl;
         m_printer.print(buffered);
         cout << endl;
     }
-
+#endif
     vector<int> buffer_size;
 
     {
         auto buffered_reflection = (buffered * buffered);
-
+#if 0
         if (debug::is_enabled())
         {
             cout << ".. Buffer reflection: " << endl;
             m_printer.print(buffered_reflection); cout << endl;
         }
-
+#endif
         isl::local_space space(buffered_reflection.get_space());
         int buf_dim_count = array_space.dimension(isl::space::variable);
         int time_dim_count = time_space.dimension(isl::space::variable);
