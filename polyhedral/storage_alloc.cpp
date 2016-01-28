@@ -56,6 +56,8 @@ void storage_allocator::allocate(const polyhedral::schedule & schedule)
     for (auto & array : m_model.arrays)
     {
         compute_buffer_size(schedule, array, *time_space);
+
+        find_inter_period_dependency(schedule, array);
     }
 
     delete time_space;
@@ -80,12 +82,15 @@ void storage_allocator::compute_buffer_size
 
     // Filter and map writers and readers
 
+    auto write_relations = m_model_summary.write_relations.in_domain(m_model_summary.domains);
+    auto read_relations = m_model_summary.read_relations.in_domain(m_model_summary.domains);
+
     auto all_write_sched = schedule.full;
-    all_write_sched.map_domain_through(m_model_summary.write_relations);
+    all_write_sched.map_domain_through(write_relations);
     auto write_sched = all_write_sched.map_for(array_sched_space);
 
     auto all_read_sched = schedule.full;
-    all_read_sched.map_domain_through(m_model_summary.read_relations);
+    all_read_sched.map_domain_through(read_relations);
     auto read_sched = all_read_sched.map_for(array_sched_space);
 
     if (read_sched.is_empty())
@@ -179,6 +184,35 @@ void storage_allocator::compute_buffer_size
     }
 
     array->buffer_size = buffer_size;
+}
+
+void storage_allocator::find_inter_period_dependency
+( const polyhedral::schedule & schedule,
+  const array_ptr & array )
+{
+
+    auto written_in_period =
+            m_model_summary.write_relations( schedule.period.domain() )
+            .set_for(array->domain.get_space());
+
+    auto read_in_period =
+            m_model_summary.read_relations( schedule.period.domain() )
+            .set_for(array->domain.get_space());
+
+    auto remaining = read_in_period - written_in_period;
+
+    array->inter_period_dependency = !remaining.is_empty();
+
+    if (debug::is_enabled())
+    {
+        cout << "Array " << array->name << ":" << endl;
+        cout << "  written: "; m_printer.print(written_in_period); cout << endl;
+        cout << "  read: "; m_printer.print(read_in_period); cout << endl;
+        cout << "  remaining: "; m_printer.print(remaining); cout << endl;
+        cout << "  inter-period dep = "
+             << (array->inter_period_dependency ? "true" : "false")
+             << endl;
+    }
 }
 
 }

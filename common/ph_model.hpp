@@ -134,14 +134,14 @@ public:
         {
             domains = domains | stmt->domain;
 
-            write_relations = write_relations |
-                    isl::map(stmt->write_relation).in_domain(stmt->domain);
+            write_relations = write_relations | isl::map(stmt->write_relation);
 
-            read_relations = read_relations |
-                    stmt->read_relations.in_domain(stmt->domain);
+            read_relations = read_relations | stmt->read_relations;
         }
 
-        dependencies = read_relations.inverse()(write_relations);
+        dependencies =
+                read_relations.in_domain(domains).inverse()
+                (write_relations.in_domain(domains));
     }
 
     isl::union_set domains;

@@ -46,6 +46,10 @@ private:
       const array_ptr & array,
       const isl::space & time_space );
 
+    void find_inter_period_dependency
+    ( const schedule &,
+      const array_ptr & );
+
     model & m_model;
     model_summary m_model_summary;
     isl::printer m_printer;
