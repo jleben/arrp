@@ -46,7 +46,7 @@ struct debug : public stream::debug::topic<debug, stream::debug::all>
 
 using std::vector;
 using std::string;
-using utility::mapping;
+using affine_matrix = utility::mapping;
 typedef parsing::location location_type;
 
 class statement;
@@ -55,6 +55,9 @@ class array;
 enum {
     infinite = -1
 };
+
+isl::matrix to_isl_equalities_matrix(const affine_matrix &, const isl::context &);
+isl::map to_isl_map(const affine_matrix &, const isl::space &);
 
 class array
 {
@@ -77,21 +80,25 @@ public:
 };
 typedef std::shared_ptr<array> array_ptr;
 
+struct array_relation
+{
+    array_ptr array;
+    affine_matrix matrix;
+};
+
 class statement
 {
 public:
     statement(const isl::set & d):
-        name(d.name()), domain(d),
-        write_relation(d.get_space()),
-        read_relations(d.ctx())
+        name(d.name()), domain(d)
     {}
 
     string name;
     isl::set domain;
     functional::expr_ptr expr = nullptr;
     array_ptr array;
-    isl::basic_map write_relation;
-    isl::union_map read_relations;
+    array_relation write_relation;
+    vector<array_relation> read_relations;
     bool is_infinite = false;
 };
 typedef std::shared_ptr<statement> stmt_ptr;
@@ -99,12 +106,12 @@ typedef std::shared_ptr<statement> stmt_ptr;
 class array_read : public functional::expression
 {
 public:
-    array_read(array_ptr a, const isl::basic_map & r,
+    array_read(array_ptr a, const affine_matrix & r,
                const location_type & l):
         expression(l), array(a), read_relation(r) {}
 
     array_ptr array;
-    isl::basic_map read_relation;
+    affine_matrix read_relation;
 };
 
 class iterator_read : public functional::expression
@@ -136,9 +143,20 @@ public:
         {
             domains = domains | stmt->domain;
 
-            write_relations = write_relations | isl::map(stmt->write_relation);
+            {
+                auto space = isl::space::from(stmt->domain.get_space(),
+                                              stmt->array->domain.get_space());
+                auto map = to_isl_map(stmt->write_relation.matrix, space);
+                write_relations = write_relations | map;
+            }
 
-            read_relations = read_relations | stmt->read_relations;
+            for(const auto & rel : stmt->read_relations)
+            {
+                auto space = isl::space::from(stmt->domain.get_space(),
+                                              rel.array->domain.get_space());
+                auto map = to_isl_map(rel.matrix, space);
+                read_relations = read_relations | map;
+            }
         }
 
         dependencies =

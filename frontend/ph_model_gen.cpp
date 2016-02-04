@@ -237,9 +237,12 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
         }
     }
 
-    stmt->write_relation = isl::basic_map::identity
-            (stmt->domain.get_space(),
-             array->domain.get_space());
+    {
+        auto write_mtx = ph::affine_matrix::identity
+                (stmt->domain.dimensions(),
+                 array->domain.dimensions());
+        stmt->write_relation = { array, write_mtx };
+    }
 
     stmt->expr = make_affine_array_reads(stmt, expr, sm);
 
@@ -250,11 +253,14 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
              << ":" << endl;
         m_isl_printer.print(stmt->domain); cout << endl;
 
-        cout << "Write relation: " << endl;
-        m_isl_printer.print(stmt->write_relation); cout << endl;
+        cout << "Write relation: " << stmt->array->name << endl;
+        cout << stmt->write_relation.matrix;
 
-        cout << "Read relations:" << endl;
-        m_isl_printer.print(stmt->read_relations); cout << endl;
+        for (const auto & rel : stmt->read_relations)
+        {
+            cout << "Read relation:" << rel.array->name << endl;
+            cout << rel.matrix;
+        }
     }
 
     return stmt;
@@ -301,20 +307,26 @@ expr_ptr polyhedral_gen::make_affine_array_reads
         auto local_space = isl::local_space(space);
         space_map sm_rel(space, local_space, sm.vars);
 
-        auto rel = isl::basic_map::universe(sm_rel.space);
+        polyhedral::affine_matrix matrix
+                (space.dimension(isl::space::input),
+                 space.dimension(isl::space::output));
 
-        // TODO: assert space sizes vs. args and vars...
-        for (int d = 0; d < app->args.size(); ++d)
+        assert(app->args.size() == matrix.output_dimension());
+
+        for (int out = 0; out < matrix.output_dimension(); ++out)
         {
-            auto e = to_affine_expr(app->args[d], sm_rel);
-            auto v = isl::expression::variable(sm_rel.local_space,
-                                               isl::space::output, d);
-            rel.add_constraint(v == e);
+            auto e = to_affine_expr(app->args[out], sm_rel);
+
+            for (int in = 0; in < matrix.input_dimension(); ++in)
+            {
+                matrix.coefficient(in,out) = e.coefficient(isl::space::input, in).integer();
+                matrix.constant(out) = e.constant().integer();
+            }
         }
 
-        stmt->read_relations = stmt->read_relations | rel;
+        stmt->read_relations.push_back(ph::array_relation{arr, matrix});
 
-        auto read_expr = make_shared<ph::array_read>(arr, rel, app->location);
+        auto read_expr = make_shared<ph::array_read>(arr, matrix, app->location);
         return read_expr;
     }
     else

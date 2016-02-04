@@ -82,6 +82,16 @@ scheduler::schedule()
     if (debug::is_enabled())
         cout << endl << "### Scheduling ###" << endl;
 
+    if (debug::is_enabled())
+    {
+        cout << "Write relations:" << endl;
+        print_each_in(m_model_summary.write_relations);
+        cout << "Read relations:" << endl;
+        print_each_in(m_model_summary.read_relations);
+        cout << "Dependencies:" << endl;
+        print_each_in(m_model_summary.dependencies);
+    }
+
     polyhedral::schedule schedule(m_model.context);
     schedule.full = make_schedule(m_model_summary.domains,
                                   m_model_summary.dependencies);
