@@ -34,17 +34,19 @@ void type_checker::process(id_ptr id)
 
 primitive_type type_checker::process(expr_ptr expr, id_ptr id)
 {
+    primitive_type type = primitive_type::undefined;
+
     if (auto i = dynamic_pointer_cast<constant<int>>(expr))
     {
-        return primitive_type::integer;
+        type = primitive_type::integer;
     }
     else if (auto d = dynamic_pointer_cast<constant<double>>(expr))
     {
-        return primitive_type::real;
+        type = primitive_type::real;
     }
     else if (auto b = dynamic_pointer_cast<constant<bool>>(expr))
     {
-        return primitive_type::boolean;
+        type = primitive_type::boolean;
     }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
@@ -52,7 +54,7 @@ primitive_type type_checker::process(expr_ptr expr, id_ptr id)
         for (const auto & arg : op->operands)
             arg_types.push_back(process(arg, id));
         try {
-            return result_type(op->type, arg_types);
+            type = result_type(op->kind, arg_types);
         } catch (no_type &) {
             throw source_error("Invalid argument types.", op->location);
         } catch (ambiguous_type &) {
@@ -62,7 +64,7 @@ primitive_type type_checker::process(expr_ptr expr, id_ptr id)
     }
     else if (auto c = dynamic_pointer_cast<case_expr>(expr))
     {
-        primitive_type type = process(c->cases.front().second, id);
+        type = process(c->cases.front().second, id);
 
         for (int i=1; i < c->cases.size(); ++i)
         {
@@ -74,16 +76,14 @@ primitive_type type_checker::process(expr_ptr expr, id_ptr id)
                                    c->location);
             }
         }
-
-        return type;
     }
     else if (auto arr = dynamic_pointer_cast<array>(expr))
     {
-        return process(arr->expr, id);
+        type = process(arr->expr, id);
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
-        return process(app->object, id);
+        type = process(app->object, id);
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
@@ -91,11 +91,11 @@ primitive_type type_checker::process(expr_ptr expr, id_ptr id)
         {
             assert(id);
             process(id);
-            return id->type;
+            type = id->type;
         }
         else if (auto v = dynamic_pointer_cast<array_var>(ref->var))
         {
-            return primitive_type::integer;
+            type = primitive_type::integer;
         }
         else
         {
@@ -104,12 +104,16 @@ primitive_type type_checker::process(expr_ptr expr, id_ptr id)
     }
     else if (auto self_ref = dynamic_pointer_cast<array_self_ref>(expr))
     {
-        return id->type;
+        type = id->type;
     }
     else
     {
         throw source_error("Unexpected expression.", expr->location);
     }
+
+    expr->type = type;
+
+    return type;
 }
 
 }

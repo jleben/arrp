@@ -56,6 +56,7 @@ public:
     expression(const location_type & loc): location(loc) {}
     virtual ~expression() {}
     location_type location;
+    primitive_type type;
 };
 typedef std::shared_ptr<expression> expr_ptr;
 
@@ -75,13 +76,13 @@ public:
     primitive() {}
     primitive(primitive_op t,
               const vector<expr_ptr> & operands):
-        type(t), operands(operands) {}
+        kind(t), operands(operands) {}
     template<typename ...Ts>
     primitive(primitive_op t,
               Ts ... operands):
-        type(t), operands({ operands ... }) {}
+        kind(t), operands({ operands ... }) {}
 
-    primitive_op type;
+    primitive_op kind;
     vector<expr_ptr> operands;
 };
 

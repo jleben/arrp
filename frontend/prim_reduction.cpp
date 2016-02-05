@@ -77,7 +77,7 @@ expr_ptr reduce_primitive(std::shared_ptr<primitive> op)
 
     try
     {
-        switch(op->type)
+        switch(op->kind)
         {
         case primitive_op::add:
             return try_reduce([&](){ return c_i(to_i(a[0]) + to_i(a[1])); } );

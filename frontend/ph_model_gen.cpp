@@ -48,21 +48,20 @@ polyhedral_gen::process(const unordered_set<id_ptr> & input)
 
 ph::array_ptr polyhedral_gen::make_array(id_ptr id)
 {
-    ostringstream text;
-    text << '@' << id->name;
-    string name = text.str();
+    string array_name = id->name + "_a";
 
     vector<array_var_ptr> vars;
     if (auto arr = dynamic_pointer_cast<functional::array>(id->expr))
         vars = arr->vars;
 
-    auto tuple = isl::set_tuple( isl::identifier(name, nullptr),
+    auto tuple = isl::set_tuple( isl::identifier(array_name, nullptr),
                                  std::max((int)vars.size(), 1) );
 
     auto space = isl::space( m_isl_ctx, tuple );
     auto domain = isl::set::universe(space);
     auto constraint_space = isl::local_space(space);
     bool is_infinite = false;
+    vector<int> size;
 
     if (!vars.empty())
     {
@@ -104,6 +103,8 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
             {
                 is_infinite = true;
             }
+
+            size.push_back(extent);
         }
     }
     else
@@ -113,8 +114,9 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
         domain.add_constraint(dim_var == 0);
     }
 
-    auto arr = make_shared<ph::array>(name, domain);
+    auto arr = make_shared<ph::array>(array_name, domain, id->type);
     arr->is_infinite = is_infinite;
+    arr->size = size;
 
     auto result = m_arrays.emplace(id, arr);
     assert(result.second);
@@ -129,6 +131,8 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
 {
     // TODO: Is sub-domain statement infinite?
 
+    string stmt_name = id->name + "_s";
+
     if (auto arr = dynamic_pointer_cast<functional::array>(id->expr))
     {
         if (auto case_expr = dynamic_pointer_cast<functional::case_expr>(arr->expr))
@@ -137,15 +141,8 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
             for(int c = 0; c < (int)case_expr->cases.size(); ++c)
             {
                 auto & a_case = case_expr->cases[c];
-
-                string name;
-                {
-                    ostringstream text;
-                    text << id->name << c;
-                    name = text.str();
-                }
-
-                auto s = make_stmt(arr->vars, name, a_case.first, a_case.second);
+                auto s = make_stmt(arr->vars, stmt_name + to_string(c),
+                                   a_case.first, a_case.second);
                 case_stmts.push_back(s);
                 output.statements.push_back(s);
             }
@@ -183,13 +180,13 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
         }
         else
         {
-            auto s = make_stmt(arr->vars, id->name, nullptr, arr->expr);
+            auto s = make_stmt(arr->vars, stmt_name, nullptr, arr->expr);
             output.statements.push_back(s);
         }
     }
     else
     {
-        auto s = make_stmt({}, id->name, nullptr, id->expr);
+        auto s = make_stmt({}, stmt_name, nullptr, id->expr);
         output.statements.push_back(s);
     }
 }
@@ -339,7 +336,7 @@ isl::set polyhedral_gen::to_affine_set(expr_ptr e, const space_map & s)
 {
     if (auto op = dynamic_pointer_cast<primitive>(e))
     {
-        switch(op->type)
+        switch(op->kind)
         {
         case primitive_op::compare_eq:
         case primitive_op::compare_neq:
@@ -352,7 +349,7 @@ isl::set polyhedral_gen::to_affine_set(expr_ptr e, const space_map & s)
             auto lhs = to_affine_expr(op->operands[0],s);
             auto rhs = to_affine_expr(op->operands[1],s);
             auto set = isl::set::universe(s.space);
-            switch(op->type)
+            switch(op->kind)
             {
             case primitive_op::compare_eq:
                 set.add_constraint( lhs == rhs ); break;
@@ -426,7 +423,7 @@ isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & s)
     }
     else if (auto op = dynamic_pointer_cast<primitive>(e))
     {
-        switch(op->type)
+        switch(op->kind)
         {
         case primitive_op::add:
             return (to_affine_expr(op->operands[0],s) + to_affine_expr(op->operands[1],s));

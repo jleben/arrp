@@ -63,12 +63,15 @@ class array
 {
 public:
     array(const string & name,
-          const isl::set & domain):
-        name(name), domain(domain) {}
+          const isl::set & domain,
+          primitive_type type):
+        name(name), domain(domain), type(type) {}
 
     string name;
     isl::set domain;
+    primitive_type type;
     bool is_infinite = false;
+    vector<int> size;
 
 #if 1
     vector<int> buffer_size;
@@ -108,10 +111,10 @@ class array_read : public functional::expression
 public:
     array_read(array_ptr a, const affine_matrix & r,
                const location_type & l):
-        expression(l), array(a), read_relation(r) {}
+        expression(l), array(a), matrix(r) {}
 
     array_ptr array;
-    affine_matrix read_relation;
+    affine_matrix matrix;
 };
 
 class iterator_read : public functional::expression

@@ -25,7 +25,7 @@ linexpr to_linear_expr(expr_ptr e)
     // TODO: Function variables: get bound value, not type
     else if (auto op = dynamic_pointer_cast<primitive>(e))
     {
-        switch(op->type)
+        switch(op->kind)
         {
         case primitive_op::add:
             return (to_linear_expr(op->operands[0]) + to_linear_expr(op->operands[1]));
@@ -81,7 +81,7 @@ linear_set::constraint to_linear_constraint(expr_ptr expr)
     {
         linear_set::constraint c;
 
-        switch(op->type)
+        switch(op->kind)
         {
         case primitive_op::compare_eq:
             c.type = linear_set::equal; break;
@@ -116,7 +116,7 @@ expr_ptr to_linear_set(expr_ptr expr)
 {
     if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
-        switch(op->type)
+        switch(op->kind)
         {
         case primitive_op::compare_eq:
         case primitive_op::compare_neq:
