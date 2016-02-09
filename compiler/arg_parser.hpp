@@ -121,6 +121,7 @@ public:
     std::array<bool,output_topic_count> print;
     vector<string> debug_topics;
     vector<string> no_debug_topics;
+    bool optimize_schedule = true;
 
 public:
     arguments(int argc, char *argv[]):
@@ -204,6 +205,10 @@ private:
             string topic;
             parse_argument(topic, "topic");
             no_debug_topics.push_back(topic);
+        }
+        else if (opt == "--no-opt-schedule")
+        {
+            optimize_schedule = false;
         }
         else
         {

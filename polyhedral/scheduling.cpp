@@ -77,7 +77,7 @@ scheduler::scheduler( model & m ):
 {}
 
 polyhedral::schedule
-scheduler::schedule()
+scheduler::schedule(bool optimize)
 {
     if (debug::is_enabled())
         cout << endl << "### Scheduling ###" << endl;
@@ -96,7 +96,8 @@ scheduler::schedule()
 
     polyhedral::schedule schedule(m_model.context);
     schedule.full = make_schedule(m_model_summary.domains,
-                                  m_model_summary.dependencies);
+                                  m_model_summary.dependencies,
+                                  optimize);
 
     auto periodic_schedule = make_periodic_schedule(schedule.full);
     schedule.prelude = periodic_schedule.first;
@@ -194,7 +195,51 @@ scheduler::add_schedule_constraints
 }
 
 isl::union_map scheduler::make_schedule
-(const isl::union_set & domains, const isl::union_map & dependencies)
+(const isl::union_set & domains, const isl::union_map & dependencies,
+ bool optimize)
+{
+    // FIXME: statements with no dependencies
+    // seem to always end up with an empty schedule.
+
+    isl_schedule_constraints *constr =
+            isl_schedule_constraints_on_domain(domains.copy());
+
+    constr = isl_schedule_constraints_set_constraint_filter
+            (constr, &add_schedule_constraints_helper, this);
+
+    constr = isl_schedule_constraints_set_validity(constr, dependencies.copy());
+
+    if (optimize)
+    {
+        auto proximity_deps = make_proximity_dependencies(dependencies);
+        constr = isl_schedule_constraints_set_proximity(constr, proximity_deps.copy());
+    }
+
+    isl_schedule * sched =
+            isl_schedule_constraints_compute_schedule(constr);
+    assert(sched);
+
+    isl::union_map sched_map( isl_schedule_get_map(sched) );
+    sched_map = sched_map.in_domain(domains);
+
+    if (debug::is_enabled())
+    {
+        cout << "Schedule:" << endl;
+        isl_printer_print_schedule(m_printer.get(), sched);
+        cout << endl;
+
+        cout << endl << "Schedule map:" << endl;
+        print_each_in(sched_map);
+        cout << endl;
+    }
+
+    isl_schedule_free(sched);
+
+    return sched_map;
+}
+
+isl::union_map
+scheduler::make_proximity_dependencies(const isl::union_map & dependencies)
 {
     // Collect sensible proximity dependencies.
     // Drop those which can not possible be satisfied
@@ -238,41 +283,8 @@ isl::union_map scheduler::make_schedule
         return true;
     });
 
-    // FIXME: statements with no dependencies
-    // seem to always end up with an empty schedule.
-
-    isl_schedule_constraints *constr =
-            isl_schedule_constraints_on_domain(domains.copy());
-
-    constr = isl_schedule_constraints_set_constraint_filter
-            (constr, &add_schedule_constraints_helper, this);
-
-    constr = isl_schedule_constraints_set_validity(constr, dependencies.copy());
-    constr = isl_schedule_constraints_set_proximity(constr, proximity_deps.copy());
-
-    isl_schedule * sched =
-            isl_schedule_constraints_compute_schedule(constr);
-    assert(sched);
-
-    isl::union_map sched_map( isl_schedule_get_map(sched) );
-    sched_map = sched_map.in_domain(domains);
-
-    if (debug::is_enabled())
-    {
-        cout << "Schedule:" << endl;
-        isl_printer_print_schedule(m_printer.get(), sched);
-        cout << endl;
-
-        cout << endl << "Schedule map:" << endl;
-        print_each_in(sched_map);
-        cout << endl;
-    }
-
-    isl_schedule_free(sched);
-
-    return sched_map;
+    return proximity_deps;
 }
-
 
 pair<isl::union_map, isl::union_map>
 scheduler::make_periodic_schedule(const isl::union_map & schedule)
