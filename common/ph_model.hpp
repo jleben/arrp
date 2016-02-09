@@ -49,15 +49,28 @@ using std::string;
 using affine_matrix = utility::mapping;
 typedef parsing::location location_type;
 
-class statement;
 class array;
+class statement;
+typedef std::shared_ptr<array> array_ptr;
+typedef std::shared_ptr<statement> stmt_ptr;
 
 enum {
     infinite = -1
 };
 
-isl::matrix to_isl_equalities_matrix(const affine_matrix &, const isl::context &);
-isl::map to_isl_map(const affine_matrix &, const isl::space &);
+struct array_relation
+{
+    array_relation() {}
+    array_relation(array_ptr a, const affine_matrix & m,
+                   const vector<int> & s = vector<int>()):
+        array(a), matrix(m), size(s) {}
+
+    array_ptr array = nullptr;
+    affine_matrix matrix;
+    vector<int> size;
+};
+
+isl::map to_isl_map(const stmt_ptr &, const array_relation &);
 
 class array
 {
@@ -81,30 +94,25 @@ public:
     bool inter_period_dependency = true;
 #endif
 };
-typedef std::shared_ptr<array> array_ptr;
-
-struct array_relation
-{
-    array_ptr array;
-    affine_matrix matrix;
-};
 
 class statement
 {
 public:
     statement(const isl::set & d):
         name(d.name()), domain(d)
-    {}
+    {
+        auto id = domain.id();
+        id.data = this;
+        domain.set_id(id);
+    }
 
     string name;
     isl::set domain;
     functional::expr_ptr expr = nullptr;
-    array_ptr array;
     array_relation write_relation;
     vector<array_relation> read_relations;
     bool is_infinite = false;
 };
-typedef std::shared_ptr<statement> stmt_ptr;
 
 class array_read : public functional::expression
 {
@@ -123,6 +131,15 @@ public:
     iterator_read(int i, const location_type & l):
         expression(l), index(i) {}
     int index;
+};
+
+class external_call : public functional::expression
+{
+public:
+    external_call(const location_type & l):
+        expression(l) {}
+    string name;
+    array_relation source;
 };
 
 class model
@@ -146,10 +163,11 @@ public:
         {
             domains = domains | stmt->domain;
 
+            if (stmt->write_relation.array)
             {
                 auto space = isl::space::from(stmt->domain.get_space(),
-                                              stmt->array->domain.get_space());
-                auto map = to_isl_map(stmt->write_relation.matrix, space);
+                                              stmt->write_relation.array->domain.get_space());
+                auto map = to_isl_map(stmt, stmt->write_relation);
                 write_relations = write_relations | map;
             }
 
@@ -157,7 +175,7 @@ public:
             {
                 auto space = isl::space::from(stmt->domain.get_space(),
                                               rel.array->domain.get_space());
-                auto map = to_isl_map(rel.matrix, space);
+                auto map = to_isl_map(stmt, rel);
                 read_relations = read_relations | map;
             }
         }

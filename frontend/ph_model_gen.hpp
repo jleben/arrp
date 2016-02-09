@@ -24,7 +24,9 @@ class polyhedral_gen
 {
 public:
     polyhedral_gen();
-    polyhedral::model process(const unordered_set<id_ptr> &);
+    polyhedral::model process(const unordered_set<id_ptr> & ids);
+    void add_output(polyhedral::model &,
+                    const string & name, id_ptr id);
 
 private:
     struct space_map

@@ -56,7 +56,7 @@ public:
     expression(const location_type & loc): location(loc) {}
     virtual ~expression() {}
     location_type location;
-    primitive_type type;
+    primitive_type type = primitive_type::undefined;
 };
 typedef std::shared_ptr<expression> expr_ptr;
 

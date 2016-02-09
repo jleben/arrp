@@ -19,7 +19,7 @@ void cpp_from_polyhedral::generate_statement
 (const string & name, const index_type & index, builder* ctx)
 {
     auto stmt_ref = std::find_if(m_model.statements.begin(), m_model.statements.end(),
-                                 [&](polyhedral::statement_ptr s){ return s->name == name; });
+                                 [&](polyhedral::stmt_ptr s){ return s->name == name; });
     assert(stmt_ref != m_model.statements.end());
 
     generate_statement((*stmt_ref).get(), index, ctx);
@@ -30,82 +30,75 @@ void cpp_from_polyhedral::generate_statement
 {
     expression_ptr expr;
 
-    if (dynamic_cast<polyhedral::input_access*>(stmt->expr.get()))
-    {
-        // FIXME: different iteration and data domains
-        generate_input_access(stmt, index, ctx);
-    }
-    else if (!stmt->array)
-    {
-        generate_output_access(stmt, index, ctx);
-    }
-    else
     {
         expr = generate_expression(stmt->expr, index, ctx);
 
-        auto array_index = mapped_index(index, stmt->write_relation, ctx);
-        auto dst = generate_buffer_access(stmt->array, array_index, ctx);
-        auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
-
-        ctx->add(make_shared<expr_statement>(store));
+        if (stmt->write_relation.array)
+        {
+            auto array_index = mapped_index(index, stmt->write_relation.matrix, ctx);
+            auto dst = generate_buffer_access(stmt->write_relation.array, array_index, ctx);
+            auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
+            ctx->add(store);
+        }
+        else
+        {
+            ctx->add(expr);
+        }
     }
 }
 
 expression_ptr cpp_from_polyhedral::generate_expression
-(polyhedral::expression_ptr expr, const index_type & index, builder * ctx)
+(functional::expr_ptr expr, const index_type & index, builder * ctx)
 {
     using namespace polyhedral;
 
     expression_ptr result;
 
-    if (auto operation = dynamic_cast<primitive_expr*>(expr.get()))
+    if (auto operation = dynamic_cast<functional::primitive*>(expr.get()))
     {
         result = generate_primitive(operation, index, ctx);
     }
-    else if (auto input = dynamic_cast<input_access*>(expr.get()))
+    else if (auto iterator = dynamic_cast<polyhedral::iterator_read*>(expr.get()))
     {
-        int input_num = input->index;
-        auto input_name = ctx->current_function()->parameters[input_num]->name;
-        result = make_shared<id_expression>(input_name);
+        assert(iterator->index >= 0 && iterator->index < index.size());
+        return index[iterator->index];
     }
-    else if (auto iterator = dynamic_cast<iterator_access*>(expr.get()))
+    else if (auto read = dynamic_cast<polyhedral::array_read*>(expr.get()))
     {
-        auto value = mapped_index(index, iterator->relation, ctx);
-        assert(value.size() == 1);
-        return value[0];
+        auto target_index = mapped_index(index, read->matrix, ctx);
+        result = generate_buffer_access(read->array, target_index, ctx);
     }
-    else if (auto read = dynamic_cast<array_access*>(expr.get()))
-    {
-        auto target_index = mapped_index(index, read->pattern, ctx);
-        result = generate_buffer_access(read->target, target_index, ctx);
-    }
-    else if ( auto const_int = dynamic_cast<constant<int>*>(expr.get()) )
+    else if ( auto const_int = dynamic_cast<functional::constant<int>*>(expr.get()) )
     {
         result = literal(const_int->value);
     }
-    else if ( auto const_double = dynamic_cast<constant<double>*>(expr.get()) )
+    else if ( auto const_double = dynamic_cast<functional::constant<double>*>(expr.get()) )
     {
         result = literal(const_double->value);
     }
-    else if ( auto const_bool = dynamic_cast<constant<bool>*>(expr.get()) )
+    else if ( auto const_bool = dynamic_cast<functional::constant<bool>*>(expr.get()) )
     {
         result = literal(const_bool->value);
     }
+    else if (auto call = dynamic_cast<polyhedral::external_call*>(expr.get()))
+    {
+        auto array_index = mapped_index(index, call->source.matrix, ctx);
+        auto array_access = generate_buffer_access(call->source.array, array_index, ctx);
+        auto array_address = make_shared<un_op_expression>(op::address, array_access);
+        return make_shared<call_expression>(call->name, array_address);
+    }
     else
     {
-        throw std::runtime_error("Unexpected expression type.");
+        throw error("Unexpected expression type.");
     }
-
-    // FIXME: Do we need to convert anything?
-    // result = convert(result, expr->type);
 
     return result;
 }
 
 expression_ptr cpp_from_polyhedral::generate_primitive
-(polyhedral::primitive_expr * expr, const index_type & index, builder * ctx)
+(functional::primitive * expr, const index_type & index, builder * ctx)
 {
-    switch(expr->op)
+    switch(expr->kind)
     {
     case primitive_op::logic_and:
     {
@@ -163,7 +156,7 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         operands.push_back( generate_expression(operand_expr, index, ctx) );
     }
 
-    switch(expr->op)
+    switch(expr->kind)
     {
     case primitive_op::negate:
     {
@@ -193,8 +186,10 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         return make_shared<bin_op_expression>(op::not_equal, operands[0], operands[1]);
     case primitive_op::divide:
     {
-        if (expr->operands[0]->type != primitive_type::real)
-            operands[0] = make_shared<cast_expression>(type_for(primitive_type::real), operands[0]);
+        if ( expr->operands[0]->type != primitive_type::real &&
+             expr->operands[1]->type != primitive_type::real )
+            operands[0] = make_shared<cast_expression>
+                    (type_for(primitive_type::real), operands[0]);
 
         return make_shared<bin_op_expression>(op::div, operands[0], operands[1]);
     }
@@ -277,56 +272,9 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     }
     default:
         ostringstream text;
-        text << "Unexpected primitive op: " << expr->op;
+        text << "Unexpected primitive op: " << expr->kind;
         throw error(text.str());
     }
-}
-
-void cpp_from_polyhedral::generate_input_access
-(polyhedral::statement * stmt, const index_type & index, builder * ctx)
-{
-    int input_num = reinterpret_cast<polyhedral::input_access*>(stmt->expr.get())->index;
-
-    if (stmt->flow_dim < 0)
-    {
-        auto input_name = ctx->current_function()->parameters[input_num]->name;
-        auto input_id = make_shared<id_expression>(input_name);
-        auto value = make_shared<array_access_expression>(input_id, index);
-
-        auto array_index = mapped_index(index, stmt->write_relation, ctx);
-        auto dst = generate_buffer_access(stmt->array, array_index, ctx);
-        auto store = make_shared<bin_op_expression>(op::assign, dst, value);
-
-        ctx->add(make_shared<expr_statement>(store));
-    }
-    else
-    {
-        index_type dst_index = index;
-        int dim_dif = stmt->array->buffer_size.size() - dst_index.size();
-        dst_index.resize(dst_index.size() + dim_dif, literal((int)0));
-
-        expression_ptr dst = generate_buffer_access(stmt->array, dst_index, ctx);
-        dst = make_shared<un_op_expression>(op::address, dst);
-        auto call = make_shared<call_expression>("input", literal(input_num), dst);
-        ctx->add(call);
-        //cout << "Would generate input call for " << stmt->name << endl;
-    }
-}
-
-void cpp_from_polyhedral::generate_output_access
-(polyhedral::statement * stmt, const index_type & index, builder * ctx)
-{
-    auto access = dynamic_cast<polyhedral::array_access*>(stmt->expr.get());
-    assert(access);
-
-    index_type source_index = index;
-    int dim_dif = access->target->buffer_size.size() - source_index.size();
-    source_index.resize(source_index.size() + dim_dif, literal((int)0));
-
-    expression_ptr src = generate_buffer_access(access->target, source_index, ctx);
-    src = make_shared<un_op_expression>(op::address, src);
-    auto call = make_shared<call_expression>("output", src);
-    ctx->add(call);
 }
 
 expression_ptr cpp_from_polyhedral::generate_buffer_access
@@ -352,21 +300,22 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 
     if (m_in_period && buffer_info.has_phase)
     {
-        assert(array->flow_dim >= 0);
+        assert(array->is_infinite);
 
         auto phase_id = make_shared<id_expression>(array->name + "_ph");
         auto phase = make_shared<bin_op_expression>(op::member_of_pointer,
                                                     state_arg,
                                                     phase_id);
 
-        expression_ptr & i = buffer_index[array->flow_dim];
+        expression_ptr & i = buffer_index[0];
         i = make_shared<bin_op_expression>(op::add, i, phase);
     }
 
     for (int dim = 0; dim < buffer_index.size(); ++dim)
     {
         // FIXME: is using stmt->buffer_period for domain size OK?
-        int domain_size = dim == array->flow_dim ? array->period : array->size[dim];
+        bool dim_is_streaming = array->is_infinite && dim == 0;
+        int domain_size = dim_is_streaming ? array->period : array->size[dim];
         int buffer_size = array->buffer_size[dim];
         expression_ptr & i = buffer_index[dim];
 
@@ -378,7 +327,9 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 
         bool may_wrap =
                 (buffer_size < domain_size) ||
-                (dim == array->flow_dim && buffer_info.has_phase);
+                (dim_is_streaming);
+                //(dim_is_streaming && buffer_info.has_phase);
+
         if (may_wrap)
         {
             // FIXME: use modulo instead of remainder
@@ -395,7 +346,7 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 cpp_from_polyhedral::index_type
 cpp_from_polyhedral::mapped_index
 ( const index_type & index,
-  const polyhedral::mapping & map,
+  const polyhedral::affine_matrix & map,
   builder * )
 {
     assert(index.size() == map.input_dimension());

@@ -46,6 +46,48 @@ polyhedral_gen::process(const unordered_set<id_ptr> & input)
     return output;
 }
 
+void polyhedral_gen::add_output(polyhedral::model & model,
+                                const string & name, id_ptr id)
+{
+    auto array = m_arrays.at(id);
+
+    string stmt_name = id->name + "_" + name;
+
+    auto tuple = isl::set_tuple( isl::identifier(stmt_name, nullptr), 1 );
+    auto space = isl::space(model.context, tuple);
+    auto domain = isl::set::universe(space);
+    auto lspace = isl::local_space(space);
+    auto index = lspace(isl::space::variable, 0);
+    if (array->size.empty())
+    {
+        domain.add_constraint(index == 0);
+    }
+    else
+    {
+        domain.add_constraint( index >= 0 );
+        if (!array->is_infinite)
+            domain.add_constraint( index < array->size[0] );
+    }
+
+    auto stmt = make_shared<polyhedral::statement>(domain);
+    stmt->is_infinite = array->is_infinite;
+
+    auto call = make_shared<polyhedral::external_call>(location_type());
+    call->name = name;
+    call->source.array = array;
+    call->source.matrix = polyhedral::affine_matrix::identity(1, array->domain.dimensions());
+    if (!array->size.empty())
+    {
+        call->source.size = array->size;
+        call->source.size[0] = 1;
+    }
+
+    stmt->expr = call;
+    stmt->read_relations.push_back(call->source);
+
+    model.statements.push_back(stmt);
+}
+
 ph::array_ptr polyhedral_gen::make_array(id_ptr id)
 {
     string array_name = id->name + "_a";
@@ -205,12 +247,6 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
         domain.set_name(name);
 
         stmt = make_shared<ph::statement>(domain);
-
-        stmt->array = array;
-
-        auto id = stmt->domain.id();
-        id.data = stmt.get();
-        stmt->domain.set_id(id);
     }
 
     auto space = stmt->domain.get_space();
@@ -250,7 +286,7 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
              << ":" << endl;
         m_isl_printer.print(stmt->domain); cout << endl;
 
-        cout << "Write relation: " << stmt->array->name << endl;
+        cout << "Write relation: " << stmt->write_relation.array->name << endl;
         cout << stmt->write_relation.matrix;
 
         for (const auto & rel : stmt->read_relations)

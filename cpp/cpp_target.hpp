@@ -22,7 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_LANG_CPP_TARGET_INCLUDED
 
 #include "../common/types.hpp"
-#include "../common/polyhedral_model.hpp"
+#include "../common/ph_model.hpp"
 #include <cloog/cloog.h>
 #include <iostream>
 #include <vector>
@@ -47,8 +47,8 @@ void generate(const string & name,
               const polyhedral::model & model,
               clast_stmt *finite_schedule,
               clast_stmt *periodic_schedule,
-              ostream &,
-              ostream &);
+              ostream & cpp_file,
+              ostream & hpp_file);
 
 void generate_header(const string & name,
                      const vector<semantic::type_ptr> & args,

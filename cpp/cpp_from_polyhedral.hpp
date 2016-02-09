@@ -23,8 +23,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "cpp_target.hpp"
 #include "../utility/cpp-gen.hpp"
-#include "../common/polyhedral_model.hpp"
-
+#include "../common/ph_model.hpp"
+#include "../common/functional_model.hpp"
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -57,22 +57,16 @@ public:
 private:
 
     expression_ptr generate_expression
-    (polyhedral::expression_ptr, const index_type&, builder*);
+    (functional::expr_ptr, const index_type&, builder*);
 
     expression_ptr generate_primitive
-    (polyhedral::primitive_expr*, const index_type&, builder*);
-
-    void generate_input_access
-    (polyhedral::statement*, const index_type&, builder*);
-
-    void generate_output_access
-    (polyhedral::statement*, const index_type&, builder*);
+    (functional::primitive*, const index_type&, builder*);
 
     expression_ptr generate_buffer_access
     (polyhedral::array_ptr, const index_type&, builder*);
 
     index_type mapped_index( const index_type & index,
-                             const polyhedral::mapping &,
+                             const polyhedral::affine_matrix &,
                              builder * );
 
     expression_ptr literal(bool v)

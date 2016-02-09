@@ -84,6 +84,8 @@ scheduler::schedule()
 
     if (debug::is_enabled())
     {
+        cout << "Domains:" << endl;
+        print_each_in(m_model_summary.domains);
         cout << "Write relations:" << endl;
         print_each_in(m_model_summary.write_relations);
         cout << "Read relations:" << endl;
@@ -172,8 +174,9 @@ scheduler::add_schedule_constraints
                 (sched, stmt->domain.get_space().get());
         if (coef_pos < 0)
         {
-            cout << "Warning: coefficients not found for statement "
+            cerr << "Warning: coefficients not found for statement "
                  << stmt->name << endl;
+            continue;
         }
 
         int n_params = stmt->domain.get_space().dimension(isl::space::parameter);
@@ -387,10 +390,14 @@ int scheduler::compute_period_duration
         // FIXME: Use the statement's write relation,
         // do not assume it is identity.
 
-        if (!stmt->array->period)
-            stmt->array->period = span;
-        if (stmt->array->period != span)
-            cerr << "WARNING: different buffer periods for the same array!" << endl;
+        if (stmt->write_relation.array)
+        {
+            auto & array = stmt->write_relation.array;
+            if (!array->period)
+                array->period = span;
+            if (array->period != span)
+                cerr << "WARNING: different buffer periods for the same array!" << endl;
+        }
     }
 
     return least_common_period;
@@ -529,7 +536,7 @@ isl::union_map scheduler::periodic_schedule
         stmt_sched = stmt_sched.in_range(range);
 
         // FIXME: Check correctness of the following:
-
+#if 0
         // Compute domain indexes corresponding to schedule period
         auto domain = stmt_sched.domain();
         auto i = domain.get_space()(space::variable, 0);
@@ -556,11 +563,15 @@ isl::union_map scheduler::periodic_schedule
 
         // store original offset
         int offset = min_i.integer();
-        if (!stmt->array->period_offset)
-            stmt->array->period_offset = offset;
-        else if (stmt->array->period_offset != offset)
-            cerr << "WARNING: different offsets for same buffer." << endl;
-
+        if (stmt->write_relation.array)
+        {
+            auto & array = stmt->write_relation.array;
+            if (!array->period_offset)
+                array->period_offset = offset;
+            else if (array->period_offset != offset)
+                cerr << "WARNING: different offsets for same buffer." << endl;
+        }
+#endif
         sched_period = sched_period | stmt_sched;
 
         return true;

@@ -32,9 +32,9 @@ add_library(streamc-lib ${lib_mode}
   ../polyhedral/ast_gen.cpp
   #../llvm/llvm_ir_from_cloog.cpp
   #../llvm/llvm_from_polyhedral.cpp
-  #../cpp/cpp_target.cpp
-  #../cpp/cpp_from_cloog.cpp
-  #../cpp/cpp_from_polyhedral.cpp
+  ../cpp/cpp_target.cpp
+  ../cpp/cpp_from_cloog.cpp
+  ../cpp/cpp_from_polyhedral.cpp
   #../interface/cpp-intf-gen.cpp
   compiler.cpp
 )

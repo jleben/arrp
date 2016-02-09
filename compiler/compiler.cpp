@@ -35,7 +35,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../polyhedral/ast_gen.hpp"
 //#include "../llvm/llvm_ir_from_cloog.hpp"
 //#include "../llvm/llvm_from_polyhedral.hpp"
-//#include "../cpp/cpp_target.hpp"
+#include "../cpp/cpp_target.hpp"
 //#include "../interface/cpp-intf-gen.hpp"
 
 #include <json++/json.hh>
@@ -242,6 +242,7 @@ result::code compile_source(istream & source, const arguments & args)
             array_ids.insert(id);
             functional::polyhedral_gen gen;
             auto ph_model = gen.process(array_ids);
+            gen.add_output(ph_model, "output", id);
 
             // Compute polyhedral schedule
 
@@ -269,6 +270,38 @@ result::code compile_source(istream & source, const arguments & args)
                 clast_pprint(stdout, ast.prelude, 0, ast.options);
                 cout << endl << "== Period AST ==" << endl;
                 clast_pprint(stdout, ast.period, 0, ast.options);
+            }
+
+            // Generate C++ output
+
+            if (!args.cpp_output_filename.empty())
+            {
+                {
+                    string cpp_filename = args.cpp_output_filename + ".cpp";
+                    ofstream cpp_file(cpp_filename);
+                    if (!cpp_file.is_open())
+                    {
+                        cerr << "Could not open C++ output file: "
+                             << cpp_filename << endl;
+                        return result::io_error;
+                    }
+
+                    string hpp_filename = args.cpp_output_filename + ".h";
+                    ofstream hpp_file(hpp_filename);
+                    if (!hpp_file.is_open())
+                    {
+                        cerr << "Could not open C++ header output file: "
+                             << hpp_filename << endl;
+                        return result::io_error;
+                    }
+
+                    cpp_gen::generate(args.cpp_output_filename,
+                                      args.target.args,
+                                      ph_model,
+                                      ast.prelude, ast.period,
+                                      cpp_file,
+                                      hpp_file);
+                }
             }
         }
     }

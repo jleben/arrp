@@ -153,11 +153,11 @@ buffer_analysis(const polyhedral::model & model)
         buffer buf;
         buf.size = volume(array->buffer_size);
 
-        if(array->flow_dim >= 0)
+        if(array->is_infinite)
         {
-            int flow_size = array->buffer_size[array->flow_dim];
+            int flow_size = array->buffer_size[0];
             buf.has_phase =
-                    array->period_offset % flow_size  != 0 ||
+                    //array->period_offset % flow_size  != 0 ||
                     array->period % flow_size  != 0;
         }
         else
@@ -190,11 +190,18 @@ buffer_analysis(const polyhedral::model & model)
         switch(array->type)
         {
         case primitive_type::integer:
-            elem_size = 4;
+            elem_size = 4; break;
         case primitive_type::real:
-            elem_size = 8;
+            elem_size = 8; break;
         case primitive_type::boolean:
-            elem_size = 4;
+            elem_size = 4; break;
+        default:
+        {
+            ostringstream msg;
+            msg << "Unexpected type for array " << array->name
+                << " = " << array->type;
+            throw error(msg.str());
+        }
         }
 
         int mem_size = b.size * elem_size;
@@ -234,7 +241,7 @@ static void advance_buffers(const polyhedral::model & model,
 
         int offset = init ?
                     array->period_offset : array->period;
-        int buffer_size = array->buffer_size[array->flow_dim];
+        int buffer_size = array->buffer_size[0];
 
         auto phase_id = make_shared<id_expression>(array->name + "_ph");
 
@@ -428,7 +435,7 @@ void generate(const string & name,
 
         cloog.generate(finite_schedule);
 
-        advance_buffers(model, buffers, &b, true);
+        //advance_buffers(model, buffers, &b, true);
 
         b.pop();
 

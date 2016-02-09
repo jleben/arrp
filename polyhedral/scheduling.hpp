@@ -145,9 +145,6 @@ private:
 
     model & m_model;
     model_summary m_model_summary;
-
-    int m_schedule_flow_dim = -1;
-    int m_schedule_period_offset = 0;
 };
 
 }
