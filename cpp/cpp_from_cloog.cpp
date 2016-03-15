@@ -22,6 +22,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <iostream>
 #include <sstream>
+#include <isl-cpp/set.hpp>
+#include <cloog/isl/cloog.h>
 
 using namespace std;
 
@@ -134,6 +136,10 @@ void cpp_from_cloog::process( clast_guard* guard )
 
 void cpp_from_cloog::process( clast_for* loop )
 {
+    isl::set domain( isl_set_from_cloog_domain(loop->domain) );
+    isl::printer p(domain.ctx());
+    cout << "Generating loop for domain: ";  p.print(domain); cout << endl;
+
     auto iterator = make_shared<id_expression>(loop->iterator);
     auto iterator_decl =
             make_shared<variable_decl>(make_shared<basic_type>("int"),
@@ -173,7 +179,13 @@ expression_ptr cpp_from_cloog::process( clast_expr* expr )
     {
     case clast_expr_name:
     {
-        const char *name = reinterpret_cast<clast_name*>(expr)->name;
+        string name = reinterpret_cast<clast_name*>(expr)->name;
+        if (m_id_func)
+        {
+            auto expr = m_id_func(name);
+            if (expr)
+                return expr;
+        }
         return make_shared<id_expression>(name);
     }
     case clast_expr_term:

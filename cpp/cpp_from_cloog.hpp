@@ -55,6 +55,12 @@ public:
         m_stmt_func = f;
     }
 
+    template<typename F>
+    void set_id_func(F f)
+    {
+        m_id_func = f;
+    }
+
 private:
     void process_list( clast_stmt * );
     void process( clast_stmt * );
@@ -92,6 +98,8 @@ private:
     std::function<void(const string &,
                        const vector<expression_ptr> &,
                        builder *)> m_stmt_func;
+
+    std::function<expression_ptr(const string &)> m_id_func;
 
 private:
     builder *m_ctx;
