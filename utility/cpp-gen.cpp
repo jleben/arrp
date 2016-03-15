@@ -86,6 +86,9 @@ void class_node::generate(cpp_gen::state & state, ostream & stream)
         break;
     }
 
+    if (alignment != 0)
+        stream << " alignas(" << alignment << ")";
+
     if (!name.empty())
         stream << ' ' << name;
     state.new_line(stream);
@@ -171,6 +174,9 @@ void array_decl::generate(cpp_gen::state & state, ostream & stream)
 
 void func_signature::generate(cpp_gen::state & state, ostream & stream)
 {
+    if (is_inline)
+        stream << "inline ";
+
     type->generate(state, stream);
 
     if (!name.empty())

@@ -213,6 +213,7 @@ class class_node : public namespace_member, public class_member
 {
 public:
     class_key key;
+    int alignment = 0;
     string name;
     vector<class_section> sections;
 
@@ -339,6 +340,7 @@ public:
 class func_signature
 {
 public:
+    bool is_inline = false;
     string name;
     type_ptr type;
     vector<variable_decl_ptr> parameters;
