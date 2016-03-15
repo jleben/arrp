@@ -82,9 +82,16 @@ public:
         {}
     };
 
+    struct reversal
+    {
+        string stmt_name;
+        int dim;
+    };
+
     scheduler( model & m );
 
-    polyhedral::schedule schedule(bool optimize = true);
+    polyhedral::schedule schedule
+    (bool optimize, const vector<reversal> & reversals);
 
 private:
 

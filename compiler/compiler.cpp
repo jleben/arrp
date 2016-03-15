@@ -247,7 +247,8 @@ result::code compile_source(istream & source, const arguments & args)
             // Compute polyhedral schedule
 
             polyhedral::scheduler poly_scheduler( ph_model );
-            auto schedule = poly_scheduler.schedule(args.optimize_schedule);
+            auto schedule = poly_scheduler.schedule(args.optimize_schedule,
+                                                    args.sched_reverse);
 
             // Allocate storage (buffers)
 

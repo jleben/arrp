@@ -22,6 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_LANG_COMPILER_ARG_PARSER
 
 #include "../common/types.hpp"
+#include "../polyhedral/scheduling.hpp"
 
 #include <sstream>
 #include <iostream>
@@ -113,6 +114,7 @@ private:
     string m_current_opt;
 
 public:
+
     string input_filename;
     string output_filename;
     string meta_output_filename;
@@ -121,6 +123,7 @@ public:
     std::array<bool,output_topic_count> print;
     vector<string> debug_topics;
     vector<string> no_debug_topics;
+    vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
 
 public:
@@ -209,6 +212,20 @@ private:
         else if (opt == "--no-opt-schedule")
         {
             optimize_schedule = false;
+        }
+        else if (opt == "--reverse")
+        {
+            string stmt_name;
+            string dim_str;
+            parse_argument(stmt_name, "statement name");
+            parse_argument(dim_str, "schedule dimension");
+            int dim;
+            try {
+                dim = stoi(dim_str);
+            } catch (std::invalid_argument &) {
+                throw error("Invalid schedule dimension: " + dim_str);
+            }
+            sched_reverse.push_back({stmt_name, dim});
         }
         else
         {
