@@ -482,14 +482,37 @@ void if_statement::generate(cpp_gen::state & state, ostream & stream)
     stream << "if (";
     condition->generate(state, stream);
     stream << ") ";
-    state.new_line(stream);
-    true_part->generate(state, stream);
+
+    if (!dynamic_pointer_cast<block_statement>(true_part))
+    {
+        state.increase_indentation();
+        state.new_line(stream);
+        true_part->generate(state, stream);
+        state.decrease_indentation();
+    }
+    else
+    {
+        state.new_line(stream);
+        true_part->generate(state, stream);
+    }
+
     if (false_part)
     {
         state.new_line(stream);
         stream  << "else";
-        state.new_line(stream);
-        false_part->generate(state, stream);
+
+        if (!dynamic_pointer_cast<block_statement>(true_part))
+        {
+            state.increase_indentation();
+            state.new_line(stream);
+            false_part->generate(state, stream);
+            state.decrease_indentation();
+        }
+        else
+        {
+            state.new_line(stream);
+            false_part->generate(state, stream);
+        }
     }
 }
 
@@ -503,9 +526,18 @@ void for_statement::generate(cpp_gen::state & state, ostream & stream)
     update->generate(state, stream);
     stream << ") ";
 
-    state.new_line(stream);
-
-    body->generate(state, stream);
+    if (!dynamic_pointer_cast<block_statement>(body))
+    {
+        state.increase_indentation();
+        state.new_line(stream);
+        body->generate(state, stream);
+        state.decrease_indentation();
+    }
+    else
+    {
+        state.new_line(stream);
+        body->generate(state, stream);
+    }
 }
 
 void return_statement::generate(cpp_gen::state &state, ostream & stream)

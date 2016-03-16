@@ -305,7 +305,9 @@ public:
     virtual void generate(state &, ostream &);
 
     variable_decl() {}
-    variable_decl(type_ptr t, const string & name): type(t), name(name) {}
+    variable_decl(type_ptr t, const string & name,
+                  expression_ptr val = expression_ptr()):
+        type(t), name(name), value(val) {}
 };
 
 typedef std::shared_ptr<variable_decl> variable_decl_ptr;
@@ -579,6 +581,9 @@ class block_statement : public statement
 public:
     vector<statement_ptr> statements;
 
+    block_statement() {}
+    block_statement(const vector<statement_ptr> & stmts): statements(stmts) {}
+
     void generate(state &, ostream &);
 };
 
@@ -725,29 +730,38 @@ inline std::shared_ptr<id_expression> make_id(const string & name)
     return std::make_shared<id_expression>(name);
 }
 
-inline variable_decl_ptr decl(type_ptr t, const string & id)
+inline variable_decl_ptr decl(type_ptr t, const string & id,
+                              expression_ptr val = expression_ptr())
 {
-    return std::make_shared<variable_decl>(t, id);
+    return std::make_shared<variable_decl>(t, id, val);
 }
 
-inline variable_decl_ptr decl(type_ptr t, const id_expression & id)
+inline variable_decl_ptr decl(type_ptr t, const id_expression & id,
+                              expression_ptr val = expression_ptr())
 {
-    return std::make_shared<variable_decl>(t, id.name);
+    return std::make_shared<variable_decl>(t, id.name, val);
 }
 
-inline expression_ptr decl_expr(type_ptr t, const string & id)
+inline expression_ptr decl_expr(type_ptr t, const string & id,
+                                expression_ptr val = expression_ptr())
 {
-    return std::make_shared<var_decl_expression>(decl(t,id));
+    return std::make_shared<var_decl_expression>(decl(t,id,val));
 }
 
-inline expression_ptr decl_expr(type_ptr t, const id_expression & id)
+inline expression_ptr decl_expr(type_ptr t, const id_expression & id,
+                                expression_ptr val = expression_ptr())
 {
-    return std::make_shared<var_decl_expression>(decl(t,id.name));
+    return std::make_shared<var_decl_expression>(decl(t,id.name,val));
 }
 
 inline base_type_ptr pointer(base_type_ptr t)
 {
     return std::make_shared<pointer_type>(t);
+}
+
+inline statement_ptr block(const vector<statement_ptr> & stmts)
+{
+    return std::make_shared<block_statement>(stmts);
 }
 
 } // namespace cpp_gen
