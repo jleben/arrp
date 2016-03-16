@@ -1,0 +1,378 @@
+/*
+Compiler for language for stream processing
+
+Copyright (C) 2014-2016  Jakob Leben <jakob.leben@gmail.com>
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+*/
+
+#include "cpp_from_isl.hpp"
+#include "../common/error.hpp"
+
+#include <iostream>
+#include <sstream>
+#include <isl/ast.h>
+
+using namespace std;
+
+namespace stream {
+namespace cpp_gen {
+
+cpp_from_isl::cpp_from_isl(builder *ctx):
+    m_ctx(ctx)
+{
+}
+
+void cpp_from_isl::generate( isl_ast_node * ast )
+{
+    cout << "IN ast" << endl;
+    m_is_user_stmt = false;
+    process_node(ast);
+    cout << "OUT ast" << endl;
+}
+
+void cpp_from_isl::process_node(isl_ast_node *node)
+{
+    cout << "IN node" << endl;
+    auto type = isl_ast_node_get_type(node);
+    switch(type)
+    {
+    case isl_ast_node_for:
+        process_for(node); break;
+    case isl_ast_node_if:
+        process_if(node); break;
+    case isl_ast_node_block:
+        process_block(node); break;
+    case isl_ast_node_user:
+        process_user(node); break;
+    case isl_ast_node_mark:
+    {
+        // TODO: label the stmt?
+        auto marked_node = isl_ast_node_mark_get_node(node);
+        process_node(marked_node);
+        isl_ast_node_free(marked_node);
+        break;
+    }
+    default:
+        throw error("Unexpected AST node type.");
+    }
+    cout << "OUT node" << endl;
+}
+
+void cpp_from_isl::process_block(isl_ast_node *node)
+{
+    cout << "IN block: " << node << endl;
+
+    // The generate AST is weird:
+    // Blocks have at most 2 statements.
+    // If there are more consecutive statements,
+    // all but the last are grouped into a nested block,
+    // and so on recursively.
+
+    //auto block = make_shared<block_statement>();
+
+    //m_ctx->push(&block->statements);
+
+    auto list = isl_ast_node_block_get_children(node);
+    int n_children = isl_ast_node_list_n_ast_node(list);
+
+    cout << "# children: " << n_children << endl;
+
+    for(int i = 0; i < n_children; ++i)
+    {
+        auto child = isl_ast_node_list_get_ast_node(list, i);
+        cout << "IN block child: " << child << endl;
+        process_node(child);
+        isl_ast_node_free(child);
+        cout << "OUT block child" << endl;
+    }
+
+    isl_ast_node_list_free(list);
+
+    //m_ctx->pop();
+
+    //m_ctx->add(block);
+
+    cout << "OUT block" << endl;
+}
+
+void cpp_from_isl::process_if(isl_ast_node *node)
+{
+    cout << "IN if" << endl;
+    auto cond_expr = isl_ast_node_if_get_cond(node);
+    auto true_node = isl_ast_node_if_get_then(node);
+    auto false_node = isl_ast_node_if_get_else(node);
+
+    auto if_stmt = make_shared<if_statement>();
+
+    if_stmt->condition = process_expr(cond_expr);
+
+    {
+        cout << "IN then" << endl;
+
+        vector<statement_ptr> stmts;
+
+        m_ctx->push(&stmts);
+        process_node(true_node);
+        m_ctx->pop();
+
+        if (stmts.size() == 1)
+            if_stmt->true_part = stmts.front();
+        else
+            if_stmt->true_part = block(stmts);
+
+        cout << "OUT then" << endl;
+    }
+
+    if (false_node)
+    {
+        cout << "IN else" << endl;
+
+        vector<statement_ptr> stmts;
+
+        m_ctx->push(&stmts);
+        process_node(false_node);
+        m_ctx->pop();
+
+        if (stmts.size() == 1)
+            if_stmt->false_part = stmts.front();
+        else
+            if_stmt->false_part = block(stmts);
+
+        cout << "OUT else" << endl;
+    }
+
+    m_ctx->add(if_stmt);
+
+    isl_ast_expr_free(cond_expr);
+    isl_ast_node_free(true_node);
+    isl_ast_node_free(false_node);
+
+    cout << "OUT if" << endl;
+}
+
+void cpp_from_isl::process_for(isl_ast_node *node)
+{
+    auto iter_expr = isl_ast_node_for_get_iterator(node);
+    auto init_expr = isl_ast_node_for_get_init(node);
+    auto cond_expr = isl_ast_node_for_get_cond(node);
+    auto inc_expr = isl_ast_node_for_get_inc(node);
+    auto body_node = isl_ast_node_for_get_body(node);
+
+    auto iter = process_expr(iter_expr);
+    auto init = process_expr(init_expr);
+    auto cond = process_expr(cond_expr);
+    auto inc = process_expr(inc_expr);
+
+    auto iter_id = dynamic_pointer_cast<id_expression>(iter);
+    if (!iter_id)
+        throw error("Iterator expression is not an identifier.");
+    auto iter_decl = decl_expr(make_shared<basic_type>("int"),
+                               *iter_id, init);
+
+    auto for_stmt = make_shared<for_statement>();
+
+    for_stmt->initialization = iter_decl;
+
+    for_stmt->condition = cond;
+
+    for_stmt->update = binop(op::assign_add, iter, inc);
+
+    {
+        vector<statement_ptr> stmts;
+
+        m_ctx->push(&stmts);
+        process_node(body_node);
+        m_ctx->pop();
+
+        if (stmts.size() == 1)
+            for_stmt->body = stmts.front();
+        else
+            for_stmt->body = block(stmts);
+    }
+
+    m_ctx->add(for_stmt);
+
+    isl_ast_expr_free(iter_expr);
+    isl_ast_expr_free(init_expr);
+    isl_ast_expr_free(cond_expr);
+    isl_ast_expr_free(inc_expr);
+    isl_ast_node_free(body_node);
+}
+
+void cpp_from_isl::process_user(isl_ast_node *node)
+{
+    auto ast_expr = isl_ast_node_user_get_expr(node);
+
+    m_is_user_stmt = true;
+    auto expr = process_expr(ast_expr);
+    m_is_user_stmt = false;
+
+    if (expr)
+        m_ctx->add(expr);
+
+    isl_ast_expr_free(ast_expr);
+}
+
+expression_ptr cpp_from_isl::process_expr(isl_ast_expr * ast_expr)
+{
+    expression_ptr expr;
+
+    auto type = isl_ast_expr_get_type(ast_expr);
+
+    switch(type)
+    {
+    case isl_ast_expr_op:
+    {
+        expr = process_op(ast_expr);
+        break;
+    }
+    case isl_ast_expr_id:
+    {
+        auto id = isl_ast_expr_get_id(ast_expr);
+        string name(isl_id_get_name(id));
+        isl_id_free(id);
+
+        if (m_id_func)
+            expr = m_id_func(name);
+        if (!expr)
+            expr = make_shared<id_expression>(name);
+        break;
+    }
+    case isl_ast_expr_int:
+    {
+        auto val = isl_ast_expr_get_val(ast_expr);
+        if (isl_val_is_int(val) != isl_bool_true)
+            throw error("Value is not an integer.");
+        int ival = isl_val_get_num_si(val);
+        isl_val_free(val);
+        expr = literal(ival);
+        break;
+    }
+    default:
+        throw error("Unexpected AST expression type.");
+    }
+
+    return expr;
+}
+
+expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
+{
+    int arg_count = isl_ast_expr_get_op_n_arg(ast_op);
+    vector<expression_ptr> args;
+    args.reserve(arg_count);
+    for(int i = 0; i < arg_count; ++i)
+    {
+        auto ast_arg = isl_ast_expr_get_op_arg(ast_op, i);
+        auto arg = process_expr(ast_arg);
+        isl_ast_expr_free(ast_arg);
+        args.push_back(arg);
+    }
+
+    expression_ptr expr;
+
+    auto type = isl_ast_expr_get_op_type(ast_op);
+
+    switch(type)
+    {
+    case isl_ast_op_and:
+        expr = binop(op::logic_and, args[0], args[1]);
+        break;
+    case isl_ast_op_or:
+        expr = binop(op::logic_or, args[0], args[1]);
+        break;
+    case isl_ast_op_max:
+        expr = make_shared<call_expression>("max", args[0], args[1]);
+        break;
+    case isl_ast_op_min:
+        expr = make_shared<call_expression>("min", args[0], args[1]);
+        break;
+    case isl_ast_op_minus:
+        expr = unop(op::u_minus, args[0]);
+        break;
+    case isl_ast_op_add:
+        expr = binop(op::add, args[0], args[1]);
+        break;
+    case isl_ast_op_sub:
+        expr = binop(op::sub, args[0], args[1]);
+        break;
+    case isl_ast_op_mul:
+        expr = binop(op::mult, args[0], args[1]);
+        break;
+    case isl_ast_op_div:
+        expr = binop(op::div, args[0], args[1]);
+        break;
+    case isl_ast_op_eq:
+        expr = binop(op::equal, args[0], args[1]);
+        break;
+    case isl_ast_op_le:
+        expr = binop(op::lesser_or_equal, args[0], args[1]);
+        break;
+    case isl_ast_op_lt:
+        expr = binop(op::lesser, args[0], args[1]);
+        break;
+    case isl_ast_op_ge:
+        expr = binop(op::greater_or_equal, args[0], args[1]);
+        break;
+    case isl_ast_op_gt:
+        expr = binop(op::greater, args[0], args[1]);
+        break;
+    case isl_ast_op_call:
+    {
+        auto id = dynamic_pointer_cast<id_expression>(args[0]);
+        if (!id)
+            throw error("Function identifier expression is not an identifier.");
+
+        vector<expression_ptr> func_args(++args.begin(), args.end());
+
+        if (m_is_user_stmt && m_stmt_func)
+            m_stmt_func(id->name, func_args, m_ctx);
+        else
+            expr = make_shared<call_expression>(id->name, func_args);
+
+        break;
+    }
+    case isl_ast_op_or_else:
+        // not implemented
+    case isl_ast_op_and_then:
+        // not implemented
+    case isl_ast_op_fdiv_q:
+        // Not implemented
+        // Result of integer division, rounded towards negative infinity.
+    case isl_ast_op_pdiv_q:
+        // Not implemented
+        // Result of integer division, where dividend is known to be non-negative.
+    case isl_ast_op_pdiv_r:
+        //Remainder of integer division, where dividend is known to be non-negative.
+    case isl_ast_op_zdiv_r:
+        // Not implemented
+        // Equal to zero iff the remainder on integer division is zero.
+    case isl_ast_op_cond:
+        // Not implemented.
+    case isl_ast_op_select:
+        // Not implemented.
+    case isl_ast_op_access:
+        // Not implemented
+    case isl_ast_op_member:
+        // Not implemented
+    default:
+        throw error("Unsupported AST expression type.");
+    }
+
+    return expr;
+}
+
+}
+}
