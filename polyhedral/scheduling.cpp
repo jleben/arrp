@@ -95,6 +95,7 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
     }
 
     polyhedral::schedule schedule(m_model.context);
+
     schedule.full = make_schedule(m_model_summary.domains,
                                   m_model_summary.dependencies,
                                   optimize);
@@ -225,6 +226,7 @@ scheduler::add_schedule_constraints
                 break;
             node = isl_schedule_node_parent(node);
         }
+        isl_schedule_node_free(node);
     }
 
     // FIXME: Add constraint:
