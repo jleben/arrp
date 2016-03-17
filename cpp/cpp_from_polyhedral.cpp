@@ -28,6 +28,8 @@ void cpp_from_polyhedral::generate_statement
 void cpp_from_polyhedral::generate_statement
 (polyhedral::statement *stmt, const index_type & index, builder* ctx)
 {
+    m_current_stmt = stmt;
+
     expression_ptr expr;
 
     {
@@ -65,8 +67,9 @@ expression_ptr cpp_from_polyhedral::generate_expression
     }
     else if (auto read = dynamic_cast<polyhedral::array_read*>(expr.get()))
     {
-        auto target_index = mapped_index(index, read->matrix, ctx);
-        result = generate_buffer_access(read->array, target_index, ctx);
+        // Assuming read size is [1];
+        auto target_index = mapped_index(index, read->relation.matrix, ctx);
+        result = generate_buffer_access(read->relation.array, target_index, ctx);
     }
     else if ( auto const_int = dynamic_cast<functional::constant<int>*>(expr.get()) )
     {
@@ -311,11 +314,27 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
         i = make_shared<bin_op_expression>(op::add, i, phase);
     }
 
+    if (m_in_period)
+    {
+        int offset = 0;
+
+        offset += array->period_offset;
+
+        auto stmt_offset = m_current_stmt->array_access_offset.find(array.get());
+        if (stmt_offset != m_current_stmt->array_access_offset.end())
+            offset += stmt_offset->second;
+
+        if (offset != 0)
+        {
+            expression_ptr & i = buffer_index[0];
+            i = make_shared<bin_op_expression>(op::add, i, literal(offset));
+        }
+    }
+
     for (int dim = 0; dim < buffer_index.size(); ++dim)
     {
         // FIXME: is using stmt->buffer_period for domain size OK?
         bool dim_is_streaming = array->is_infinite && dim == 0;
-        int domain_size = dim_is_streaming ? array->period : array->size[dim];
         int buffer_size = array->buffer_size[dim];
         expression_ptr & i = buffer_index[dim];
 
@@ -325,10 +344,16 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
             continue;
         }
 
-        bool may_wrap =
-                (buffer_size < domain_size) ||
-                (dim_is_streaming);
-                //(dim_is_streaming && buffer_info.has_phase);
+        bool may_wrap = false;
+        if (dim_is_streaming)
+        {
+            may_wrap = m_current_stmt->streaming_needs_modulo;
+        }
+        else
+        {
+            int array_size = array->size[dim];
+            may_wrap = buffer_size < array_size;
+        }
 
         if (may_wrap)
         {
@@ -341,6 +366,24 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     auto buffer_elem = make_shared<array_access_expression>(buffer, buffer_index);
 
     return buffer_elem;
+}
+
+expression_ptr
+cpp_from_polyhedral::generate_buffer_phase
+(const string & id, builder * ctx)
+{
+    auto info = m_model.phase_ids.find(id);
+    if (info == m_model.phase_ids.end())
+        return nullptr;
+
+    auto array = info->second;
+    auto state_arg_name = ctx->current_function()->parameters.back()->name;
+    auto state_arg = make_shared<id_expression>(state_arg_name);
+    auto phase_id = make_shared<id_expression>(array->name + "_ph");
+    auto phase = make_shared<bin_op_expression>(op::member_of_pointer,
+                                                state_arg,
+                                                phase_id);
+    return phase;
 }
 
 cpp_from_polyhedral::index_type

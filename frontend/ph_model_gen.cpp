@@ -83,7 +83,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     }
 
     stmt->expr = call;
-    stmt->read_relations.push_back(call->source);
+    stmt->read_relations.push_back(&call->source);
 
     model.statements.push_back(stmt);
 }
@@ -291,8 +291,8 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
 
         for (const auto & rel : stmt->read_relations)
         {
-            cout << "Read relation:" << rel.array->name << endl;
-            cout << rel.matrix;
+            cout << "Read relation:" << rel->array->name << endl;
+            cout << rel->matrix;
         }
     }
 
@@ -357,9 +357,10 @@ expr_ptr polyhedral_gen::make_affine_array_reads
             }
         }
 
-        stmt->read_relations.push_back(ph::array_relation{arr, matrix});
-
         auto read_expr = make_shared<ph::array_read>(arr, matrix, app->location);
+
+        stmt->read_relations.push_back(&read_expr->relation);
+
         return read_expr;
     }
     else

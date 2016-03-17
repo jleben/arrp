@@ -125,6 +125,7 @@ public:
     vector<string> no_debug_topics;
     vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
+    bool split_statements = false;
 
 public:
     arguments(int argc, char *argv[]):
@@ -226,6 +227,10 @@ private:
                 throw error("Invalid schedule dimension: " + dim_str);
             }
             sched_reverse.push_back({stmt_name, dim});
+        }
+        else if (opt == "--split-stmts")
+        {
+            split_statements = true;
         }
         else
         {

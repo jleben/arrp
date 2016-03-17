@@ -30,6 +30,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <isl-cpp/context.hpp>
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
+#include <isl-cpp/schedule.hpp>
+
+#include <isl/ast.h>
 
 #include <cloog/cloog.h>
 
@@ -37,6 +40,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <string>
 #include <iostream>
 #include <memory>
+#include <unordered_map>
 
 namespace stream {
 namespace polyhedral {
@@ -46,6 +50,7 @@ struct debug : public stream::debug::topic<debug, stream::debug::all>
 
 using std::vector;
 using std::string;
+using std::unordered_map;
 using affine_matrix = utility::mapping;
 typedef parsing::location location_type;
 
@@ -110,7 +115,9 @@ public:
     isl::set domain;
     functional::expr_ptr expr = nullptr;
     array_relation write_relation;
-    vector<array_relation> read_relations;
+    vector<array_relation*> read_relations;
+    unordered_map<array*, int> array_access_offset;
+    bool streaming_needs_modulo = false;
     bool is_infinite = false;
 };
 
@@ -119,10 +126,11 @@ class array_read : public functional::expression
 public:
     array_read(array_ptr a, const affine_matrix & r,
                const location_type & l):
-        expression(l), array(a), matrix(r) {}
+        expression(l), relation(a,r) {}
 
-    array_ptr array;
-    affine_matrix matrix;
+    array_relation relation;
+    //array_ptr array;
+    //affine_matrix matrix;
 };
 
 class iterator_read : public functional::expression
@@ -148,6 +156,7 @@ public:
     isl::context context;
     vector<array_ptr> arrays;
     vector<stmt_ptr> statements;
+    unordered_map<string, array_ptr> phase_ids;
 };
 
 class model_summary
@@ -174,8 +183,8 @@ public:
             for(const auto & rel : stmt->read_relations)
             {
                 auto space = isl::space::from(stmt->domain.get_space(),
-                                              rel.array->domain.get_space());
-                auto map = to_isl_map(stmt, rel);
+                                              rel->array->domain.get_space());
+                auto map = to_isl_map(stmt, *rel);
                 read_relations = read_relations | map;
             }
         }
@@ -195,10 +204,14 @@ class schedule
 {
 public:
     schedule(const isl::context & ctx):
-        full(ctx), prelude(ctx), period(ctx) {}
+        sched(nullptr), full(ctx), prelude(ctx), period(ctx),
+        params(isl::set(isl::space(ctx, isl::parameter_tuple())))
+    {}
+    isl::schedule sched;
     isl::union_map full;
     isl::union_map prelude;
     isl::union_map period;
+    isl::set params;
 };
 
 class ast
@@ -208,6 +221,19 @@ public:
     CloogState * state;
     clast_stmt * prelude;
     clast_stmt * period;
+};
+
+class ast_isl
+{
+public:
+    ~ast_isl()
+    {
+        isl_ast_node_free(prelude);
+        isl_ast_node_free(period);
+    }
+
+    isl_ast_node * prelude = nullptr;
+    isl_ast_node * period = nullptr;
 };
 
 } // namespace polyhedral

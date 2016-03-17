@@ -32,7 +32,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/ph_model_gen.hpp"
 #include "../polyhedral/scheduling.hpp"
 #include "../polyhedral/storage_alloc.hpp"
+#include "../polyhedral/modulo_avoidance.hpp"
 #include "../polyhedral/ast_gen.hpp"
+#include "../polyhedral/isl_ast_gen.hpp"
 //#include "../llvm/llvm_ir_from_cloog.hpp"
 //#include "../llvm/llvm_from_polyhedral.hpp"
 #include "../cpp/cpp_target.hpp"
@@ -247,6 +249,7 @@ result::code compile_source(istream & source, const arguments & args)
             // Compute polyhedral schedule
 
             polyhedral::scheduler poly_scheduler( ph_model );
+
             auto schedule = poly_scheduler.schedule(args.optimize_schedule,
                                                     args.sched_reverse);
 
@@ -262,8 +265,17 @@ result::code compile_source(istream & source, const arguments & args)
                 print_buffer_sizes(ph_model.arrays);
             }
 
+            // Modulo avoidance
+
+            {
+                avoid_modulo(schedule, ph_model, args.split_statements);
+            }
+
             // Generate AST for schedule
 
+            auto ast = polyhedral::make_isl_ast(schedule);
+
+#if 0
             auto ast = polyhedral::make_ast(schedule);
             if (args.print[arguments::ast_output])
             {
@@ -272,7 +284,7 @@ result::code compile_source(istream & source, const arguments & args)
                 cout << endl << "== Period AST ==" << endl;
                 clast_pprint(stdout, ast.period, 0, ast.options);
             }
-
+#endif
             // Generate C++ output
 
             if (!args.cpp_output_filename.empty())
@@ -299,7 +311,7 @@ result::code compile_source(istream & source, const arguments & args)
                     cpp_gen::generate(args.cpp_output_filename,
                                       args.target.args,
                                       ph_model,
-                                      ast.prelude, ast.period,
+                                      ast,
                                       cpp_file,
                                       hpp_file);
                 }
@@ -326,11 +338,12 @@ result::code compile_source(istream & source, const arguments & args)
         parser.error(e.location, e.what());
         return result::semantic_error;
     }
+    /*
     catch(error & e)
     {
         cout << "ERROR: " << e.what() << endl;
         return result::semantic_error;
-    }
+    }*/
 
     return result::ok;
 

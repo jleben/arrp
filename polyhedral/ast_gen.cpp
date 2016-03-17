@@ -29,6 +29,7 @@ namespace polyhedral {
 
 clast_stmt *make_ast
 (const isl::union_map & isl_schedule,
+ const isl::set & isl_params,
  CloogState * state,
  CloogOptions * options)
 {
@@ -38,12 +39,12 @@ clast_stmt *make_ast
     CloogUnionDomain *schedule =
             cloog_union_domain_from_isl_union_map(
                 isl_schedule.copy());
-    //CloogMatrix *dummy_matrix = cloog_matrix_alloc(0,0);
 
-    CloogDomain *context_domain =
-            cloog_domain_from_isl_set(
-                isl_set_universe(isl_schedule.get_space().copy()));
-            //cloog_domain_from_cloog_matrix(state, dummy_matrix, 0);
+    CloogDomain *context_domain = nullptr;
+
+
+    context_domain = cloog_domain_from_isl_set(isl_params.copy());
+
     CloogInput *input =  cloog_input_alloc(context_domain, schedule);
 
     //cout << "--- Cloog input:" << endl;
@@ -62,8 +63,9 @@ ast make_ast( const schedule & sched )
     ast output;
     output.state = cloog_state_malloc();
     output.options = cloog_options_malloc(output.state);
-    output.prelude = make_ast(sched.prelude, output.state, output.options);
-    output.period = make_ast(sched.period, output.state, output.options);
+    output.options->save_domains = true;
+    output.prelude = make_ast(sched.prelude, sched.params, output.state, output.options);
+    output.period = make_ast(sched.period, sched.params, output.state, output.options);
     return output;
 }
 

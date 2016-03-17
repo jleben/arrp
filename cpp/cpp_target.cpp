@@ -21,6 +21,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "cpp_target.hpp"
 #include "cpp_from_cloog.hpp"
 #include "cpp_from_polyhedral.hpp"
+#include "cpp_from_isl.hpp"
 #include "../utility/cpp-gen.hpp"
 
 #include <unordered_map>
@@ -81,6 +82,7 @@ variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name
 func_sig_ptr signature_for(const string & name, const vector<semantic::type_ptr> & args)
 {
     auto sig = new func_signature;
+    sig->is_inline = true;
     sig->type = make_shared<basic_type>("void");
     sig->name = name;
 
@@ -115,6 +117,8 @@ class_node * state_type_def(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers)
 {
     auto def = new class_node(struct_class, "state");
+    def->alignment = 16; // for vectorization;
+
     def->sections.resize(1);
     auto & sec = def->sections.back();
 
@@ -322,6 +326,7 @@ void add_remainder_function(cpp_gen::module &module, namespace_node & nmspc)
 func_sig_ptr output_getter_signature(const polyhedral::array_ptr & out_array)
 {
     auto sig = make_shared<func_signature>();
+    sig->is_inline = true;
     sig->name = "get_output";
     sig->type = make_shared<pointer_type>(type_for(out_array->type));
     sig->parameters.push_back( decl(pointer(state_type()), "s") );
@@ -356,6 +361,7 @@ void add_output_getter_func(cpp_gen::module &module, namespace_node & nmspc,
 func_sig_ptr input_func_sig()
 {
     auto sig = make_shared<func_signature>();
+    sig->is_inline = true;
     sig->name = "input";
     sig->type = make_shared<basic_type>("void");
     auto double_t = make_shared<basic_type>("double");
@@ -368,6 +374,7 @@ func_sig_ptr input_func_sig()
 func_sig_ptr output_func_sig()
 {
     auto sig = make_shared<func_signature>();
+    sig->is_inline = true;
     sig->name = "output";
     sig->type = make_shared<basic_type>("void");
     auto double_t = make_shared<basic_type>("double");
@@ -378,8 +385,7 @@ func_sig_ptr output_func_sig()
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
               const polyhedral::model & model,
-              clast_stmt *finite_schedule,
-              clast_stmt *periodic_schedule,
+              const polyhedral::ast_isl & ast,
               std::ostream & src_stream,
               std::ostream & hdr_stream)
 {
@@ -387,7 +393,8 @@ void generate(const string & name,
 
     module m;
     builder b(&m);
-    cpp_from_cloog cloog(&b);
+    //cpp_from_cloog cloog(&b);
+    cpp_from_isl isl(&b);
     cpp_from_polyhedral poly(model, buffers);
 
     m.members.push_back(make_shared<include_dir>("cmath"));
@@ -398,7 +405,7 @@ void generate(const string & name,
     nmspc->name = name;
     m.members.push_back(nmspc);
 
-    add_remainder_function(m,*nmspc);
+    //add_remainder_function(m,*nmspc);
 
     // FIXME: rather include header:
     nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers)));
@@ -416,9 +423,15 @@ void generate(const string & name,
         poly.generate_statement(name, index, ctx);
     };
 
-    cloog.set_stmt_func(stmt_func);
+    auto id_func = std::bind(&cpp_from_polyhedral::generate_buffer_phase,
+                             &poly, placeholders::_1, &b);
 
-    if (finite_schedule)
+    //cloog.set_stmt_func(stmt_func);
+    //cloog.set_id_func(id_func);
+    isl.set_stmt_func(stmt_func);
+    isl.set_id_func(id_func);
+
+    if (ast.prelude)
     {
         auto sig = signature_for("initialize", args);
         b.set_current_function(sig.get());
@@ -433,7 +446,7 @@ void generate(const string & name,
                 b.add(make_shared<var_decl_expression>(buffer_decl(array)));
         }
 
-        cloog.generate(finite_schedule);
+        isl.generate(ast.prelude);
 
         //advance_buffers(model, buffers, &b, true);
 
@@ -442,7 +455,7 @@ void generate(const string & name,
         nmspc->members.push_back(func);
     }
 
-    if (periodic_schedule)
+    if (ast.period)
     {
         auto sig = signature_for("process", args);
         b.set_current_function(sig.get());
@@ -458,7 +471,7 @@ void generate(const string & name,
                 b.add(make_shared<var_decl_expression>(buffer_decl(array)));
         }
 
-        cloog.generate(periodic_schedule);
+        isl.generate(ast.period);
 
         advance_buffers(model, buffers, &b, false);
 

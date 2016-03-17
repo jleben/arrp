@@ -54,6 +54,8 @@ public:
 
     void set_in_period(bool flag) { m_in_period = flag; }
 
+    expression_ptr generate_buffer_phase(const string & id, builder *);
+
 private:
 
     expression_ptr generate_expression
@@ -89,6 +91,7 @@ private:
     polyhedral::model m_model;
     unordered_map<string,buffer> m_buffers;
     bool m_in_period = false;
+    polyhedral::statement * m_current_stmt = nullptr;
 };
 
 }

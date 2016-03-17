@@ -29,12 +29,15 @@ add_library(streamc-lib ${lib_mode}
   ../frontend/ph_model_gen.cpp
   ../polyhedral/scheduling.cpp
   ../polyhedral/storage_alloc.cpp
+  ../polyhedral/modulo_avoidance.cpp
   ../polyhedral/ast_gen.cpp
+  ../polyhedral/isl_ast_gen.cpp
   #../llvm/llvm_ir_from_cloog.cpp
   #../llvm/llvm_from_polyhedral.cpp
   ../cpp/cpp_target.cpp
   ../cpp/cpp_from_cloog.cpp
   ../cpp/cpp_from_polyhedral.cpp
+  ../cpp/cpp_from_isl.cpp
   #../interface/cpp-intf-gen.cpp
   compiler.cpp
 )
