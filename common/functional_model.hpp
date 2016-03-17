@@ -31,6 +31,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 namespace stream {
 namespace functional {
 
+struct model; // to control verbose output
+
 using std::vector;
 using std::pair;
 typedef parsing::location location_type;

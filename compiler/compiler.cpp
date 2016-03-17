@@ -111,6 +111,27 @@ result::code compile(const arguments & args)
     for(const string & topic : args.no_debug_topics)
         debug::set_status_for_id(topic, debug::disabled);
 
+    for(const string & topic : args.verbose_topics)
+    {
+        if (topic == "func-model")
+        {
+            verbose<functional::model>::enabled() = true;
+        }
+        else if (topic == "mod-avoid")
+        {
+            verbose<polyhedral::modulo_avoidance>::enabled() = true;
+        }
+        else if (topic == "ph-model")
+        {
+            verbose<functional::polyhedral_gen>::enabled() = true;
+        }
+        else
+        {
+            cerr << "Invalid verbose topic: " << topic << endl;
+            return result::command_line_error;
+        }
+    }
+
     if (args.input_filename.empty())
     {
         cerr << "streamc: error: Missing argument: input filename." << endl;
@@ -154,34 +175,25 @@ result::code compile_source(istream & source, const arguments & args)
         cout << endl;
     }
 
-    functional::generator fgen;
-    vector<functional::id_ptr> ids;
     try
     {
-        ids = fgen.generate(ast_root);
-    }
-    catch (source_error & e)
-    {
-        parser.error(e.location, e.what());
-        return result::semantic_error;
-    }
-    catch(error & e)
-    {
-        cout << "ERROR: " << e.what() << endl;
-        return result::semantic_error;
-    }
+        vector<functional::id_ptr> ids;
 
-    {
-        functional::printer printer;
-        for (const auto & id : ids)
         {
-            printer.print(id, cout);
-            cout << endl;
+            functional::generator fgen;
+            ids = fgen.generate(ast_root);
         }
-    }
 
-    try
-    {
+        if (verbose<functional::model>::enabled())
+        {
+            functional::printer printer;
+            for (const auto & id : ids)
+            {
+                printer.print(id, cout);
+                cout << endl;
+            }
+        }
+
         // FIXME: choice of function to compile
         auto criteria = [](functional::id_ptr id) -> bool {
             return id->name == "main";
@@ -200,6 +212,7 @@ result::code compile_source(istream & source, const arguments & args)
             id = reducer.reduce(id, {});
             array_ids = reducer.ids();
 
+            if (verbose<functional::model>::enabled())
             {
                 cout << "-- Reduced functions:" << endl;
                 functional::printer printer;
@@ -218,6 +231,7 @@ result::code compile_source(istream & source, const arguments & args)
             reducer.process(id);
             array_ids = reducer.ids();
 
+            if (verbose<functional::model>::enabled())
             {
                 cout << "-- Reduced arrays:" << endl;
                 functional::printer printer;
@@ -234,10 +248,13 @@ result::code compile_source(istream & source, const arguments & args)
         {
             functional::type_checker checker;
             checker.process(array_ids);
-            cout << "-- Types: " << endl;
-            for (const auto & id : array_ids)
+            if (verbose<functional::model>::enabled())
             {
-                cout << id->name << " = " << id->type << endl;
+                cout << "-- Types: " << endl;
+                for (const auto & id : array_ids)
+                {
+                    cout << id->name << " = " << id->type << endl;
+                }
             }
         }
         {

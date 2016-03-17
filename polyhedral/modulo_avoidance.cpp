@@ -47,9 +47,12 @@ access_info is_candidate_array(array_ptr array, stmt_ptr stmt, const schedule & 
     access.relation = write | read;
     access.domain = access.relation(stmt_sched_domain);
 
-    cout << "..Accessed array:";
-    printer.print(access.domain);
-    cout << endl;
+    if (verbose<modulo_avoidance>::enabled())
+    {
+        cout << "..Accessed array:";
+        printer.print(access.domain);
+        cout << endl;
+    }
 
     {
         auto a0 = access.domain.get_space()(isl::space::variable, 0);
@@ -67,8 +70,11 @@ access_info is_candidate_array(array_ptr array, stmt_ptr stmt, const schedule & 
         // FIXME: Not always true
         access.max_offset = buf_size - 1;
 
-    cout << "..Accessed range: [" << access.min_a0 << "," << access.max_a0 << "]"
-         << " + [0," << access.max_offset << "]" << endl;
+    if (verbose<modulo_avoidance>::enabled())
+    {
+        cout << "..Accessed range: [" << access.min_a0 << "," << access.max_a0 << "]"
+             << " + [0," << access.max_offset << "]" << endl;
+    }
 
     if ( access.max_offset + access.max_a0 >= buf_size )
     {
@@ -80,7 +86,8 @@ access_info is_candidate_array(array_ptr array, stmt_ptr stmt, const schedule & 
 
 void avoid_modulo(schedule & sched, model & m, bool split_statements)
 {
-    cout << "### MODULO AVOIDANCE ### " << endl;
+    if (verbose<modulo_avoidance>::enabled())
+        cout << "### MODULO AVOIDANCE ### " << endl;
 
     model_summary ms(m);
     isl::printer printer(m.context);
@@ -120,7 +127,8 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
             continue;
         }
 
-        cout << "Statement " << stmt->name << endl;
+        if (verbose<modulo_avoidance>::enabled())
+            cout << "Statement " << stmt->name << endl;
 
 #if 0
         auto stmt_sched_domain = stmt_sched.domain();
@@ -195,7 +203,8 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
 
         if (candidate_arrays.size() == 0)
         {
-            cout << "..Does not need modulo." << endl;
+            if (verbose<modulo_avoidance>::enabled())
+                cout << "..Does not need modulo." << endl;
             keep_going = false;
         }
         else
@@ -203,7 +212,8 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
 
         if (keep_going && candidate_arrays.size() > 1)
         {
-            cout << "..Needs modulo for more than 1 array access." << endl;
+            if (verbose<modulo_avoidance>::enabled())
+                cout << "..Needs modulo for more than 1 array access." << endl;
             keep_going = false;
         }
 
@@ -212,7 +222,8 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
             auto sched_domain = stmt_sched.domain().set_for(stmt->domain.get_space());
             if (sched_domain.is_singleton())
             {
-                cout << "..Needs modulo, but domain is singleton." << endl;
+                if (verbose<modulo_avoidance>::enabled())
+                    cout << "..Needs modulo, but domain is singleton." << endl;
                 keep_going = false;
             }
         }
@@ -241,8 +252,11 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
         int max_a0 = access.max_a0 + access.max_offset;
         int num_parts = (int) std::ceil((max_a0 - min_a0 + 1) / (float) buf_size);
 
-        cout << "..# Parts = " << num_parts << endl;
-        assert(num_parts >= 2);
+        if (verbose<modulo_avoidance>::enabled())
+        {
+            cout << "..# Parts = " << num_parts << endl;
+            assert(num_parts >= 2);
+        }
 
         auto array_sched_domain = access.domain;
 
@@ -267,15 +281,21 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
             array_part.add_constraint(a0 + offset >= lower_bound);
             array_part.add_constraint(a0 + offset < lower_bound + buf_size);
 
-            cout << "..Array Part " << i << ":" << endl;
-            printer.print(array_part);
-            cout << endl;
+            if (verbose<modulo_avoidance>::enabled())
+            {
+                cout << "..Array Part " << i << ":" << endl;
+                printer.print(array_part);
+                cout << endl;
+            }
 
             auto stmt_part = access.relation.inverse()(array_part);
 
-            cout << "..Stmt Part " << i << ":" << endl;
-            printer.print(stmt_part);
-            cout << endl;
+            if (verbose<modulo_avoidance>::enabled())
+            {
+                cout << "..Stmt Part " << i << ":" << endl;
+                printer.print(stmt_part);
+                cout << endl;
+            }
 
             auto new_stmt = make_shared<statement>(*stmt);
             new_stmt->domain = stmt_part;
@@ -297,19 +317,25 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
 #if 1
     sched.period = new_sched;
 
-    cout << "New period schedule:" << endl;
-    new_sched.for_each([&](const isl::map & m){
-        printer.print(m);
-        cout << endl;
-        return true;
-    });
+    if (verbose<modulo_avoidance>::enabled())
+    {
+        cout << "New period schedule:" << endl;
+        new_sched.for_each([&](const isl::map & m){
+            printer.print(m);
+            cout << endl;
+            return true;
+        });
+    }
 
     if (sched.params.is_empty())
         sched.params = isl::set::universe(sched.params.get_space());
 
-    cout << "Parameters:" << endl;
-    printer.print(sched.params);
-    cout << endl;
+    if (verbose<modulo_avoidance>::enabled())
+    {
+        cout << "Parameters:" << endl;
+        printer.print(sched.params);
+        cout << endl;
+    }
 
     m.statements.insert(m.statements.end(),
                         new_stmts.begin(), new_stmts.end());

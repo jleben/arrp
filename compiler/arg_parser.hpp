@@ -126,6 +126,7 @@ public:
     vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
     bool split_statements = false;
+    vector<string> verbose_topics;
 
 public:
     arguments(int argc, char *argv[]):
@@ -162,23 +163,26 @@ private:
         else if (opt == "--print" || opt == "-p")
         {
             string topic_name;
-            parse_argument(topic_name, "topic to print");
-            output_topic topic;
-            if (topic_name == "tokens")
-                topic = tokens_output;
-            else if (topic_name == "ast")
-                topic = ast_output;
-            else if (topic_name == "symbols")
-                topic = symbols_output;
-            else if (topic_name == "poly")
-                topic = polyhedral_model_output;
-            else if (topic_name == "buffers")
-                topic = buffer_size_output;
-            else if (topic_name == "out-ast")
-                topic = target_ast_output;
-            else
-                throw error(string("Invalid print topic: ") + topic_name);
-            print[topic] = true;
+            while(try_parse_argument(topic_name))
+            {
+                parse_argument(topic_name, "topic to print");
+                output_topic topic;
+                if (topic_name == "tokens")
+                    topic = tokens_output;
+                else if (topic_name == "ast")
+                    topic = ast_output;
+                else if (topic_name == "symbols")
+                    topic = symbols_output;
+                else if (topic_name == "poly")
+                    topic = polyhedral_model_output;
+                else if (topic_name == "buffers")
+                    topic = buffer_size_output;
+                else if (topic_name == "out-ast")
+                    topic = target_ast_output;
+                else
+                    throw error(string("Invalid print topic: ") + topic_name);
+                print[topic] = true;
+            }
         }
         else if (opt == "--generate" || opt == "--gen" || opt == "-g")
         {
@@ -209,6 +213,14 @@ private:
             string topic;
             parse_argument(topic, "topic");
             no_debug_topics.push_back(topic);
+        }
+        else if (opt == "--verbose" || opt == "-v")
+        {
+            string topic;
+            while(try_parse_argument(topic))
+            {
+                verbose_topics.push_back(topic);
+            }
         }
         else if (opt == "--no-opt-schedule")
         {

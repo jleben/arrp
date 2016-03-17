@@ -17,6 +17,8 @@ namespace functional {
 
 namespace ph = stream::polyhedral;
 
+using my_verbose_out = verbose<polyhedral_gen>;
+
 polyhedral_gen::polyhedral_gen():
     m_isl_printer(m_isl_ctx)
 {
@@ -163,8 +165,11 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
     auto result = m_arrays.emplace(id, arr);
     assert(result.second);
 
-    cout << "Array domain:" << endl;
-    m_isl_printer.print(domain); cout << endl;
+    if (my_verbose_out::enabled())
+    {
+        cout << "Array domain:" << endl;
+        m_isl_printer.print(domain); cout << endl;
+    }
 
     return arr;
 }
@@ -210,8 +215,11 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
             if (false)
             {
                 combined_domain.coalesce();
-                cout << "Combined domains:" << endl;
-                m_isl_printer.print(combined_domain); cout << endl;
+                if (my_verbose_out::enabled())
+                {
+                    cout << "Combined domains:" << endl;
+                    m_isl_printer.print(combined_domain); cout << endl;
+                }
             }
 
             if (!(combined_domain == array_domain))
@@ -279,8 +287,8 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
 
     stmt->expr = make_affine_array_reads(stmt, expr, sm);
 
+    if (my_verbose_out::enabled())
     {
-        // Debug output
         cout << "Statement domain "
              << (stmt->is_infinite ? "(unbounded)" : "(bounded)")
              << ":" << endl;

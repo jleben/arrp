@@ -218,7 +218,7 @@ scheduler::add_schedule_constraints
             auto type = isl_schedule_node_get_type(node);
             if (type == isl_schedule_node_sequence)
             {
-                cout << "The schedule has a sequence node before a band node." << endl;
+                cerr << "The schedule has a sequence node before a band node." << endl;
                 isl_schedule_node_free(node);
                 return isl_bool_error;
             }

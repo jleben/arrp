@@ -6,6 +6,7 @@
 namespace stream {
 namespace polyhedral {
 
+struct modulo_avoidance;
 
 void avoid_modulo(schedule &, model &, bool split_statements);
 
