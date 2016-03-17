@@ -57,18 +57,6 @@ ast_isl make_isl_ast( const schedule & sched )
 
     isl_ast_build_free(build);
 
-    printer.set_format(isl::printer::c_format);
-    if (output.prelude)
-    {
-        cout << "AST for prelude:" << endl;
-        isl_printer_print_ast_node(printer.get(), output.prelude);
-    }
-    if (output.period)
-    {
-        cout << "AST for period:" << endl;
-        isl_printer_print_ast_node(printer.get(), output.period);
-    }
-
     return output;
 }
 

@@ -40,6 +40,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../cpp/cpp_target.hpp"
 //#include "../interface/cpp-intf-gen.hpp"
 
+#include <isl-cpp/printer.hpp>
+
 #include <json++/json.hh>
 
 #include <fstream>
@@ -275,6 +277,21 @@ result::code compile_source(istream & source, const arguments & args)
 
             auto ast = polyhedral::make_isl_ast(schedule);
 
+            if (args.print[arguments::target_ast_output])
+            {
+                isl::printer printer(ph_model.context);
+                printer.set_format(isl::printer::c_format);
+                if (ast.prelude)
+                {
+                    cout << "AST for prelude:" << endl;
+                    isl_printer_print_ast_node(printer.get(), ast.prelude);
+                }
+                if (ast.period)
+                {
+                    cout << "AST for period:" << endl;
+                    isl_printer_print_ast_node(printer.get(), ast.period);
+                }
+            }
 #if 0
             auto ast = polyhedral::make_ast(schedule);
             if (args.print[arguments::ast_output])
