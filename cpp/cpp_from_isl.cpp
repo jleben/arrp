@@ -37,15 +37,12 @@ cpp_from_isl::cpp_from_isl(builder *ctx):
 
 void cpp_from_isl::generate( isl_ast_node * ast )
 {
-    cout << "IN ast" << endl;
     m_is_user_stmt = false;
     process_node(ast);
-    cout << "OUT ast" << endl;
 }
 
 void cpp_from_isl::process_node(isl_ast_node *node)
 {
-    cout << "IN node" << endl;
     auto type = isl_ast_node_get_type(node);
     switch(type)
     {
@@ -68,13 +65,10 @@ void cpp_from_isl::process_node(isl_ast_node *node)
     default:
         throw error("Unexpected AST node type.");
     }
-    cout << "OUT node" << endl;
 }
 
 void cpp_from_isl::process_block(isl_ast_node *node)
 {
-    cout << "IN block: " << node << endl;
-
     // The generate AST is weird:
     // Blocks have at most 2 statements.
     // If there are more consecutive statements,
@@ -88,15 +82,11 @@ void cpp_from_isl::process_block(isl_ast_node *node)
     auto list = isl_ast_node_block_get_children(node);
     int n_children = isl_ast_node_list_n_ast_node(list);
 
-    cout << "# children: " << n_children << endl;
-
     for(int i = 0; i < n_children; ++i)
     {
         auto child = isl_ast_node_list_get_ast_node(list, i);
-        cout << "IN block child: " << child << endl;
         process_node(child);
         isl_ast_node_free(child);
-        cout << "OUT block child" << endl;
     }
 
     isl_ast_node_list_free(list);
@@ -104,13 +94,10 @@ void cpp_from_isl::process_block(isl_ast_node *node)
     //m_ctx->pop();
 
     //m_ctx->add(block);
-
-    cout << "OUT block" << endl;
 }
 
 void cpp_from_isl::process_if(isl_ast_node *node)
 {
-    cout << "IN if" << endl;
     auto cond_expr = isl_ast_node_if_get_cond(node);
     auto true_node = isl_ast_node_if_get_then(node);
     auto false_node = isl_ast_node_if_get_else(node);
@@ -120,8 +107,6 @@ void cpp_from_isl::process_if(isl_ast_node *node)
     if_stmt->condition = process_expr(cond_expr);
 
     {
-        cout << "IN then" << endl;
-
         vector<statement_ptr> stmts;
 
         m_ctx->push(&stmts);
@@ -132,14 +117,10 @@ void cpp_from_isl::process_if(isl_ast_node *node)
             if_stmt->true_part = stmts.front();
         else
             if_stmt->true_part = block(stmts);
-
-        cout << "OUT then" << endl;
     }
 
     if (false_node)
     {
-        cout << "IN else" << endl;
-
         vector<statement_ptr> stmts;
 
         m_ctx->push(&stmts);
@@ -150,8 +131,6 @@ void cpp_from_isl::process_if(isl_ast_node *node)
             if_stmt->false_part = stmts.front();
         else
             if_stmt->false_part = block(stmts);
-
-        cout << "OUT else" << endl;
     }
 
     m_ctx->add(if_stmt);
@@ -159,8 +138,6 @@ void cpp_from_isl::process_if(isl_ast_node *node)
     isl_ast_expr_free(cond_expr);
     isl_ast_node_free(true_node);
     isl_ast_node_free(false_node);
-
-    cout << "OUT if" << endl;
 }
 
 void cpp_from_isl::process_for(isl_ast_node *node)
