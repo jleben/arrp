@@ -53,7 +53,7 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto prim = dynamic_pointer_cast<const primitive>(expr))
     {
-        out << prim->type;
+        out << prim->kind;
 
         out << "(";
         for(auto & operand : prim->operands)
