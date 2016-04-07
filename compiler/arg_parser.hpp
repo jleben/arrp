@@ -29,12 +29,14 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <vector>
 #include <memory>
 #include <array>
+#include <unordered_map>
 
 namespace stream {
 namespace compiler {
 
 using std::string;
 using std::vector;
+using std::unordered_map;
 using std::ostringstream;
 using std::istringstream;
 
@@ -126,7 +128,7 @@ public:
     vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
     bool split_statements = false;
-    vector<string> verbose_topics;
+    unordered_map<string,bool> verbose_topics;
 
 public:
     arguments(int argc, char *argv[]):
@@ -136,6 +138,8 @@ public:
     {
         for (int i = 0; i < print.size(); ++i)
             print[i] = false;
+
+        init_verbose_topics();
     }
 
     void parse()
@@ -148,7 +152,26 @@ public:
         }
     }
 
+    static vector<string> known_verbose_topics()
+    {
+        return {
+            "func-model",
+            "mod-avoid",
+            "ph-model"
+        };
+    }
+
 private:
+    void init_verbose_topics()
+    {
+        auto topics = known_verbose_topics();
+
+        for (const auto & topic : topics)
+        {
+            verbose_topics.emplace(topic, false);
+        }
+    }
+
     void parse_next_option()
     {
         string opt;
@@ -219,7 +242,11 @@ private:
             string topic;
             while(try_parse_argument(topic))
             {
-                verbose_topics.push_back(topic);
+                try { verbose_topics.at(topic) = true; }
+                catch ( std::out_of_range & e )
+                {
+                    throw error("Unknown verbose topic: " + topic);
+                }
             }
         }
         else if (opt == "--no-opt-schedule")

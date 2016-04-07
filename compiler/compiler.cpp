@@ -101,6 +101,13 @@ void print_help()
          << "  \t- polyhedral.ast.buffer-size" << endl
          << "  \t- dataflow" << endl
             ;
+
+    auto verbose_topics = arguments::known_verbose_topics();
+    cout << " --verbose or -v <topic> : Enable verbose output for <topic>." << endl
+         << "  \tAvailable topics:" << endl;
+    for (const auto & topic : verbose_topics)
+        cout << "  \t- " << topic << endl;
+
     cout << "  --no-debug or -D <topic> : Disable debugging output for <topic>." << endl;
 }
 
@@ -111,25 +118,17 @@ result::code compile(const arguments & args)
     for(const string & topic : args.no_debug_topics)
         debug::set_status_for_id(topic, debug::disabled);
 
-    for(const string & topic : args.verbose_topics)
+    if (args.verbose_topics.at("func-model"))
     {
-        if (topic == "func-model")
-        {
-            verbose<functional::model>::enabled() = true;
-        }
-        else if (topic == "mod-avoid")
-        {
-            verbose<polyhedral::modulo_avoidance>::enabled() = true;
-        }
-        else if (topic == "ph-model")
-        {
-            verbose<functional::polyhedral_gen>::enabled() = true;
-        }
-        else
-        {
-            cerr << "Invalid verbose topic: " << topic << endl;
-            return result::command_line_error;
-        }
+        verbose<functional::model>::enabled() = true;
+    }
+    if (args.verbose_topics.at("mod-avoid"))
+    {
+        verbose<polyhedral::modulo_avoidance>::enabled() = true;
+    }
+    if (args.verbose_topics.at("ph-model"))
+    {
+        verbose<functional::polyhedral_gen>::enabled() = true;
     }
 
     if (args.input_filename.empty())
