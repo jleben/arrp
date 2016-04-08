@@ -41,7 +41,6 @@ public:
 private:
     expr_ptr reduce(expr_ptr);
     expr_ptr copy(expr_ptr);
-    expr_ptr beta_reduce(expr_ptr);
     expr_ptr no_function(expr_ptr);
     expr_ptr no_function(expr_ptr, const location_type &);
     func_reduce_error
@@ -57,6 +56,7 @@ private:
     copy_context_type m_copy_context;
 
     reduce_context_type m_beta_reduce_context;
+    stack<int> m_bound_var_count;
 
     stack<location_type> m_trace;
     stack<array_ptr> m_array_copy_stack;

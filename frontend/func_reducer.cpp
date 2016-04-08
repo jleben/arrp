@@ -2,6 +2,7 @@
 #include "error.hpp"
 #include "../common/func_model_printer.hpp"
 #include "../utility/stacker.hpp"
+#include "../utility/debug.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -11,35 +12,37 @@ using namespace std;
 namespace stream {
 namespace functional {
 
-class wrong_arg_count_error : public source_error
+string wrong_arg_count_msg(int required, int actual)
 {
-public:
-    wrong_arg_count_error(int required, int actual, location_type loc):
-        source_error(msg(required,actual), loc)
-    {}
-private:
-    string msg(int required, int actual)
-    {
-        ostringstream text;
-        text << " Wrong number of arguments ("
-             << "expected: " << required << ", "
-             << "actual: " << actual
-             << ")."
-                ;
-        return text.str();
-    }
-};
+    ostringstream text;
+    text << " Wrong number of arguments ("
+         << "expected: " << required << ", "
+         << "actual: " << actual
+         << ")."
+            ;
+    return text.str();
+}
 
 id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 {
     if (m_ids.find(id) == m_ids.end())
     {
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Reducing expression of id " << id->name << endl;
+        }
+
         id->expr = reduce(id->expr);
         m_ids.insert(id);
     }
 
     if (!args.empty())
     {
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Applying args to id " << id->name << endl;
+        }
+
         auto new_name = new_id_name(id->name);
         auto new_expr = copy(id->expr);
         auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
@@ -50,12 +53,6 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
     }
     else
     {
-        // Call beta reduce to get rid of scopes
-        // FIXME: Let reduce(expr) get rid of local scope ids
-        // that do not depend on function args, which will eliminate
-        // scopes altogether in non-function id definitions.
-        id->expr = beta_reduce(id->expr);
-
         return id;
     }
 }
@@ -63,9 +60,16 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
                               const location_type & loc)
 {
+    if (verbose<functional::model>::enabled())
+    {
+        cout << "Function application at: " << loc << endl;
+    }
+
     m_trace.push(loc);
 
-    vector<func_var_ptr> vars;
+    m_bound_var_count.push(0);
+
+    vector<func_var_ptr> remaining_vars;
 
     reduce_context_type::scope_holder scope(m_beta_reduce_context);
 
@@ -73,9 +77,11 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
     {
         auto func = dynamic_pointer_cast<function>(expr);
         if (!func)
-            throw wrong_arg_count_error(0, args.size(), loc);
+            throw reduction_error
+                (wrong_arg_count_msg(0, args.size()), loc);
         else if(func->vars.size() < args.size())
-            throw wrong_arg_count_error(func->vars.size(), args.size(), loc);
+            throw reduction_error
+                (wrong_arg_count_msg(func->vars.size(), args.size()), loc);
 
         for (int i = 0; i < args.size(); ++i)
         {
@@ -84,7 +90,7 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
         if (func->vars.size() > args.size())
         {
-            vars.insert(vars.end(),
+            remaining_vars.insert(remaining_vars.end(),
                         func->vars.begin() + args.size(),
                         func->vars.end());
         }
@@ -92,12 +98,14 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
         expr = func->expr;
     }
 
-    auto reduced_expr = beta_reduce(expr);
+    auto reduced_expr = reduce(expr);
+
+    m_bound_var_count.pop();
 
     m_trace.pop();
 
-    if (vars.size())
-        return make_shared<function>(vars, reduced_expr, loc);
+    if (remaining_vars.size())
+        return make_shared<function>(remaining_vars, reduced_expr, loc);
     else
         return reduced_expr;
 }
@@ -128,16 +136,46 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
         {
             if (m_ids.find(id) == m_ids.end())
             {
+                if (verbose<functional::model>::enabled())
+                {
+                    cout << "Reducing id " << id->name
+                         << " referenced at " << ref->location << endl;
+                }
+
+                m_trace.push(ref->location);
                 id->expr = reduce(id->expr);
                 m_ids.insert(id);
+                m_trace.pop();
             }
 
             // TODO: remember location of reference
-
             if (auto func = dynamic_pointer_cast<function>(id->expr))
                 return id->expr;
             else
                 return ref;
+        }
+        else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
+        {
+            // TODO: remember location of reference
+            auto binding = m_beta_reduce_context.find(f_var);
+            if (binding)
+            {
+                if (verbose<functional::model>::enabled())
+                {
+                    cout << "Substituting bound var: " << f_var->name << endl;
+                }
+                return binding.value();
+            }
+            else
+            {
+                if (verbose<functional::model>::enabled())
+                {
+                    cout << "No substitution for bound var: " << f_var->name << endl;
+                }
+                assert(!m_bound_var_count.empty());
+                ++m_bound_var_count.top();
+                return ref;
+            }
         }
         else
         {
@@ -171,18 +209,33 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else if (auto func = dynamic_pointer_cast<function>(expr))
     {
+        m_bound_var_count.push(0);
         auto reduced_expr = reduce(func->expr);
+        m_bound_var_count.pop();
+
         if (auto func2 = dynamic_pointer_cast<function>(reduced_expr))
         {
             func->vars.insert(func->vars.end(), func2->vars.begin(), func2->vars.end());
             reduced_expr = func2->expr;
         }
+
         func->expr = reduced_expr;
         return func;
     }
     else if (auto app = dynamic_pointer_cast<func_app>(expr))
     {
         auto func = reduce(app->object);
+
+        if (dynamic_pointer_cast<reference>(func))
+        {
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "Aborting function application due to unresolved function"
+                     << " at: " << app->location << endl;
+            }
+
+            return app;
+        }
 
         vector<expr_ptr> reduced_args;
         for (auto & arg : app->args)
@@ -194,21 +247,42 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
     {
-        scope->expr = reduce(scope->expr);
+        vector<id_ptr> remaining_ids;
 
-        // TODO:
-        // - eliminate local functions (they get inlined)
-        // - move out ids that do not depend on function args
-
-        auto func = dynamic_pointer_cast<function>(scope->expr);
-        if (func)
+        for (auto id : scope->ids)
         {
-            scope->expr = func->expr;
-            func->expr = scope;
-            return func;
+            m_bound_var_count.push(0);
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "Reducing scope-local id \"" << id->name << "\"" << endl;
+            }
+
+            id->expr = reduce(id->expr);
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "Number of unbound vars = " << m_bound_var_count.top() << endl;
+            }
+
+            if (m_bound_var_count.top() > 0)
+                remaining_ids.push_back(id);
+
+            m_bound_var_count.pop();
         }
 
-        return scope;
+        auto reduced_expr = reduce(scope->expr);
+
+        if (remaining_ids.empty())
+        {
+            return reduced_expr;
+        }
+        else
+        {
+            scope->ids = remaining_ids;
+            scope->expr = reduced_expr;
+            return scope;
+        }
     }
     else
     {
@@ -235,6 +309,7 @@ expr_ptr func_reducer::copy(expr_ptr expr)
         auto new_op = make_shared<primitive>();
         new_op->location = op->location;
         new_op->type = op->type;
+        new_op->kind = op->kind;
         for (auto & operand : op->operands)
             new_op->operands.push_back(copy(operand));
         return new_op;
@@ -382,77 +457,6 @@ expr_ptr func_reducer::copy(expr_ptr expr)
     }
 }
 
-expr_ptr func_reducer::beta_reduce(expr_ptr expr)
-{
-    if (auto op = dynamic_pointer_cast<primitive>(expr))
-    {
-        // FIXME: Can we operate on functions?
-        for (auto & operand : op->operands)
-            operand = beta_reduce(operand);
-        return op;
-    }
-    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
-    {
-        for (auto & a_case : c->cases)
-        {
-            a_case.first = beta_reduce(a_case.first);
-            a_case.second = beta_reduce(a_case.second);
-        }
-        return c;
-    }
-    else if (auto ref = dynamic_pointer_cast<reference>(expr))
-    {
-        if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
-        {
-            // TODO: remember location of reference
-            auto binding = m_beta_reduce_context.find(f_var);
-            if (binding)
-                return binding.value();
-            else
-                return ref;
-        }
-        else
-            return ref;
-    }
-    else if (auto arr = dynamic_pointer_cast<array>(expr))
-    {
-        for (auto & var : arr->vars)
-        {
-            if (var->range)
-                var->range = beta_reduce(var->range);
-        }
-        arr->expr = beta_reduce(arr->expr);
-        return arr;
-    }
-    else if (auto app = dynamic_pointer_cast<array_app>(expr))
-    {
-        app->object = beta_reduce(app->object);
-        for(auto & arg : app->args)
-            arg = beta_reduce(arg);
-        return app;
-    }
-    else if (auto as = dynamic_pointer_cast<array_size>(expr))
-    {
-        as->object = beta_reduce(as->object);
-        auto & dim = as->dimension;
-        if (dim)
-            dim = beta_reduce(dim);
-        return as;
-    }
-    else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
-    {
-        for (auto id : scope->ids)
-        {
-            id->expr = beta_reduce(id->expr);
-        }
-        return beta_reduce(scope->expr);
-    }
-    else
-    {
-        return expr;
-    }
-}
-
 expr_ptr func_reducer::no_function(expr_ptr expr)
 {
     return no_function(expr, expr->location);
@@ -460,8 +464,11 @@ expr_ptr func_reducer::no_function(expr_ptr expr)
 
 expr_ptr func_reducer::no_function(expr_ptr expr, const location_type & loc)
 {
+    // FIXME: Perform this check for entire tree after all reduction?
+#if 0
     if (auto f = dynamic_pointer_cast<function>(expr))
         throw reduction_error("An abstraction is not allowed here.", loc);
+#endif
     return expr;
 }
 
