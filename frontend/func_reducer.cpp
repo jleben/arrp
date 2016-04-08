@@ -179,6 +179,8 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
                 return ref;
             }
         }
+        // FIXME: count array var references as bounds vars too,
+        // Get rid of such scopes later (in array reduction?).
         else
         {
             return ref;

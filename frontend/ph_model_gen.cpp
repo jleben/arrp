@@ -321,7 +321,8 @@ expr_ptr polyhedral_gen::make_affine_array_reads
     else if (auto ref = dynamic_pointer_cast<reference>(e))
     {
         auto av = dynamic_pointer_cast<array_var>(ref->var);
-        assert(av);
+        if (!av)
+            throw error("Unexpected reference type.");
         int i = sm.index_of(av);
         return make_shared<ph::iterator_read>(i, ref->location);
     }
