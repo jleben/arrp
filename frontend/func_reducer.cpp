@@ -164,7 +164,9 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
                 {
                     cout << "Substituting bound var: " << f_var->name << endl;
                 }
-                return binding.value();
+                // Reduce the substituted value,
+                // to count bound variables.
+                return reduce(binding.value());
             }
             else
             {
