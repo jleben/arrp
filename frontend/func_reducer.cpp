@@ -264,7 +264,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
 
             if (verbose<functional::model>::enabled())
             {
-                cout << "Number of unbound vars = " << m_bound_var_count.top() << endl;
+                cout << "Number of bound vars = " << m_bound_var_count.top() << endl;
             }
 
             if (m_bound_var_count.top() > 0)
