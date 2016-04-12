@@ -245,7 +245,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     for (auto & operand : op->operands)
         operand = eta_expand(reduce(operand));
 
-    vector<int> size;
+    vector<int> result_size;
 
     for (auto & operand : op->operands)
     {
@@ -259,20 +259,20 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
         auto operand_size = array_size(operand);
         if (operand_size.empty())
             continue;
-        if (!size.empty() && operand_size != size)
+        if (!result_size.empty() && operand_size != result_size)
         {
             throw source_error("Operand size mismatch.", op->location);
         }
-        size = operand_size;
+        result_size = operand_size;
     }
 
-    if (size.size())
+    if (!result_size.empty())
     {
         auto arr = make_shared<array>();
 
         // Create vars for result array
 
-        for (auto s : size)
+        for (auto s : result_size)
         {
             expr_ptr range = nullptr;
             if (s != array_var::unconstrained)
