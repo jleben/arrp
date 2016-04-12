@@ -6,11 +6,16 @@
 
 #include <isl-cpp/context.hpp>
 #include <unordered_set>
+#include <unordered_map>
+#include <stack>
+#include <deque>
 
 namespace stream {
 namespace functional {
 
 using std::unordered_set;
+using std::unordered_map;
+using std::stack;
 
 class array_reducer
 {
@@ -42,6 +47,9 @@ private:
     int var_count = 0;
 
     unordered_set<id_ptr> m_ids;
+    unordered_map<id_ptr, expr_ptr> m_id_sub;
+    deque<array_var_ptr> m_declared_vars;
+    stack<unordered_set<array_var_ptr>> m_bound_vars;
 };
 
 }

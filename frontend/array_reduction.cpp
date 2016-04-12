@@ -26,11 +26,73 @@ void array_reducer::process(id_ptr id)
     // FIXME: Don't store propagated constants.
 
     bool was_processed = m_ids.find(id) != m_ids.end();
-    if (!was_processed)
+    if (was_processed)
+        return;
+
+    m_ids.insert(id);
+
+    m_bound_vars.emplace();
+
+    id->expr = eta_expand(reduce(id->expr));
+
+    auto & bound_vars = m_bound_vars.top();
+
+    if (!bound_vars.empty())
     {
-        id->expr = eta_expand(reduce(id->expr));
-        m_ids.insert(id);
+        // Upgrade this id's expression to array
+
+        vector<array_var_ptr> ordered_bound_vars;
+
+        for (auto & var : m_declared_vars)
+        {
+            if (bound_vars.find(var) != bound_vars.end())
+            {
+                ordered_bound_vars.push_back(var);
+            }
+        }
+
+        assert(ordered_bound_vars.size() == bound_vars.size());
+
+        m_context.enter_scope();
+
+        vector<array_var_ptr> new_vars;
+
+        for (auto & var : ordered_bound_vars)
+        {
+            assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range) );
+
+            auto new_var = make_shared<array_var>(*var);
+            new_var->location = location_type();
+            new_vars.push_back(new_var);
+
+            auto new_ref = make_shared<reference>(new_var, location_type());
+            m_context.bind(var, new_ref);
+        }
+
+        auto ar = make_shared<array>();
+        ar->vars = new_vars;
+        ar->expr = substitute(id->expr);
+
+        m_context.exit_scope();
+
+        // Reduce to get rid of nested arrays
+        id->expr = reduce(ar);
+
+
+        // Substite for references to this id
+
+        auto sub = make_shared<array_app>();
+        sub->object = make_shared<reference>(id, location_type());
+        for (auto & var : ordered_bound_vars)
+        {
+            auto ref = make_shared<reference>(var, location_type());
+            sub->args.push_back(ref);
+        }
+
+        m_id_sub.emplace(id, sub);
     }
+
+    m_bound_vars.pop();
 }
 
 expr_ptr array_reducer::reduce(expr_ptr expr)
@@ -60,9 +122,20 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
             process(id);
+
             bool is_const = is_constant(id->expr);
             if (is_const)
                 return id->expr;
+
+            // Is there a substitution for references to this id?
+            auto sub_it = m_id_sub.find(id);
+            if (sub_it != m_id_sub.end())
+                return sub_it->second;
+        }
+        else if (auto var = dynamic_pointer_cast<array_var>(ref->var))
+        {
+            assert(!m_bound_vars.empty());
+            m_bound_vars.top().insert(var);
         }
         return ref;
     }
@@ -95,7 +168,13 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         }
     }
 
+    for (auto & var : arr->vars)
+        m_declared_vars.push_back(var);
+
     arr->expr = eta_expand(reduce(arr->expr));
+
+    for (int i = 0; i < (int) arr->vars.size(); ++i)
+        m_declared_vars.pop_back();
 
     if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr))
     {
