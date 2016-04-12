@@ -31,33 +31,36 @@ void array_reducer::process(id_ptr id)
 
     m_ids.insert(id);
 
-    m_bound_vars.emplace();
+    m_declared_vars.push_back(nullptr);
+    m_unbound_vars.emplace();
 
     id->expr = eta_expand(reduce(id->expr));
 
-    auto & bound_vars = m_bound_vars.top();
+    auto & unbound_vars = m_unbound_vars.top();
 
-    if (!bound_vars.empty())
+    if (!unbound_vars.empty())
     {
         // Upgrade this id's expression to array
 
-        vector<array_var_ptr> ordered_bound_vars;
+        vector<array_var_ptr> ordered_unbound_vars;
 
         for (auto & var : m_declared_vars)
         {
-            if (bound_vars.find(var) != bound_vars.end())
+            if (var == nullptr)
+                continue;
+            if (unbound_vars.find(var) != unbound_vars.end())
             {
-                ordered_bound_vars.push_back(var);
+                ordered_unbound_vars.push_back(var);
             }
         }
 
-        assert(ordered_bound_vars.size() == bound_vars.size());
+        assert(ordered_unbound_vars.size() == unbound_vars.size());
 
         m_context.enter_scope();
 
         vector<array_var_ptr> new_vars;
 
-        for (auto & var : ordered_bound_vars)
+        for (auto & var : ordered_unbound_vars)
         {
             assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range) );
 
@@ -83,7 +86,7 @@ void array_reducer::process(id_ptr id)
 
         auto sub = make_shared<array_app>();
         sub->object = make_shared<reference>(id, location_type());
-        for (auto & var : ordered_bound_vars)
+        for (auto & var : ordered_unbound_vars)
         {
             auto ref = make_shared<reference>(var, location_type());
             sub->args.push_back(ref);
@@ -92,7 +95,8 @@ void array_reducer::process(id_ptr id)
         m_id_sub.emplace(id, sub);
     }
 
-    m_bound_vars.pop();
+    m_unbound_vars.pop();
+    m_declared_vars.pop_back();
 }
 
 expr_ptr array_reducer::reduce(expr_ptr expr)
@@ -134,8 +138,22 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
         }
         else if (auto var = dynamic_pointer_cast<array_var>(ref->var))
         {
-            assert(!m_bound_vars.empty());
-            m_bound_vars.top().insert(var);
+            assert(!m_unbound_vars.empty());
+            bool is_bound = false;
+            for (auto v = m_declared_vars.rbegin();
+                 v != m_declared_vars.rend() && *v != nullptr; ++v)
+            {
+                if (*v == var)
+                {
+                    is_bound = true;
+                    break;
+                }
+            }
+
+            if (!is_bound)
+            {
+                m_unbound_vars.top().insert(var);
+            }
         }
         return ref;
     }
