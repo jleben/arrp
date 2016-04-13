@@ -7,13 +7,15 @@ namespace test2_ref {
 
 static const int K = 32;
 
+using fp_type = float;
+
 struct alignas(16) state
 {
-    double in[K];
+    fp_type in[K];
     int phase = 0;
 };
 
-inline void output( double * );
+inline void output( fp_type * );
 
 inline void initialize( state * s )
 {
@@ -27,10 +29,15 @@ inline void process( state * s )
 {
     int ph = s->phase;
 
-    double out = s->in[ph];
-    for(int i = 1; i < K; ++i)
+    fp_type out = s->in[ph];
+    int i, p;
+    for(i = 1, p=ph+1; p < K; ++i, ++p)
     {
-        out += s->in[(ph+i)%K] * i;
+        out += s->in[p] * i;
+    }
+    for(p=0; p < ph; ++i, ++p)
+    {
+        out += s->in[p] * i;
     }
     output(&out);
 
