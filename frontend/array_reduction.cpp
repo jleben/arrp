@@ -86,13 +86,15 @@ void array_reducer::process(id_ptr id)
 
         // Substite for references to this id
 
-        auto sub = make_shared<array_app>();
-        sub->object = make_shared<reference>(id, location_type());
+        expr_ptr sub = make_shared<reference>(id, location_type());
+        sub = eta_expand(sub);
+        vector<expr_ptr> args;
         for (auto & var : ordered_unbound_vars)
         {
             auto ref = make_shared<reference>(var, location_type());
-            sub->args.push_back(ref);
+            args.push_back(ref);
         }
+        sub = apply(sub, args);
 
         m_id_sub.emplace(id, sub);
     }
