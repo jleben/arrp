@@ -287,7 +287,7 @@ inline basic_type_ptr type_for(primitive_type pt)
     case primitive_type::integer:
         return std::make_shared<basic_type>("int");
     case primitive_type::real:
-        return std::make_shared<basic_type>("double");
+        return std::make_shared<basic_type>("float");
     default:
         throw error("Unexpected primitive type.");
     }

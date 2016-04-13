@@ -58,7 +58,7 @@ variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name
     case semantic::type::integer_num:
         return make_shared<variable_decl>(make_shared<basic_type>("int"), name);
     case semantic::type::real_num:
-        return make_shared<variable_decl>(make_shared<basic_type>("double"), name);
+        return make_shared<variable_decl>(make_shared<basic_type>("float"), name);
     case semantic::type::stream:
     {
         auto & stream = t->as<semantic::stream>();
@@ -364,10 +364,10 @@ func_sig_ptr input_func_sig()
     sig->is_inline = true;
     sig->name = "input";
     sig->type = make_shared<basic_type>("void");
-    auto double_t = make_shared<basic_type>("double");
+    auto fp_t = make_shared<basic_type>("float");
     auto int_t = make_shared<basic_type>("int");
     sig->parameters.push_back( decl(int_t,"") );
-    sig->parameters.push_back( decl(pointer(double_t),"") );
+    sig->parameters.push_back( decl(pointer(fp_t),"") );
     return sig;
 }
 
@@ -377,8 +377,8 @@ func_sig_ptr output_func_sig()
     sig->is_inline = true;
     sig->name = "output";
     sig->type = make_shared<basic_type>("void");
-    auto double_t = make_shared<basic_type>("double");
-    sig->parameters.push_back( decl(pointer(double_t),"") );
+    auto fp_t = make_shared<basic_type>("float");
+    sig->parameters.push_back( decl(pointer(fp_t),"") );
     return sig;
 }
 
