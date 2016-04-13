@@ -2,6 +2,8 @@
 #include "linear_expr_gen.hpp"
 #include "prim_reduction.hpp"
 #include "error.hpp"
+#include "../utility/debug.hpp"
+#include "../common/func_model_printer.hpp"
 
 #include <sstream>
 
@@ -97,6 +99,14 @@ void array_reducer::process(id_ptr id)
 
     m_unbound_vars.pop();
     m_declared_vars.pop_back();
+
+    if (verbose<functional::model>::enabled())
+    {
+        cout << "Reduced array: ";
+        printer p;
+        p.print(id, cout);
+        cout << endl;
+    }
 }
 
 expr_ptr array_reducer::reduce(expr_ptr expr)
