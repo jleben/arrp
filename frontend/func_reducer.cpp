@@ -162,7 +162,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             {
                 if (verbose<functional::model>::enabled())
                 {
-                    cout << "Substituting bound var: " << f_var->name << endl;
+                    cout << "Substituting bound var: " << f_var << endl;
                 }
                 // Reduce the substituted value,
                 // to count bound variables.
@@ -172,7 +172,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             {
                 if (verbose<functional::model>::enabled())
                 {
-                    cout << "No substitution for bound var: " << f_var->name << endl;
+                    cout << "No substitution for bound var: " << f_var << endl;
                 }
                 assert(!m_bound_var_count.empty());
                 ++m_bound_var_count.top();

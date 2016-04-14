@@ -27,6 +27,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <memory>
 #include <vector>
 #include <utility>
+#include <iostream>
 
 namespace stream {
 namespace functional {
@@ -50,6 +51,14 @@ public:
 };
 
 typedef std::shared_ptr<var> var_ptr;
+
+inline std::ostream & operator<<(std::ostream & s, const var* v)
+{
+    if (v)
+        s << v->name << ' ';
+    s << '(' << (void*)v << ')';
+    return s;
+}
 
 class expression
 {
