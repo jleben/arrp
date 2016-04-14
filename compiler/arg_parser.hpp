@@ -157,7 +157,8 @@ public:
         return {
             "func-model",
             "mod-avoid",
-            "ph-model"
+            "ph-model",
+            "renaming"
         };
     }
 

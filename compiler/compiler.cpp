@@ -54,6 +54,8 @@ using namespace std;
 namespace stream {
 namespace compiler {
 
+struct renaming {};
+
 void print_help()
 {
     using namespace std;
@@ -129,6 +131,10 @@ result::code compile(const arguments & args)
     if (args.verbose_topics.at("ph-model"))
     {
         verbose<functional::polyhedral_gen>::enabled() = true;
+    }
+    if (args.verbose_topics.at("renaming"))
+    {
+        verbose<renaming>::enabled() = true;
     }
 
     if (args.input_filename.empty())
@@ -254,6 +260,35 @@ result::code compile_source(istream & source, const arguments & args)
                 {
                     cout << id->name << " = " << id->type << endl;
                 }
+            }
+        }
+        {
+            // Rename ids for C++ compatibility
+
+            unordered_set<string> unique_names;
+            vector<char> forbidden = { ':', '.' };
+            for (auto & id : array_ids)
+            {
+                string name = id->name;
+                for (auto & c : name)
+                {
+                    if (std::count(forbidden.begin(), forbidden.end(), c))
+                    {
+                        c = '_';
+                    }
+                }
+
+                int i = 0;
+                string unique_name = name;
+                while (unique_names.find(unique_name) != unique_names.end())
+                {
+                    unique_name = name + to_string(++i);
+                }
+
+                if (verbose<renaming>::enabled())
+                    cout << "Renaming id: " << id->name << " -> " << unique_name << endl;
+
+                id->name = unique_name;
             }
         }
         {
