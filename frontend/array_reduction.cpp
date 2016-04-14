@@ -23,13 +23,11 @@ static bool is_constant(expr_ptr expr)
     return false;
 }
 
-void array_reducer::process(id_ptr id)
+id_ptr array_reducer::process(id_ptr id)
 {
-    // FIXME: Don't store propagated constants.
-
     bool was_processed = m_processed_ids.find(id) != m_processed_ids.end();
     if (was_processed)
-        return;
+        return id;
 
     if (verbose<functional::model>::enabled())
     {
@@ -53,11 +51,7 @@ void array_reducer::process(id_ptr id)
 
     auto & unbound_vars = m_unbound_vars.top();
 
-    if (unbound_vars.empty())
-    {
-        m_final_ids.insert(id);
-    }
-    else
+    if (!unbound_vars.empty())
     {
         // Upgrade this id's expression to array
 
@@ -101,7 +95,6 @@ void array_reducer::process(id_ptr id)
 
         auto expr = reduce(ar);
         auto new_id = make_shared<identifier>(id->name, expr, id->location);
-        m_final_ids.insert(new_id);
 
         // Substite for references to this id
 
@@ -125,11 +118,13 @@ void array_reducer::process(id_ptr id)
             cout << endl;
         }
 
-        m_final_ids.insert(new_id);
+        id = new_id;
     }
 
     m_unbound_vars.pop();
     m_declared_vars.pop_back();
+
+    return id;
 }
 
 expr_ptr array_reducer::reduce(expr_ptr expr)
@@ -158,11 +153,13 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     {
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
-            process(id);
+            auto processed_id = process(id);
 
-            bool is_const = is_constant(id->expr);
+            bool is_const = is_constant(processed_id->expr);
             if (is_const)
-                return id->expr;
+                return processed_id->expr;
+
+            m_final_ids.insert(processed_id);
 
             // Is there a substitution for references to this id?
             auto sub_it = m_id_sub.find(id);

@@ -20,7 +20,7 @@ using std::stack;
 class array_reducer
 {
 public:
-    void process(id_ptr);
+    id_ptr process(id_ptr);
 
     const unordered_set<id_ptr> & ids() const { return m_final_ids; }
 private:

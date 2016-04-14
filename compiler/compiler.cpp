@@ -233,8 +233,9 @@ result::code compile_source(istream & source, const arguments & args)
         }
         {
             functional::array_reducer reducer;
-            reducer.process(id);
+            id = reducer.process(id);
             array_ids = reducer.ids();
+            array_ids.insert(id);
 
             if (verbose<functional::model>::enabled())
             {
@@ -294,7 +295,6 @@ result::code compile_source(istream & source, const arguments & args)
         {
             // Create polyhedral model
 
-            array_ids.insert(id);
             functional::polyhedral_gen gen;
             auto ph_model = gen.process(array_ids);
             gen.add_output(ph_model, "output", id);
