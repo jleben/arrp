@@ -321,6 +321,18 @@ expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
 
         break;
     }
+    case isl_ast_op_zdiv_r:
+    {
+        // "Equal to zero iff the remainder on integer division is zero."
+        expr = binop(op::rem, args[0], args[1]);
+        break;
+    }
+    case isl_ast_op_pdiv_r:
+    {
+        //Remainder of integer division, where dividend is known to be non-negative.
+        expr = binop(op::rem, args[0], args[1]);
+        break;
+    }
     case isl_ast_op_or_else:
         // not implemented
     case isl_ast_op_and_then:
@@ -331,11 +343,6 @@ expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
     case isl_ast_op_pdiv_q:
         // Not implemented
         // Result of integer division, where dividend is known to be non-negative.
-    case isl_ast_op_pdiv_r:
-        //Remainder of integer division, where dividend is known to be non-negative.
-    case isl_ast_op_zdiv_r:
-        // Not implemented
-        // Equal to zero iff the remainder on integer division is zero.
     case isl_ast_op_cond:
         // Not implemented.
     case isl_ast_op_select:
