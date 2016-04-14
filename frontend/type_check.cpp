@@ -8,6 +8,17 @@ using namespace std;
 namespace stream {
 namespace functional {
 
+string text(primitive_op op, const vector<primitive_type> & args)
+{
+    ostringstream text;
+    text << op
+        << " ( ";
+    for (auto & t : args)
+        text << t << " ";
+    text << ")";
+    return text.str();
+}
+
 void type_checker::process(const unordered_set<id_ptr> & ids)
 {
     for (auto & id : ids)
@@ -55,11 +66,18 @@ primitive_type type_checker::process(expr_ptr expr, id_ptr id)
             arg_types.push_back(process(arg, id));
         try {
             type = result_type(op->kind, arg_types);
-        } catch (no_type &) {
-            throw source_error("Invalid argument types.", op->location);
-        } catch (ambiguous_type &) {
-            throw source_error("Ambiguous function resolution.",
-                               op->location);
+        }
+        catch (no_type &)
+        {
+            string msg("Invalid argument types: ");
+            msg += text(op->kind, arg_types);
+            throw source_error(msg, op->location);
+        }
+        catch (ambiguous_type &)
+        {
+            string msg("Ambiguous function resolution:");
+            msg += text(op->kind, arg_types);
+            throw source_error(msg, op->location);
         }
     }
     else if (auto c = dynamic_pointer_cast<case_expr>(expr))
