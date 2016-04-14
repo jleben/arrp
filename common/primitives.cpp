@@ -131,8 +131,10 @@ vector<prim_op_overload> overloads(primitive_op op)
     case primitive_op::logic_or:
         return { { pt::boolean, pt::boolean, pt::boolean } };
     case primitive_op::conditional:
-        return { { pt::boolean, pt::integer, pt::integer, pt::integer } };
-        return { { pt::boolean, pt::real, pt::real, pt::real } };
+        return {
+            { pt::boolean, pt::integer, pt::integer, pt::integer },
+            { pt::boolean, pt::real, pt::real, pt::real }
+        };
     default:
         return {};
     }
@@ -146,6 +148,9 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
     if (candidates.empty())
         throw no_type();
 
+    // If any arg is undefined,
+    // and all overloads return the same type,
+    // then skip type checking and return that type.
     for (auto & arg : args)
     {
         if (arg == type::undefined)
