@@ -273,6 +273,22 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     {
         return make_shared<call_expression>("cos", operands[0]);
     }
+    case primitive_op::tan:
+    {
+        return make_shared<call_expression>("tan", operands[0]);
+    }
+    case primitive_op::asin:
+    {
+        return make_shared<call_expression>("asin", operands[0]);
+    }
+    case primitive_op::acos:
+    {
+        return make_shared<call_expression>("acos", operands[0]);
+    }
+    case primitive_op::atan:
+    {
+        return make_shared<call_expression>("atan", operands[0]);
+    }
     default:
         ostringstream text;
         text << "Unexpected primitive op: " << expr->kind;
