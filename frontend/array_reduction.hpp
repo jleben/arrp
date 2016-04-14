@@ -48,6 +48,7 @@ private:
 
     unordered_set<id_ptr> m_ids;
     unordered_map<id_ptr, expr_ptr> m_id_sub;
+    unordered_map<array_ptr, array_ptr> m_array_ref_sub;
 
     deque<array_var_ptr> m_declared_vars;
     stack<unordered_set<array_var_ptr>> m_unbound_vars;

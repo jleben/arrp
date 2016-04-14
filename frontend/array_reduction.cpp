@@ -31,12 +31,25 @@ void array_reducer::process(id_ptr id)
     if (was_processed)
         return;
 
+    if (verbose<functional::model>::enabled())
+    {
+        cout << "Processing id: " << id->name << endl;
+    }
+
     m_ids.insert(id);
 
     m_declared_vars.push_back(nullptr);
     m_unbound_vars.emplace();
 
     id->expr = eta_expand(reduce(id->expr));
+
+    if (verbose<functional::model>::enabled())
+    {
+        cout << "Processed id: ";
+        printer p;
+        p.print(id, cout);
+        cout << endl;
+    }
 
     auto & unbound_vars = m_unbound_vars.top();
 
@@ -81,12 +94,14 @@ void array_reducer::process(id_ptr id)
         m_context.exit_scope();
 
         // Reduce to get rid of nested arrays
-        id->expr = reduce(ar);
 
+        auto expr = reduce(ar);
+        auto new_id = make_shared<identifier>(id->name + "_", expr, id->location);
+        m_ids.insert(new_id);
 
         // Substite for references to this id
 
-        expr_ptr sub = make_shared<reference>(id, location_type());
+        expr_ptr sub = make_shared<reference>(new_id, location_type());
         sub = eta_expand(sub);
         vector<expr_ptr> args;
         for (auto & var : ordered_unbound_vars)
@@ -97,18 +112,18 @@ void array_reducer::process(id_ptr id)
         sub = apply(sub, args);
 
         m_id_sub.emplace(id, sub);
+
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Processed id: ";
+            printer p;
+            p.print(new_id, cout);
+            cout << endl;
+        }
     }
 
     m_unbound_vars.pop();
     m_declared_vars.pop_back();
-
-    if (verbose<functional::model>::enabled())
-    {
-        cout << "Reduced array: ";
-        printer p;
-        p.print(id, cout);
-        cout << endl;
-    }
 }
 
 expr_ptr array_reducer::reduce(expr_ptr expr)
@@ -165,9 +180,33 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
             if (!is_bound)
             {
                 m_unbound_vars.top().insert(var);
+                if (verbose<functional::model>::enabled())
+                {
+                    cout << "Unbound var: " << var->name << endl;
+                }
             }
         }
         return ref;
+    }
+    else if (auto self = dynamic_pointer_cast<array_self_ref>(expr))
+    {
+        auto sub_it = m_array_ref_sub.find(self->arr);
+        if (sub_it == m_array_ref_sub.end())
+            return expr;
+
+        array_ptr sub = sub_it->second;
+
+        self->arr = sub;
+
+        vector<expr_ptr> args;
+        for (auto & var : sub->vars)
+            args.push_back(make_shared<reference>(var, location_type()));
+
+        auto app = make_shared<array_app>();
+        app->object = self;
+        app->args = args;
+
+        return app;
     }
 
     return expr;
@@ -198,20 +237,45 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         }
     }
 
+    int declared_var_count = m_declared_vars.size();
     for (auto & var : arr->vars)
+    {
         m_declared_vars.push_back(var);
+        if (verbose<functional::model>::enabled())
+            cout << "Declaring var: " << var->name << endl;
+    }
 
     arr->expr = eta_expand(reduce(arr->expr));
 
-    for (int i = 0; i < (int) arr->vars.size(); ++i)
-        m_declared_vars.pop_back();
-
     if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr))
     {
+        // replace array self references
+
+        m_array_ref_sub[nested_arr] = arr;
+
+        reduce(nested_arr);
+        arr->expr = nested_arr->expr;
+
+        m_array_ref_sub.erase(nested_arr);
+
+        // combine array vars
+
         arr->vars.insert(arr->vars.end(),
                          nested_arr->vars.begin(),
                          nested_arr->vars.end());
-        arr->expr = nested_arr->expr;
+    }
+
+    while(m_declared_vars.size() > declared_var_count)
+    {
+        if (verbose<functional::model>::enabled())
+        {
+            auto var = m_declared_vars.back();
+            if (var)
+                cout << "Undeclaring var: " << m_declared_vars.back()->name << endl;
+            else
+                cout << "Undeclaring null!" << endl;
+        }
+        m_declared_vars.pop_back();
     }
 
     return arr;
@@ -235,6 +299,12 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
     {
         arr = arr_self->arr;
         is_self = true;
+    }
+    else if (auto nested_app = dynamic_pointer_cast<array_app>(app->object))
+    {
+        // Despite eta expansion above, this is possible
+        // in case of array self-reference.
+        return apply(nested_app, app->args);
     }
 
     if (!arr)
@@ -565,8 +635,10 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
             return expr;
         }
     }
-
-    return expr;
+    else
+    {
+        throw error("Unexpected object of array application.");
+    }
 }
 
 expr_ptr array_reducer::substitute(expr_ptr expr)
