@@ -189,7 +189,6 @@ private:
             string topic_name;
             while(try_parse_argument(topic_name))
             {
-                parse_argument(topic_name, "topic to print");
                 output_topic topic;
                 if (topic_name == "tokens")
                     topic = tokens_output;
