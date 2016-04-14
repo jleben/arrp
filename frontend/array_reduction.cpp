@@ -27,7 +27,7 @@ void array_reducer::process(id_ptr id)
 {
     // FIXME: Don't store propagated constants.
 
-    bool was_processed = m_ids.find(id) != m_ids.end();
+    bool was_processed = m_processed_ids.find(id) != m_processed_ids.end();
     if (was_processed)
         return;
 
@@ -36,7 +36,7 @@ void array_reducer::process(id_ptr id)
         cout << "Processing id: " << id->name << endl;
     }
 
-    m_ids.insert(id);
+    m_processed_ids.insert(id);
 
     m_declared_vars.push_back(nullptr);
     m_unbound_vars.emplace();
@@ -53,7 +53,11 @@ void array_reducer::process(id_ptr id)
 
     auto & unbound_vars = m_unbound_vars.top();
 
-    if (!unbound_vars.empty())
+    if (unbound_vars.empty())
+    {
+        m_final_ids.insert(id);
+    }
+    else
     {
         // Upgrade this id's expression to array
 
@@ -97,7 +101,7 @@ void array_reducer::process(id_ptr id)
 
         auto expr = reduce(ar);
         auto new_id = make_shared<identifier>(id->name + "_", expr, id->location);
-        m_ids.insert(new_id);
+        m_final_ids.insert(new_id);
 
         // Substite for references to this id
 
@@ -120,6 +124,8 @@ void array_reducer::process(id_ptr id)
             p.print(new_id, cout);
             cout << endl;
         }
+
+        m_final_ids.insert(new_id);
     }
 
     m_unbound_vars.pop();
