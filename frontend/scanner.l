@@ -26,6 +26,7 @@ blank [ \t]
 
 {blank}+   yylloc->step ();
 [\n]+      yylloc->lines (yyleng); yylloc->step ();
+##[^\n]*\n    yylloc->lines (1); yylloc->step ();
 
 \\ { return (parser::token_type) '\\'; }
 \{ { return (parser::token_type) '{'; }
@@ -89,5 +90,6 @@ blank [ \t]
   *yylval = ast::make_id( *yylloc, yytext );
   return parser::token::ID;
 }
+
 
 . { return parser::token::INVALID; }
