@@ -1,0 +1,14 @@
+
+## BROKEN: 'z' is size [5,*] instead of [*,5]
+
+## Perhaps when expanding 'z' for unbound vars,
+## the expansion should happen in the innermost array expression
+## instead of outside?
+## But then it wouldn't work when the unbound var is streaming index.
+
+## Either we should treat streaming index specially and always keep it
+## on the outside, or we should reorder dimensions after all reduction is done.
+
+f(a) = { let z = [t -> t*a]; z };
+
+main = [t -> [k:5 -> f(k)[t]]];
