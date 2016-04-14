@@ -100,7 +100,7 @@ void array_reducer::process(id_ptr id)
         // Reduce to get rid of nested arrays
 
         auto expr = reduce(ar);
-        auto new_id = make_shared<identifier>(id->name + "_", expr, id->location);
+        auto new_id = make_shared<identifier>(id->name, expr, id->location);
         m_final_ids.insert(new_id);
 
         // Substite for references to this id
