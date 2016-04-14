@@ -167,8 +167,8 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
 
     if (my_verbose_out::enabled())
     {
-        cout << "Array domain:" << endl;
-        m_isl_printer.print(domain); cout << endl;
+        cout << "Array domain for " << id << ":" << endl;
+        cout << "    "; m_isl_printer.print(domain); cout << endl;
     }
 
     return arr;
@@ -320,11 +320,25 @@ expr_ptr polyhedral_gen::make_affine_array_reads
     }
     else if (auto ref = dynamic_pointer_cast<reference>(e))
     {
-        auto av = dynamic_pointer_cast<array_var>(ref->var);
-        if (!av)
+        if (auto av = dynamic_pointer_cast<array_var>(ref->var))
+        {
+            int i = sm.index_of(av);
+            return make_shared<ph::iterator_read>(i, ref->location);
+        }
+        else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+        {
+            auto arr = m_arrays.at(id);
+            assert(arr->size.empty());
+
+            polyhedral::affine_matrix matrix(1,1);
+            auto read_expr = make_shared<ph::array_read>(arr, matrix, ref->location);
+            stmt->read_relations.push_back(&read_expr->relation);
+            return read_expr;
+        }
+        else
+        {
             throw error("Unexpected reference type.");
-        int i = sm.index_of(av);
-        return make_shared<ph::iterator_read>(i, ref->location);
+        }
     }
     else if (auto app = dynamic_pointer_cast<array_app>(e))
     {
