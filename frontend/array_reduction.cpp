@@ -23,6 +23,12 @@ static bool is_constant(expr_ptr expr)
     return false;
 }
 
+array_reducer::array_reducer():
+    m_declared_vars("declared var")
+{
+    m_declared_vars.set_enabled(verbose<functional::model>::enabled());
+}
+
 id_ptr array_reducer::process(id_ptr id)
 {
     bool was_processed = m_processed_ids.find(id) != m_processed_ids.end();
@@ -36,7 +42,7 @@ id_ptr array_reducer::process(id_ptr id)
 
     m_processed_ids.insert(id);
 
-    m_declared_vars.push_back(nullptr);
+    m_declared_vars.push(nullptr);
     m_unbound_vars.emplace();
 
     id->expr = eta_expand(reduce(id->expr));
@@ -95,6 +101,7 @@ id_ptr array_reducer::process(id_ptr id)
 
         auto expr = reduce(ar);
         auto new_id = make_shared<identifier>(id->name, expr, id->location);
+        m_processed_ids.insert(new_id);
 
         // Substite for references to this id
 
@@ -122,7 +129,7 @@ id_ptr array_reducer::process(id_ptr id)
     }
 
     m_unbound_vars.pop();
-    m_declared_vars.pop_back();
+    m_declared_vars.pop();
 
     return id;
 }
@@ -151,45 +158,7 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
-        if (auto id = dynamic_pointer_cast<identifier>(ref->var))
-        {
-            auto processed_id = process(id);
-
-            bool is_const = is_constant(processed_id->expr);
-            if (is_const)
-                return processed_id->expr;
-
-            m_final_ids.insert(processed_id);
-
-            // Is there a substitution for references to this id?
-            auto sub_it = m_id_sub.find(id);
-            if (sub_it != m_id_sub.end())
-                return sub_it->second;
-        }
-        else if (auto var = dynamic_pointer_cast<array_var>(ref->var))
-        {
-            assert(!m_unbound_vars.empty());
-            bool is_bound = false;
-            for (auto v = m_declared_vars.rbegin();
-                 v != m_declared_vars.rend() && *v != nullptr; ++v)
-            {
-                if (*v == var)
-                {
-                    is_bound = true;
-                    break;
-                }
-            }
-
-            if (!is_bound)
-            {
-                m_unbound_vars.top().insert(var);
-                if (verbose<functional::model>::enabled())
-                {
-                    cout << "Unbound var: " << var->name << endl;
-                }
-            }
-        }
-        return ref;
+        return reduce(ref);
     }
     else if (auto self = dynamic_pointer_cast<array_self_ref>(expr))
     {
@@ -240,12 +209,11 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         }
     }
 
-    int declared_var_count = m_declared_vars.size();
+    decl_var_stacker declared_vars(m_declared_vars);
+
     for (auto & var : arr->vars)
     {
-        m_declared_vars.push_back(var);
-        if (verbose<functional::model>::enabled())
-            cout << "Declaring var: " << var->name << endl;
+        declared_vars.push(var);
     }
 
     arr->expr = eta_expand(reduce(arr->expr));
@@ -266,19 +234,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         arr->vars.insert(arr->vars.end(),
                          nested_arr->vars.begin(),
                          nested_arr->vars.end());
-    }
-
-    while(m_declared_vars.size() > declared_var_count)
-    {
-        if (verbose<functional::model>::enabled())
-        {
-            auto var = m_declared_vars.back();
-            if (var)
-                cout << "Undeclaring var: " << m_declared_vars.back()->name << endl;
-            else
-                cout << "Undeclaring null!" << endl;
-        }
-        m_declared_vars.pop_back();
     }
 
     return arr;
@@ -454,6 +409,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
         // Create vars for result array
 
+        decl_var_stacker decl_vars(m_declared_vars);
+
         for (auto s : result_size)
         {
             expr_ptr range = nullptr;
@@ -461,6 +418,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
                 range = make_shared<constant<int>>(s);
             auto v = make_shared<array_var>(new_var_name(), range, location_type());
             arr->vars.push_back(v);
+
+            decl_vars.push(v);
         }
 
         // Reduce arrays in operands:
@@ -524,6 +483,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
     {
         auto arr = make_shared<array>();
 
+        decl_var_stacker decl_vars(m_declared_vars);
+
         for (auto s : common_size)
         {
             expr_ptr range = nullptr;
@@ -531,6 +492,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
                 range = make_shared<constant<int>>(s);
             auto v = make_shared<array_var>(new_var_name(), range, location_type());
             arr->vars.push_back(v);
+            decl_vars.push(v);
         }
 
         for (auto & a_case : cexpr->cases)
@@ -557,6 +519,52 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
     }
 
     return cexpr;
+}
+
+expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
+{
+    if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+    {
+        auto processed_id = process(id);
+
+        bool is_const = is_constant(processed_id->expr);
+        if (is_const)
+            return processed_id->expr;
+
+        m_final_ids.insert(processed_id);
+
+        // Is there a substitution for references to this id?
+        auto sub_it = m_id_sub.find(id);
+        if (sub_it != m_id_sub.end())
+        {
+            // Reduce to detect free vars
+            return reduce(sub_it->second);
+        }
+    }
+    else if (auto var = dynamic_pointer_cast<array_var>(ref->var))
+    {
+        assert(!m_unbound_vars.empty());
+        bool is_bound = false;
+        for (auto v = m_declared_vars.rbegin();
+             v != m_declared_vars.rend() && *v != nullptr; ++v)
+        {
+            if (*v == var)
+            {
+                is_bound = true;
+                break;
+            }
+        }
+
+        if (!is_bound)
+        {
+            m_unbound_vars.top().insert(var);
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "Unbound var: " << var->name << endl;
+            }
+        }
+    }
+    return ref;
 }
 
 vector<int> array_reducer::array_size(expr_ptr expr)
@@ -728,7 +736,6 @@ string array_reducer::new_var_name()
     text << "_v" << var_count;
     return text.str();
 }
-
 
 }
 }
