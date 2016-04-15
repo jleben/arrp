@@ -56,11 +56,12 @@ void printer::print(expr_ptr expr, ostream & out)
         out << prim->kind;
 
         out << "(";
+        int count = 0;
         for(auto & operand : prim->operands)
         {
             print(operand, out);
-            if (operand != prim->operands.back())
-                out << ", ";
+            if (++count < prim->operands.size())
+                out << ",";
         }
         out << ")";
     }
