@@ -470,7 +470,7 @@ isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & s)
                                ref->location);
         int dim = s.index_of(avar);
         if (dim < 0)
-            throw source_error("Free variable.", ref->location);
+            throw error("Free variable in affine expression.");
 
         if (s.local_space.is_set_space())
         {
