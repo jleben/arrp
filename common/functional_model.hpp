@@ -55,7 +55,7 @@ typedef std::shared_ptr<var> var_ptr;
 inline std::ostream & operator<<(std::ostream & s, const var* v)
 {
     if (v)
-        s << v->name << ' ';
+        s << "'" << v->name << "' ";
     s << '(' << (void*)v << ')';
     return s;
 }
