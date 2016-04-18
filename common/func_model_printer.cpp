@@ -149,21 +149,18 @@ void printer::print(expr_ptr expr, ostream & out)
         };
         out << " -> ";
         print(func->expr, out);
-        out << "\\";
-    }
-    else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
-    {
-        out << "{";
-        print(scope->expr, out);
-        out << " where ";
-        int i = 0;
-        for(const auto & id : scope->ids)
+        if (func->scope.ids.size())
         {
-            if (i++ > 0)
-                out << "; ";
-            print(id, out);
+            out << " where ";
+            int i = 0;
+            for(const auto & id : func->scope.ids)
+            {
+                if (i++ > 0)
+                    out << ", ";
+                print(id, out);
+            }
         }
-        out << "}";
+        out << "\\";
     }
     else
     {

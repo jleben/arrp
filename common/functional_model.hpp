@@ -28,6 +28,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <vector>
 #include <utility>
 #include <iostream>
+#include <unordered_set>
 
 namespace stream {
 namespace functional {
@@ -36,6 +37,7 @@ struct model; // to control verbose output
 
 using std::vector;
 using std::pair;
+using std::unordered_set;
 typedef parsing::location location_type;
 
 class var
@@ -48,6 +50,7 @@ public:
     virtual ~var() {}
     string name;
     location_type location;
+    int ref_count = 0;
 };
 
 typedef std::shared_ptr<var> var_ptr;
@@ -183,6 +186,13 @@ public:
     array_ptr arr;
 };
 
+class scope
+{
+public:
+    // must preserve order of dependency
+    vector<id_ptr> ids;
+};
+
 class function : public expression
 {
 public:
@@ -190,16 +200,7 @@ public:
     function(const vector<func_var_ptr> & v, expr_ptr e, const location_type & loc):
         expression(loc), vars(v), expr(e) {}
     vector<func_var_ptr> vars;
-    expr_ptr expr;
-};
-
-class expr_scope : public expression
-{
-public:
-    expr_scope() {}
-    expr_scope(const vector<id_ptr> & ids, expr_ptr e, const location_type & loc):
-        expression(loc), ids(ids), expr(e){}
-    vector<id_ptr> ids;
+    functional::scope scope;
     expr_ptr expr;
 };
 

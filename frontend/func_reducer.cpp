@@ -58,8 +58,10 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 }
 
 expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
-                              const location_type & loc)
+                             const location_type & loc)
 {
+    printer p;
+
     if (verbose<functional::model>::enabled())
     {
         cout << "Function application at: " << loc << endl;
@@ -67,27 +69,60 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
     m_trace.push(loc);
 
-    m_bound_var_count.push(0);
+    expr_ptr reduced_expr;
 
-    vector<func_var_ptr> remaining_vars;
+    auto func = dynamic_pointer_cast<function>(expr);
 
-    reduce_context_type::scope_holder scope(m_beta_reduce_context);
-
-    if (args.size())
+    if (func)
     {
-        auto func = dynamic_pointer_cast<function>(expr);
-        if (!func)
-            throw reduction_error
-                (wrong_arg_count_msg(0, args.size()), loc);
-        else if(func->vars.size() < args.size())
+        if(func->vars.size() < args.size())
             throw reduction_error
                 (wrong_arg_count_msg(func->vars.size(), args.size()), loc);
 
+        reduce_context_type::scope_holder scope(m_beta_reduce_context);
+
         for (int i = 0; i < args.size(); ++i)
         {
-            m_beta_reduce_context.bind(func->vars[i], args[i]);
+            auto & var = func->vars[i];
+            auto arg = args[i];
+
+            if (var->ref_count > 1)
+            {
+                auto arg_id_name = new_id_name(var->name);
+                auto arg_id = make_shared<identifier>(arg_id_name, arg, location_type());
+                arg = make_shared<reference>(arg_id, arg->location);
+
+                m_ids.insert(arg_id);
+                if (m_scope_stack.size())
+                {
+                    m_scope_stack.top()->ids.push_back(arg_id);
+                    if (verbose<functional::model>::enabled())
+                    {
+                        cout << "Stored id for multi-ref argument " << var->name
+                             << " into enclosing function scope."
+                             << " (" << m_scope_stack.top() << ")"
+                             << endl;
+                    }
+                }
+                else
+                {
+                    if (verbose<functional::model>::enabled())
+                    {
+                        cout << "No enclosing function scope for id for multi-ref argument "
+                             << var->name
+                             << endl;
+                    }
+                }
+            }
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "+ bound var: " << var << endl;
+            }
+            m_beta_reduce_context.bind(var, arg);
         }
 
+        vector<func_var_ptr> remaining_vars;
         if (func->vars.size() > args.size())
         {
             remaining_vars.insert(remaining_vars.end(),
@@ -95,19 +130,57 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
                         func->vars.end());
         }
 
-        expr = func->expr;
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Pushing scope of applied function:";
+            cout << " (" << &func->scope << ")";
+            cout << endl;
+        }
+
+        m_scope_stack.push(&func->scope);
+
+        reduce(func->scope);
+
+        reduced_expr = reduce(func->expr);
+
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Popping scope of applied function:";
+            cout << " (" << &func->scope << ")";
+            cout << endl;
+        }
+
+        m_scope_stack.pop();
+
+        if (!remaining_vars.empty())
+        {
+            auto new_func = make_shared<function>(remaining_vars, reduced_expr, loc);
+            new_func->scope.ids = func->scope.ids;
+            reduced_expr = new_func;
+        }
+        else
+        {
+            // add ids to enclosing scope, if any
+            if (!m_scope_stack.empty())
+            {
+                auto & parent_ids = m_scope_stack.top()->ids;
+                auto & ids = func->scope.ids;
+                parent_ids.insert(parent_ids.end(), ids.begin(), ids.end());
+            }
+        }
     }
+    else
+    {
+        if (args.size())
+            throw reduction_error
+                (wrong_arg_count_msg(0, args.size()), loc);
 
-    auto reduced_expr = reduce(expr);
-
-    m_bound_var_count.pop();
+        reduced_expr = reduce(expr);
+    };
 
     m_trace.pop();
 
-    if (remaining_vars.size())
-        return make_shared<function>(remaining_vars, reduced_expr, loc);
-    else
-        return reduced_expr;
+    return reduced_expr;
 }
 
 expr_ptr func_reducer::reduce(expr_ptr expr)
@@ -143,14 +216,18 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
                 }
 
                 m_trace.push(ref->location);
+
                 id->expr = reduce(id->expr);
                 m_ids.insert(id);
+
                 m_trace.pop();
             }
 
             // TODO: remember location of reference
             if (auto func = dynamic_pointer_cast<function>(id->expr))
-                return id->expr;
+            {
+                return copy(func);
+            }
             else
                 return ref;
         }
@@ -174,13 +251,9 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
                 {
                     cout << "No substitution for bound var: " << f_var << endl;
                 }
-                assert(!m_bound_var_count.empty());
-                ++m_bound_var_count.top();
                 return ref;
             }
         }
-        // FIXME: count array var references as bounds vars too,
-        // Get rid of such scopes later (in array reduction?).
         else
         {
             return ref;
@@ -213,17 +286,40 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else if (auto func = dynamic_pointer_cast<function>(expr))
     {
-        m_bound_var_count.push(0);
+        printer p;
+
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Pushing scope of reduced function:";
+            cout << " (" << &func->scope << ")";
+            cout << endl;
+        }
+
+        m_scope_stack.push(&func->scope);
+
+        reduce(func->scope);
+
         auto reduced_expr = reduce(func->expr);
-        m_bound_var_count.pop();
+
+        m_scope_stack.pop();
 
         if (auto func2 = dynamic_pointer_cast<function>(reduced_expr))
         {
             func->vars.insert(func->vars.end(), func2->vars.begin(), func2->vars.end());
+            func->scope.ids.insert(func->scope.ids.end(),
+                                   func2->scope.ids.begin(), func2->scope.ids.end());
             reduced_expr = func2->expr;
         }
 
         func->expr = reduced_expr;
+
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Popping scope of reduced function:";
+            cout << " (" << &func->scope << ")";
+            cout << endl;
+        }
+
         return func;
     }
     else if (auto app = dynamic_pointer_cast<func_app>(expr))
@@ -245,52 +341,27 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
         for (auto & arg : app->args)
             reduced_args.push_back(reduce(arg));
 
-        auto func_copy = copy(func);
-        auto reduced_func = apply(func_copy, reduced_args, app->location);
+        auto reduced_func = apply(func, reduced_args, app->location);
         return reduced_func;
-    }
-    else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
-    {
-        vector<id_ptr> remaining_ids;
-
-        for (auto id : scope->ids)
-        {
-            m_bound_var_count.push(0);
-
-            if (verbose<functional::model>::enabled())
-            {
-                cout << "Reducing scope-local id \"" << id->name << "\"" << endl;
-            }
-
-            id->expr = reduce(id->expr);
-
-            if (verbose<functional::model>::enabled())
-            {
-                cout << "Number of bound vars = " << m_bound_var_count.top() << endl;
-            }
-
-            if (m_bound_var_count.top() > 0)
-                remaining_ids.push_back(id);
-
-            m_bound_var_count.pop();
-        }
-
-        auto reduced_expr = reduce(scope->expr);
-
-        if (remaining_ids.empty())
-        {
-            return reduced_expr;
-        }
-        else
-        {
-            scope->ids = remaining_ids;
-            scope->expr = reduced_expr;
-            return scope;
-        }
     }
     else
     {
         return expr;
+    }
+}
+
+void func_reducer::reduce(scope & s)
+{
+    // Create a copy, because the set of ids
+    // might be modified along the way
+    auto ids = s.ids;
+
+    for (auto id : ids)
+    {
+        if (verbose<functional::model>::enabled())
+            cout << "Reducing scope-local id \"" << id->name << "\"" << endl;
+
+        id->expr = reduce(id->expr);
     }
 }
 
@@ -376,8 +447,13 @@ expr_ptr func_reducer::copy(expr_ptr expr)
         if (auto a_var = dynamic_pointer_cast<array_var>(ref->var))
         {
             auto binding = m_copy_context.find(a_var);
-            assert(binding);
-            return make_shared<reference>(binding.value(), ref->location);
+            if (binding)
+                return make_shared<reference>(binding.value(), ref->location);
+            else
+            {
+                cout << "WARNING: Copying: no substitution for array var: " << a_var << endl;
+                return make_shared<reference>(*ref);
+            }
         }
         else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
         {
@@ -425,6 +501,15 @@ expr_ptr func_reducer::copy(expr_ptr expr)
             m_copy_context.bind(var, new_var);
         }
 
+        for(auto & id : func->scope.ids)
+        {
+            auto new_expr = copy(id->expr);
+            auto new_name = new_id_name(id->name);
+            auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
+            new_func->scope.ids.push_back(new_id);
+            m_copy_context.bind(id, new_id);
+        }
+
         new_func->expr = copy(func->expr);
 
         return new_func;
@@ -437,23 +522,6 @@ expr_ptr func_reducer::copy(expr_ptr expr)
         for (auto & arg : app->args)
             new_app->args.push_back( copy(arg) );
         return new_app;
-    }
-    else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
-    {
-        copy_context_type::scope_holder scope_scope(m_copy_context);
-
-        auto new_scope = make_shared<expr_scope>();
-        new_scope->location = scope->location;
-        for(auto & id : scope->ids)
-        {
-            auto new_expr = copy(id->expr);
-            auto new_name = new_id_name(id->name);
-            auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
-            new_scope->ids.push_back(new_id);
-            m_copy_context.bind(id, new_id);
-        }
-        new_scope->expr = copy(scope->expr);
-        return new_scope;
     }
     else
     {
@@ -476,12 +544,22 @@ expr_ptr func_reducer::no_function(expr_ptr expr, const location_type & loc)
     return expr;
 }
 
-string func_reducer::new_id_name(const string & base)
+string func_reducer::new_id_name(const string & name)
 {
+    string base;
+
+    char separator = '.';
+    int sep_pos = name.find(separator);
+    if (sep_pos == string::npos)
+        base = name;
+    else
+        base = name.substr(0, sep_pos);
+
     int & count = id_counts[base];
     ++count;
+
     ostringstream text;
-    text << base << ':' << count;
+    text << base << separator << count;
     return text.str();
 }
 

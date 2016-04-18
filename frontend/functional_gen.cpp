@@ -36,7 +36,8 @@ generator::generate(ast::node_ptr ast)
         throw source_error("Invalid AST root.", ast->location);
     }
 
-    vector<id_ptr> ids;
+    functional::scope func_scope;
+    m_func_scope_stack.push(&func_scope);
 
     {
         context_type::scope_holder scope(m_context);
@@ -44,11 +45,13 @@ generator::generate(ast::node_ptr ast)
         auto stmt_list = ast->as_list();
         for (auto & stmt : stmt_list->elements)
         {
-            auto id = do_stmt(stmt);
-            ids.push_back(id);
+            do_stmt(stmt);
         }
     }
 
+    m_func_scope_stack.pop();
+
+    vector<id_ptr> ids(func_scope.ids.begin(), func_scope.ids.end());
     return ids;
 }
 
@@ -70,7 +73,14 @@ id_ptr generator::do_stmt(ast::node_ptr root)
         }
     }
 
-    vector<id_ptr> local_ids;
+    shared_ptr<function> func;
+
+    if (!params.empty())
+    {
+        func = make_shared<function>(params, nullptr, root->location);
+        m_func_scope_stack.push(&func->scope);
+    }
+
     expr_ptr expr;
 
     {
@@ -85,17 +95,14 @@ id_ptr generator::do_stmt(ast::node_ptr root)
             }
         }
 
-        expr = do_block(block, local_ids);
+        expr = do_block(block);
     }
 
-    if (!local_ids.empty())
+    if (func)
     {
-        expr = make_shared<expr_scope>(local_ids, expr, block->location);
-    }
-
-    if (!params.empty())
-    {
-        expr = make_shared<function>(params, expr, root->location);
+        m_func_scope_stack.pop();
+        func->expr = expr;
+        expr = func;
     }
 
     auto id = make_shared<identifier>(name, expr, name_node->location);
@@ -106,10 +113,13 @@ id_ptr generator::do_stmt(ast::node_ptr root)
         throw source_error(e.what(), name_node->location);
     }
 
+    assert(!m_func_scope_stack.empty());
+    m_func_scope_stack.top()->ids.push_back(id);
+
     return id;
 }
 
-expr_ptr generator::do_block(ast::node_ptr root, vector<id_ptr> & local_ids)
+expr_ptr generator::do_block(ast::node_ptr root)
 {
     auto stmts_node = root->as_list()->elements[0];
     auto expr_node = root->as_list()->elements[1];
@@ -118,7 +128,7 @@ expr_ptr generator::do_block(ast::node_ptr root, vector<id_ptr> & local_ids)
     {
         for (auto & stmt : stmts_node->as_list()->elements)
         {
-            local_ids.push_back( do_stmt(stmt) );
+            do_stmt(stmt);
         }
     }
 
@@ -147,6 +157,7 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         if (!item)
             throw source_error("Undefined name.", root->location);
         auto var = item.value();
+        ++var->ref_count;
         return make_shared<reference>(var, root->location);
     }
     case ast::array_self_ref:

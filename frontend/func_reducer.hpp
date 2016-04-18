@@ -2,6 +2,7 @@
 #define STREAM_LANG_FUNCTION_REDUCER_INCLUDED
 
 #include "../common/functional_model.hpp"
+#include "../common/func_model_visitor.hpp"
 #include "../utility/context.hpp"
 #include "error.hpp"
 
@@ -40,6 +41,7 @@ public:
 
 private:
     expr_ptr reduce(expr_ptr);
+    void reduce(scope & s);
     expr_ptr copy(expr_ptr);
     expr_ptr no_function(expr_ptr);
     expr_ptr no_function(expr_ptr, const location_type &);
@@ -55,8 +57,9 @@ private:
 
     copy_context_type m_copy_context;
 
+    stack<scope*> m_scope_stack;
+
     reduce_context_type m_beta_reduce_context;
-    stack<int> m_bound_var_count;
 
     stack<location_type> m_trace;
     stack<array_ptr> m_array_copy_stack;

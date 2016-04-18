@@ -48,7 +48,7 @@ private:
 
 private:
     id_ptr do_stmt(ast::node_ptr);
-    expr_ptr do_block(ast::node_ptr, vector<id_ptr> & local_vars);
+    expr_ptr do_block(ast::node_ptr);
     expr_ptr do_expr(ast::node_ptr);
     expr_ptr do_primitive(ast::node_ptr);
     expr_ptr do_case_expr(ast::node_ptr);
@@ -57,6 +57,7 @@ private:
     expr_ptr do_func_apply(ast::node_ptr);
 
     stack<array_ptr> m_array_stack;
+    stack<scope*> m_func_scope_stack;
     static unordered_map<string, primitive_op> m_prim_ops;
 };
 
