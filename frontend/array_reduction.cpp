@@ -23,21 +23,32 @@ static bool is_constant(expr_ptr expr)
     return false;
 }
 
-array_reducer::array_reducer():
-    m_declared_vars("declared var")
+array_reducer::array_reducer(name_provider & nmp):
+    m_declared_vars("declared var"),
+    m_name_provider(nmp),
+    m_copier(m_processed_ids, nmp)
 {
     m_declared_vars.set_enabled(verbose<functional::model>::enabled());
+
+    m_printer.set_print_scopes(false);
+    m_printer.set_print_var_address(true);
 }
 
 id_ptr array_reducer::process(id_ptr id)
 {
+    printer p;
+    p.set_print_scopes(false);
+    p.set_print_var_address(true);
+
     bool was_processed = m_processed_ids.find(id) != m_processed_ids.end();
     if (was_processed)
         return id;
 
     if (verbose<functional::model>::enabled())
     {
-        cout << "Processing id: " << id->name << endl;
+        cout << "Processing id: ";
+        p.print(id, cout);
+        cout << endl;
     }
 
     m_processed_ids.insert(id);
@@ -50,7 +61,6 @@ id_ptr array_reducer::process(id_ptr id)
     if (verbose<functional::model>::enabled())
     {
         cout << "Processed id: ";
-        printer p;
         p.print(id, cout);
         cout << endl;
     }
@@ -69,6 +79,9 @@ id_ptr array_reducer::process(id_ptr id)
                 continue;
             if (unbound_vars.find(var) != unbound_vars.end())
             {
+                if (verbose<functional::model>::enabled())
+                    cout << "Id had free var: " << var << endl;
+
                 ordered_unbound_vars.push_back(var);
             }
         }
@@ -100,10 +113,14 @@ id_ptr array_reducer::process(id_ptr id)
         // Reduce to get rid of nested arrays
 
         auto expr = reduce(ar);
-        auto new_id = make_shared<identifier>(id->name, expr, id->location);
+        auto new_id_name = m_name_provider.new_name(id->name);
+        auto new_id = make_shared<identifier>(new_id_name, expr, id->location);
         m_processed_ids.insert(new_id);
 
         // Substite for references to this id
+
+        if (verbose<functional::model>::enabled())
+            cout << "Creating substitute for id: " << id << endl;
 
         expr_ptr sub = make_shared<reference>(new_id, location_type());
         sub = eta_expand(sub);
@@ -112,6 +129,8 @@ id_ptr array_reducer::process(id_ptr id)
         {
             auto ref = make_shared<reference>(var, location_type());
             args.push_back(ref);
+            if (verbose<functional::model>::enabled())
+                cout << "Adding var to substitute: " << var << endl;
         }
         sub = apply(sub, args);
 
@@ -120,9 +139,9 @@ id_ptr array_reducer::process(id_ptr id)
         if (verbose<functional::model>::enabled())
         {
             cout << "Processed id: ";
-            printer p;
             p.print(new_id, cout);
             cout << endl;
+            cout << "Substitute = "; p.print(sub, cout); cout << endl;
         }
 
         id = new_id;
@@ -136,13 +155,17 @@ id_ptr array_reducer::process(id_ptr id)
 
 expr_ptr array_reducer::reduce(expr_ptr expr)
 {
+    printer p;
     if (auto arr = dynamic_pointer_cast<array>(expr))
     {
         return reduce(arr);
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
-        return reduce(app);
+        //cout << "++ app: "; p.print(app, cout); cout << endl;
+        auto r = reduce(app);
+        //cout << "-- app: "; p.print(r, cout); cout << endl;
+        return r;
     }
     else if (auto as = dynamic_pointer_cast<functional::array_size>(expr))
     {
@@ -150,11 +173,17 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
-        return reduce(op);
+        //cout << "++ primitive: "; p.print(op, cout); cout << endl;
+        auto r = reduce(op);
+        //cout << "-- primitive: "; p.print(r, cout); cout << endl;
+        return r;
     }
     else if (auto c = dynamic_pointer_cast<case_expr>(expr))
     {
-        return reduce(c);
+        //cout << "++ case: "; p.print(c, cout); cout << endl;
+        auto r = reduce(c);
+        //cout << "-- case: "; p.print(r, cout); cout << endl;
+        return r;
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
@@ -316,6 +345,9 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
         {
             if (bound != array_var::unconstrained)
             {
+                printer p;
+                cout << "Unbounded argument: ";
+                p.print(arg, cout); cout << endl;
                 throw source_error("Unbounded argument to"
                                    " bounded array dimension.",
                                    arg->location);
@@ -537,8 +569,17 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
         auto sub_it = m_id_sub.find(id);
         if (sub_it != m_id_sub.end())
         {
+            auto sub = m_copier.copy(sub_it->second);
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "Substituting expanded id: "
+                     << id << " -> "; m_printer.print(sub, cout);
+                cout << endl;
+            }
+
             // Reduce to detect free vars
-            return reduce(sub_it->second);
+            return reduce(sub);
         }
     }
     else if (auto var = dynamic_pointer_cast<array_var>(ref->var))
@@ -560,7 +601,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
             m_unbound_vars.top().insert(var);
             if (verbose<functional::model>::enabled())
             {
-                cout << "Unbound var: " << var->name << endl;
+                cout << "Free var: " << var << endl;
             }
         }
     }
@@ -616,14 +657,16 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
     {
         assert(arr->vars.size() >= args.size());
 
-        context_type::scope_holder scope(m_context);
-
-        for (int i = 0; i < args.size(); ++i)
         {
-            m_context.bind(arr->vars[i], args[i]);
-        }
+            context_type::scope_holder scope(m_context);
 
-        auto expr = substitute(arr->expr);
+            for (int i = 0; i < args.size(); ++i)
+            {
+                m_context.bind(arr->vars[i], args[i]);
+            }
+
+            expr = substitute(arr->expr);
+        }
 
         // Reduce primitive ops
         if (auto prim = dynamic_pointer_cast<primitive>(expr))
@@ -654,13 +697,30 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
 
 expr_ptr array_reducer::substitute(expr_ptr expr)
 {
+    printer p;
+    p.set_print_scopes(false);
+    p.set_print_var_address(true);
+
     if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
         {
             auto binding = m_context.find(avar);
             if (binding)
+            {
+                if (verbose<functional::model>::enabled())
+                {
+                    cout << "Substituting array var " << avar << " with ";
+                    p.print(binding.value(), cout);
+                    cout << endl;
+                }
+
                 return binding.value();
+            }
+            else if (verbose<functional::model>::enabled())
+            {
+                cout << "No substitution for array var " << avar << endl;
+            }
         }
         return ref;
     }

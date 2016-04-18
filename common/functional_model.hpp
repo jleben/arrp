@@ -74,6 +74,24 @@ public:
 };
 typedef std::shared_ptr<expression> expr_ptr;
 
+class identifier : public var
+{
+public:
+    identifier(const string & name, expr_ptr e, const location_type & loc):
+        var(name,loc), expr(e) {}
+    expr_ptr expr;
+    primitive_type type = primitive_type::undefined; // FIXME: Could be more elegant?
+};
+typedef std::shared_ptr<identifier> id_ptr;
+
+class scope
+{
+public:
+    // must preserve order of dependency
+    vector<id_ptr> ids;
+};
+
+
 template <typename T>
 class constant : public expression
 {
@@ -121,6 +139,7 @@ typedef std::shared_ptr<array_var> array_var_ptr;
 class array : public expression
 {
 public:
+    functional::scope scope;
     vector<array_var_ptr> vars;
     expr_ptr expr;
     bool is_recursive = false;
@@ -159,17 +178,6 @@ public:
 };
 typedef std::shared_ptr<func_var> func_var_ptr;
 
-class identifier : public var
-{
-public:
-    identifier(const string & name, expr_ptr e, const location_type & loc):
-        var(name,loc), expr(e) {}
-    expr_ptr expr;
-    primitive_type type = primitive_type::undefined; // FIXME: Could be more elegant?
-};
-typedef std::shared_ptr<identifier> id_ptr;
-
-
 class reference : public expression
 {
 public:
@@ -184,13 +192,6 @@ public:
     array_self_ref(array_ptr arr, const location_type & loc):
         expression(loc), arr(arr) {}
     array_ptr arr;
-};
-
-class scope
-{
-public:
-    // must preserve order of dependency
-    vector<id_ptr> ids;
 };
 
 class function : public expression

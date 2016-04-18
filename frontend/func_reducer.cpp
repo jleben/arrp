@@ -23,6 +23,11 @@ string wrong_arg_count_msg(int required, int actual)
     return text.str();
 }
 
+func_reducer::func_reducer(name_provider & nmp):
+    m_name_provider(nmp),
+    m_copier(m_ids, nmp)
+{}
+
 id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 {
     if (m_ids.find(id) == m_ids.end())
@@ -43,8 +48,8 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
             cout << "Applying args to id " << id->name << endl;
         }
 
-        auto new_name = new_id_name(id->name);
-        auto new_expr = copy(id->expr);
+        auto new_name = m_name_provider.new_name(id->name);
+        auto new_expr = m_copier.copy(id->expr);
         auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
 
         new_id->expr = apply(new_id->expr, args, location_type());
@@ -88,7 +93,7 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
             if (var->ref_count > 1)
             {
-                auto arg_id_name = new_id_name(var->name);
+                auto arg_id_name = m_name_provider.new_name(var->name);
                 auto arg_id = make_shared<identifier>(arg_id_name, arg, location_type());
                 arg = make_shared<reference>(arg_id, arg->location);
 
@@ -226,7 +231,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             // TODO: remember location of reference
             if (auto func = dynamic_pointer_cast<function>(id->expr))
             {
-                return copy(func);
+                return m_copier.copy(func);
             }
             else
                 return ref;
@@ -266,7 +271,15 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             if (var->range)
                 var->range = no_function(reduce(var->range), var->range->location);
         }
+
+        m_scope_stack.push(&arr->scope);
+
+        reduce(arr->scope);
+
         arr->expr = no_function(reduce(arr->expr), arr->expr->location);
+
+        m_scope_stack.pop();
+
         return arr;
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
@@ -365,170 +378,6 @@ void func_reducer::reduce(scope & s)
     }
 }
 
-expr_ptr func_reducer::copy(expr_ptr expr)
-{
-    if (auto i = dynamic_pointer_cast<constant<int>>(expr))
-    {
-        return make_shared<constant<int>>(*i);
-    }
-    else if (auto d = dynamic_pointer_cast<constant<double>>(expr))
-    {
-        return make_shared<constant<double>>(*d);
-    }
-    else if (auto b = dynamic_pointer_cast<constant<bool>>(expr))
-    {
-        return make_shared<constant<bool>>(*b);
-    }
-    else if (auto op = dynamic_pointer_cast<primitive>(expr))
-    {
-        auto new_op = make_shared<primitive>();
-        new_op->location = op->location;
-        new_op->type = op->type;
-        new_op->kind = op->kind;
-        for (auto & operand : op->operands)
-            new_op->operands.push_back(copy(operand));
-        return new_op;
-    }
-    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
-    {
-        auto result = make_shared<case_expr>();
-        result->location = c->location;
-        for (auto & a_case : c->cases)
-        {
-            result->cases.emplace_back
-                    (copy(a_case.first), copy(a_case.second));
-        }
-        return result;
-    }
-    else if (auto arr = dynamic_pointer_cast<array>(expr))
-    {
-        auto new_arr = make_shared<array>();
-        new_arr->location = arr->location;
-
-        stacker<array_ptr> stackit(new_arr, m_array_copy_stack);
-
-        copy_context_type::scope_holder scope(m_copy_context);
-
-        for (auto & var : arr->vars)
-        {
-            expr_ptr new_range;
-            if (var->range)
-                new_range = copy(var->range);
-            auto new_var = make_shared<array_var>(var->name, new_range, var->location);
-            new_arr->vars.push_back(new_var);
-            m_copy_context.bind(var, new_var);
-        }
-
-        new_arr->expr = copy(arr->expr);
-
-        return new_arr;
-    }
-    else if (auto app = dynamic_pointer_cast<array_app>(expr))
-    {
-        auto new_app = make_shared<array_app>();
-        new_app->location = app->location;
-        new_app->object = copy(app->object);
-        for (auto & arg : app->args)
-            new_app->args.push_back(copy(arg));
-        return new_app;
-    }
-    else if (auto as = dynamic_pointer_cast<array_size>(expr))
-    {
-        auto new_as = make_shared<array_size>();
-        new_as->location = as->location;
-        new_as->object = copy(as->object);
-        auto &dim = as->dimension;
-        if (dim)
-            new_as->dimension = copy(dim);
-        return new_as;
-    }
-    else if (auto ref = dynamic_pointer_cast<reference>(expr))
-    {
-        if (auto a_var = dynamic_pointer_cast<array_var>(ref->var))
-        {
-            auto binding = m_copy_context.find(a_var);
-            if (binding)
-                return make_shared<reference>(binding.value(), ref->location);
-            else
-            {
-                cout << "WARNING: Copying: no substitution for array var: " << a_var << endl;
-                return make_shared<reference>(*ref);
-            }
-        }
-        else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
-        {
-            auto binding = m_copy_context.find(f_var);
-            if (binding)
-                return make_shared<reference>(binding.value(), ref->location);
-            else
-                return make_shared<reference>(*ref);
-        }
-        else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
-        {
-            auto binding = m_copy_context.find(id);
-            if (binding)
-            {
-                auto bound_id = dynamic_pointer_cast<identifier>(binding.value());
-                assert(bound_id);
-                m_ids.insert(bound_id);
-                return make_shared<reference>(bound_id, ref->location);
-            }
-            else
-                return make_shared<reference>(*ref);
-        }
-        else
-        {
-            throw error("Unexpected reference type.");
-        }
-    }
-    else if (auto r = dynamic_pointer_cast<array_self_ref>(expr))
-    {
-        assert(!m_array_copy_stack.empty());
-        auto arr = m_array_copy_stack.top();
-        return make_shared<array_self_ref>(arr, r->location);
-    }
-    else if (auto func = dynamic_pointer_cast<function>(expr))
-    {
-        auto new_func = make_shared<function>();
-        new_func->location = func->location;
-
-        copy_context_type::scope_holder scope(m_copy_context);
-
-        for (auto & var : func->vars)
-        {
-            auto new_var = make_shared<func_var>(*var);
-            new_func->vars.push_back(new_var);
-            m_copy_context.bind(var, new_var);
-        }
-
-        for(auto & id : func->scope.ids)
-        {
-            auto new_expr = copy(id->expr);
-            auto new_name = new_id_name(id->name);
-            auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
-            new_func->scope.ids.push_back(new_id);
-            m_copy_context.bind(id, new_id);
-        }
-
-        new_func->expr = copy(func->expr);
-
-        return new_func;
-    }
-    else if (auto app = dynamic_pointer_cast<func_app>(expr))
-    {
-        auto new_app = make_shared<func_app>();
-        new_app->location = app->location;
-        new_app->object = copy(app->object);
-        for (auto & arg : app->args)
-            new_app->args.push_back( copy(arg) );
-        return new_app;
-    }
-    else
-    {
-        throw reduction_error("Unexpected expression type.", expr->location);
-    }
-}
-
 expr_ptr func_reducer::no_function(expr_ptr expr)
 {
     return no_function(expr, expr->location);
@@ -542,25 +391,6 @@ expr_ptr func_reducer::no_function(expr_ptr expr, const location_type & loc)
         throw reduction_error("An abstraction is not allowed here.", loc);
 #endif
     return expr;
-}
-
-string func_reducer::new_id_name(const string & name)
-{
-    string base;
-
-    char separator = '.';
-    int sep_pos = name.find(separator);
-    if (sep_pos == string::npos)
-        base = name;
-    else
-        base = name.substr(0, sep_pos);
-
-    int & count = id_counts[base];
-    ++count;
-
-    ostringstream text;
-    text << base << separator << count;
-    return text.str();
 }
 
 }

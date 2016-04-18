@@ -212,8 +212,10 @@ result::code compile_source(istream & source, const arguments & args)
 
         unordered_set<functional::id_ptr> array_ids;
 
+        functional::name_provider func_name_provider('.');
+
         {
-            functional::func_reducer reducer;
+            functional::func_reducer reducer(func_name_provider);
             id = reducer.reduce(id, {});
             array_ids = reducer.ids();
 
@@ -232,7 +234,7 @@ result::code compile_source(istream & source, const arguments & args)
             }
         }
         {
-            functional::array_reducer reducer;
+            functional::array_reducer reducer(func_name_provider);
             id = reducer.process(id);
             array_ids = reducer.ids();
             array_ids.insert(id);

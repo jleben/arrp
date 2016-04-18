@@ -4,6 +4,9 @@
 #include "../common/functional_model.hpp"
 #include "../utility/context.hpp"
 #include "../utility/stacker.hpp"
+#include "../common/func_model_printer.hpp"
+#include "func_copy.hpp"
+#include "name_provider.hpp"
 
 #include <isl-cpp/context.hpp>
 #include <unordered_set>
@@ -21,7 +24,7 @@ using std::stack;
 class array_reducer
 {
 public:
-    array_reducer();
+    array_reducer(name_provider &);
 
     id_ptr process(id_ptr);
 
@@ -61,6 +64,12 @@ private:
     decl_var_stack m_declared_vars;
 
     stack<unordered_set<array_var_ptr>> m_unbound_vars;
+
+    name_provider m_name_provider;
+
+    copier m_copier;
+
+    printer m_printer;
 };
 
 }

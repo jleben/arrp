@@ -5,6 +5,8 @@
 #include "../common/func_model_visitor.hpp"
 #include "../utility/context.hpp"
 #include "error.hpp"
+#include "name_provider.hpp"
+#include "func_copy.hpp"
 
 #include <stack>
 #include <unordered_set>
@@ -32,6 +34,8 @@ class func_reducer
     // outside the array to which the var belongs.
 
 public:
+    func_reducer(name_provider &);
+
     id_ptr reduce(id_ptr, const vector<expr_ptr> & args);
 
     expr_ptr apply(expr_ptr, const vector<expr_ptr> & args,
@@ -42,7 +46,6 @@ public:
 private:
     expr_ptr reduce(expr_ptr);
     void reduce(scope & s);
-    expr_ptr copy(expr_ptr);
     expr_ptr no_function(expr_ptr);
     expr_ptr no_function(expr_ptr, const location_type &);
     func_reduce_error
@@ -66,8 +69,8 @@ private:
 
     unordered_set<id_ptr> m_ids;
 
-    string new_id_name(const string & base);
-    unordered_map<string,int> id_counts;
+    name_provider & m_name_provider;
+    copier m_copier;
 };
 
 }

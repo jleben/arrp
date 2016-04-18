@@ -46,6 +46,8 @@ public:
     void print(const linexpr & expr, ostream &);
     void indent() { ++level; }
     void unindent() { --level; }
+    void set_print_scopes(bool enabled) { m_print_scopes = enabled; }
+    void set_print_var_address(bool enabled) { m_print_var_address = enabled; }
 
 private:
     string name(const var_ptr & var)
@@ -81,6 +83,9 @@ private:
     int level = 0;
     unordered_map<func_var_ptr, string> func_var_names;
     unordered_map<array_var_ptr, string> array_var_names;
+
+    bool m_print_scopes = true;
+    bool m_print_var_address = false;
 };
 
 }

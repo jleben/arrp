@@ -45,7 +45,10 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
-        out << name(ref->var);
+        if (m_print_var_address)
+            out << ref->var;
+        else
+            out << name(ref->var);
     }
     else if (auto aref = dynamic_pointer_cast<array_self_ref>(expr))
     {
@@ -99,6 +102,17 @@ void printer::print(expr_ptr expr, ostream & out)
         }
         out << " -> ";
         print(ar->expr, out);
+        if (m_print_scopes && ar->scope.ids.size())
+        {
+            out << " where ";
+            int i = 0;
+            for(const auto & id : ar->scope.ids)
+            {
+                if (i++ > 0)
+                    out << ", ";
+                print(id, out);
+            }
+        }
         out << "]";
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
@@ -149,7 +163,7 @@ void printer::print(expr_ptr expr, ostream & out)
         };
         out << " -> ";
         print(func->expr, out);
-        if (func->scope.ids.size())
+        if (m_print_scopes && func->scope.ids.size())
         {
             out << " where ";
             int i = 0;
