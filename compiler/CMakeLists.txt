@@ -26,6 +26,7 @@ add_library(streamc-lib ${lib_mode}
   ../frontend/func_reducer.cpp
   ../frontend/linear_expr_gen.cpp
   ../frontend/array_reduction.cpp
+  ../frontend/array_transpose.cpp
   ../frontend/type_check.cpp
   ../frontend/ph_model_gen.cpp
   ../polyhedral/scheduling.cpp

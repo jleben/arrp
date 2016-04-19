@@ -156,6 +156,7 @@ public:
     {
         return {
             "func-model",
+            "array-transpose",
             "mod-avoid",
             "ph-model",
             "renaming"

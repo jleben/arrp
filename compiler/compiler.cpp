@@ -28,6 +28,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/func_reducer.hpp"
 #include "../frontend/array_reduction.hpp"
+#include "../frontend/array_transpose.hpp"
 #include "../frontend/type_check.hpp"
 #include "../frontend/ph_model_gen.hpp"
 #include "../polyhedral/scheduling.hpp"
@@ -123,6 +124,10 @@ result::code compile(const arguments & args)
     if (args.verbose_topics.at("func-model"))
     {
         verbose<functional::model>::enabled() = true;
+    }
+    if (args.verbose_topics.at("array-transpose"))
+    {
+        verbose<functional::array_transposer>::enabled() = true;
     }
     if (args.verbose_topics.at("mod-avoid"))
     {
@@ -251,6 +256,20 @@ result::code compile_source(istream & source, const arguments & args)
                 cout << "-->" << endl;
                 printer.print(id, cout);
                 cout << endl;
+            }
+        }
+        {
+            functional::array_transposer transposer;
+            transposer.process(array_ids);
+            if (verbose<functional::array_transposer>::enabled())
+            {
+                cout << "-- Transposed arrays:" << endl;
+                functional::printer printer;
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
             }
         }
         {
