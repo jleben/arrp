@@ -71,12 +71,6 @@ public:
         {
             return visit_func(func);
         }
-#if 0
-        else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
-        {
-            visit(scope);
-        }
-#endif
         else
         {
             throw error("Unexpected expression type");
@@ -158,12 +152,6 @@ public:
         {
             visit_func(func);
         }
-#if 0
-        else if (auto scope = dynamic_pointer_cast<expr_scope>(expr))
-        {
-            visit(scope);
-        }
-#endif
         else
         {
             throw error("Unexpected expression type");
