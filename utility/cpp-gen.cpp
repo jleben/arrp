@@ -501,7 +501,7 @@ void if_statement::generate(cpp_gen::state & state, ostream & stream)
         state.new_line(stream);
         stream  << "else";
 
-        if (!dynamic_pointer_cast<block_statement>(true_part))
+        if (!dynamic_pointer_cast<block_statement>(false_part))
         {
             state.increase_indentation();
             state.new_line(stream);
