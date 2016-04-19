@@ -80,7 +80,7 @@ id_ptr array_reducer::process(id_ptr id)
             if (unbound_vars.find(var) != unbound_vars.end())
             {
                 if (verbose<functional::model>::enabled())
-                    cout << "Id had free var: " << var << endl;
+                    cout << "Id has free var: " << var << endl;
 
                 ordered_unbound_vars.push_back(var);
             }
@@ -138,9 +138,9 @@ id_ptr array_reducer::process(id_ptr id)
 
         if (verbose<functional::model>::enabled())
         {
-            cout << "Processed id: ";
-            p.print(new_id, cout);
-            cout << endl;
+            cout << "Expanded id " << id << " to ";
+            p.print(new_id, cout); cout << endl;
+
             cout << "Substitute = "; p.print(sub, cout); cout << endl;
         }
 
@@ -557,13 +557,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
 {
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
-        auto processed_id = process(id);
-
-        bool is_const = is_constant(processed_id->expr);
-        if (is_const)
-            return processed_id->expr;
-
-        m_final_ids.insert(processed_id);
+        process(id);
 
         // Is there a substitution for references to this id?
         auto sub_it = m_id_sub.find(id);
@@ -581,6 +575,16 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
             // Reduce to detect free vars
             return reduce(sub);
         }
+
+        bool is_const = is_constant(id->expr);
+        if (is_const)
+            return id->expr;
+
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Storing final id: " << id << endl;
+        }
+        m_final_ids.insert(id);
     }
     else if (auto var = dynamic_pointer_cast<array_var>(ref->var))
     {
