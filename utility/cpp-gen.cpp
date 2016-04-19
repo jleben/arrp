@@ -465,7 +465,6 @@ void block_statement::generate(cpp_gen::state & state, ostream & stream)
     {
         state.new_line(stream);
         stmt->generate(state, stream);
-        stream << ";";
     }
     state.decrease_indentation();
     state.new_line(stream);
@@ -475,6 +474,7 @@ void block_statement::generate(cpp_gen::state & state, ostream & stream)
 void expr_statement::generate(cpp_gen::state & state, ostream & stream)
 {
     expr->generate(state, stream);
+    stream << ";";
 }
 
 void if_statement::generate(cpp_gen::state & state, ostream & stream)
@@ -547,6 +547,7 @@ void return_statement::generate(cpp_gen::state &state, ostream & stream)
     {
         stream << ' ';
         value->generate(state, stream);
+        stream << ";";
     }
 }
 
