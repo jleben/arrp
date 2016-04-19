@@ -481,7 +481,9 @@ void generate(const string & name,
     }
 
     {
-        cpp_gen::state gen_state;
+        cpp_gen::options opt;
+        opt.indentation_size = 2;
+        cpp_gen::state gen_state(opt);
         m.generate(gen_state, src_stream);
     }
 
