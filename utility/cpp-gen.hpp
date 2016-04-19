@@ -572,6 +572,7 @@ class statement
 public:
     virtual ~statement(){}
     virtual void generate(state &, ostream &) = 0;
+    virtual void generate_nested(state &, ostream &);
 };
 
 typedef std::shared_ptr<statement> statement_ptr;
@@ -585,6 +586,7 @@ public:
     block_statement(const vector<statement_ptr> & stmts): statements(stmts) {}
 
     void generate(state &, ostream &);
+    virtual void generate_nested(state &, ostream &) override;
 };
 
 class expr_statement : public statement
@@ -597,7 +599,13 @@ public:
     void generate(state &, ostream &);
 };
 
-class if_statement : public statement
+class complex_statement : public statement
+{
+public:
+    virtual void generate_nested(state &, ostream &) override;
+};
+
+class if_statement : public complex_statement
 {
 public:
     if_statement() {}
@@ -612,7 +620,7 @@ public:
     void generate(state &, ostream &);
 };
 
-class for_statement : public statement
+class for_statement : public complex_statement
 {
 public:
     expression_ptr initialization;

@@ -457,6 +457,14 @@ void array_access_expression::generate(cpp_gen::state & state, ostream & stream)
     }
 }
 
+void statement::generate_nested(state & state, ostream & stream)
+{
+    state.increase_indentation();
+    state.new_line(stream);
+    generate(state, stream);
+    state.decrease_indentation();
+}
+
 void block_statement::generate(cpp_gen::state & state, ostream & stream)
 {
     stream << "{";
@@ -471,6 +479,12 @@ void block_statement::generate(cpp_gen::state & state, ostream & stream)
     stream << "}";
 }
 
+void block_statement::generate_nested(state & state, ostream & stream)
+{
+    state.new_line(stream);
+    generate(state, stream);
+}
+
 void expr_statement::generate(cpp_gen::state & state, ostream & stream)
 {
     expr->generate(state, stream);
@@ -483,37 +497,79 @@ void if_statement::generate(cpp_gen::state & state, ostream & stream)
     condition->generate(state, stream);
     stream << ") ";
 
-    if (!dynamic_pointer_cast<block_statement>(true_part))
-    {
-        state.increase_indentation();
-        state.new_line(stream);
-        true_part->generate(state, stream);
-        state.decrease_indentation();
-    }
-    else
-    {
-        state.new_line(stream);
-        true_part->generate(state, stream);
-    }
+    true_part->generate_nested(state, stream);
 
     if (false_part)
     {
         state.new_line(stream);
         stream  << "else";
 
-        if (!dynamic_pointer_cast<block_statement>(false_part))
+        false_part->generate_nested(state, stream);
+    }
+
+#if 0
+    if (dynamic_pointer_cast<block_statement>(true_part))
+    {
+        state.new_line(stream);
+        true_part->generate(state, stream);
+    }
+    else
+    {
+        bool brace = false;
+        if ( dynamic_pointer_cast<if_statement>(true_part) ||
+             dynamic_pointer_cast<for_statement>(true_part) )
+            brace = true;
+
+        if (brace)
         {
-            state.increase_indentation();
             state.new_line(stream);
-            false_part->generate(state, stream);
-            state.decrease_indentation();
+            stream << '{';
         }
-        else
+        state.increase_indentation();
+        state.new_line(stream);
+        true_part->generate(state, stream);
+        state.decrease_indentation();
+        if (brace)
         {
             state.new_line(stream);
-            false_part->generate(state, stream);
+            stream << '}';
         }
     }
+
+    if (!false_part)
+        return;
+
+    state.new_line(stream);
+    stream  << "else";
+
+    if (dynamic_pointer_cast<block_statement>(false_part))
+    {
+        state.new_line(stream);
+        false_part->generate(state, stream);
+    }
+    else
+    {
+        bool brace = false;
+        if ( dynamic_pointer_cast<if_statement>(false_part) ||
+             dynamic_pointer_cast<for_statement>(false_part) )
+            brace = true;
+
+        if (brace)
+        {
+            state.new_line(stream);
+            stream << '{';
+        }
+        state.increase_indentation();
+        state.new_line(stream);
+        false_part->generate(state, stream);
+        state.decrease_indentation();
+        if (brace)
+        {
+            state.new_line(stream);
+            stream << '}';
+        }
+    }
+#endif
 }
 
 void for_statement::generate(cpp_gen::state & state, ostream & stream)
@@ -526,6 +582,8 @@ void for_statement::generate(cpp_gen::state & state, ostream & stream)
     update->generate(state, stream);
     stream << ") ";
 
+    body->generate_nested(state, stream);
+#if 0
     if (!dynamic_pointer_cast<block_statement>(body))
     {
         state.increase_indentation();
@@ -535,9 +593,27 @@ void for_statement::generate(cpp_gen::state & state, ostream & stream)
     }
     else
     {
+        bool brace = false;
+        if ( dynamic_pointer_cast<if_statement>(body) ||
+             dynamic_pointer_cast<for_statement>(body) )
+            brace = true;
+
         state.new_line(stream);
         body->generate(state, stream);
     }
+#endif
+}
+
+void complex_statement::generate_nested(state & state, ostream & stream)
+{
+    state.new_line(stream);
+    stream << "{";
+    state.increase_indentation();
+    state.new_line(stream);
+    generate(state, stream);
+    state.decrease_indentation();
+    state.new_line(stream);
+    stream << "}";
 }
 
 void return_statement::generate(cpp_gen::state &state, ostream & stream)
