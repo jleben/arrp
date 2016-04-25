@@ -415,6 +415,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
         operand = eta_expand(reduce(operand));
 
     vector<int> result_size;
+    vector<bool> operand_is_array;
 
     for (auto & operand : op->operands)
     {
@@ -426,13 +427,17 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
         }
 
         auto operand_size = array_size(operand);
-        if (operand_size.empty())
-            continue;
-        if (!result_size.empty() && operand_size != result_size)
+
+        if (!operand_size.empty())
         {
-            throw source_error("Operand size mismatch.", op->location);
+            if (!result_size.empty() && operand_size != result_size)
+            {
+                throw source_error("Operand size mismatch.", op->location);
+            }
+            result_size = operand_size;
         }
-        result_size = operand_size;
+
+        operand_is_array.push_back(!operand_size.empty());
     }
 
     if (!result_size.empty())
@@ -456,8 +461,12 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
         // Reduce arrays in operands:
 
-        for (auto & operand : op->operands)
+        for (int i = 0; i < (int)op->operands.size(); ++i)
         {
+            if (!operand_is_array[i])
+                continue;
+
+            auto & operand = op->operands[i];
             vector<expr_ptr> args;
             for (auto & v : arr->vars)
                 args.push_back(make_shared<reference>(v, location_type()));
