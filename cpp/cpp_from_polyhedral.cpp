@@ -136,7 +136,7 @@ expression_ptr cpp_from_polyhedral::generate_primitive
 
         ctx->push(&false_block->statements);
         auto false_expr = generate_expression(expr->operands[2], index, ctx);
-        auto false_assign = make_shared<bin_op_expression>(op::assign, id_expr, true_expr);
+        auto false_assign = make_shared<bin_op_expression>(op::assign, id_expr, false_expr);
         ctx->add(make_shared<expr_statement>(false_assign));
 
         ctx->pop();
