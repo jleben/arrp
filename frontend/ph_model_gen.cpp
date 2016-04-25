@@ -330,7 +330,7 @@ expr_ptr polyhedral_gen::make_affine_array_reads
             auto arr = m_arrays.at(id);
             assert(arr->size.empty());
 
-            polyhedral::affine_matrix matrix(1,1);
+            polyhedral::affine_matrix matrix(stmt->domain.dimensions(),1);
             auto read_expr = make_shared<ph::array_read>(arr, matrix, ref->location);
             stmt->read_relations.push_back(&read_expr->relation);
             return read_expr;
