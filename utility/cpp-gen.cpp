@@ -390,7 +390,7 @@ void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
     bool wrap_rhs = false;
     if (dynamic_cast<un_op_expression*>(rhs.get()))
         wrap_rhs = false;
-    else if (precedence(op) < precedence(rhs))
+    else if (precedence(op) <= precedence(rhs))
         wrap_rhs = true;
 
     if (wrap_lhs)
