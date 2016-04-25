@@ -392,7 +392,7 @@ public:
 
     void generate(state &, ostream & stream)
     {
-        stream << std::showpoint << value;
+        stream << std::showpoint << std::setprecision(12) << value;
     }
 };
 
