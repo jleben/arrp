@@ -1,0 +1,6 @@
+
+## BROKEN: To enable test nested_array_recursion.in,
+## it is not enforced that a[7] is an array.
+
+a = [i -> i];
+main = a[7][8];
