@@ -1,3 +1,0 @@
-
-## BROKEN: "5" = Unexpected object of array application
-main = [x -> x] * 5;
