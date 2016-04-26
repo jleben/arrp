@@ -29,14 +29,14 @@ bandwidth = 10000.0;
 
 fm_demodulate(sr, max, bandwidth, x) =
 {
-  let gain = max*(sr/(bandwidth*pi));
+  let gain = max*sr/(bandwidth*pi);
   [t -> atan(x[t] * x[t+1]) * gain]
 };
 
 lp_filter(rate, cutoff, taps, decimation, x) =
 {
 
-  let m = taps - 1;
+  let m = taps - 1.0;
   let w = 2 * pi * cutoff / rate;
   let coefs = [k:taps ->
       if k - m/2 == 0
@@ -53,15 +53,15 @@ bp_filter(rate, low, high, taps, x) =
 
 equalizer(rate, amps, freqs, taps, x) =
 {
-  [t -> [b:#amps ->
-      bp_filter(rate, freqs[b], freqs[b+1], taps, x)[t] * amps[b]
-  ]]
+  let channels = [b:#amps -> bp_filter(rate, freqs[b], freqs[b+1], taps, x) * amps[b]];
+  sum(channels);
+  ##[t -> sum([b:#amps -> bp_filter(rate, freqs[b], freqs[b+1], taps, x)[t] * amps[b]])]
 };
 
 
 in = [i ->
   case i == 0: 0;
-  else: this[i-1]
+  else: this[i-1] + 1
 ];
 
 n_bands = 10;
@@ -81,9 +81,12 @@ eq_amps = {
   ]
 };
 
+##filtered = lp_filter(sampling_rate, cutoff_frequency, num_taps, 0, in);
+
 filtered = lp_filter(sampling_rate, cutoff_frequency, num_taps, 4, in);
 fm_demodulated = fm_demodulate(sampling_rate, max_amp, bandwidth, filtered);
 equalized = equalizer(sampling_rate, eq_amps, eq_freqs, num_taps, fm_demodulated);
+
 ##equalized = equalizer(sampling_rate, eq_amps, eq_freqs, num_taps, in);
 
 main = equalized;
