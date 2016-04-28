@@ -1,5 +1,4 @@
 
-## BROKEN: undefined type instead of error
+## NOTE: Should this succeed?
 
-a = [i -> this[i-1]];
-main = a[4];
+main = [i -> this[i-1] + 1.1];
