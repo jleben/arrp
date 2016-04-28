@@ -101,7 +101,7 @@ id_ptr generator::do_stmt(ast::node_ptr root)
     if (func)
     {
         m_func_scope_stack.pop();
-        func->expr = expr;
+        func->expr = expr_slot(expr);
         expr = func;
     }
 
@@ -228,6 +228,8 @@ expr_ptr generator::do_case_expr(ast::node_ptr root)
     auto cases_node = root->as_list()->elements[0];
     auto else_node = root->as_list()->elements[1];
 
+    auto result = make_shared<case_expr>();
+
     vector<pair<expr_ptr,expr_ptr>> cases;
 
     expr_ptr else_domain;
@@ -238,7 +240,8 @@ expr_ptr generator::do_case_expr(ast::node_ptr root)
         auto expr_node = a_case->as_list()->elements[1];
         auto domain = do_expr(domain_node);
         auto expr = do_expr(expr_node);
-        cases.emplace_back(domain, expr);
+
+        result->cases.emplace_back(expr_slot(domain), expr_slot(expr));
 
         auto domain_copy = do_expr(domain_node);
         if (else_domain)
@@ -249,12 +252,13 @@ expr_ptr generator::do_case_expr(ast::node_ptr root)
     }
 
     else_domain = make_shared<primitive>(primitive_op::negate, else_domain);
-    // FIXME: location of else_domain?
-    cases.emplace_back(else_domain, do_expr(else_node));
+    auto else_expr = do_expr(else_node);
 
-    auto result = make_shared<case_expr>();
+    // FIXME: location of else_domain?
+    result->cases.emplace_back(expr_slot(else_domain), expr_slot(else_expr));
+
     result->location = root->location;
-    result->cases = cases;
+
     return result;
 }
 
@@ -303,7 +307,7 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
 
     for (auto & param : params)
         ar->vars.push_back(param);
-    ar->expr = expr;
+    ar->expr = expr_slot(expr);
 
     return ar;
 }
@@ -315,14 +319,14 @@ expr_ptr generator::do_array_apply(ast::node_ptr root)
 
     auto object = do_expr(object_node);
 
-    vector<expr_ptr> args;
+    vector<expr_slot> args;
     for (auto & arg_node : args_node->as_list()->elements)
     {
-        args.push_back(do_expr(arg_node));
+        args.emplace_back(do_expr(arg_node));
     }
 
     auto result = make_shared<array_app>();
-    result->object = object;
+    result->object = expr_slot(object);
     result->args = args;
     result->location = root->location;
 
@@ -334,11 +338,13 @@ expr_ptr generator::do_func_apply(ast::node_ptr root)
     auto object_node = root->as_list()->elements[0];
     auto args_node = root->as_list()->elements[1];
 
-    vector<expr_ptr> args;
+    vector<expr_slot> args;
     for (auto & arg_node : args_node->as_list()->elements)
     {
-        args.push_back(do_expr(arg_node));
+        args.emplace_back(do_expr(arg_node));
     }
+
+    // Handle primitive functions
 
     if (object_node->type == ast::identifier)
     {

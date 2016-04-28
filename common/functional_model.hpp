@@ -77,12 +77,35 @@ public:
 };
 typedef std::shared_ptr<expression> expr_ptr;
 
+class expr_slot
+{
+public:
+    expr_slot() {}
+    explicit expr_slot(const expr_ptr & e):
+        expr(e)
+    {
+        if (e) location = e->location;
+    }
+    explicit expr_slot(const expr_ptr &e, const location_type & l):
+        expr(e), location(l) {}
+    expression & operator*() { return *expr; }
+    expression * operator->() { return expr.get(); }
+    operator bool() const { return bool(expr); }
+    operator expr_ptr() const { return expr; }
+    expr_slot & operator=(const expr_ptr & e) { expr = e; return *this; }
+
+    expr_ptr expr;
+    location_type location;
+};
+
 class identifier : public var
 {
 public:
+    identifier(const string & name, expr_slot e, const location_type & loc):
+        var(name,loc), expr(e) {}
     identifier(const string & name, expr_ptr e, const location_type & loc):
         var(name,loc), expr(e) {}
-    expr_ptr expr;
+    expr_slot expr;
     primitive_type type = primitive_type::undefined; // FIXME: Could be more elegant?
 };
 typedef std::shared_ptr<identifier> id_ptr;
@@ -109,22 +132,41 @@ class primitive : public expression
 {
 public:
     primitive() {}
+
+    primitive(primitive_op t,
+              const vector<expr_slot> & operands):
+        kind(t), operands(operands) {}
+
     primitive(primitive_op t,
               const vector<expr_ptr> & operands):
-        kind(t), operands(operands) {}
+        kind(t)
+    {
+        for (auto & o : operands)
+        {
+            this->operands.emplace_back(o);
+        }
+    }
+
     template<typename ...Ts>
     primitive(primitive_op t,
-              Ts ... operands):
-        kind(t), operands({ operands ... }) {}
-
+              Ts ... ops):
+        kind(t), operands({ expr_slot(ops)... })
+    {
+#if 0
+        for (auto & o : operands)
+        {
+            this->operands.emplace_back(o, o->location);
+        }
+#endif
+    }
     primitive_op kind;
-    vector<expr_ptr> operands;
+    vector<expr_slot> operands;
 };
 
 class case_expr : public expression
 {
 public:
-    vector<pair<expr_ptr,expr_ptr>> cases;
+    vector<pair<expr_slot,expr_slot>> cases;
 };
 
 class array_var : public var
@@ -135,7 +177,10 @@ public:
     array_var(const string & name, expr_ptr range,
               const location_type & loc):
         var(name, loc), range(range) {}
-    expr_ptr range;
+    array_var(const string & name, expr_slot range,
+              const location_type & loc):
+        var(name, loc), range(range) {}
+    expr_slot range;
 };
 typedef std::shared_ptr<array_var> array_var_ptr;
 
@@ -144,7 +189,7 @@ class array : public expression
 public:
     functional::scope scope;
     vector<array_var_ptr> vars;
-    expr_ptr expr;
+    expr_slot expr;
     bool is_recursive = false;
 };
 typedef std::shared_ptr<array> array_ptr;
@@ -152,8 +197,8 @@ typedef std::shared_ptr<array> array_ptr;
 class array_app : public expression
 {
 public:
-    expr_ptr object;
-    vector<expr_ptr> args;
+    expr_slot object;
+    vector<expr_slot> args;
 };
 
 class array_size : public expression
@@ -162,24 +207,11 @@ public:
     array_size() {}
     array_size(expr_ptr o, expr_ptr d, const location_type & l):
         expression(l), object(o), dimension(d) {}
-    expr_ptr object;
-    expr_ptr dimension;
+    array_size(expr_slot o, expr_slot d, const location_type & l):
+        expression(l), object(o), dimension(d) {}
+    expr_slot object;
+    expr_slot dimension;
 };
-
-class func_app : public expression
-{
-public:
-    expr_ptr object;
-    vector<expr_ptr> args;
-};
-
-class func_var : public var
-{
-public:
-    func_var() {}
-    func_var(const string & name, const location_type & loc): var(name,loc) {}
-};
-typedef std::shared_ptr<func_var> func_var_ptr;
 
 class reference : public expression
 {
@@ -197,15 +229,32 @@ public:
     array_ptr arr;
 };
 
+class func_var : public var
+{
+public:
+    func_var() {}
+    func_var(const string & name, const location_type & loc): var(name,loc) {}
+};
+typedef std::shared_ptr<func_var> func_var_ptr;
+
 class function : public expression
 {
 public:
     function() {}
+    function(const vector<func_var_ptr> & v, expr_slot e, const location_type & loc):
+        expression(loc), vars(v), expr(e) {}
     function(const vector<func_var_ptr> & v, expr_ptr e, const location_type & loc):
         expression(loc), vars(v), expr(e) {}
     vector<func_var_ptr> vars;
     functional::scope scope;
-    expr_ptr expr;
+    expr_slot expr;
+};
+
+class func_app : public expression
+{
+public:
+    expr_slot object;
+    vector<expr_slot> args;
 };
 
 class affine_expr : public expression

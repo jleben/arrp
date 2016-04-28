@@ -20,7 +20,17 @@ class copier : public visitor<expr_ptr>
 {
 public:
     copier(unordered_set<id_ptr> & ids, name_provider &);
-    expr_ptr copy(const expr_ptr & expr) { return visit(expr); }
+    expr_slot copy(const expr_slot & slot)
+    {
+        return expr_slot(copy(slot.expr), slot.location);
+    }
+    expr_ptr copy(const expr_ptr & expr)
+    {
+        if (expr)
+            return visit(expr);
+        else
+            return expr_ptr();
+    }
 
 protected:
     virtual expr_ptr visit_int(const shared_ptr<constant<int>> &) override;

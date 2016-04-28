@@ -85,7 +85,9 @@ expr_ptr copier::visit_primitive(const shared_ptr<primitive> & op)
     new_op->type = op->type;
     new_op->kind = op->kind;
     for (auto & operand : op->operands)
+    {
         new_op->operands.push_back(copy(operand));
+    }
     return new_op;
 }
 
@@ -100,8 +102,7 @@ expr_ptr copier::visit_cases(const shared_ptr<case_expr> & c)
     result->location = c->location;
     for (auto & a_case : c->cases)
     {
-        result->cases.emplace_back
-                (copy(a_case.first), copy(a_case.second));
+        result->cases.emplace_back(copy(a_case.first), copy(a_case.second));
     }
     return result;
 }
@@ -117,11 +118,11 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
 
     for (auto & var : arr->vars)
     {
-        expr_ptr new_range;
-        if (var->range)
-            new_range = copy(var->range);
-        auto new_var = make_shared<array_var>(var->name, new_range, var->location);
+        auto new_var = make_shared<array_var>(var->name, copy(var->range), var->location);
+        new_var->range.location = var->range.location;
+
         new_arr->vars.push_back(new_var);
+
         m_copy_context.bind(var, new_var);
     }
 

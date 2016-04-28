@@ -35,7 +35,7 @@ void array_transposer::transpose_arrays(unordered_set<id_ptr> & ids)
 
 void array_transposer::transpose_array(const id_ptr & id)
 {
-    auto ar = dynamic_pointer_cast<array>(id->expr);
+    auto ar = dynamic_pointer_cast<array>(id->expr.expr);
     if (!ar)
     {
         if (verbose<array_transposer>::enabled())
@@ -106,11 +106,11 @@ void array_transposer::visit_array_app(const shared_ptr<array_app> & app)
 {
     id_ptr id;
 
-    if (auto ref = dynamic_pointer_cast<reference>(app->object))
+    if (auto ref = dynamic_pointer_cast<reference>(app->object.expr))
     {
         id = dynamic_pointer_cast<identifier>(ref->var);
     }
-    else if (auto ref = dynamic_pointer_cast<array_self_ref>(app->object))
+    else if (auto ref = dynamic_pointer_cast<array_self_ref>(app->object.expr))
     {
         id = m_current_id;
     }
@@ -139,12 +139,12 @@ void array_transposer::visit_array_app(const shared_ptr<array_app> & app)
         cout << endl;
     }
 
-    vector<expr_ptr> transposed_args;
+    vector<expr_slot> transposed_args;
 
     for (int i = 0; i < (int)order.size(); ++i)
     {
         int dim = order[i];
-        transposed_args.push_back(app->args[dim]);
+        transposed_args.emplace_back(app->args[dim]);
     }
 
     app->args = transposed_args;

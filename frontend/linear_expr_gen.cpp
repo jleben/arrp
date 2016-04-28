@@ -62,7 +62,7 @@ linexpr maximum(const linexpr & expr)
         {
             auto avar = dynamic_pointer_cast<array_var>(term.first);
             assert(avar);
-            if (auto c = dynamic_pointer_cast<constant<int>>(avar->range))
+            if (auto c = dynamic_pointer_cast<constant<int>>(avar->range.expr))
                 value *= std::max(0, c->value - 1);
             else // unconstrained
             {

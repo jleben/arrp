@@ -93,7 +93,7 @@ type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
     {
         if (var->range)
         {
-            auto c = dynamic_pointer_cast<constant<int>>(var->range);
+            auto c = dynamic_pointer_cast<constant<int>>(var->range.expr);
             if (!c)
                 throw error("Unexpected.");
             size.push_back(c->value);
@@ -118,7 +118,7 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 
         if (dynamic_pointer_cast<function_type>(type))
         {
-            throw source_error("Function not allowed as operand.", operand->location);
+            throw source_error("Function not allowed as operand.", operand.location);
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
@@ -185,7 +185,7 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 
         if (dynamic_pointer_cast<function_type>(type))
         {
-            throw source_error("Function not allowed in case.", expr->location);
+            throw source_error("Function not allowed in case.", expr.location);
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
@@ -234,20 +234,20 @@ type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
     {
         if (var->range)
         {
-            if (auto c = dynamic_pointer_cast<constant<int>>(var->range))
+            if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
             {
                 if (c->value < 1)
                 {
                     ostringstream msg;
-                    msg << "Non-positive variable range (" <<  c->value << ")";
-                    throw source_error(msg.str(), var->range->location);
+                    msg << "Array bound not positive (" <<  c->value << ")";
+                    throw source_error(msg.str(), var->range.location);
                 }
                 size.push_back(c->value);
             }
             else
             {
-                throw source_error("Array bounds not a constant integer.",
-                                   var->range->location);
+                throw source_error("Array bound not a constant integer.",
+                                   var->range.location);
             }
         }
         else
@@ -263,7 +263,7 @@ type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
     if (auto func = dynamic_pointer_cast<function_type>(elem_type))
     {
         throw source_error("Function not allowed as array element.",
-                           arr->expr->location);
+                           arr->expr.location);
     }
     else if (auto nested_arr = dynamic_pointer_cast<array_type>(elem_type))
     {
@@ -284,7 +284,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
 
     if (!object_type)
         throw source_error("Object of array application is not an array.",
-                           app->object->location);
+                           app->object.location);
 
     auto & object_size = object_type->size;
 
@@ -297,7 +297,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
         throw source_error(msg.str(), app->location);
     }
 
-    if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object))
+    if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
     {
         if (object_size.size() != app->args.size())
         {
@@ -308,7 +308,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
             throw source_error(msg.str(), app->location);
         }
     }
-    else if (auto arr = dynamic_pointer_cast<array>(app->object))
+    else if (auto arr = dynamic_pointer_cast<array>(app->object.expr))
     {
         if (arr->is_recursive)
             throw source_error("Direct application of recursive arrays not supported.",
@@ -330,7 +330,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
                 msg << "Argument range (" << max_value << ")"
                     << " out of array bound (" << bound << ")";
                 throw source_error(msg.str(),
-                                   arg->location);
+                                   arg.location);
             }
         }
         else
@@ -342,7 +342,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
                 p.print(arg, cout); cout << endl;
                 throw source_error("Unbounded argument to"
                                    " bounded array dimension.",
-                                   arg->location);
+                                   arg.location);
             }
         }
     }

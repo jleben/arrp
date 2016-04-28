@@ -186,15 +186,8 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
     }
     else
     {
-        // FIXME: Is this dead code?
-
-        throw error("Unexpected.");
-
-        if (args.size())
-            throw reduction_error
-                (wrong_arg_count_msg(0, args.size()), loc);
-
-        reduced_expr = reduce(expr);
+        throw source_error("Object of function application is not a function. "
+                           "FIXME: Wrong error location.", expr->location);
     };
 
     m_trace.pop();
@@ -225,7 +218,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     {
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
-            if (auto func = dynamic_pointer_cast<function>(id->expr))
+            if (auto func = dynamic_pointer_cast<function>(id->expr.expr))
             {
                 return m_copier.copy(func);
             }

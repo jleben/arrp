@@ -94,7 +94,7 @@ id_ptr array_reducer::process(id_ptr id)
 
         for (auto & var : ordered_unbound_vars)
         {
-            assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range) );
+            assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range.expr) );
 
             auto new_var = make_shared<array_var>(*var);
             new_var->location = location_type();
@@ -199,13 +199,10 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
 
         self->arr = sub;
 
-        vector<expr_ptr> args;
-        for (auto & var : sub->vars)
-            args.push_back(make_shared<reference>(var, location_type()));
-
         auto app = make_shared<array_app>();
         app->object = self;
-        app->args = args;
+        for (auto & var : sub->vars)
+            app->args.emplace_back(make_shared<reference>(var, location_type()));
 
         return app;
     }
@@ -221,7 +218,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         {
             var->range = reduce(var->range);
 
-            if (auto c = dynamic_pointer_cast<constant<int>>(var->range))
+            if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
             {
                 if (c->value < 1)
                 {
@@ -247,7 +244,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
 
     arr->expr = eta_expand(reduce(arr->expr));
 
-    if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr))
+    if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr.expr))
     {
         // replace array self references
 
@@ -282,16 +279,17 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
             throw source_error("Direct application of recursive arrays not supported.",
                                app->location);
     }
-    else if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object))
+    else if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
     {
         arr = arr_self->arr;
         is_self = true;
     }
-    else if (auto nested_app = dynamic_pointer_cast<array_app>(app->object))
+    else if (auto nested_app = dynamic_pointer_cast<array_app>(app->object.expr))
     {
         // Despite eta expansion above, this is possible
         // in case of array self-reference.
-        return apply(nested_app, app->args);
+        vector<expr_ptr> args(app->args.begin(), app->args.end());
+        return apply(nested_app, args);
     }
 
     if (!arr)
@@ -359,7 +357,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 
     if (!is_self)
     {
-        return apply(arr, app->args);
+        vector<expr_ptr> args(app->args.begin(), app->args.end());
+        return apply(arr, args);
     }
 
     return app;
@@ -380,7 +379,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<functional::array_size> as)
     if (as->dimension)
     {
         as->dimension = reduce(as->dimension);
-        auto cint = dynamic_pointer_cast<constant<int>>(as->dimension);
+        auto cint = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
         if (!cint)
         {
             throw source_error("Array dimension index not a constant integer.",
@@ -419,7 +418,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     for (auto & operand : op->operands)
     {
-        if (auto arr = dynamic_pointer_cast<array>(operand))
+        if (auto arr = dynamic_pointer_cast<array>(operand.expr))
         {
             if (arr->is_recursive)
                 throw source_error("Recursive arrays not supported as operands.",
@@ -478,7 +477,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
         for (auto & operand : op->operands)
         {
-            if (dynamic_pointer_cast<case_expr>(operand))
+            if (dynamic_pointer_cast<case_expr>(operand.expr))
             {
                 throw source_error("Case expression not supported as operand.",
                                    operand->location);
@@ -547,7 +546,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 
             expr = apply(expr, args);
 
-            if (dynamic_pointer_cast<case_expr>(expr))
+            if (dynamic_pointer_cast<case_expr>(expr.expr))
             {
                 // FIXME: location of reduced expression
                 throw source_error("Nested cases not supported.", expr->location);
@@ -646,7 +645,7 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
     {
         if (var->range)
         {
-            auto c = dynamic_pointer_cast<constant<int>>(var->range);
+            auto c = dynamic_pointer_cast<constant<int>>(var->range.expr);
             assert(c);
             s.push_back(c->value);
         }
@@ -781,7 +780,7 @@ expr_ptr array_reducer::eta_expand(std::shared_ptr<reference> ref)
     auto id = dynamic_pointer_cast<identifier>(ref->var);
     if (!id)
         return ref;
-    auto arr = dynamic_pointer_cast<array>(id->expr);
+    auto arr = dynamic_pointer_cast<array>(id->expr.expr);
     if (!arr)
         return ref;
 
@@ -790,10 +789,10 @@ expr_ptr array_reducer::eta_expand(std::shared_ptr<reference> ref)
 
     for (auto & var : arr->vars)
     {
-        assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range) );
+        assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range.expr) );
         auto new_var = make_shared<array_var>(*var);
         new_arr->vars.push_back(new_var);
-        new_app->args.push_back(make_shared<reference>(new_var, location_type()));
+        new_app->args.emplace_back(make_shared<reference>(new_var, location_type()));
     }
 
     new_app->object = ref;
