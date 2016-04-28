@@ -52,11 +52,23 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
             cout << "Applying args to id " << id->name << endl;
         }
 
-        auto new_name = m_name_provider.new_name(id->name);
-        auto new_expr = m_copier.copy(id->expr);
-        auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
+        auto func = dynamic_pointer_cast<function>(id->expr.expr);
+        if (!func)
+        {
+            ostringstream msg;
+            msg << "Id " << id->name << " is not a function. "
+                << " It can not be applied to arguments.";
+            throw source_error(msg.str(), id->location);
+        }
 
-        new_id->expr = apply(new_id->expr, args, location_type());
+        auto new_name = m_name_provider.new_name(id->name);
+        auto new_id = make_shared<identifier>(new_name, id->location);
+        new_id->expr.location = id->expr.location;
+
+        auto func_copy =
+                dynamic_pointer_cast<function>(m_copier.copy(id->expr).expr);
+
+        new_id->expr = apply(func_copy, args, location_type());
 
         return new_id;
     }
@@ -66,7 +78,8 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
     }
 }
 
-expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
+expr_ptr func_reducer::apply(shared_ptr<function> func,
+                             const vector<expr_ptr> & args,
                              const location_type & loc)
 {
     printer p;
@@ -80,115 +93,105 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
     expr_ptr reduced_expr;
 
-    auto func = dynamic_pointer_cast<function>(expr);
+    if(func->vars.size() < args.size())
+        throw reduction_error
+            (wrong_arg_count_msg(func->vars.size(), args.size()), loc);
 
-    if (func)
+    reduce_context_type::scope_holder scope(m_beta_reduce_context);
+
+    // Prepare arguments
+
+    for (int i = 0; i < args.size(); ++i)
     {
-        if(func->vars.size() < args.size())
-            throw reduction_error
-                (wrong_arg_count_msg(func->vars.size(), args.size()), loc);
+        auto & var = func->vars[i];
+        auto arg = args[i];
 
-        reduce_context_type::scope_holder scope(m_beta_reduce_context);
-
-        // Prepare arguments
-
-        for (int i = 0; i < args.size(); ++i)
+        if (var->ref_count > 1)
         {
-            auto & var = func->vars[i];
-            auto arg = args[i];
+            auto arg_id_name = m_name_provider.new_name(var->name);
+            auto arg_id = make_shared<identifier>(arg_id_name, arg, location_type());
+            arg = make_shared<reference>(arg_id, arg->location);
 
-            if (var->ref_count > 1)
+            m_ids.insert(arg_id);
+            if (m_scope_stack.size())
             {
-                auto arg_id_name = m_name_provider.new_name(var->name);
-                auto arg_id = make_shared<identifier>(arg_id_name, arg, location_type());
-                arg = make_shared<reference>(arg_id, arg->location);
-
-                m_ids.insert(arg_id);
-                if (m_scope_stack.size())
+                m_scope_stack.top()->ids.push_back(arg_id);
+                if (verbose<functional::model>::enabled())
                 {
-                    m_scope_stack.top()->ids.push_back(arg_id);
-                    if (verbose<functional::model>::enabled())
-                    {
-                        cout << "Stored id for multi-ref argument " << var->name
-                             << " into enclosing function scope."
-                             << " (" << m_scope_stack.top() << ")"
-                             << endl;
-                    }
-                }
-                else
-                {
-                    if (verbose<functional::model>::enabled())
-                    {
-                        cout << "No enclosing function scope for id for multi-ref argument "
-                             << var->name
-                             << endl;
-                    }
+                    cout << "Stored id for multi-ref argument " << var->name
+                         << " into enclosing function scope."
+                         << " (" << m_scope_stack.top() << ")"
+                         << endl;
                 }
             }
-
-            if (verbose<functional::model>::enabled())
+            else
             {
-                cout << "+ bound var: " << var << endl;
+                if (verbose<functional::model>::enabled())
+                {
+                    cout << "No enclosing function scope for id for multi-ref argument "
+                         << var->name
+                         << endl;
+                }
             }
-            m_beta_reduce_context.bind(var, arg);
         }
-
-        // Reduce
 
         if (verbose<functional::model>::enabled())
         {
-            cout << "Pushing scope of applied function:";
-            cout << " (" << &func->scope << ")";
-            cout << endl;
+            cout << "+ bound var: " << var << endl;
         }
+        m_beta_reduce_context.bind(var, arg);
+    }
 
-        m_scope_stack.push(&func->scope);
+    // Reduce
 
-        reduce(func->scope);
+    if (verbose<functional::model>::enabled())
+    {
+        cout << "Pushing scope of applied function:";
+        cout << " (" << &func->scope << ")";
+        cout << endl;
+    }
 
-        reduced_expr = reduce(func->expr);
+    m_scope_stack.push(&func->scope);
 
-        if (verbose<functional::model>::enabled())
-        {
-            cout << "Popping scope of applied function:";
-            cout << " (" << &func->scope << ")";
-            cout << endl;
-        }
+    reduce(func->scope);
 
-        m_scope_stack.pop();
+    reduced_expr = reduce(func->expr);
+
+    if (verbose<functional::model>::enabled())
+    {
+        cout << "Popping scope of applied function:";
+        cout << " (" << &func->scope << ")";
+        cout << endl;
+    }
+
+    m_scope_stack.pop();
 
 
-        if (func->vars.size() > args.size())
-        {
-            // Generate partially applied function
+    if (func->vars.size() > args.size())
+    {
+        // Generate partially applied function
 
-            vector<func_var_ptr> remaining_vars
-                    (func->vars.begin() + args.size(),
-                     func->vars.end());
+        vector<func_var_ptr> remaining_vars
+                (func->vars.begin() + args.size(),
+                 func->vars.end());
 
-            auto new_func = make_shared<function>(remaining_vars, reduced_expr, loc);
-            new_func->scope.ids = func->scope.ids;
-            reduced_expr = new_func;
-        }
-        else
-        {
-            m_type_checker.process(reduced_expr);
-
-            // Add ids to enclosing scope, if any.
-
-            if (!m_scope_stack.empty())
-            {
-                auto & parent_ids = m_scope_stack.top()->ids;
-                auto & ids = func->scope.ids;
-                parent_ids.insert(parent_ids.end(), ids.begin(), ids.end());
-            }
-        }
+        auto new_func = make_shared<function>(remaining_vars, reduced_expr, loc);
+        new_func->scope.ids = func->scope.ids;
+        reduced_expr = new_func;
     }
     else
     {
-        throw source_error("Object of function application is not a function. "
-                           "FIXME: Wrong error location.", expr->location);
-    };
+        m_type_checker.process(reduced_expr);
+
+        // Add ids to enclosing scope, if any.
+
+        if (!m_scope_stack.empty())
+        {
+            auto & parent_ids = m_scope_stack.top()->ids;
+            auto & ids = func->scope.ids;
+            parent_ids.insert(parent_ids.end(), ids.begin(), ids.end());
+        }
+    }
 
     m_trace.pop();
 
@@ -356,9 +359,9 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else if (auto app = dynamic_pointer_cast<func_app>(expr))
     {
-        auto func = reduce(app->object);
+        auto object = reduce(app->object);
 
-        if (dynamic_pointer_cast<reference>(func))
+        if (dynamic_pointer_cast<reference>(object))
         {
             if (verbose<functional::model>::enabled())
             {
@@ -367,6 +370,12 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             }
 
             return app;
+        }
+
+        auto func = dynamic_pointer_cast<function>(object);
+        if (!func)
+        {
+            throw source_error("Not a function.", app->object.location);
         }
 
         vector<expr_ptr> reduced_args;

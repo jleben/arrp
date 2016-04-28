@@ -362,7 +362,7 @@ expr_ptr generator::do_func_apply(ast::node_ptr root)
     auto object = do_expr(object_node);
 
     auto result = make_shared<func_app>();
-    result->object = object;
+    result->object = expr_slot(object);
     result->args = args;
     result->location = root->location;
 

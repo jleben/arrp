@@ -39,14 +39,14 @@ public:
 
     id_ptr reduce(id_ptr, const vector<expr_ptr> & args);
 
-    expr_ptr apply(expr_ptr, const vector<expr_ptr> & args,
-                   const location_type &);
-
     unordered_set<id_ptr> & ids() { return m_ids; }
 
 private:
     expr_ptr reduce(expr_ptr);
     void reduce(scope & s);
+    expr_ptr apply(shared_ptr<function>, const vector<expr_ptr> & args,
+                   const location_type &);
+
     func_reduce_error
     reduction_error(const string & msg, const location_type & loc)
     {

@@ -101,6 +101,8 @@ public:
 class identifier : public var
 {
 public:
+    identifier(const string & name, const location_type & loc):
+        var(name,loc) {}
     identifier(const string & name, expr_slot e, const location_type & loc):
         var(name,loc), expr(e) {}
     identifier(const string & name, expr_ptr e, const location_type & loc):
