@@ -382,6 +382,8 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
 
 type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
 {
+    throw error("Unexpected.");
+#if 0
     auto func_type = dynamic_pointer_cast<function_type>(visit(app->object));
     if (!func_type)
         throw source_error("Not a function.", app->object.location);
@@ -401,6 +403,7 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
         return make_shared<function_type>(remaining_arg_count);
     else
         throw error("Unexpected.");
+#endif
 }
 
 type_ptr type_checker::visit_func(const shared_ptr<function> & func)
