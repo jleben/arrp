@@ -1,0 +1,5 @@
+
+## BROKEN: undefined type instead of error
+
+a = [i -> this[i-1]];
+main = a[4];

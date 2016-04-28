@@ -1,0 +1,3 @@
+
+f(x) = x;
+main = [i -> case i==0: f; else: 1];

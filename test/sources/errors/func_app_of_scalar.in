@@ -1,0 +1,5 @@
+
+## BROKEN: Error location
+
+f(x) = x(1);
+main = f(2);

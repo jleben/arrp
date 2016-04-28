@@ -1,0 +1,3 @@
+
+
+main = [x -> case x==0: [i-> i]; else: [j:3 -> j] ];
