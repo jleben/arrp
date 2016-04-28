@@ -296,11 +296,25 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else if (auto as = dynamic_pointer_cast<array_size>(expr))
     {
-        as->object = no_function(reduce(as->object), as->object->location);
-        auto & dim = as->dimension;
-        if (dim)
-            dim = no_function(reduce(dim), dim->location);
-        return as;
+        as->object = reduce(as->object);
+        if (as->dimension)
+            as->dimension = reduce(as->dimension);
+
+        m_type_checker.process(as);
+
+        int dim = 0;
+        if (as->dimension)
+        {
+            auto dim_const = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
+            assert(dim_const);
+            dim = dim_const->value - 1;
+        }
+
+        auto arr_type = dynamic_pointer_cast<array_type>(as->object->type);
+        assert(arr_type);
+        assert(dim >= 0 && dim < arr_type->size.size());
+
+        return make_shared<constant<int>>(arr_type->size[dim]);
     }
     else if (auto func = dynamic_pointer_cast<function>(expr))
     {

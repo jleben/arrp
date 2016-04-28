@@ -344,7 +344,40 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
 
 type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
 {
-    throw error("Unexpected.");
+    visit(as->object);
+    auto arr_type = dynamic_pointer_cast<array_type>(as->object->type);
+    if (!arr_type)
+        throw source_error("Not an array.", as->object.location);
+
+    assert(!arr_type->size.empty());
+
+    int dim = 1;
+
+    if (as->dimension)
+    {
+        auto dim_const = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
+        if (!dim_const)
+            throw source_error("Not an integer constant.", as->dimension.location);
+
+        dim = dim_const->value;
+        if (dim < 1 || dim > arr_type->size.size())
+        {
+            ostringstream msg;
+            msg << "Dimension index out of bounds: " << dim;
+            throw source_error(msg.str(), as->dimension.location);
+        }
+    }
+
+    int size = arr_type->size[dim-1];
+    assert(size >= -1);
+    if (size == -1)
+    {
+        ostringstream msg;
+        msg << "Dimension " << dim << " is unbounded.";
+        throw source_error(msg.str(), as->location);
+    }
+
+    return make_shared<scalar_type>(primitive_type::integer);
 }
 
 type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
