@@ -97,6 +97,23 @@ public:
     }
 };
 
+template <typename T>
+class revertable
+{
+public:
+    revertable(T & d): data(d), initial_value(d) {}
+    revertable(T & d, T v): data(d), initial_value(d) { data = v; }
+    ~revertable() { data = initial_value; }
+    revertable & operator=(const T & v)
+    {
+        data = v;
+        return *this;
+    }
+
+    T & data;
+    T initial_value;
+};
+
 }
 
 #endif // STREAM_LANG_STACKER_INCLUDED

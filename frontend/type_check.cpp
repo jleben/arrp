@@ -2,6 +2,7 @@
 #include "linear_expr_gen.hpp"
 #include "error.hpp"
 #include "../common/func_model_printer.hpp"
+#include "../utility/stacker.hpp"
 
 #include <cassert>
 
@@ -28,7 +29,7 @@ void type_checker::process(const expr_ptr & expr)
 
 type_ptr type_checker::visit(const expr_ptr & expr)
 {
-    if (!expr->type)
+    if (m_force_revisit || !expr->type)
         expr->type = visitor<type_ptr>::visit(expr);
 
     return expr->type;
@@ -67,30 +68,6 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
     }
 
     return type;
-}
-
-type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & self)
-{
-    vector<int> size;
-
-    auto & arr = self->arr;
-
-    for (auto & var : arr->vars)
-    {
-        if (var->range)
-        {
-            auto c = dynamic_pointer_cast<constant<int>>(var->range.expr);
-            if (!c)
-                throw error("Unexpected.");
-            size.push_back(c->value);
-        }
-        else
-        {
-            size.push_back(-1);
-        }
-    }
-
-    return make_shared<array_type>(size, primitive_type::undefined);
 }
 
 type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
@@ -214,6 +191,19 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 
 type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
 {
+    auto type = process_array(arr);
+    if (arr->is_recursive)
+    {
+        // We need another pass with proper type for self-references.
+        arr->type = type;
+        revertable<bool> revisit(m_force_revisit, true);
+        type = process_array(arr);
+    }
+    return type;
+}
+
+type_ptr type_checker::process_array(const shared_ptr<array> & arr)
+{
     vector<int> size;
 
     for (auto & var : arr->vars)
@@ -259,9 +249,43 @@ type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
     else if (auto scalar = dynamic_pointer_cast<scalar_type>(elem_type))
     {
         prim_elem_type = scalar->primitive;
+        if (prim_elem_type == primitive_type::undefined)
+        {
+            throw source_error("Array element type can not be inferred.",
+                               arr->expr.location);
+        }
     }
 
     return make_shared<array_type>(size, prim_elem_type);
+}
+
+type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & self)
+{
+    vector<int> size;
+
+    auto & arr = self->arr;
+
+    if (arr->type)
+    {
+        return arr->type;
+    }
+
+    for (auto & var : arr->vars)
+    {
+        if (var->range)
+        {
+            auto c = dynamic_pointer_cast<constant<int>>(var->range.expr);
+            if (!c)
+                throw error("Unexpected.");
+            size.push_back(c->value);
+        }
+        else
+        {
+            size.push_back(-1);
+        }
+    }
+
+    return make_shared<array_type>(size, primitive_type::undefined);
 }
 
 type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
