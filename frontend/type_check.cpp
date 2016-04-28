@@ -21,20 +21,6 @@ string text(primitive_op op, const vector<primitive_type> & args)
     return text.str();
 }
 
-string text(const vector<int> & v)
-{
-    ostringstream text;
-    int i = 0;
-    for (auto & e : v)
-    {
-        if (i > 0)
-            text << ",";
-        text << e;
-        ++i;
-    }
-    return text.str();
-}
-
 void type_checker::process(const expr_ptr & expr)
 {
     visit(expr);
@@ -109,7 +95,7 @@ type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
 
 type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 {
-    vector<int> common_size;
+    array_size_vec common_size;
     vector<primitive_type> elem_types;
 
     for (auto & operand : prim->operands)
@@ -129,9 +115,9 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
             else if (common_size != arr->size)
             {
                 ostringstream msg;
-                msg << "Operand size mismatch:"
-                    << text(common_size) << " & " << text(arr->size);
-                throw source_error(msg.str(), prim->location);
+                msg << "Operand size mismatch: "
+                    << arr->size << " != " << common_size;
+                throw source_error(msg.str(), operand.location);
             }
             elem_types.push_back(arr->element);
         }
@@ -171,7 +157,7 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 
 type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 {
-    vector<int> common_size;
+    array_size_vec common_size;
     vector<primitive_type> elem_types;
 
     for (auto & c : cexpr->cases)
@@ -196,9 +182,9 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
             else if (common_size != arr->size)
             {
                 ostringstream msg;
-                msg << "Case size mismatch:"
-                    << text(common_size) << " & " << text(arr->size);
-                throw source_error(msg.str(), cexpr->location);
+                msg << "Case size mismatch: "
+                    << arr->size << " != " << common_size;
+                throw source_error(msg.str(), expr.location);
             }
             elem_types.push_back(arr->element);
         }
