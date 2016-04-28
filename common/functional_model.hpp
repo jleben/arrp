@@ -22,6 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_FUNCTIONAL_MODEL_INCLUDED
 
 #include "primitives.hpp"
+#include "func_types.hpp"
 #include "linear_algebra.hpp"
 #include "../frontend/location.hh"
 #include <memory>
@@ -70,7 +71,9 @@ public:
     expression(const location_type & loc): location(loc) {}
     virtual ~expression() {}
     location_type location;
-    primitive_type type = primitive_type::undefined;
+    //primitive_type type = primitive_type::undefined;
+    type_ptr type;
+
 };
 typedef std::shared_ptr<expression> expr_ptr;
 

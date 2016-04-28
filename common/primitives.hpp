@@ -82,6 +82,8 @@ primitive_type result_type(primitive_op, vector<primitive_type> & args);
 
 primitive_type common_type(primitive_type, primitive_type);
 
+primitive_type common_type(const vector<primitive_type> & types);
+
 inline ostream & operator<<(ostream & s, primitive_op op)
 {
     s << name_of_primitive(op);

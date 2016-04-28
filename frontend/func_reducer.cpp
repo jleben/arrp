@@ -1,4 +1,5 @@
 #include "func_reducer.hpp"
+#include "prim_reduction.hpp"
 #include "error.hpp"
 #include "../common/func_model_printer.hpp"
 #include "../utility/stacker.hpp"
@@ -38,6 +39,9 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
         }
 
         id->expr = reduce(id->expr);
+
+        m_type_checker.process(id->expr);
+
         m_ids.insert(id);
     }
 
@@ -86,6 +90,8 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
         reduce_context_type::scope_holder scope(m_beta_reduce_context);
 
+        // Prepare arguments
+
         for (int i = 0; i < args.size(); ++i)
         {
             auto & var = func->vars[i];
@@ -127,13 +133,7 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
             m_beta_reduce_context.bind(var, arg);
         }
 
-        vector<func_var_ptr> remaining_vars;
-        if (func->vars.size() > args.size())
-        {
-            remaining_vars.insert(remaining_vars.end(),
-                        func->vars.begin() + args.size(),
-                        func->vars.end());
-        }
+        // Reduce
 
         if (verbose<functional::model>::enabled())
         {
@@ -157,15 +157,25 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
 
         m_scope_stack.pop();
 
-        if (!remaining_vars.empty())
+
+        if (func->vars.size() > args.size())
         {
+            // Generate partially applied function
+
+            vector<func_var_ptr> remaining_vars
+                    (func->vars.begin() + args.size(),
+                     func->vars.end());
+
             auto new_func = make_shared<function>(remaining_vars, reduced_expr, loc);
             new_func->scope.ids = func->scope.ids;
             reduced_expr = new_func;
         }
         else
         {
-            // add ids to enclosing scope, if any
+            m_type_checker.process(reduced_expr);
+
+            // Add ids to enclosing scope, if any.
+
             if (!m_scope_stack.empty())
             {
                 auto & parent_ids = m_scope_stack.top()->ids;
@@ -176,6 +186,10 @@ expr_ptr func_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args,
     }
     else
     {
+        // FIXME: Is this dead code?
+
+        throw error("Unexpected.");
+
         if (args.size())
             throw reduction_error
                 (wrong_arg_count_msg(0, args.size()), loc);
@@ -192,10 +206,9 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
 {
     if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
-        // FIXME: Can we operate on functions?
         for (auto & operand : op->operands)
             operand = no_function(reduce(operand), operand->location);
-        return op;
+        return reduce_primitive(op);
     }
     else if (auto c = dynamic_pointer_cast<case_expr>(expr))
     {
@@ -212,6 +225,11 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     {
         if (auto id = dynamic_pointer_cast<identifier>(ref->var))
         {
+            if (auto func = dynamic_pointer_cast<function>(id->expr))
+            {
+                return m_copier.copy(func);
+            }
+
             if (m_ids.find(id) == m_ids.end())
             {
                 if (verbose<functional::model>::enabled())
@@ -228,13 +246,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
                 m_trace.pop();
             }
 
-            // TODO: remember location of reference
-            if (auto func = dynamic_pointer_cast<function>(id->expr))
-            {
-                return m_copier.copy(func);
-            }
-            else
-                return ref;
+            return ref;
         }
         else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
         {

@@ -1,5 +1,9 @@
 #include "primitives.hpp"
 
+#include <numeric>
+
+using namespace std;
+
 namespace stream {
 
 string name_of_primitive( primitive_op op )
@@ -219,6 +223,22 @@ primitive_type common_type(primitive_type t1, primitive_type t2)
         return type::real;
 
     throw no_type();
+}
+
+primitive_type common_type(const vector<primitive_type> & types)
+{
+    if (types.empty())
+        throw no_type();
+
+    auto accum_func =
+            static_cast<primitive_type(*)(primitive_type,primitive_type)>(&common_type);
+
+    primitive_type type =
+            std::accumulate(types.begin(), types.end(),
+                            primitive_type::undefined,
+                            accum_func);
+
+    return type;
 }
 
 }

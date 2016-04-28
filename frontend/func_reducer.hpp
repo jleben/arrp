@@ -7,6 +7,7 @@
 #include "error.hpp"
 #include "name_provider.hpp"
 #include "func_copy.hpp"
+#include "type_check.hpp"
 
 #include <stack>
 #include <unordered_set>
@@ -71,6 +72,7 @@ private:
 
     name_provider & m_name_provider;
     copier m_copier;
+    type_checker m_type_checker;
 };
 
 }
