@@ -365,7 +365,7 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
 {
     auto func_type = dynamic_pointer_cast<function_type>(visit(app->object));
     if (!func_type)
-        throw source_error("Not a function.", app->object->location);
+        throw source_error("Not a function.", app->object.location);
 
     if (app->args.size() > func_type->arg_count)
     {
