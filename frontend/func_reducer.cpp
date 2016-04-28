@@ -200,7 +200,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
         for (auto & operand : op->operands)
-            operand = no_function(reduce(operand), operand->location);
+            operand = reduce(operand), operand->location;
         return reduce_primitive(op);
     }
     else if (auto c = dynamic_pointer_cast<case_expr>(expr))
@@ -209,8 +209,8 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
         {
             auto & d = a_case.first;
             auto & e = a_case.second;
-            d = no_function(reduce(d), d->location);
-            e = no_function(reduce(e), e->location);
+            d = reduce(d), d->location;
+            e = reduce(e), e->location;
         }
         return c;
     }
@@ -274,14 +274,14 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
         for (auto & var : arr->vars)
         {
             if (var->range)
-                var->range = no_function(reduce(var->range), var->range->location);
+                var->range = reduce(var->range);
         }
 
         m_scope_stack.push(&arr->scope);
 
         reduce(arr->scope);
 
-        arr->expr = no_function(reduce(arr->expr), arr->expr->location);
+        arr->expr = reduce(arr->expr);
 
         m_scope_stack.pop();
 
@@ -289,9 +289,9 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
-        app->object = no_function(reduce(app->object), app->object->location);
+        app->object = reduce(app->object);
         for(auto & arg : app->args)
-            arg = no_function(reduce(arg), app->object->location);
+            arg = reduce(arg);
         return app;
     }
     else if (auto as = dynamic_pointer_cast<array_size>(expr))
@@ -395,21 +395,6 @@ void func_reducer::reduce(scope & s)
 
         id->expr = reduce(id->expr);
     }
-}
-
-expr_ptr func_reducer::no_function(expr_ptr expr)
-{
-    return no_function(expr, expr->location);
-}
-
-expr_ptr func_reducer::no_function(expr_ptr expr, const location_type & loc)
-{
-    // FIXME: Perform this check for entire tree after all reduction?
-#if 0
-    if (auto f = dynamic_pointer_cast<function>(expr))
-        throw reduction_error("An abstraction is not allowed here.", loc);
-#endif
-    return expr;
 }
 
 }

@@ -47,8 +47,6 @@ public:
 private:
     expr_ptr reduce(expr_ptr);
     void reduce(scope & s);
-    expr_ptr no_function(expr_ptr);
-    expr_ptr no_function(expr_ptr, const location_type &);
     func_reduce_error
     reduction_error(const string & msg, const location_type & loc)
     {
