@@ -12,7 +12,7 @@ void scalar_type::print(ostream & s) const
 
 void array_type::print(ostream & s) const
 {
-    s << size;
+    s << size << element;
 }
 
 void function_type::print(ostream & s) const
