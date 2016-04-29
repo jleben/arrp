@@ -13,6 +13,17 @@ using namespace std;
 namespace stream {
 namespace functional {
 
+static bool is_constant(expr_ptr expr)
+{
+    if (dynamic_cast<constant<int>*>(expr.get()))
+        return true;
+    if (dynamic_cast<constant<double>*>(expr.get()))
+        return true;
+    if (dynamic_cast<constant<bool>*>(expr.get()))
+        return true;
+    return false;
+}
+
 string wrong_arg_count_msg(int required, int actual)
 {
     ostringstream text;
@@ -241,6 +252,9 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
 
                 m_trace.pop();
             }
+
+            if (is_constant(id->expr))
+                return id->expr;
 
             return ref;
         }
