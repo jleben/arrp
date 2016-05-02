@@ -263,7 +263,7 @@ result::code compile_source(istream & source, const arguments & args)
                 cout << endl;
             }
         }
-#if 0
+
         {
             functional::array_transposer transposer;
             transposer.process(array_ids);
@@ -278,7 +278,7 @@ result::code compile_source(istream & source, const arguments & args)
                 }
             }
         }
-
+#if 0
         {
             functional::type_checker checker;
             checker.process(array_ids);
