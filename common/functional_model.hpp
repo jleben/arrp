@@ -220,7 +220,7 @@ class reference : public expression
 {
 public:
     reference(var_ptr v, const location_type & loc, type_ptr type = nullptr):
-        expression(loc), var(v) {}
+        expression(loc, type), var(v) {}
     var_ptr var;
 };
 
