@@ -35,7 +35,6 @@ private:
     expr_ptr reduce(expr_ptr);
     expr_ptr reduce(std::shared_ptr<array>);
     expr_ptr reduce(std::shared_ptr<array_app>);
-    expr_ptr reduce(std::shared_ptr<functional::array_size>);
     expr_ptr reduce(std::shared_ptr<primitive>);
     expr_ptr reduce(std::shared_ptr<case_expr>);
     expr_ptr reduce(std::shared_ptr<reference>);

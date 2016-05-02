@@ -242,7 +242,7 @@ result::code compile_source(istream & source, const arguments & args)
         }
 
         cout << "Type = " << *id->expr->type << endl;
-#if 0
+
         {
             functional::array_reducer reducer(func_name_provider);
             id = reducer.process(id);
@@ -263,6 +263,7 @@ result::code compile_source(istream & source, const arguments & args)
                 cout << endl;
             }
         }
+#if 0
         {
             functional::array_transposer transposer;
             transposer.process(array_ids);

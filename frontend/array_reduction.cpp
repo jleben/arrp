@@ -12,17 +12,6 @@ using namespace std;
 namespace stream {
 namespace functional {
 
-static bool is_constant(expr_ptr expr)
-{
-    if (dynamic_cast<constant<int>*>(expr.get()))
-        return true;
-    if (dynamic_cast<constant<double>*>(expr.get()))
-        return true;
-    if (dynamic_cast<constant<bool>*>(expr.get()))
-        return true;
-    return false;
-}
-
 array_reducer::array_reducer(name_provider & nmp):
     m_declared_vars("declared var"),
     m_name_provider(nmp),
@@ -36,10 +25,6 @@ array_reducer::array_reducer(name_provider & nmp):
 
 id_ptr array_reducer::process(id_ptr id)
 {
-    printer p;
-    p.set_print_scopes(false);
-    p.set_print_var_address(true);
-
     bool was_processed = m_processed_ids.find(id) != m_processed_ids.end();
     if (was_processed)
         return id;
@@ -47,7 +32,7 @@ id_ptr array_reducer::process(id_ptr id)
     if (verbose<functional::model>::enabled())
     {
         cout << "Processing id: ";
-        p.print(id, cout);
+        m_printer.print(id, cout);
         cout << endl;
     }
 
@@ -61,7 +46,7 @@ id_ptr array_reducer::process(id_ptr id)
     if (verbose<functional::model>::enabled())
     {
         cout << "Processed id: ";
-        p.print(id, cout);
+        m_printer.print(id, cout);
         cout << endl;
     }
 
@@ -139,9 +124,9 @@ id_ptr array_reducer::process(id_ptr id)
         if (verbose<functional::model>::enabled())
         {
             cout << "Expanded id " << id << " to ";
-            p.print(new_id, cout); cout << endl;
+            m_printer.print(new_id, cout); cout << endl;
 
-            cout << "Substitute = "; p.print(sub, cout); cout << endl;
+            cout << "Substitute = "; m_printer.print(sub, cout); cout << endl;
         }
 
         id = new_id;
@@ -169,7 +154,7 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     }
     else if (auto as = dynamic_pointer_cast<functional::array_size>(expr))
     {
-        return reduce(as);
+        throw error("Unexpected.");
     }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
@@ -197,6 +182,13 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
 
         array_ptr sub = sub_it->second;
 
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Substituting array self reference: "
+                 << self->arr << " -> " << sub
+                 << endl;
+        }
+
         self->arr = sub;
 
         auto app = make_shared<array_app>();
@@ -217,21 +209,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         if (var->range)
         {
             var->range = reduce(var->range);
-
-            if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
-            {
-                if (c->value < 1)
-                {
-                    ostringstream msg;
-                    msg << "Non-positive variable range (" <<  c->value << ")";
-                    throw source_error(msg.str(), var->range->location);
-                }
-            }
-            else
-            {
-                throw source_error("Array bounds not a constant integer.",
-                                   var->range->location);
-            }
         }
     }
 
@@ -242,7 +219,9 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         declared_vars.push(var);
     }
 
+    cout << "Reducing array expr: " << arr->expr.expr << endl;
     arr->expr = eta_expand(reduce(arr->expr));
+    cout << "Done reducing array expr: " << arr->expr.expr << endl;
 
     if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr.expr))
     {
@@ -250,8 +229,12 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
 
         m_array_ref_sub[nested_arr] = arr;
 
+        cout << "About to reduce nested array in " << arr << endl;
+
         reduce(nested_arr);
         arr->expr = nested_arr->expr;
+
+        cout << "Reduced nested array in " << arr << endl;
 
         m_array_ref_sub.erase(nested_arr);
 
@@ -269,143 +252,35 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 {
     app->object = reduce(app->object);
 
-    auto object = eta_expand(app->object);
-    auto arr = dynamic_pointer_cast<array>(object);
-    bool is_self = false;
+    for (int arg_idx = 0; arg_idx < app->args.size(); ++arg_idx)
+    {
+        auto & arg = app->args[arg_idx];
+        arg = reduce(arg);
+    }
 
-    if (arr)
+    if (auto ref = dynamic_pointer_cast<reference>(app->object.expr))
+    {
+        auto size = array_size(ref);
+        assert(size.size() >= app->args.size());
+
+        if (size.size() == app->args.size())
+            return app;
+        else
+            app->object = eta_expand(app->object);
+    }
+    else if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
+    {
+        return app;
+    }
+    else if (auto arr = dynamic_pointer_cast<array>(app->object.expr))
     {
         if (arr->is_recursive)
             throw source_error("Direct application of recursive arrays not supported.",
                                app->location);
     }
-    else if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
-    {
-        arr = arr_self->arr;
-        is_self = true;
-    }
-    else if (auto nested_app = dynamic_pointer_cast<array_app>(app->object.expr))
-    {
-        // Despite eta expansion above, this is possible
-        // in case of array self-reference.
-        vector<expr_ptr> args(app->args.begin(), app->args.end());
-        return apply(nested_app, args);
-    }
 
-    if (!arr)
-    {
-        throw source_error("Object of array application not an array.",
-                           app->object->location);
-    }
-
-    vector<int> bounds = array_size(arr);
-
-    if (is_self)
-    {
-        if (bounds.size() != app->args.size())
-        {
-            ostringstream msg;
-            msg << "Array self reference partially applied."
-                << " Expected " << bounds.size() << " arguments, but "
-                << app->args.size() << " given.";
-            throw source_error(msg.str(), app->location);
-        }
-    }
-    else if (bounds.size() < app->args.size())
-    {
-        ostringstream msg;
-        msg << "Too many arguments in array application: "
-            << bounds.size() << " expected, "
-            << app->args.size() << " given.";
-        throw source_error(msg.str(), app->location);
-    }
-
-    for (int arg_idx = 0; arg_idx < app->args.size(); ++arg_idx)
-    {
-        auto & arg = app->args[arg_idx];
-        arg = reduce(arg);
-        auto lin_arg = to_linear_expr(arg);
-        auto max_arg = maximum(lin_arg);
-        int bound = bounds[arg_idx];
-        if (max_arg.is_constant())
-        {
-            int max_value = max_arg.constant();
-            if (bound != array_var::unconstrained && max_value >= bound)
-            {
-                ostringstream msg;
-                msg << "Argument range (" << max_value << ")"
-                    << " out of array bound (" << bound << ")";
-                throw source_error(msg.str(),
-                                   arg->location);
-            }
-        }
-        else
-        {
-            if (bound != array_var::unconstrained)
-            {
-                printer p;
-                cout << "Unbounded argument: ";
-                p.print(arg, cout); cout << endl;
-                throw source_error("Unbounded argument to"
-                                   " bounded array dimension.",
-                                   arg->location);
-            }
-        }
-
-        // arg = make_shared<affine_expr>(lin_arg);
-    }
-
-    if (!is_self)
-    {
-        vector<expr_ptr> args(app->args.begin(), app->args.end());
-        return apply(arr, args);
-    }
-
-    return app;
-}
-
-expr_ptr array_reducer::reduce(std::shared_ptr<functional::array_size> as)
-{
-    as->object = reduce(as->object);
-
-    auto size = array_size(as->object);
-    if (size.size() < 1)
-    {
-        throw source_error("Not an array.",
-                           as->object->location);
-    }
-
-    int dim;
-    if (as->dimension)
-    {
-        as->dimension = reduce(as->dimension);
-        auto cint = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
-        if (!cint)
-        {
-            throw source_error("Array dimension index not a constant integer.",
-                               as->location);
-        }
-        int val = cint->value;
-        if (val < 1 || val > (int)size.size())
-        {
-            throw source_error("Array dimension index out of bounds.",
-                               as->location);
-        }
-        dim = val - 1;
-    }
-    else
-    {
-        dim = 0;
-    }
-
-    int dim_size = size[dim];
-    if (dim_size < 0)
-    {
-        throw source_error("Array dimension is infinite.",
-                           as->location);
-    }
-
-    return make_shared<constant<int>>(dim_size);
+    vector<expr_ptr> args(app->args.begin(), app->args.end());
+    return apply(app->object, args);
 }
 
 expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
@@ -427,138 +302,138 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
         auto operand_size = array_size(operand);
 
+        operand_is_array.push_back(!operand_size.empty());
+
         if (!operand_size.empty())
         {
-            if (!result_size.empty() && operand_size != result_size)
+            if (result_size.empty())
+                result_size = operand_size;
+            else
             {
-                throw source_error("Operand size mismatch.", op->location);
-            }
-            result_size = operand_size;
-        }
-
-        operand_is_array.push_back(!operand_size.empty());
-    }
-
-    if (!result_size.empty())
-    {
-        auto arr = make_shared<array>();
-
-        // Create vars for result array
-
-        decl_var_stacker decl_vars(m_declared_vars);
-
-        for (auto s : result_size)
-        {
-            expr_ptr range = nullptr;
-            if (s != array_var::unconstrained)
-                range = make_shared<constant<int>>(s);
-            auto v = make_shared<array_var>(new_var_name(), range, location_type());
-            arr->vars.push_back(v);
-
-            decl_vars.push(v);
-        }
-
-        // Reduce arrays in operands:
-
-        for (int i = 0; i < (int)op->operands.size(); ++i)
-        {
-            if (!operand_is_array[i])
-                continue;
-
-            auto & operand = op->operands[i];
-            vector<expr_ptr> args;
-            for (auto & v : arr->vars)
-                args.push_back(make_shared<reference>(v, location_type()));
-
-            operand = apply(operand, args);
-        }
-
-        // Check subdomains in operands:
-
-        for (auto & operand : op->operands)
-        {
-            if (dynamic_pointer_cast<case_expr>(operand.expr))
-            {
-                throw source_error("Case expression not supported as operand.",
-                                   operand->location);
+                assert_or_throw(operand_size == result_size);
             }
         }
-
-        arr->expr = reduce_primitive(op);
-
-        return arr;
     }
-    else
-    {
+
+    if (result_size.empty())
         return reduce_primitive(op);
+
+    auto arr = make_shared<array>();
+
+    // Create vars for result array
+
+    decl_var_stacker decl_vars(m_declared_vars);
+
+    for (auto s : result_size)
+    {
+        expr_ptr range = nullptr;
+        if (s != array_var::unconstrained)
+            range = make_shared<constant<int>>(s);
+        auto v = make_shared<array_var>(new_var_name(), range, location_type());
+        arr->vars.push_back(v);
+
+        decl_vars.push(v);
     }
+
+    // Reduce arrays in operands:
+
+    for (int i = 0; i < (int)op->operands.size(); ++i)
+    {
+        if (!operand_is_array[i])
+            continue;
+
+        auto & operand = op->operands[i];
+        vector<expr_ptr> args;
+        for (auto & v : arr->vars)
+            args.push_back(make_shared<reference>(v, location_type()));
+
+        operand = apply(operand, args);
+    }
+
+    // Check subdomains in operands:
+
+    for (auto & operand : op->operands)
+    {
+        if (dynamic_pointer_cast<case_expr>(operand.expr))
+        {
+            throw source_error("Case expression not supported as operand.",
+                               operand.location);
+        }
+    }
+
+    arr->expr = reduce_primitive(op);
+
+    return arr;
 }
 
 expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 {
-    vector<int> common_size;
+    vector<int> result_size;
+    vector<bool> case_is_array;
 
     for (auto & a_case : cexpr->cases)
     {
-        auto & domain = a_case.first;
         auto & expr = a_case.second;
-        auto src_expr = expr;
 
-        to_linear_set(domain);
         expr = eta_expand(reduce(expr));
 
-        auto size = array_size(expr);
-        if (size.empty())
-            continue;
-        if (!common_size.empty() && size != common_size)
+        auto case_size = array_size(expr);
+
+        case_is_array.push_back(!case_size.empty());
+
+        if (!case_size.empty())
         {
-            throw source_error("Subdomain has elements of different size"
-                               " than other subdomains.",
-                               src_expr->location);
+            if (result_size.empty())
+                result_size = case_size;
+            else
+                assert_or_throw(case_size == result_size);
         }
-        common_size = size;
     }
 
-    if (!common_size.empty())
+    if (result_size.empty())
+        return cexpr;
+
+    auto arr = make_shared<array>();
+
+    decl_var_stacker decl_vars(m_declared_vars);
+
+    for (auto s : result_size)
     {
-        auto arr = make_shared<array>();
-
-        decl_var_stacker decl_vars(m_declared_vars);
-
-        for (auto s : common_size)
-        {
-            expr_ptr range = nullptr;
-            if (s != array_var::unconstrained)
-                range = make_shared<constant<int>>(s);
-            auto v = make_shared<array_var>(new_var_name(), range, location_type());
-            arr->vars.push_back(v);
-            decl_vars.push(v);
-        }
-
-        for (auto & a_case : cexpr->cases)
-        {
-            auto & expr = a_case.second;
-
-            // Reduce array
-            vector<expr_ptr> args;
-            for (auto & v : arr->vars)
-                args.push_back(make_shared<reference>(v, location_type()));
-
-            expr = apply(expr, args);
-
-            if (dynamic_pointer_cast<case_expr>(expr.expr))
-            {
-                // FIXME: location of reduced expression
-                throw source_error("Nested cases not supported.", expr->location);
-            }
-        }
-
-        arr->expr = cexpr;
-
-        return arr;
+        expr_ptr range = nullptr;
+        if (s != array_var::unconstrained)
+            range = make_shared<constant<int>>(s);
+        auto v = make_shared<array_var>(new_var_name(), range, location_type());
+        arr->vars.push_back(v);
+        decl_vars.push(v);
     }
 
-    return cexpr;
+    for (int i = 0; i < cexpr->cases.size(); ++i)
+    {
+        auto & a_case = cexpr->cases[i];
+        if (!case_is_array[i])
+            continue;
+
+        auto & expr = a_case.second;
+
+        vector<expr_ptr> args;
+        for (auto & v : arr->vars)
+            args.push_back(make_shared<reference>(v, location_type()));
+
+        expr = apply(expr, args);
+    }
+
+    for (auto & a_case : cexpr->cases)
+    {
+        auto & expr = a_case.second;
+        if (dynamic_pointer_cast<case_expr>(expr.expr))
+        {
+            throw source_error("Nested cases not supported.", expr.location);
+        }
+    }
+
+    arr->expr = cexpr;
+
+    return arr;
 }
 
 expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
@@ -583,10 +458,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
             // Reduce to detect free vars
             return reduce(sub);
         }
-
-        bool is_const = is_constant(id->expr);
-        if (is_const)
-            return id->expr;
 
         if (verbose<functional::model>::enabled())
         {
@@ -661,7 +532,6 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
 {
     if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
-        // This handles recursive array applications
         app->args.insert(app->args.end(), args.begin(), args.end());
         return app;
     }
@@ -681,10 +551,7 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
         }
 
         // Reduce primitive ops
-        if (auto prim = dynamic_pointer_cast<primitive>(expr))
-        {
-            expr = reduce(prim);
-        }
+        expr = reduce(expr);
 
         if (arr->vars.size() > args.size())
         {
@@ -709,10 +576,6 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
 
 expr_ptr array_reducer::substitute(expr_ptr expr)
 {
-    printer p;
-    p.set_print_scopes(false);
-    p.set_print_var_address(true);
-
     if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
@@ -723,7 +586,7 @@ expr_ptr array_reducer::substitute(expr_ptr expr)
                 if (verbose<functional::model>::enabled())
                 {
                     cout << "Substituting array var " << avar << " with ";
-                    p.print(binding.value(), cout);
+                    m_printer.print(binding.value(), cout);
                     cout << endl;
                 }
 

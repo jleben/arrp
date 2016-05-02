@@ -318,12 +318,6 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
             throw source_error(msg.str(), app->location);
         }
     }
-    else if (auto arr = dynamic_pointer_cast<array>(app->object.expr))
-    {
-        if (arr->is_recursive)
-            throw source_error("Direct application of recursive arrays not supported.",
-                               app->location);
-    }
 
     for (int arg_idx = 0; arg_idx < app->args.size(); ++arg_idx)
     {
