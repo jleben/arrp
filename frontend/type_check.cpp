@@ -3,6 +3,7 @@
 #include "error.hpp"
 #include "../common/func_model_printer.hpp"
 #include "../utility/stacker.hpp"
+#include "../utility/debug.hpp"
 
 #include <cassert>
 
@@ -10,6 +11,21 @@ using namespace std;
 
 namespace stream {
 namespace functional {
+
+template <typename T>
+struct mention_ {
+    const T & d;
+    mention_(const T & d): d(d) {}
+};
+
+ostream & operator<< (ostream & s, const mention_<location_type> & m)
+{
+    s << "@" << m.d << ": ";
+    return s;
+}
+
+template <typename T>
+mention_<T> mention(const T & d) { return mention_<T>(d); }
 
 string text(primitive_op op, const vector<primitive_type> & args)
 {
@@ -191,9 +207,17 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 
 type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
 {
+    if (verbose<type_checker>::enabled())
+        cout << mention(arr->location)
+             << "Visiting array." << endl;
+
     auto type = process_array(arr);
     if (arr->is_recursive)
     {
+        if (verbose<type_checker>::enabled())
+            cout << mention(arr->location)
+                 << "Revisiting recursive array." << endl;
+
         // We need another pass with proper type for self-references.
         arr->type = type;
         revertable<bool> revisit(m_force_revisit, true);
@@ -259,6 +283,10 @@ type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
 
     if (arr->type)
     {
+        if (verbose<type_checker>::enabled())
+            cout << mention(self->location)
+                 << "Self reference using known array type: "
+                 << *arr->type << endl;
         return arr->type;
     }
 
@@ -277,7 +305,12 @@ type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
         }
     }
 
-    return make_shared<array_type>(size, primitive_type::undefined);
+    auto result = make_shared<array_type>(size, primitive_type::undefined);
+    if (verbose<type_checker>::enabled())
+        cout << mention(self->location)
+             << "Self reference synthesized type: " << *result << endl;
+
+    return result;
 }
 
 type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
@@ -333,9 +366,6 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
         {
             if (bound != array_var::unconstrained)
             {
-                printer p;
-                cout << "Unbounded argument: ";
-                p.print(arg, cout); cout << endl;
                 throw source_error("Unbounded argument to"
                                    " bounded array dimension.",
                                    arg.location);

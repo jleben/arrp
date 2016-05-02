@@ -156,6 +156,7 @@ public:
     {
         return {
             "func-model",
+            "type-check",
             "array-transpose",
             "mod-avoid",
             "ph-model",

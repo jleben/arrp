@@ -125,6 +125,10 @@ result::code compile(const arguments & args)
     {
         verbose<functional::model>::enabled() = true;
     }
+    if (args.verbose_topics.at("type-check"))
+    {
+        verbose<functional::type_checker>::enabled() = true;
+    }
     if (args.verbose_topics.at("array-transpose"))
     {
         verbose<functional::array_transposer>::enabled() = true;
