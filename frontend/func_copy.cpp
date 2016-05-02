@@ -113,6 +113,7 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
     auto new_arr = make_shared<array>();
     new_arr->location = arr->location;
     new_arr->type = arr->type;
+    new_arr->is_recursive = arr->is_recursive;
 
     stacker<array_ptr> array_stacker(new_arr, m_array_copy_stack);
 
