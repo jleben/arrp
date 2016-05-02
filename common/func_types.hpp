@@ -18,6 +18,9 @@ class type
 public:
     virtual ~type() {}
     virtual void print(ostream &) const = 0;
+    virtual bool is_scalar() const { return false; }
+    virtual bool is_array() const { return false; }
+    virtual bool is_function() const  { return false; }
 };
 typedef shared_ptr<type> type_ptr;
 
@@ -27,6 +30,7 @@ public:
     scalar_type(primitive_type p): primitive(p) {}
     primitive_type primitive;
     void print(ostream &) const override;
+    bool is_scalar() const override { return true; }
 };
 
 inline shared_ptr<scalar_type> make_bool_type()
@@ -45,6 +49,7 @@ public:
     array_type(const array_size_vec & size, const type_ptr & elem_type);
     array_type(const array_size_vec & s, primitive_type e): size(s), element(e) {}
     void print(ostream &) const override;
+    bool is_array() const override { return true; }
     array_size_vec size;
     primitive_type element;
 };
@@ -54,6 +59,7 @@ class function_type : public type
 public:
     function_type(int a): arg_count(a) {}
     void print(ostream &) const override;
+    bool is_function() const override { return true; }
     int arg_count;
 };
 
