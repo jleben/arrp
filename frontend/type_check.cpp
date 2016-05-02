@@ -332,9 +332,9 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
         throw source_error(msg.str(), app->location);
     }
 
-    if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
+    if(auto self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
     {
-        if (object_size.size() != app->args.size())
+        if (self->arr->vars.size() != app->args.size())
         {
             ostringstream msg;
             msg << "Array self reference partially applied."
