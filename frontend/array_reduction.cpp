@@ -108,13 +108,19 @@ id_ptr array_reducer::process(id_ptr id)
         auto new_id = make_shared<identifier>(new_id_name, expr, id->location);
         m_processed_ids.insert(new_id);
 
+        if (verbose<functional::model>::enabled())
+        {
+            cout << "Expanded id: " << id << " => ";
+            m_printer.print(new_id, cout);
+            cout << " : " << *new_id->expr->type << endl;
+        }
+
         // Substite for references to this id
 
         if (verbose<functional::model>::enabled())
             cout << "Creating substitute for id: " << id << endl;
 
         expr_ptr sub = make_shared<reference>(new_id, location_type(), expr->type);
-        sub = eta_expand(sub);
 
         vector<expr_ptr> args;
         for (auto & var : ordered_unbound_vars)
@@ -272,30 +278,26 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
         arg = reduce(arg);
     }
 
-    if (auto ref = dynamic_pointer_cast<reference>(app->object.expr))
-    {
-        auto size = array_size(ref);
-        assert(size.size() >= app->args.size());
+    bool requires_reduction = false;
 
-        if (size.size() == app->args.size())
-        {
-            return app;
-        }
-        else
-        {
-            app->object = eta_expand(app->object);
-        }
-    }
-    else if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
-    {
-        return app;
-    }
-    else if (auto arr = dynamic_pointer_cast<array>(app->object.expr))
+    if (auto arr = dynamic_pointer_cast<array>(app->object.expr))
     {
         if (arr->is_recursive)
-            throw source_error("Direct application of recursive arrays not supported.",
+            throw source_error("Application of recursive arrays not supported.",
                                app->location);
+        if (dynamic_pointer_cast<case_expr>(arr->expr.expr))
+            throw source_error("Application of arrays with subdomains not supported.",
+                               app->location);
+
+        requires_reduction = true;
     }
+    else if (dynamic_pointer_cast<array_app>(app->object.expr))
+    {
+        requires_reduction = true;
+    }
+
+    if (!requires_reduction)
+        return app;
 
     vector<expr_ptr> args(app->args.begin(), app->args.end());
     return apply(app->object, args);
@@ -304,10 +306,11 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 {
     for (auto & operand : op->operands)
-        operand = eta_expand(reduce(operand));
+        operand = reduce(operand);
 
-    vector<int> result_size;
-    vector<bool> operand_is_array;
+    auto result_arr_type = dynamic_pointer_cast<array_type>(op->type);
+    if (!result_arr_type)
+        return reduce_primitive(op);
 
     for (auto & operand : op->operands)
     {
@@ -317,27 +320,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
                 throw source_error("Recursive arrays not supported as operands.",
                                    arr->location);
         }
-
-        auto operand_size = array_size(operand);
-
-        operand_is_array.push_back(!operand_size.empty());
-
-        if (!operand_size.empty())
-        {
-            if (result_size.empty())
-                result_size = operand_size;
-            else
-            {
-                assert_or_throw(operand_size == result_size);
-            }
-        }
     }
-
-    if (result_size.empty())
-        return reduce_primitive(op);
-
-    auto result_arr_type = dynamic_pointer_cast<array_type>(op->type);
-    assert(result_arr_type);
 
     auto arr = make_shared<array>();
 
@@ -345,25 +328,23 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     decl_var_stacker decl_vars(m_declared_vars);
 
-    for (auto s : result_size)
+    for (auto dim_size : result_arr_type->size)
     {
         expr_ptr range = nullptr;
-        if (s != array_var::unconstrained)
-            range = make_shared<constant<int>>(s, location_type(), make_int_type());
+        if (dim_size != array_var::unconstrained)
+            range = make_shared<constant<int>>(dim_size, location_type(), make_int_type());
         auto v = make_shared<array_var>(new_var_name(), range, location_type());
         arr->vars.push_back(v);
-
         decl_vars.push(v);
     }
 
     // Reduce arrays in operands:
 
-    for (int i = 0; i < (int)op->operands.size(); ++i)
+    for (auto & operand : op->operands)
     {
-        if (!operand_is_array[i])
+        if (!operand->type->is_array())
             continue;
 
-        auto & operand = op->operands[i];
         vector<expr_ptr> args;
         for (auto & v : arr->vars)
             args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
@@ -392,27 +373,13 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
 expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 {
-    vector<int> result_size;
-    vector<bool> case_is_array;
     bool is_recursive_array = false;
 
     for (auto & a_case : cexpr->cases)
     {
         auto & expr = a_case.second;
 
-        expr = eta_expand(reduce(expr));
-
-        auto case_size = array_size(expr);
-
-        case_is_array.push_back(!case_size.empty());
-
-        if (!case_size.empty())
-        {
-            if (result_size.empty())
-                result_size = case_size;
-            else
-                assert_or_throw(case_size == result_size);
-        }
+        expr = reduce(expr);
 
         if (auto arr = dynamic_pointer_cast<array>(expr.expr))
         {
@@ -420,37 +387,37 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         }
     }
 
-    if (result_size.empty())
-        return cexpr;
-
     auto result_arr_type = dynamic_pointer_cast<array_type>(cexpr->type);
-    assert(result_arr_type);
+    if (!result_arr_type)
+        return cexpr;
 
     auto arr = make_shared<array>();
 
     decl_var_stacker decl_vars(m_declared_vars);
 
-    for (auto s : result_size)
+    for (auto dim_size : result_arr_type->size)
     {
         expr_ptr range = nullptr;
-        if (s != array_var::unconstrained)
-            range = make_shared<constant<int>>(s, location_type(), make_int_type());
+        if (dim_size != array_var::unconstrained)
+            range = make_shared<constant<int>>(dim_size, location_type(), make_int_type());
         auto v = make_shared<array_var>(new_var_name(), range, location_type());
         arr->vars.push_back(v);
         decl_vars.push(v);
     }
 
-    for (int i = 0; i < cexpr->cases.size(); ++i)
+    for (auto & a_case : cexpr->cases)
     {
-        auto & a_case = cexpr->cases[i];
-        if (!case_is_array[i])
-            continue;
-
         auto & expr = a_case.second;
+        if (!expr->type->is_array())
+            continue;
 
         vector<expr_ptr> args;
         for (auto & v : arr->vars)
             args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
+
+        // FIXME: Update array recursions?
+        // Although a recursion would usually appear inside a case,
+        // which would be rejected just below.
 
         expr = apply(expr, args);
     }
@@ -580,8 +547,8 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
         if (remaining_var_size > 0)
         {
             array_size_vec result_size
-                    (ar_type->size.begin(),
-                     ar_type->size.begin() + remaining_var_size);
+                    (ar_type->size.begin() + args.size(),
+                     ar_type->size.end());
             result_type = make_shared<array_type>(result_size, ar_type->element);
         }
         else
@@ -629,6 +596,7 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
 
             result = arr;
         }
+        // FIXME: Else, update recursions of this array?
 
         result->type = result_type;
 
@@ -636,7 +604,13 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
     }
     else
     {
-        throw error("Unexpected object of array application.");
+        auto app = make_shared<array_app>();
+        app->object = expr;
+        for (auto & arg : args)
+            app->args.emplace_back(arg);
+        app->type = result_type;
+        return app;
+        //throw error("Unexpected object of array application.");
     }
 }
 
@@ -698,43 +672,40 @@ expr_ptr array_reducer::substitute(expr_ptr expr)
 
 expr_ptr array_reducer::eta_expand(expr_ptr expr)
 {
-    auto ref = dynamic_pointer_cast<reference>(expr);
-    if (ref)
-        return eta_expand(ref);
-    return expr;
-}
+    auto ar_type = dynamic_pointer_cast<array_type>(expr->type);
+    if (!ar_type)
+        return expr;
 
-expr_ptr array_reducer::eta_expand(std::shared_ptr<reference> ref)
-{
-    auto id = dynamic_pointer_cast<identifier>(ref->var);
-    if (!id)
-        return ref;
-    auto arr = dynamic_pointer_cast<array>(id->expr.expr);
-    if (!arr)
-        return ref;
+    bool is_recursive_array = false;
 
-    auto arr_type = dynamic_pointer_cast<array_type>(arr->type);
-    assert(arr_type);
-
-    auto new_arr = make_shared<array>();
-    auto new_app = make_shared<array_app>();
-
-    for (auto & var : arr->vars)
+    if (auto ar = dynamic_pointer_cast<array>(expr))
     {
-        assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range.expr) );
-        auto new_var = make_shared<array_var>(*var);
-        new_arr->vars.push_back(new_var);
-        new_app->args.emplace_back
-                (make_shared<reference>(new_var, location_type(), make_int_type()));
+        if (ar->vars.size() == ar_type->size.size())
+        {
+            // Assume it is fully expanded.
+            return expr;
+        }
+
+        is_recursive_array = ar->is_recursive;
     }
 
-    new_app->object = ref;
-    new_app->type = make_shared<scalar_type>(arr_type->element);
+    auto new_ar = make_shared<array>();
+    vector<expr_ptr> args;
+    for (int dim_size : ar_type->size)
+    {
+        expr_ptr range;
+        if (dim_size != array_var::unconstrained)
+            range = make_shared<constant<int>>(dim_size, location_type(), make_int_type());
+        auto var = make_shared<array_var>(new_var_name(), range, location_type());
+        new_ar->vars.push_back(var);
+        args.push_back(make_shared<reference>(var, location_type(), make_int_type()));
+    }
 
-    new_arr->expr = new_app;
-    new_arr->type = arr_type;
+    new_ar->expr = apply(expr, args);
+    new_ar->type = ar_type;
+    new_ar->is_recursive = is_recursive_array;
 
-    return new_arr;
+    return new_ar;
 }
 
 string array_reducer::new_var_name()

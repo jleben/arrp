@@ -43,7 +43,6 @@ private:
     expr_ptr apply(expr_ptr, const vector<expr_ptr> & args);
     expr_ptr substitute(expr_ptr);
     expr_ptr eta_expand(expr_ptr);
-    expr_ptr eta_expand(std::shared_ptr<reference>);
 
     using context_type = context<var_ptr, expr_ptr>;
     context_type m_context;
