@@ -16,6 +16,8 @@ class type_checker : public visitor<type_ptr>
 public:
     void process(const expr_ptr &);
 
+    static type_ptr make_array_type(array_size_vec & size, const type_ptr & elem_type);
+
 private:
     type_ptr visit(const expr_ptr & expr);
     type_ptr visit_int(const shared_ptr<constant<int>> &);

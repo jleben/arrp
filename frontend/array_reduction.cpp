@@ -85,19 +85,25 @@ id_ptr array_reducer::process(id_ptr id)
             new_var->location = location_type();
             new_vars.push_back(new_var);
 
-            auto new_ref = make_shared<reference>(new_var, location_type());
-            m_context.bind(var, new_ref);
+            auto ref = make_shared<reference>(new_var, location_type(), make_int_type());
+            m_context.bind(var, ref);
         }
 
         auto ar = make_shared<array>();
         ar->vars = new_vars;
         ar->expr = substitute(id->expr);
 
+        auto ar_size = array_size(ar);
+        ar->type = make_shared<array_type>(ar_size, ar->expr->type);
+
         m_context.exit_scope();
 
-        // Reduce to get rid of nested arrays
+        // Reduce expression to get rid of nested arrays
 
         auto expr = reduce(ar);
+
+        // Make new id
+
         auto new_id_name = m_name_provider.new_name(id->name);
         auto new_id = make_shared<identifier>(new_id_name, expr, id->location);
         m_processed_ids.insert(new_id);
@@ -107,12 +113,13 @@ id_ptr array_reducer::process(id_ptr id)
         if (verbose<functional::model>::enabled())
             cout << "Creating substitute for id: " << id << endl;
 
-        expr_ptr sub = make_shared<reference>(new_id, location_type());
+        expr_ptr sub = make_shared<reference>(new_id, location_type(), expr->type);
         sub = eta_expand(sub);
+
         vector<expr_ptr> args;
         for (auto & var : ordered_unbound_vars)
         {
-            auto ref = make_shared<reference>(var, location_type());
+            auto ref = make_shared<reference>(var, location_type(), make_int_type());
             args.push_back(ref);
             if (verbose<functional::model>::enabled())
                 cout << "Adding var to substitute: " << var << endl;
@@ -124,9 +131,14 @@ id_ptr array_reducer::process(id_ptr id)
         if (verbose<functional::model>::enabled())
         {
             cout << "Expanded id " << id << " to ";
-            m_printer.print(new_id, cout); cout << endl;
+            m_printer.print(new_id, cout);
+            cout << " : " << *new_id->expr->type;
+            cout << endl;
 
-            cout << "Substitute = "; m_printer.print(sub, cout); cout << endl;
+            cout << "Substitute = ";
+            m_printer.print(sub, cout);
+            cout << " : " << *sub->type;
+            cout << endl;
         }
 
         id = new_id;
@@ -185,16 +197,22 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
         if (verbose<functional::model>::enabled())
         {
             cout << "Substituting array self reference: "
-                 << self->arr << " -> " << sub
+                 << self->arr << " : " << *self->type
+                 << " -> "
+                 << sub << " : " << *sub->type
                  << endl;
         }
 
+        auto original_type = self->type;
+
         self->arr = sub;
+        self->type = sub->type;
 
         auto app = make_shared<array_app>();
         app->object = self;
+        app->type = original_type;
         for (auto & var : sub->vars)
-            app->args.emplace_back(make_shared<reference>(var, location_type()));
+            app->args.emplace_back(make_shared<reference>(var, location_type(), make_int_type()));
 
         return app;
     }
@@ -219,9 +237,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         declared_vars.push(var);
     }
 
-    cout << "Reducing array expr: " << arr->expr.expr << endl;
     arr->expr = eta_expand(reduce(arr->expr));
-    cout << "Done reducing array expr: " << arr->expr.expr << endl;
 
     if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr.expr))
     {
@@ -229,12 +245,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
 
         m_array_ref_sub[nested_arr] = arr;
 
-        cout << "About to reduce nested array in " << arr << endl;
-
         reduce(nested_arr);
         arr->expr = nested_arr->expr;
-
-        cout << "Reduced nested array in " << arr << endl;
 
         m_array_ref_sub.erase(nested_arr);
 
@@ -243,6 +255,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         arr->vars.insert(arr->vars.end(),
                          nested_arr->vars.begin(),
                          nested_arr->vars.end());
+
+        arr->is_recursive = nested_arr->is_recursive;
     }
 
     return arr;
@@ -264,9 +278,13 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
         assert(size.size() >= app->args.size());
 
         if (size.size() == app->args.size())
+        {
             return app;
+        }
         else
+        {
             app->object = eta_expand(app->object);
+        }
     }
     else if(auto arr_self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
     {
@@ -318,6 +336,9 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     if (result_size.empty())
         return reduce_primitive(op);
 
+    auto result_arr_type = dynamic_pointer_cast<array_type>(op->type);
+    assert(result_arr_type);
+
     auto arr = make_shared<array>();
 
     // Create vars for result array
@@ -328,7 +349,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     {
         expr_ptr range = nullptr;
         if (s != array_var::unconstrained)
-            range = make_shared<constant<int>>(s);
+            range = make_shared<constant<int>>(s, location_type(), make_int_type());
         auto v = make_shared<array_var>(new_var_name(), range, location_type());
         arr->vars.push_back(v);
 
@@ -345,7 +366,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
         auto & operand = op->operands[i];
         vector<expr_ptr> args;
         for (auto & v : arr->vars)
-            args.push_back(make_shared<reference>(v, location_type()));
+            args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
 
         operand = apply(operand, args);
     }
@@ -363,6 +384,9 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     arr->expr = reduce_primitive(op);
 
+    arr->expr->type = make_shared<scalar_type>(result_arr_type->element);
+    arr->type = result_arr_type;
+
     return arr;
 }
 
@@ -370,6 +394,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 {
     vector<int> result_size;
     vector<bool> case_is_array;
+    bool is_recursive_array = false;
 
     for (auto & a_case : cexpr->cases)
     {
@@ -388,10 +413,18 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
             else
                 assert_or_throw(case_size == result_size);
         }
+
+        if (auto arr = dynamic_pointer_cast<array>(expr.expr))
+        {
+            is_recursive_array |= arr->is_recursive;
+        }
     }
 
     if (result_size.empty())
         return cexpr;
+
+    auto result_arr_type = dynamic_pointer_cast<array_type>(cexpr->type);
+    assert(result_arr_type);
 
     auto arr = make_shared<array>();
 
@@ -401,7 +434,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
     {
         expr_ptr range = nullptr;
         if (s != array_var::unconstrained)
-            range = make_shared<constant<int>>(s);
+            range = make_shared<constant<int>>(s, location_type(), make_int_type());
         auto v = make_shared<array_var>(new_var_name(), range, location_type());
         arr->vars.push_back(v);
         decl_vars.push(v);
@@ -417,7 +450,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 
         vector<expr_ptr> args;
         for (auto & v : arr->vars)
-            args.push_back(make_shared<reference>(v, location_type()));
+            args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
 
         expr = apply(expr, args);
     }
@@ -432,6 +465,10 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
     }
 
     arr->expr = cexpr;
+
+    arr->expr->type = make_shared<scalar_type>(result_arr_type->element);
+    arr->type = result_arr_type;
+    arr->is_recursive = is_recursive_array;
 
     return arr;
 }
@@ -530,14 +567,43 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
 
 expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
 {
+    if (verbose<functional::model>::enabled())
+        cout << "Applying : " << *expr->type << endl;
+
+    auto ar_type = dynamic_pointer_cast<array_type>(expr->type);
+    assert(ar_type);
+
+    type_ptr result_type;
+    {
+        int remaining_var_size = ar_type->size.size() - args.size();
+        assert(remaining_var_size >= 0);
+        if (remaining_var_size > 0)
+        {
+            array_size_vec result_size
+                    (ar_type->size.begin(),
+                     ar_type->size.begin() + remaining_var_size);
+            result_type = make_shared<array_type>(result_size, ar_type->element);
+        }
+        else
+        {
+            result_type = make_shared<scalar_type>(ar_type->element);
+        }
+    }
+
+    if (verbose<functional::model>::enabled())
+        cout << "Applying : => " << *result_type << endl;
+
     if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
         app->args.insert(app->args.end(), args.begin(), args.end());
+        app->type = result_type;
         return app;
     }
     else if (auto arr = dynamic_pointer_cast<array>(expr))
     {
         assert(arr->vars.size() >= args.size());
+
+        expr_ptr result;
 
         {
             context_type::scope_holder scope(m_context);
@@ -547,26 +613,26 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
                 m_context.bind(arr->vars[i], args[i]);
             }
 
-            expr = substitute(arr->expr);
+            result = substitute(arr->expr);
         }
 
         // Reduce primitive ops
-        expr = reduce(expr);
+        result = reduce(result);
 
         if (arr->vars.size() > args.size())
         {
             vector<array_var_ptr> remaining_vars(arr->vars.begin() + args.size(),
                                                  arr->vars.end());
             arr->vars = remaining_vars;
-            arr->expr = expr;
+            arr->expr = result;
             arr->location = location_type();
-            // FIXME: location
-            return arr;
+
+            result = arr;
         }
-        else
-        {
-            return expr;
-        }
+
+        result->type = result_type;
+
+        return result;
     }
     else
     {
@@ -647,6 +713,9 @@ expr_ptr array_reducer::eta_expand(std::shared_ptr<reference> ref)
     if (!arr)
         return ref;
 
+    auto arr_type = dynamic_pointer_cast<array_type>(arr->type);
+    assert(arr_type);
+
     auto new_arr = make_shared<array>();
     auto new_app = make_shared<array_app>();
 
@@ -655,11 +724,15 @@ expr_ptr array_reducer::eta_expand(std::shared_ptr<reference> ref)
         assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range.expr) );
         auto new_var = make_shared<array_var>(*var);
         new_arr->vars.push_back(new_var);
-        new_app->args.emplace_back(make_shared<reference>(new_var, location_type()));
+        new_app->args.emplace_back
+                (make_shared<reference>(new_var, location_type(), make_int_type()));
     }
 
     new_app->object = ref;
+    new_app->type = make_shared<scalar_type>(arr_type->element);
+
     new_arr->expr = new_app;
+    new_arr->type = arr_type;
 
     return new_arr;
 }

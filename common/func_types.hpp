@@ -29,10 +29,20 @@ public:
     void print(ostream &) const override;
 };
 
+inline shared_ptr<scalar_type> make_bool_type()
+{ return std::make_shared<scalar_type>(primitive_type::boolean); }
+
+inline shared_ptr<scalar_type> make_int_type()
+{ return std::make_shared<scalar_type>(primitive_type::integer); }
+
+inline shared_ptr<scalar_type> make_real_type()
+{ return std::make_shared<scalar_type>(primitive_type::real); }
+
 class array_type : public type
 {
 public:
     array_type() {}
+    array_type(const array_size_vec & size, const type_ptr & elem_type);
     array_type(const array_size_vec & s, primitive_type e): size(s), element(e) {}
     void print(ostream &) const override;
     array_size_vec size;

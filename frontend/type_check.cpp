@@ -234,29 +234,21 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 
     auto elem_type = visit(arr->expr);
 
-    primitive_type prim_elem_type;
-
     if (auto func = dynamic_pointer_cast<function_type>(elem_type))
     {
         throw source_error("Function not allowed as array element.",
                            arr->expr.location);
     }
-    else if (auto nested_arr = dynamic_pointer_cast<array_type>(elem_type))
+
+    auto type = make_shared<array_type>(size, elem_type);
+
+    if (type->element == primitive_type::undefined)
     {
-        size.insert(size.end(), nested_arr->size.begin(), nested_arr->size.end());
-        prim_elem_type = nested_arr->element;
-    }
-    else if (auto scalar = dynamic_pointer_cast<scalar_type>(elem_type))
-    {
-        prim_elem_type = scalar->primitive;
-        if (prim_elem_type == primitive_type::undefined)
-        {
-            throw source_error("Array element type can not be inferred.",
-                               arr->expr.location);
-        }
+        throw source_error("Array element type can not be inferred.",
+                           arr->expr.location);
     }
 
-    return make_shared<array_type>(size, prim_elem_type);
+    return type;
 }
 
 type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & self)
