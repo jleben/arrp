@@ -68,7 +68,8 @@ class expression
 {
 public:
     expression() {}
-    expression(const location_type & loc): location(loc) {}
+    expression(const location_type & loc, const type_ptr & type = nullptr):
+        location(loc), type(type) {}
     virtual ~expression() {}
     location_type location;
     //primitive_type type = primitive_type::undefined;
@@ -125,8 +126,8 @@ class constant : public expression
 {
 public:
     constant(const T & v): value(v) {}
-    constant(const T & v, const location_type & loc):
-        expression(loc), value(v) {}
+    constant(const T & v, const location_type & loc, const type_ptr & type = nullptr):
+        expression(loc, type), value(v) {}
     T value;
 };
 
@@ -218,7 +219,7 @@ public:
 class reference : public expression
 {
 public:
-    reference(var_ptr v, const location_type & loc):
+    reference(var_ptr v, const location_type & loc, type_ptr type = nullptr):
         expression(loc), var(v) {}
     var_ptr var;
 };
@@ -226,8 +227,8 @@ public:
 class array_self_ref : public expression
 {
 public:
-    array_self_ref(array_ptr arr, const location_type & loc):
-        expression(loc), arr(arr) {}
+    array_self_ref(array_ptr arr, const location_type & loc, const type_ptr & type = nullptr):
+        expression(loc, type), arr(arr) {}
     array_ptr arr;
 };
 

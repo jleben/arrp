@@ -34,7 +34,7 @@ expr_ptr copier::visit_ref(const shared_ptr<reference> & ref)
     {
         auto binding = m_copy_context.find(a_var);
         if (binding)
-            return make_shared<reference>(binding.value(), ref->location);
+            return make_shared<reference>(binding.value(), ref->location, ref->type);
         else
         {
             if (verbose<functional::model>::enabled())
@@ -46,7 +46,7 @@ expr_ptr copier::visit_ref(const shared_ptr<reference> & ref)
     {
         auto binding = m_copy_context.find(f_var);
         if (binding)
-            return make_shared<reference>(binding.value(), ref->location);
+            return make_shared<reference>(binding.value(), ref->location, ref->type);
         else
             return make_shared<reference>(*ref);
     }
@@ -60,7 +60,7 @@ expr_ptr copier::visit_ref(const shared_ptr<reference> & ref)
             auto bound_id = dynamic_pointer_cast<identifier>(binding.value());
             assert(bound_id);
             m_ids.insert(bound_id);
-            return make_shared<reference>(bound_id, ref->location);
+            return make_shared<reference>(bound_id, ref->location, ref->type);
         }
         else
             return make_shared<reference>(*ref);
@@ -75,7 +75,7 @@ expr_ptr copier::visit_array_self_ref(const shared_ptr<array_self_ref> & ref)
 {
     assert(!m_array_copy_stack.empty());
     auto arr = m_array_copy_stack.top();
-    return make_shared<array_self_ref>(arr, ref->location);
+    return make_shared<array_self_ref>(arr, ref->location, ref->type);
 }
 
 expr_ptr copier::visit_primitive(const shared_ptr<primitive> & op)
@@ -100,6 +100,7 @@ expr_ptr copier::visit_cases(const shared_ptr<case_expr> & c)
 {
     auto result = make_shared<case_expr>();
     result->location = c->location;
+    result->type = c->type;
     for (auto & a_case : c->cases)
     {
         result->cases.emplace_back(copy(a_case.first), copy(a_case.second));
@@ -111,6 +112,7 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
 {
     auto new_arr = make_shared<array>();
     new_arr->location = arr->location;
+    new_arr->type = arr->type;
 
     stacker<array_ptr> array_stacker(new_arr, m_array_copy_stack);
 
@@ -144,6 +146,7 @@ expr_ptr copier::visit_array_app(const shared_ptr<array_app> & app)
 {
     auto new_app = make_shared<array_app>();
     new_app->location = app->location;
+    new_app->type = app->type;
     new_app->object = copy(app->object);
     for (auto & arg : app->args)
         new_app->args.push_back(copy(arg));
@@ -154,6 +157,7 @@ expr_ptr copier::visit_array_size(const shared_ptr<array_size> & as)
 {
     auto new_as = make_shared<array_size>();
     new_as->location = as->location;
+    new_as->type = as->type;
     new_as->object = copy(as->object);
     auto &dim = as->dimension;
     if (dim)
@@ -165,6 +169,7 @@ expr_ptr copier::visit_func(const shared_ptr<function> & func)
 {
     auto new_func = make_shared<function>();
     new_func->location = func->location;
+    new_func->type = func->type;
 
     context_type::scope_holder scope(m_copy_context);
 
@@ -193,6 +198,7 @@ expr_ptr copier::visit_func_app(const shared_ptr<func_app> & app)
 {
     auto new_app = make_shared<func_app>();
     new_app->location = app->location;
+    new_app->type = app->type;
     new_app->object = copy(app->object);
     for (auto & arg : app->args)
         new_app->args.push_back( copy(arg) );
