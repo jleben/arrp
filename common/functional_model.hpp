@@ -72,7 +72,6 @@ public:
         location(loc), type(type) {}
     virtual ~expression() {}
     location_type location;
-    //primitive_type type = primitive_type::undefined;
     type_ptr type;
 
 };
@@ -109,7 +108,6 @@ public:
     identifier(const string & name, expr_ptr e, const location_type & loc):
         var(name,loc), expr(e) {}
     expr_slot expr;
-    primitive_type type = primitive_type::undefined; // FIXME: Could be more elegant?
 };
 typedef std::shared_ptr<identifier> id_ptr;
 

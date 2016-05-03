@@ -245,7 +245,18 @@ result::code compile_source(istream & source, const arguments & args)
             }
         }
 
-        cout << "Type = " << *id->expr->type << endl;
+        if (verbose<functional::type_checker>::enabled())
+        {
+            cout << "Type = " << *id->expr->type << endl;
+        }
+
+        if (id->expr->type->is_function())
+        {
+            cerr << "Functions not supported in output. "
+                 << "All functions must be fully applied."
+                 << endl;
+            return result::semantic_error;
+        }
 
         {
             functional::array_reducer reducer(func_name_provider);
