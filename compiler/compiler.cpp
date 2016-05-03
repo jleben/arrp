@@ -55,97 +55,8 @@ using namespace std;
 namespace stream {
 namespace compiler {
 
-struct renaming {};
-
-void print_help()
-{
-    using namespace std;
-
-    cout << "Usage:" << endl
-         << "  streamc <input file> [<option>...]" << endl;
-
-    cout << "Options:" << endl;
-
-    cout << "  --generate or --gen or -g <symbol> [<type>...] :" << endl
-         << "  \tGenerate output for top-level function or expression <symbol>" << endl
-         << "  \twith given argument types." << endl
-         << "  \tEach following argument <type> is used as the type of" << endl
-         << "  \ta function parameter in generic function instantiation." << endl
-         << "  \tA <type> can be one of the following:" << endl
-         << "  \t- \"int\" - integer number," << endl
-         << "  \t- \"real\" - real number," << endl
-         << "  \t- a stream, e.g. \"[10,4,5]\""
-         << " - each number represents size in one dimension." << endl
-            ;
-
-    cout << "  --output or -o <name>: Generate LLVM IR output file with <name>"
-            " (default: 'out.ll')." << endl;
-
-    cout << "  --cpp <name> : Generate C++ header file with <name>." << endl;
-
-    cout << "  --meta or -m <name> : Generate JSON description file with <name>." << endl;
-
-    cout << "  --print or -p <topic> : Enable printing of <topic>." << endl
-         << "  \tAvailable topics:" << endl;
-    cout << "  \t- tokens = Lexical tokens (if enabled at compiler build time)." << endl;
-    cout << "  \t- ast = Abstract syntax tree of input code." << endl;
-    cout << "  \t- symbols = Top-level symbols in the environment." << endl;
-    cout << "  \t- poly = Polyhedral model." << endl;
-    cout << "  \t- out-ast = Abstract syntax tree of output code." << endl;
-
-    cout << "  --debug or -d <topic> : Enable debugging output for <topic>." << endl
-         << "  \tAvailable topics:" << endl
-         << "  \t- polyhedral" << endl
-         << "  \t- polyhedral.model" << endl
-         << "  \t- polyhedral.model.transform" << endl
-         << "  \t- polyhedral.schedule" << endl
-         << "  \t- polyhedral.storage" << endl
-         << "  \t- polyhedral.ast" << endl
-         << "  \t- polyhedral.ast.buffer-size" << endl
-         << "  \t- dataflow" << endl
-            ;
-
-    auto verbose_topics = arguments::known_verbose_topics();
-    cout << " --verbose or -v <topic> : Enable verbose output for <topic>." << endl
-         << "  \tAvailable topics:" << endl;
-    for (const auto & topic : verbose_topics)
-        cout << "  \t- " << topic << endl;
-
-    cout << "  --no-debug or -D <topic> : Disable debugging output for <topic>." << endl;
-}
-
 result::code compile(const arguments & args)
 {
-    for(const string & topic : args.debug_topics)
-        debug::set_status_for_id(topic, debug::enabled);
-    for(const string & topic : args.no_debug_topics)
-        debug::set_status_for_id(topic, debug::disabled);
-
-    if (args.verbose_topics.at("func-model"))
-    {
-        verbose<functional::model>::enabled() = true;
-    }
-    if (args.verbose_topics.at("type-check"))
-    {
-        verbose<functional::type_checker>::enabled() = true;
-    }
-    if (args.verbose_topics.at("array-transpose"))
-    {
-        verbose<functional::array_transposer>::enabled() = true;
-    }
-    if (args.verbose_topics.at("mod-avoid"))
-    {
-        verbose<polyhedral::modulo_avoidance>::enabled() = true;
-    }
-    if (args.verbose_topics.at("ph-model"))
-    {
-        verbose<functional::polyhedral_gen>::enabled() = true;
-    }
-    if (args.verbose_topics.at("renaming"))
-    {
-        verbose<renaming>::enabled() = true;
-    }
-
     if (args.input_filename.empty())
     {
         cerr << "streamc: error: Missing argument: input filename." << endl;
@@ -166,11 +77,6 @@ result::code compile(const arguments & args)
 result::code compile_source(istream & source, const arguments & args)
 {
     stream::parsing::driver parser(source, cout);
-    // TODO:
-    // parser.setPrintsTokens(args.print[arguments::tokens_output]);
-
-    if (args.print[arguments::tokens_output])
-        cout << "== Tokens ==" << endl;
 
     int parser_error = parser.parse();
     if (parser_error)
@@ -180,7 +86,7 @@ result::code compile_source(istream & source, const arguments & args)
     if (!ast_root)
         return result::ok;
 
-    if (args.print[arguments::ast_output])
+    if (verbose<ast::output>::enabled())
     {
         cout << endl;
         cout << "== Abstract Syntax Tree ==" << endl;
@@ -237,9 +143,6 @@ result::code compile_source(istream & source, const arguments & args)
                     printer.print(id, cout);
                     cout << endl;
                 }
-                cout << "-->" << endl;
-                printer.print(id, cout);
-                cout << endl;
             }
         }
 
@@ -271,16 +174,13 @@ result::code compile_source(istream & source, const arguments & args)
                     printer.print(id, cout);
                     cout << endl;
                 }
-                cout << "-->" << endl;
-                printer.print(id, cout);
-                cout << endl;
             }
         }
 
         {
             functional::array_transposer transposer;
             transposer.process(array_ids);
-            if (verbose<functional::array_transposer>::enabled())
+            if (verbose<functional::model>::enabled())
             {
                 cout << "-- Transposed arrays:" << endl;
                 functional::printer printer;
@@ -315,7 +215,7 @@ result::code compile_source(istream & source, const arguments & args)
                     unique_name = name + to_string(++i);
                 }
 
-                if (verbose<renaming>::enabled())
+                if (verbose<cpp_gen::renaming>::enabled())
                     cout << "Renaming id: " << id->name << " -> " << unique_name << endl;
 
                 id->name = unique_name;
@@ -343,7 +243,7 @@ result::code compile_source(istream & source, const arguments & args)
 
             // Print buffers
 
-            if (args.print[arguments::buffer_size_output])
+            if (verbose<polyhedral::storage_output>::enabled())
             {
                 print_buffer_sizes(ph_model.arrays);
             }
@@ -358,7 +258,7 @@ result::code compile_source(istream & source, const arguments & args)
 
             auto ast = polyhedral::make_isl_ast(schedule);
 
-            if (args.print[arguments::target_ast_output])
+            if (verbose<polyhedral::ast_isl>::enabled())
             {
                 isl::printer printer(ph_model.context);
                 printer.set_format(isl::printer::c_format);

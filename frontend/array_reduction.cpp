@@ -17,7 +17,7 @@ array_reducer::array_reducer(name_provider & nmp):
     m_name_provider(nmp),
     m_copier(m_processed_ids, nmp)
 {
-    m_declared_vars.set_enabled(verbose<functional::model>::enabled());
+    m_declared_vars.set_enabled(verbose<array_reducer>::enabled());
 
     m_printer.set_print_scopes(false);
     m_printer.set_print_var_address(true);
@@ -29,7 +29,7 @@ id_ptr array_reducer::process(id_ptr id)
     if (was_processed)
         return id;
 
-    if (verbose<functional::model>::enabled())
+    if (verbose<array_reducer>::enabled())
     {
         cout << "Processing id: ";
         m_printer.print(id, cout);
@@ -43,7 +43,7 @@ id_ptr array_reducer::process(id_ptr id)
 
     id->expr = eta_expand(reduce(id->expr));
 
-    if (verbose<functional::model>::enabled())
+    if (verbose<array_reducer>::enabled())
     {
         cout << "Processed id: ";
         m_printer.print(id, cout);
@@ -64,7 +64,7 @@ id_ptr array_reducer::process(id_ptr id)
                 continue;
             if (unbound_vars.find(var) != unbound_vars.end())
             {
-                if (verbose<functional::model>::enabled())
+                if (verbose<array_reducer>::enabled())
                     cout << "Id has free var: " << var << endl;
 
                 ordered_unbound_vars.push_back(var);
@@ -108,7 +108,7 @@ id_ptr array_reducer::process(id_ptr id)
         auto new_id = make_shared<identifier>(new_id_name, expr, id->location);
         m_processed_ids.insert(new_id);
 
-        if (verbose<functional::model>::enabled())
+        if (verbose<array_reducer>::enabled())
         {
             cout << "Expanded id: " << id << " => ";
             m_printer.print(new_id, cout);
@@ -117,7 +117,7 @@ id_ptr array_reducer::process(id_ptr id)
 
         // Substite for references to this id
 
-        if (verbose<functional::model>::enabled())
+        if (verbose<array_reducer>::enabled())
             cout << "Creating substitute for id: " << id << endl;
 
         expr_ptr sub = make_shared<reference>(new_id, location_type(), expr->type);
@@ -127,14 +127,14 @@ id_ptr array_reducer::process(id_ptr id)
         {
             auto ref = make_shared<reference>(var, location_type(), make_int_type());
             args.push_back(ref);
-            if (verbose<functional::model>::enabled())
+            if (verbose<array_reducer>::enabled())
                 cout << "Adding var to substitute: " << var << endl;
         }
         sub = apply(sub, args);
 
         m_id_sub.emplace(id, sub);
 
-        if (verbose<functional::model>::enabled())
+        if (verbose<array_reducer>::enabled())
         {
             cout << "Expanded id " << id << " to ";
             m_printer.print(new_id, cout);
@@ -200,7 +200,7 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
 
         array_ptr sub = sub_it->second;
 
-        if (verbose<functional::model>::enabled())
+        if (verbose<array_reducer>::enabled())
         {
             cout << "Substituting array self reference: "
                  << self->arr << " : " << *self->type
@@ -452,7 +452,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
         {
             auto sub = m_copier.copy(sub_it->second);
 
-            if (verbose<functional::model>::enabled())
+            if (verbose<array_reducer>::enabled())
             {
                 cout << "Substituting expanded id: "
                      << id << " -> "; m_printer.print(sub, cout);
@@ -463,7 +463,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
             return reduce(sub);
         }
 
-        if (verbose<functional::model>::enabled())
+        if (verbose<array_reducer>::enabled())
         {
             cout << "Storing final id: " << id << endl;
         }
@@ -486,7 +486,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
         if (!is_bound)
         {
             m_unbound_vars.top().insert(var);
-            if (verbose<functional::model>::enabled())
+            if (verbose<array_reducer>::enabled())
             {
                 cout << "Free var: " << var << endl;
             }
@@ -534,7 +534,7 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
 
 expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
 {
-    if (verbose<functional::model>::enabled())
+    if (verbose<array_reducer>::enabled())
         cout << "Applying : " << *expr->type << endl;
 
     auto ar_type = dynamic_pointer_cast<array_type>(expr->type);
@@ -557,7 +557,7 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
         }
     }
 
-    if (verbose<functional::model>::enabled())
+    if (verbose<array_reducer>::enabled())
         cout << "Applying : => " << *result_type << endl;
 
     if (auto app = dynamic_pointer_cast<array_app>(expr))
@@ -623,7 +623,7 @@ expr_ptr array_reducer::substitute(expr_ptr expr)
             auto binding = m_context.find(avar);
             if (binding)
             {
-                if (verbose<functional::model>::enabled())
+                if (verbose<array_reducer>::enabled())
                 {
                     cout << "Substituting array var " << avar << " with ";
                     m_printer.print(binding.value(), cout);
@@ -632,7 +632,7 @@ expr_ptr array_reducer::substitute(expr_ptr expr)
 
                 return binding.value();
             }
-            else if (verbose<functional::model>::enabled())
+            else if (verbose<array_reducer>::enabled())
             {
                 cout << "No substitution for array var " << avar << endl;
             }

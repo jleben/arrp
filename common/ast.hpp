@@ -44,6 +44,8 @@ using type_ptr = std::shared_ptr<type>;
 
 namespace ast {
 
+struct output; // verbose output;
+
 using location_type = parsing::location;
 
 struct node;

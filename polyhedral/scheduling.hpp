@@ -71,9 +71,6 @@ class scheduler
 {
 public:
 
-    struct debug : public stream::debug::topic<debug, polyhedral::debug>
-    { static string id() { return "schedule"; } };
-
     class error : public std::runtime_error
     {
     public:

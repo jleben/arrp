@@ -45,9 +45,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 namespace stream {
 namespace polyhedral {
 
-struct debug : public stream::debug::topic<debug, stream::debug::all>
-{ static string id() { return "polyhedral"; } };
-
 using std::vector;
 using std::string;
 using std::unordered_map;

@@ -374,9 +374,6 @@ void expression::find( vector<T*> & container )
     }
 }
 
-struct debug : public stream::debug::topic<debug, stream::debug::all>
-{ static string id() { return "polyhedral"; } };
-
 class model
 {
 public:

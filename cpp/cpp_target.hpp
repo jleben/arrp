@@ -42,6 +42,8 @@ struct buffer
     int size;
 };
 
+struct renaming {}; // For verbose output
+
 void generate(const string & name,
               const vector<semantic::type_ptr> & args,
               const polyhedral::model & model,

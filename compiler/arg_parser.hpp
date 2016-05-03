@@ -23,6 +23,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "../common/types.hpp"
 #include "../polyhedral/scheduling.hpp"
+#include "../utility/debug.hpp"
 
 #include <sstream>
 #include <iostream>
@@ -40,7 +41,9 @@ using std::unordered_map;
 using std::ostringstream;
 using std::istringstream;
 
-void print_help();
+class arguments;
+
+void print_help(const arguments &);
 
 struct target_info
 {
@@ -98,22 +101,11 @@ public:
 
     struct abortion {};
 
-    enum output_topic
-    {
-        tokens_output = 0,
-        ast_output,
-        symbols_output,
-        polyhedral_model_output,
-        buffer_size_output,
-        target_ast_output,
-
-        output_topic_count
-    };
-
 private:
     int m_arg_count;
     char **m_args;
     string m_current_opt;
+    unordered_map<string,bool*> m_verbose_topics;
 
 public:
 
@@ -122,24 +114,21 @@ public:
     string meta_output_filename;
     string cpp_output_filename;
     target_info target;
-    std::array<bool,output_topic_count> print;
-    vector<string> debug_topics;
-    vector<string> no_debug_topics;
     vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
     bool split_statements = false;
-    unordered_map<string,bool> verbose_topics;
 
 public:
     arguments(int argc, char *argv[]):
         m_arg_count(argc),
         m_args(argv),
         output_filename("out.ll")
-    {
-        for (int i = 0; i < print.size(); ++i)
-            print[i] = false;
+    {}
 
-        init_verbose_topics();
+    template <typename T>
+    void add_verbose_topic(const string & name)
+    {
+        m_verbose_topics.emplace(name, &verbose<T>::enabled());
     }
 
     void parse()
@@ -152,28 +141,15 @@ public:
         }
     }
 
-    static vector<string> known_verbose_topics()
+    vector<string> verbose_topics() const
     {
-        return {
-            "func-model",
-            "type-check",
-            "array-transpose",
-            "mod-avoid",
-            "ph-model",
-            "renaming"
-        };
+        vector<string> names;
+        for (auto & pair : m_verbose_topics)
+            names.push_back(pair.first);
+        return names;
     }
 
 private:
-    void init_verbose_topics()
-    {
-        auto topics = known_verbose_topics();
-
-        for (const auto & topic : topics)
-        {
-            verbose_topics.emplace(topic, false);
-        }
-    }
 
     void parse_next_option()
     {
@@ -183,31 +159,8 @@ private:
 
         if (opt == "--help" || opt == "-h")
         {
-            print_help();
+            print_help(*this);
             throw abortion();
-        }
-        else if (opt == "--print" || opt == "-p")
-        {
-            string topic_name;
-            while(try_parse_argument(topic_name))
-            {
-                output_topic topic;
-                if (topic_name == "tokens")
-                    topic = tokens_output;
-                else if (topic_name == "ast")
-                    topic = ast_output;
-                else if (topic_name == "symbols")
-                    topic = symbols_output;
-                else if (topic_name == "poly")
-                    topic = polyhedral_model_output;
-                else if (topic_name == "buffers")
-                    topic = buffer_size_output;
-                else if (topic_name == "out-ast")
-                    topic = target_ast_output;
-                else
-                    throw error(string("Invalid print topic: ") + topic_name);
-                print[topic] = true;
-            }
         }
         else if (opt == "--generate" || opt == "--gen" || opt == "-g")
         {
@@ -227,24 +180,12 @@ private:
         {
             parse_argument(cpp_output_filename, "C++ interface output file");
         }
-        else if (opt == "--debug" || opt == "-d")
-        {
-            string topic;
-            parse_argument(topic, "topic");
-            debug_topics.push_back(topic);
-        }
-        else if (opt == "--no-debug" || opt == "-D")
-        {
-            string topic;
-            parse_argument(topic, "topic");
-            no_debug_topics.push_back(topic);
-        }
         else if (opt == "--verbose" || opt == "-v")
         {
             string topic;
             while(try_parse_argument(topic))
             {
-                try { verbose_topics.at(topic) = true; }
+                try { *m_verbose_topics.at(topic) = true; }
                 catch ( std::out_of_range & e )
                 {
                     throw error("Unknown verbose topic: " + topic);

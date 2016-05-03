@@ -44,7 +44,7 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 {
     if (m_ids.find(id) == m_ids.end())
     {
-        if (verbose<functional::model>::enabled())
+        if (verbose<func_reducer>::enabled())
         {
             cout << "Reducing expression of id " << id->name << endl;
         }
@@ -58,7 +58,7 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 
     if (!args.empty())
     {
-        if (verbose<functional::model>::enabled())
+        if (verbose<func_reducer>::enabled())
         {
             cout << "Applying args to id " << id->name << endl;
         }
@@ -95,7 +95,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 {
     printer p;
 
-    if (verbose<functional::model>::enabled())
+    if (verbose<func_reducer>::enabled())
     {
         cout << "Function application at: " << loc << endl;
     }
@@ -127,7 +127,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
             if (m_scope_stack.size())
             {
                 m_scope_stack.top()->ids.push_back(arg_id);
-                if (verbose<functional::model>::enabled())
+                if (verbose<func_reducer>::enabled())
                 {
                     cout << "Stored id for multi-ref argument " << var->name
                          << " into enclosing function scope."
@@ -137,7 +137,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
             }
             else
             {
-                if (verbose<functional::model>::enabled())
+                if (verbose<func_reducer>::enabled())
                 {
                     cout << "No enclosing function scope for id for multi-ref argument "
                          << var->name
@@ -146,7 +146,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
             }
         }
 
-        if (verbose<functional::model>::enabled())
+        if (verbose<func_reducer>::enabled())
         {
             cout << "+ bound var: " << var << endl;
         }
@@ -155,7 +155,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
     // Reduce
 
-    if (verbose<functional::model>::enabled())
+    if (verbose<func_reducer>::enabled())
     {
         cout << "Pushing scope of applied function:";
         cout << " (" << &func->scope << ")";
@@ -168,7 +168,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
     reduced_expr = reduce(func->expr);
 
-    if (verbose<functional::model>::enabled())
+    if (verbose<func_reducer>::enabled())
     {
         cout << "Popping scope of applied function:";
         cout << " (" << &func->scope << ")";
@@ -239,7 +239,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
 
             if (m_ids.find(id) == m_ids.end())
             {
-                if (verbose<functional::model>::enabled())
+                if (verbose<func_reducer>::enabled())
                 {
                     cout << "Reducing id " << id->name
                          << " referenced at " << ref->location << endl;
@@ -264,7 +264,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             auto binding = m_beta_reduce_context.find(f_var);
             if (binding)
             {
-                if (verbose<functional::model>::enabled())
+                if (verbose<func_reducer>::enabled())
                 {
                     cout << "Substituting bound var: " << f_var << endl;
                 }
@@ -274,7 +274,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
             }
             else
             {
-                if (verbose<functional::model>::enabled())
+                if (verbose<func_reducer>::enabled())
                 {
                     cout << "No substitution for bound var: " << f_var << endl;
                 }
@@ -337,7 +337,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     {
         printer p;
 
-        if (verbose<functional::model>::enabled())
+        if (verbose<func_reducer>::enabled())
         {
             cout << "Pushing scope of reduced function:";
             cout << " (" << &func->scope << ")";
@@ -362,7 +362,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
 
         func->expr = reduced_expr;
 
-        if (verbose<functional::model>::enabled())
+        if (verbose<func_reducer>::enabled())
         {
             cout << "Popping scope of reduced function:";
             cout << " (" << &func->scope << ")";
@@ -377,7 +377,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
 
         if (dynamic_pointer_cast<reference>(object))
         {
-            if (verbose<functional::model>::enabled())
+            if (verbose<func_reducer>::enabled())
             {
                 cout << "Aborting function application due to unresolved function"
                      << " at: " << app->location << endl;
@@ -413,7 +413,7 @@ void func_reducer::reduce(scope & s)
 
     for (auto id : ids)
     {
-        if (verbose<functional::model>::enabled())
+        if (verbose<func_reducer>::enabled())
             cout << "Reducing scope-local id \"" << id->name << "\"" << endl;
 
         id->expr = reduce(id->expr);

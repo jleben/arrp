@@ -68,7 +68,7 @@ void storage_allocator::compute_buffer_size
   const array_ptr & array,
   const isl::space & time_space )
 {
-    if (debug::is_enabled())
+    if (verbose<storage_allocator>::enabled())
     {
         cout << "Computing buffer size for array: " << array->name << endl;
     }
@@ -126,7 +126,7 @@ void storage_allocator::compute_buffer_size
     //   Such that: time(src) <= t and time(sink(src)) <= t, for all sink
     auto buffered = written_not_later & read_later;
 #if 0
-    if (debug::is_enabled())
+    if (verbose<storage_allocator>::enabled())
     {
         cout << ".. Buffered: " << endl;
         m_printer.print(buffered);
@@ -138,7 +138,7 @@ void storage_allocator::compute_buffer_size
     {
         auto buffered_reflection = (buffered * buffered);
 #if 0
-        if (debug::is_enabled())
+        if (verbose<storage_allocator>::enabled())
         {
             cout << ".. Buffer reflection: " << endl;
             m_printer.print(buffered_reflection); cout << endl;
@@ -149,7 +149,7 @@ void storage_allocator::compute_buffer_size
         int time_dim_count = time_space.dimension(isl::space::variable);
         buffer_size.reserve(buf_dim_count);
 
-        if (debug::is_enabled())
+        if (verbose<storage_allocator>::enabled())
             cout << ".. Max reuse distance:" << endl;
 
         for (int dim = 0; dim < buf_dim_count; ++dim)
@@ -167,7 +167,7 @@ void storage_allocator::compute_buffer_size
                         << array->name << ", dimension " << dim << ".";
                     throw std::runtime_error(msg.str());
                 }
-                if (debug::is_enabled())
+                if (verbose<storage_allocator>::enabled())
                     cout << max_distance.integer() << " ";
                 buffer_size.push_back((int) max_distance.integer() + 1);
             }
@@ -179,7 +179,7 @@ void storage_allocator::compute_buffer_size
             }
         }
 
-        if (debug::is_enabled())
+        if (verbose<storage_allocator>::enabled())
             cout << endl;
     }
 
@@ -203,7 +203,7 @@ void storage_allocator::find_inter_period_dependency
 
     array->inter_period_dependency = !remaining.is_empty();
 
-    if (debug::is_enabled())
+    if (verbose<storage_allocator>::enabled())
     {
         cout << "Array " << array->name << ":" << endl;
         cout << "  written: "; m_printer.print(written_in_period); cout << endl;

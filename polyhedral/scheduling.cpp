@@ -79,10 +79,10 @@ scheduler::scheduler( model & m ):
 polyhedral::schedule
 scheduler::schedule(bool optimize, const vector<reversal> & reversals)
 {
-    if (debug::is_enabled())
+    if (verbose<scheduler>::enabled())
         cout << endl << "### Scheduling ###" << endl;
 
-    if (debug::is_enabled())
+    if (verbose<scheduler>::enabled())
     {
         cout << "Domains:" << endl;
         print_each_in(m_model_summary.domains);
@@ -171,7 +171,7 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
 #endif
     }
 
-    if (debug::is_enabled())
+    if (verbose<scheduler>::enabled())
     {
         cout << "Periodic schedule with reversals:" << endl;
         print_each_in(schedule.period);
@@ -299,7 +299,7 @@ isl::union_map scheduler::make_schedule
     isl::union_map sched_map( isl_schedule_get_map(sched) );
     sched_map = sched_map.in_domain(domains);
 
-    if (debug::is_enabled())
+    if (verbose<scheduler>::enabled())
     {
         cout << "Schedule:" << endl;
         isl_printer_print_schedule(m_printer.get(), sched);
@@ -340,7 +340,7 @@ scheduler::make_proximity_dependencies(const isl::union_map & dependencies)
 
             if (!max_sink_distance.is_infinity())
             {
-                if (debug::is_enabled()) {
+                if (verbose<scheduler>::enabled()) {
                     cout << "Accepting proximity dependence:";
                     m_printer.print(dep); cout << endl;
                 }
@@ -349,7 +349,7 @@ scheduler::make_proximity_dependencies(const isl::union_map & dependencies)
             }
             else
             {
-                if (debug::is_enabled()) {
+                if (verbose<scheduler>::enabled()) {
                     cout << "Rejecting proximity dependence:";
                     m_printer.print(dep); cout << endl;
                 }
@@ -454,7 +454,7 @@ int scheduler::compute_period_duration
         least_common_period = lcm(least_common_period, period);
     }
 
-    if (debug::is_enabled())
+    if (verbose<scheduler>::enabled())
     {
         cout << "Period duration = " << least_common_period << endl;
     }
@@ -470,7 +470,7 @@ int scheduler::compute_period_duration
         int period = k.second;
         int span = least_common_period / period;
 
-        if (debug::is_enabled())
+        if (verbose<scheduler>::enabled())
         {
             cout << "Period spans " << span
                  << " iterations of " << stmt->name << endl;
@@ -556,7 +556,7 @@ int scheduler::compute_prelude_duration(const isl::union_map & schedule)
         return true;
     });
 
-    if (debug::is_enabled())
+    if (verbose<scheduler>::enabled())
     {
         cout << "Prelude duration = " << offset << endl;
     }
@@ -592,7 +592,7 @@ isl::union_map scheduler::prelude_schedule
         return true;
     });
 
-    if (debug::is_enabled())
+    if (verbose<scheduler>::enabled())
     {
         cout << "Prelude schedule:" << endl;
         print_each_in(sched_prelude);
@@ -666,7 +666,7 @@ isl::union_map scheduler::periodic_schedule
         return true;
     });
 
-    if (debug::is_enabled())
+    if (verbose<scheduler>::enabled())
     {
         cout << "Periodic schedule:" << endl;
         print_each_in(sched_period);

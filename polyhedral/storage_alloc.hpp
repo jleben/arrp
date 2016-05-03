@@ -32,9 +32,6 @@ namespace polyhedral {
 class storage_allocator
 {
 public:
-    struct debug : public stream::debug::topic<debug, polyhedral::debug>
-    { static string id() { return "storage"; } };
-
     storage_allocator( model & );
 
     void allocate(const schedule &);
@@ -54,6 +51,8 @@ private:
     model_summary m_model_summary;
     isl::printer m_printer;
 };
+
+struct storage_output {};
 
 }
 }
