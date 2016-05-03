@@ -137,7 +137,7 @@ class iterator_read : public functional::expression
 {
 public:
     iterator_read(int i, const location_type & l):
-        expression(l), index(i) {}
+        expression(l, functional::make_int_type()), index(i) {}
     int index;
 };
 

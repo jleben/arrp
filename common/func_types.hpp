@@ -20,7 +20,7 @@ public:
     virtual void print(ostream &) const = 0;
     virtual bool is_scalar() const { return false; }
     virtual bool is_array() const { return false; }
-    virtual bool is_function() const  { return false; }
+    virtual bool is_function() const { return false; }
 };
 typedef shared_ptr<type> type_ptr;
 

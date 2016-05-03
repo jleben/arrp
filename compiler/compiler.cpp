@@ -30,15 +30,15 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
 #include "../frontend/type_check.hpp"
-//#include "../frontend/ph_model_gen.hpp"
-//#include "../polyhedral/scheduling.hpp"
-//#include "../polyhedral/storage_alloc.hpp"
-//#include "../polyhedral/modulo_avoidance.hpp"
+#include "../frontend/ph_model_gen.hpp"
+#include "../polyhedral/scheduling.hpp"
+#include "../polyhedral/storage_alloc.hpp"
+#include "../polyhedral/modulo_avoidance.hpp"
 //#include "../polyhedral/ast_gen.hpp"
-//#include "../polyhedral/isl_ast_gen.hpp"
+#include "../polyhedral/isl_ast_gen.hpp"
 //#include "../llvm/llvm_ir_from_cloog.hpp"
 //#include "../llvm/llvm_from_polyhedral.hpp"
-//#include "../cpp/cpp_target.hpp"
+#include "../cpp/cpp_target.hpp"
 //#include "../interface/cpp-intf-gen.hpp"
 
 #include <isl-cpp/printer.hpp>
@@ -133,7 +133,6 @@ result::code compile(const arguments & args)
     {
         verbose<functional::array_transposer>::enabled() = true;
     }
-#if 0
     if (args.verbose_topics.at("mod-avoid"))
     {
         verbose<polyhedral::modulo_avoidance>::enabled() = true;
@@ -142,7 +141,6 @@ result::code compile(const arguments & args)
     {
         verbose<functional::polyhedral_gen>::enabled() = true;
     }
-#endif
     if (args.verbose_topics.at("renaming"))
     {
         verbose<renaming>::enabled() = true;
@@ -293,19 +291,7 @@ result::code compile_source(istream & source, const arguments & args)
                 }
             }
         }
-#if 0
-        {
-            functional::type_checker checker;
-            checker.process(array_ids);
-            if (verbose<functional::model>::enabled())
-            {
-                cout << "-- Types: " << endl;
-                for (const auto & id : array_ids)
-                {
-                    cout << id->name << " = " << id->type << endl;
-                }
-            }
-        }
+
         {
             // Rename ids for C++ compatibility
 
@@ -335,6 +321,7 @@ result::code compile_source(istream & source, const arguments & args)
                 id->name = unique_name;
             }
         }
+
         {
             // Create polyhedral model
 
@@ -428,7 +415,6 @@ result::code compile_source(istream & source, const arguments & args)
                 }
             }
         }
-#endif
     }
     catch (functional::func_reduce_error & e)
     {
@@ -803,7 +789,7 @@ result::code compile_polyhedral_model
 
 #endif // STARTED_WORKING_ON_PH_MODEL
 
-#if 0
+
 void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
 {
     cout << endl << "== Buffer sizes ==" << endl;
@@ -825,7 +811,7 @@ void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
         cout << endl;
     }
 }
-#endif
+
 
 } // namespace compiler
 } // namespace stream

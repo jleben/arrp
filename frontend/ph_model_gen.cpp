@@ -95,7 +95,7 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
     string array_name = id->name + "_a";
 
     vector<array_var_ptr> vars;
-    if (auto arr = dynamic_pointer_cast<functional::array>(id->expr))
+    if (auto arr = dynamic_pointer_cast<functional::array>(id->expr.expr))
         vars = arr->vars;
 
     auto tuple = isl::set_tuple( isl::identifier(array_name, nullptr),
@@ -115,10 +115,8 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
             int extent = -1;
             if (var->range)
             {
-                auto c = dynamic_pointer_cast<constant<int>>(var->range);
-                if (!c)
-                    throw source_error("Array bound not constant.",
-                                       var->range->location);
+                auto c = dynamic_pointer_cast<constant<int>>(var->range.expr);
+                assert_or_throw(bool(c));
                 extent = c->value;
             }
             else
@@ -158,7 +156,17 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
         domain.add_constraint(dim_var == 0);
     }
 
-    auto arr = make_shared<ph::array>(array_name, domain, id->type);
+    primitive_type element_type;
+    if (auto scalar = dynamic_pointer_cast<scalar_type>(id->expr->type))
+        element_type = scalar->primitive;
+    else if (auto ar = dynamic_pointer_cast<array_type>(id->expr->type))
+        element_type = ar->element;
+    else
+        element_type = primitive_type::undefined;
+
+    assert_or_throw(element_type != primitive_type::undefined);
+
+    auto arr = make_shared<ph::array>(array_name, domain, element_type);
     arr->is_infinite = is_infinite;
     arr->size = size;
 
@@ -180,9 +188,9 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
 
     string stmt_name = id->name + "_s";
 
-    if (auto arr = dynamic_pointer_cast<functional::array>(id->expr))
+    if (auto arr = dynamic_pointer_cast<functional::array>(id->expr.expr))
     {
-        if (auto case_expr = dynamic_pointer_cast<functional::case_expr>(arr->expr))
+        if (auto case_expr = dynamic_pointer_cast<functional::case_expr>(arr->expr.expr))
         {
             vector<ph::stmt_ptr> case_stmts;
             for(int c = 0; c < (int)case_expr->cases.size(); ++c)
@@ -332,6 +340,7 @@ expr_ptr polyhedral_gen::make_affine_array_reads
 
             polyhedral::affine_matrix matrix(stmt->domain.dimensions(),1);
             auto read_expr = make_shared<ph::array_read>(arr, matrix, ref->location);
+            read_expr->type = make_shared<scalar_type>(arr->type);
             stmt->read_relations.push_back(&read_expr->relation);
             return read_expr;
         }
@@ -344,13 +353,13 @@ expr_ptr polyhedral_gen::make_affine_array_reads
     {
         ph::array_ptr arr;
 
-        if (auto ref = dynamic_pointer_cast<reference>(app->object))
+        if (auto ref = dynamic_pointer_cast<reference>(app->object.expr))
         {
             auto id = dynamic_pointer_cast<identifier>(ref->var);
             assert(id);
             arr = m_arrays.at(id);
         }
-        else if (auto sref = dynamic_pointer_cast<array_self_ref>(app->object))
+        else if (auto sref = dynamic_pointer_cast<array_self_ref>(app->object.expr))
         {
             arr = m_arrays.at(m_current_id);
         }
@@ -381,6 +390,7 @@ expr_ptr polyhedral_gen::make_affine_array_reads
         }
 
         auto read_expr = make_shared<ph::array_read>(arr, matrix, app->location);
+        read_expr->type = make_shared<scalar_type>(arr->type);
 
         stmt->read_relations.push_back(&read_expr->relation);
 

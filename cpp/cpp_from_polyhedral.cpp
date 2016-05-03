@@ -15,6 +15,18 @@ cpp_from_polyhedral::cpp_from_polyhedral
     m_buffers(buffers)
 {}
 
+static primitive_type prim_type(const functional::expression * expr)
+{
+    auto scalar = dynamic_pointer_cast<functional::scalar_type>(expr->type);
+    assert_or_throw(bool(scalar));
+    return scalar->primitive;
+}
+
+static primitive_type prim_type(const functional::expr_ptr & expr)
+{
+    return prim_type(expr.get());
+}
+
 void cpp_from_polyhedral::generate_statement
 (const string & name, const index_type & index, builder* ctx)
 {
@@ -118,7 +130,7 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     case primitive_op::conditional:
     {
         string id;
-        auto type = type_for(expr->type);
+        auto type = type_for(prim_type(expr));
         ctx->add(make_shared<expr_statement>(ctx->new_var(type, id)));
         auto id_expr = make_shared<id_expression>(id);
 
@@ -164,7 +176,7 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     case primitive_op::negate:
     {
         expression_ptr operand = operands[0];
-        if (expr->type == primitive_type::boolean)
+        if (prim_type(expr) == primitive_type::boolean)
             return make_shared<un_op_expression>(op::logic_neg, operand);
         else
             return make_shared<un_op_expression>(op::u_minus, operand);
@@ -189,8 +201,8 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         return make_shared<bin_op_expression>(op::not_equal, operands[0], operands[1]);
     case primitive_op::divide:
     {
-        if ( expr->operands[0]->type != primitive_type::real &&
-             expr->operands[1]->type != primitive_type::real )
+        if ( prim_type(expr->operands[0]) != primitive_type::real &&
+             prim_type(expr->operands[1]) != primitive_type::real )
             operands[0] = make_shared<cast_expression>
                     (type_for(primitive_type::real), operands[0]);
 
@@ -199,8 +211,8 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     case primitive_op::divide_integer:
     {
         auto result = make_shared<bin_op_expression>(op::div, operands[0], operands[1]);
-        if ( expr->operands[0]->type == primitive_type::integer &&
-             expr->operands[1]->type == primitive_type::integer )
+        if ( prim_type(expr->operands[0]) == primitive_type::integer &&
+             prim_type(expr->operands[1]) == primitive_type::integer )
         {
             return result;
         }
@@ -219,13 +231,13 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     }
     case primitive_op::floor:
     {
-        if (expr->operands[0]->type == primitive_type::integer)
+        if (prim_type(expr->operands[0]) == primitive_type::integer)
             return operands[0];
         return make_shared<call_expression>("floor", operands[0]);
     }
     case primitive_op::ceil:
     {
-        if (expr->operands[0]->type == primitive_type::integer)
+        if (prim_type(expr->operands[0]) == primitive_type::integer)
             return operands[0];
         return make_shared<call_expression>("ceil", operands[0]);
     }
