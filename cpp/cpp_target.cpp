@@ -19,7 +19,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "cpp_target.hpp"
-#include "cpp_from_cloog.hpp"
+//#include "cpp_from_cloog.hpp"
 #include "cpp_from_polyhedral.hpp"
 #include "cpp_from_isl.hpp"
 #include "../utility/cpp-gen.hpp"

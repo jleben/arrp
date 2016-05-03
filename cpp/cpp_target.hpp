@@ -22,7 +22,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_LANG_CPP_TARGET_INCLUDED
 
 #include "../common/ph_model.hpp"
-#include <cloog/cloog.h>
 #include <iostream>
 #include <vector>
 #include <string>

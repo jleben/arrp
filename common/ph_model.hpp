@@ -34,8 +34,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <isl/ast.h>
 
-#include <cloog/cloog.h>
-
 #include <vector>
 #include <string>
 #include <iostream>
@@ -211,6 +209,7 @@ public:
     isl::set params;
 };
 
+#if 0
 class ast
 {
 public:
@@ -219,6 +218,7 @@ public:
     clast_stmt * prelude;
     clast_stmt * period;
 };
+#endif
 
 class ast_isl
 {
