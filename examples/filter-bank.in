@@ -1,0 +1,15 @@
+
+sum(x) = reduce(a,b in x) a + b;
+
+// just sum dummy mapping - should be filter coefficients instead
+map(x) = x * (1..#x);
+
+filter(x) =
+  for each (slice takes 100 in x)
+      sum( map(slice) );
+
+f(x) = {
+  let bank = for each (i in 1..10) filter(x);
+  for each (slice in bank{2})
+    sum(slice);
+}

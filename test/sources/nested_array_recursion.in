@@ -1,0 +1,3 @@
+
+f(x) = [i:10 -> case i == 0: x; else: this[i-1] + x];
+main = [j -> f(9)]

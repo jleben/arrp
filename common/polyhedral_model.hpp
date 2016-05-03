@@ -22,19 +22,20 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_POLYHEDRAL_MODEL_INCLUDED
 
 #include "../common/primitives.hpp"
-#include "../utility/matrix.hpp"
+#include "../utility/mapping.hpp"
 #include "../utility/debug.hpp"
 
 #include <vector>
 #include <string>
 #include <iostream>
+#include <memory>
 
 namespace stream {
 namespace polyhedral {
 
 using std::vector;
 using std::string;
-using utility::matrix;
+using utility::mapping;
 
 enum
 {
@@ -52,92 +53,142 @@ template<> struct expr_type<double> { static constexpr primitive_type type = pri
 template<> struct expr_type<bool> { static constexpr primitive_type type = primitive_type::boolean; };
 
 class statement;
+class array;
 
-class mapping
+class array_variable
 {
 public:
-    mapping() {}
-
-    mapping(const matrix<int> & coef, const vector<int> & cst):
-        coefficients(coef), constants(cst)
-    {
-        assert(coefficients.rows() == constants.size());
-    }
-
-    mapping(int input_dimension, int output_dimension):
-        coefficients(output_dimension, input_dimension, 0),
-        constants(output_dimension, 0)
-    {
-    }
-
-    static mapping identity(int in, int out)
-    {
-        mapping m;
-        m.coefficients = matrix<int>::identity(out,in);
-        m.constants.resize(out, 0);
-        return m;
-    }
-
-    bool operator== ( const mapping & other ) const
-    {
-        return coefficients == other.coefficients && constants == other.constants;
-    }
-
-    int coefficient(int in_dim, int out_dim) const
-    {
-        return coefficients(out_dim, in_dim);
-    }
-    int & coefficient(int in_dim, int out_dim)
-    {
-        return coefficients(out_dim, in_dim);
-    }
-
-    int constant(int out_dim) const
-    {
-        return constants[out_dim];
-    }
-    int & constant(int out_dim)
-    {
-        return constants[out_dim];
-    }
-
-    int input_dimension() const { return coefficients.columns(); }
-    int output_dimension() const { return coefficients.rows(); }
-
-    void resize(int in_dim, int out_dim)
-    {
-        coefficients = coefficients.resized(out_dim, in_dim);
-        constants.resize(out_dim, 0);
-    }
-
-    matrix<int> coefficients;
-    vector<int> constants;
+    array_variable() {}
+    array_variable(int size): size(size) {}
+    int size = 0;
 };
 
-inline mapping operator*(const mapping & m1, const mapping & m2)
-{
-    using namespace ::stream::utility;
+typedef std::shared_ptr<array_variable> array_var_ptr;
 
-    mapping dst;
-    dst.coefficients = m1.coefficients * m2.coefficients;
-    dst.constants = m1.coefficients * m2.constants + m1.constants;
-    return dst;
+class array_var_vector : public vector<array_var_ptr>
+{
+public:
+    using vector<array_var_ptr>::vector;
+    array_var_vector() {}
+    array_var_vector(array_var_ptr v):
+        vector({v})
+    {}
+    array_var_vector(vector<int> sizes)
+    {
+        for(auto & size : sizes)
+            push_back(std::make_shared<array_variable>(size));
+    }
+    template<typename C>
+    array_var_vector(const C & container)
+    {
+        for (auto & var : container)
+            push_back(var);
+    }
+    array_var_vector & operator<< (const array_var_ptr & var)
+    {
+        push_back(var);
+        return *this;
+    }
+};
+
+class array_index_term
+{
+public:
+    array_index_term() {}
+    array_index_term(int s): scalar(s) {}
+    array_index_term(array_var_ptr v, int s = 1): var(v), scalar(s) {}
+    array_var_ptr var;
+    int scalar = 1;
+};
+
+class array_index_expr : public vector<array_index_term>
+{
+public:
+    using vector<array_index_term>::vector;
+    array_index_expr() {}
+    array_index_expr(int c):
+        vector<array_index_term>({array_index_term(c)}) {}
+    array_index_expr(array_var_ptr v):
+        vector<array_index_term>({array_index_term(v)}) {}
+    array_index_expr(const array_index_term & i):
+        vector<array_index_term>({i}) {}
+};
+
+class array_index_vector : public vector<array_index_expr>
+{
+public:
+    using vector<array_index_expr>::vector;
+    array_index_vector() {}
+    array_index_vector(const array_index_expr & expr):
+        vector({expr}) {}
+    /*
+    array_index_vector(const array_var_vector & vars)
+    {
+        for (auto & var : vars)
+            push_back(var);
+    }*/
+    template<typename C>
+    array_index_vector(const C & container)
+    {
+        for (auto & var : container)
+            push_back(var);
+    }
+    array_index_vector & operator<< (const array_index_expr & expr)
+    {
+        push_back(expr);
+        return *this;
+    }
+};
+
+inline array_index_term operator*(array_var_ptr v, int s)
+{
+    return array_index_term(v,s);
 }
 
-inline vector<int> operator*(const mapping & m, const vector<int> & v)
+inline array_index_expr operator+(array_var_ptr a, int b)
 {
-    using namespace ::stream::utility;
-
-    return m.coefficients * v + m.constants;
+    return { array_index_term(a), array_index_term(b) };
 }
 
-std::ostream & operator<<(std::ostream &, const mapping & m);
+inline array_index_expr operator+(const array_index_expr & e1,
+                                  const array_index_expr & e2)
+{
+    array_index_expr e(e1);
+
+    for (auto & t2 : e2)
+    {
+        bool added = false;
+        for(auto & t : e)
+        {
+            if (t2.var == t.var)
+            {
+                t.scalar += t2.scalar;
+                added = true;
+                break;
+            }
+        }
+        if (!added)
+        {
+            e.push_back(t2);
+        }
+    }
+
+    return e;
+}
+
+inline array_index_expr operator*(const array_index_expr & e,
+                                  int scalar)
+{
+    array_index_expr e2;
+    for (auto & term : e)
+    {
+        e2.push_back( array_index_term {term.var, term.scalar * scalar} );
+    }
+    return e2;
+}
 
 class expression
 {
-    // TODO: provide easy access to all dependencies,
-    // (of all sub-expressions)
-    // to be updated by slicing and transposition
 public:
     expression(primitive_type t): type(t) {}
 
@@ -148,6 +199,56 @@ public:
 
     primitive_type type;
 };
+
+typedef std::shared_ptr<expression> expression_ptr;
+
+class array
+{
+public:
+    array(const string & name, primitive_type & t):
+        name(name),
+        type(t)
+    {}
+
+    string name;
+    primitive_type type;
+    vector<int> size;
+    vector<int> buffer_size;
+    int flow_dim = -1;
+    int period = 0;
+    int period_offset = 0;
+    bool inter_period_dependency = true;
+};
+
+typedef std::shared_ptr<array> array_ptr;
+
+class statement
+{
+public:
+    statement() {}
+    statement(const string & name): name(name) {}
+
+    string name;
+    expression_ptr expr = nullptr;
+    vector<int> domain;
+
+    array_ptr array;
+    array_index_vector write_index;
+    mapping write_relation;
+
+    int flow_dim = -1;
+
+    vector<int> infinite_dimensions()
+    {
+        vector<int> dimensions;
+        for (int dim = 0; dim < domain.size(); ++dim)
+            if (domain[dim] == infinite)
+                dimensions.push_back(dim);
+        return dimensions;
+    }
+};
+
+typedef std::shared_ptr<statement> statement_ptr;
 
 template <typename T>
 class constant : public expression
@@ -161,13 +262,13 @@ class primitive_expr : public expression
 {
 public:
     primitive_expr(primitive_type t): expression(t) {}
-    primitive_expr(primitive_type t, primitive_op k, const vector<expression*> & operands):
+    primitive_expr(primitive_type t, primitive_op k, const vector<expression_ptr> & operands):
         expression(t),
         op(k), operands(operands)
     {}
 
     primitive_op op;
-    vector<expression*> operands;
+    vector<expression_ptr> operands;
 };
 
 class iterator_access : public expression
@@ -180,6 +281,17 @@ public:
         offset(offset),
         ratio(ratio)
     {}
+    iterator_access(const array_index_expr & e):
+        expression(primitive_type::integer),
+        expr(e)
+    {}
+
+    array_index_expr expr;
+
+    // TODO: remove
+    mapping relation;
+
+    // TODO: remove the following, use "relation" instead:
     int dimension;
     int offset;
     int ratio;
@@ -188,55 +300,63 @@ public:
 class input_access : public expression
 {
 public:
-    input_access(primitive_type t, int index): expression(t), index(index) {}
-    int index;
+    input_access(primitive_type t, int index):
+        expression(t), index(index) {}
+    input_access(primitive_type t, int i, const array_index_vector & ai):
+        expression(t), index(i), array_index(ai) {}
+
+    int index; // FIXME: rename?
+    array_index_vector array_index;
 };
 
-class statement
+class array_access : public expression
 {
 public:
-    statement(): expr(nullptr), inter_period_dependency(true) {}
-    statement(const string & name):
-        name(name),
-        expr(nullptr),
-        inter_period_dependency(true)
-    {}
-    string name;
-    expression * expr;
-    vector<int> domain;
-    vector<int> buffer;
-    bool inter_period_dependency;
+    array_ptr target;
+    array_index_vector index;
 
-    vector<int> infinite_dimensions()
-    {
-        vector<int> dimensions;
-        for (int dim = 0; dim < domain.size(); ++dim)
-            if (domain[dim] == infinite)
-                dimensions.push_back(dim);
-        return dimensions;
-    }
-};
-
-class stmt_access : public expression
-{
-public:
-    stmt_access(statement *target):
-        expression(target->expr->type),
-        target(target) {}
-    stmt_access(statement *target, primitive_type t):
-        expression(t),
-        target(target) {}
-    statement * target;
+    // TODO: remove
     mapping pattern;
+
+    array_access(array_ptr target):
+        expression(target->type),
+        target(target)
+    {}
+    array_access(array_ptr target, const mapping & relation):
+        expression(target->type),
+        target(target),
+        pattern(relation)
+    {}
+    array_access(array_ptr a, const array_index_vector & i):
+        expression(a->type),
+        target(a),
+        index(i)
+    {}
 };
 
-class reduction_access : public expression
+class array_function : public expression
 {
 public:
-    reduction_access(primitive_type t): expression(t) {}
-    statement * initializer;
-    statement * reductor;
+    array_function(primitive_type t): expression(t) {}
+    array_function(const vector<int> & size, expression_ptr expr):
+        expression(expr->type),
+        vars(size),
+        expr(expr)
+    {}
+    array_function(array_ptr a):
+        expression(a->type),
+        vars(a->size)
+    {
+        expr = std::make_shared<array_access>(a, array_index_vector(vars));
+    }
+    array_function(const array_var_vector & v, expression_ptr e):
+        expression(e->type), vars(v), expr(e) {}
+
+    array_var_vector vars;
+    expression_ptr expr;
 };
+
+typedef std::shared_ptr<array_function> array_func_ptr;
 
 template<typename T> inline
 void expression::find( vector<T*> & container )
@@ -254,8 +374,12 @@ void expression::find( vector<T*> & container )
     }
 }
 
-struct debug : public stream::debug::topic<debug, stream::debug::all>
-{ static string id() { return "polyhedral"; } };
+class model
+{
+public:
+    vector<array_ptr> arrays;
+    vector<statement_ptr> statements;
+};
 
 } // namespace polyhedral
 } // namespace stream

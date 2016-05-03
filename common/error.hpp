@@ -56,6 +56,12 @@ private:
     string m_msg;
 };
 
+inline void assert_or_throw(bool condition)
+{
+    if (!condition)
+        throw error("Assertion failed.");
+}
+
 }
 
 #endif // STREAM_LANG_ERROR_INCLUDED

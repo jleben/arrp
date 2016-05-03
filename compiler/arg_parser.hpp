@@ -21,28 +21,32 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_COMPILER_ARG_PARSER
 #define STREAM_LANG_COMPILER_ARG_PARSER
 
-#include "../common/types.hpp"
+#include "../polyhedral/scheduling.hpp"
+#include "../utility/debug.hpp"
 
 #include <sstream>
 #include <iostream>
 #include <vector>
 #include <memory>
 #include <array>
+#include <unordered_map>
 
 namespace stream {
 namespace compiler {
 
 using std::string;
 using std::vector;
+using std::unordered_map;
 using std::ostringstream;
 using std::istringstream;
 
-void print_help();
+class arguments;
+
+void print_help(const arguments &);
 
 struct target_info
 {
     string name;
-    vector<semantic::type_ptr> args;
 };
 
 class arguments
@@ -95,41 +99,34 @@ public:
 
     struct abortion {};
 
-    enum output_topic
-    {
-        tokens_output = 0,
-        ast_output,
-        symbols_output,
-        polyhedral_model_output,
-        buffer_size_output,
-        target_ast_output,
-
-        output_topic_count
-    };
-
 private:
     int m_arg_count;
     char **m_args;
     string m_current_opt;
+    unordered_map<string,bool*> m_verbose_topics;
 
 public:
+
     string input_filename;
     string output_filename;
     string meta_output_filename;
     string cpp_output_filename;
     target_info target;
-    std::array<bool,output_topic_count> print;
-    vector<string> debug_topics;
-    vector<string> no_debug_topics;
+    vector<polyhedral::scheduler::reversal> sched_reverse;
+    bool optimize_schedule = true;
+    bool split_statements = false;
 
 public:
     arguments(int argc, char *argv[]):
         m_arg_count(argc),
         m_args(argv),
         output_filename("out.ll")
+    {}
+
+    template <typename T>
+    void add_verbose_topic(const string & name)
     {
-        for (int i = 0; i < print.size(); ++i)
-            print[i] = false;
+        m_verbose_topics.emplace(name, &verbose<T>::enabled());
     }
 
     void parse()
@@ -142,7 +139,16 @@ public:
         }
     }
 
+    vector<string> verbose_topics() const
+    {
+        vector<string> names;
+        for (auto & pair : m_verbose_topics)
+            names.push_back(pair.first);
+        return names;
+    }
+
 private:
+
     void parse_next_option()
     {
         string opt;
@@ -151,36 +157,17 @@ private:
 
         if (opt == "--help" || opt == "-h")
         {
-            print_help();
+            print_help(*this);
             throw abortion();
         }
-        else if (opt == "--print" || opt == "-p")
-        {
-            string topic_name;
-            parse_argument(topic_name, "topic to print");
-            output_topic topic;
-            if (topic_name == "tokens")
-                topic = tokens_output;
-            else if (topic_name == "ast")
-                topic = ast_output;
-            else if (topic_name == "symbols")
-                topic = symbols_output;
-            else if (topic_name == "poly")
-                topic = polyhedral_model_output;
-            else if (topic_name == "buffers")
-                topic = buffer_size_output;
-            else if (topic_name == "out-ast")
-                topic = target_ast_output;
-            else
-                throw error(string("Invalid print topic: ") + topic_name);
-            print[topic] = true;
-        }
+#if 0
         else if (opt == "--generate" || opt == "--gen" || opt == "-g")
         {
             target.name.clear();
             target.args.clear();
             parse_target(target, opt);
         }
+#endif
         else if (opt == "--output" || opt == "-o")
         {
             parse_argument(output_filename, "output LLVM IR file");
@@ -193,17 +180,39 @@ private:
         {
             parse_argument(cpp_output_filename, "C++ interface output file");
         }
-        else if (opt == "--debug" || opt == "-d")
+        else if (opt == "--verbose" || opt == "-v")
         {
             string topic;
-            parse_argument(topic, "topic");
-            debug_topics.push_back(topic);
+            while(try_parse_argument(topic))
+            {
+                try { *m_verbose_topics.at(topic) = true; }
+                catch ( std::out_of_range & e )
+                {
+                    throw error("Unknown verbose topic: " + topic);
+                }
+            }
         }
-        else if (opt == "--no-debug" || opt == "-D")
+        else if (opt == "--no-opt-schedule")
         {
-            string topic;
-            parse_argument(topic, "topic");
-            no_debug_topics.push_back(topic);
+            optimize_schedule = false;
+        }
+        else if (opt == "--reverse")
+        {
+            string stmt_name;
+            string dim_str;
+            parse_argument(stmt_name, "statement name");
+            parse_argument(dim_str, "schedule dimension");
+            int dim;
+            try {
+                dim = stoi(dim_str);
+            } catch (std::invalid_argument &) {
+                throw error("Invalid schedule dimension: " + dim_str);
+            }
+            sched_reverse.push_back({stmt_name, dim});
+        }
+        else if (opt == "--split-stmts")
+        {
+            split_statements = true;
         }
         else
         {
@@ -216,29 +225,8 @@ private:
     void parse_target(target_info &tgt, const string & parameter)
     {
         parse_argument(tgt.name, "target name");
-
-        string arg;
-        while(try_parse_argument(arg))
-        {
-            tgt.args.push_back( parse_target_arg(arg) );
-        }
     }
-
-    semantic::type_ptr parse_target_arg(const string & arg)
-    {
-        assert(!arg.empty());
-
-        switch(arg[0])
-        {
-        case '[':
-            return parse_target_stream_arg(arg);
-        //case '[':
-            //return parse_range_arg(arg);
-        default:
-            return parse_target_scalar_arg(arg);
-        }
-    }
-
+#if 0
     semantic::type_ptr parse_target_stream_arg(const string & arg)
     {
         if (arg.size() < 3)
@@ -295,7 +283,7 @@ private:
     {
         throw error("Unsupported range argument: " + arg);
     }
-
+#endif
 
     // General
 

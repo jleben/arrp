@@ -10,7 +10,7 @@ mapped(X) = log(K*X + A);
 
 mapped_no_log(X) = K*X + A;
 
-reduced(pair) = sum( max(0, pair[2] - pair[1]) );
+reduced(pair) = sum( max(0.0, pair[2] - pair[1]) );
 
 flux(X) = {
   for each(pair takes 2 in mapped(X))

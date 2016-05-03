@@ -1,0 +1,4 @@
+
+a = [x -> case x==0: 0; else: this[x-1] + 1.0];
+filter = [x,y:32 -> case y==0: a[x]; else: this[x,y-1] + a[x+y] * y];
+main = [x -> filter[x,31]];

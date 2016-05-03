@@ -6,28 +6,36 @@ else()
   set(lib_mode SHARED)
 endif()
 
+# For parser
+include_directories(../common)
+
 add_library(streamc-lib ${lib_mode}
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../common/primitives.cpp
-  ../common/types.cpp
-  ../common/environment.cpp
-  ../common/polyhedral_model.cpp
-  ../common/polyhedral_model_printer.cpp
-  ../frontend/lex.cc
-  ../frontend/parse.cc
-  ../frontend/environment_builder.cpp
-  ../frontend/type_checker.cpp
-  ../polyhedral/translator.cpp
-  ../polyhedral/dataflow_model.cpp
-  ../polyhedral/ast_generator.cpp
-  ../llvm/llvm_ir_from_cloog.cpp
-  ../llvm/llvm_from_polyhedral.cpp
-  ../interface/cpp-intf-gen.cpp
+  ../common/func_types.cpp
+  ../common/func_model_printer.cpp
+  ../common/ph_model.cpp
+  ../frontend/prim_reduction.cpp
+  ../frontend/functional_gen.cpp
+  ../frontend/func_copy.cpp
+  ../frontend/func_reducer.cpp
+  ../frontend/linear_expr_gen.cpp
+  ../frontend/array_reduction.cpp
+  ../frontend/array_transpose.cpp
+  ../frontend/type_check.cpp
+  ../frontend/ph_model_gen.cpp
+  ../polyhedral/scheduling.cpp
+  ../polyhedral/storage_alloc.cpp
+  ../polyhedral/modulo_avoidance.cpp
+  ../polyhedral/isl_ast_gen.cpp
+  ../cpp/cpp_target.cpp
+  ../cpp/cpp_from_polyhedral.cpp
+  ../cpp/cpp_from_isl.cpp
   compiler.cpp
 )
 
-add_dependencies(streamc-lib parser)
+target_link_libraries(streamc-lib parser)
 
 set_property( TARGET streamc-lib PROPERTY OUTPUT_NAME streamc )
 
@@ -39,7 +47,7 @@ else()
   target_link_libraries( streamc-lib ${LLVM_LINK_FLAGS} ${LLVM_LIBRARIES} )
 endif()
 
-target_link_libraries( streamc-lib ${ISL_LIBRARY} isl-cpp ${CLOOG_LIBRARY} json m )
+target_link_libraries( streamc-lib ${ISL_LIBRARY} isl-cpp json m )
 
 # Executable
 

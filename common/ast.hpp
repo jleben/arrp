@@ -27,6 +27,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <cassert>
 #include <iostream>
 
+#include "../frontend/location.hh"
+#include "../common/primitives.hpp"
+
 namespace stream
 {
 
@@ -41,76 +44,36 @@ using type_ptr = std::shared_ptr<type>;
 
 namespace ast {
 
+struct output; // verbose output;
+
+using location_type = parsing::location;
+
 struct node;
 
 using node_ptr = std::shared_ptr<node>;
 
-struct semantic_value : public node_ptr
-{
-    semantic_value & operator=(node * n)
-    {
-        reset(n);
-        return *this;
-    }
-
-    template <typename T>
-    T * as()
-    {
-        return static_cast<T*>( get() );
-    }
-};
+typedef node_ptr semantic_value_type;
 
 enum node_type
 {
-    kwd_let,
-    kwd_for,
-    kwd_reduce,
-
-    negate,
-    add,
-    subtract,
-    multiply,
-    divide,
-    divide_integer,
-    modulo,
-    raise,
-    lesser,
-    greater,
-    lesser_or_equal,
-    greater_or_equal,
-    equal,
-    not_equal,
-    oppose,
-    logic_or,
-    logic_and,
-
-    integer_num,
-    real_num,
-    boolean,
-    identifier,
-    range,
-
-    //binary_op_expression,
-    call_expression,
-    transpose_expression,
-    slice_expression,
-    hash_expression,
-
-    if_expression,
-    for_expression,
-    for_iteration,
-    for_iteration_list,
-    reduce_expression,
-
-    expression_block,
-    statement,
-
-    id_list,
-    int_list,
-    expression_list,
-    statement_list,
+    anonymous,
 
     program,
+
+    constant,
+    identifier,
+    primitive,
+    case_expr,
+
+    array_self_ref,
+    array_def,
+    array_params,
+    array_param,
+    array_apply,
+    array_size,
+
+    func_def,
+    func_apply,
 
     node_type_count
 };
@@ -121,16 +84,16 @@ template <typename T> struct leaf_node;
 struct node
 {
     node_type type;
-    int line;
+    location_type location;
     semantic::type_ptr semantic_type;
 
     node( const node & other ):
         type(other.type),
-        line(other.line),
+        location(other.location),
         semantic_type(other.semantic_type)
     {}
 
-    node( node_type type, int line = 0 ): type(type), line(line) {}
+    node( node_type type, const location_type & loc ): type(type), location(loc) {}
     virtual ~node() {}
 
     virtual bool is_list() { return false; }
@@ -152,13 +115,14 @@ struct list_node : public node
 {
     vector<sp<node>> elements;
 
-    list_node( node_type type, int line ):
-        node(type, line)
+    list_node( node_type type, const location_type & loc ):
+        node(type, loc)
     {}
 
-    list_node( node_type type, int line,
-               std::initializer_list<sp<node>> elements ):
-        node(type, line),
+
+    list_node( node_type type, const location_type & loc,
+               std::initializer_list<node_ptr> elements ):
+        node(type, loc),
         elements(elements)
     {}
 
@@ -183,12 +147,12 @@ struct list_node : public node
         return node_ptr(n);
     }
 
-    void append( const sp<node> & element )
+    void append( const node_ptr & element )
     {
         elements.push_back(element);
     }
 
-    void append( const vector<sp<node>> & other_elements )
+    void append( const vector<node_ptr> & other_elements )
     {
         elements.insert( elements.end(),
                          other_elements.begin(), other_elements.end() );
@@ -200,8 +164,8 @@ struct leaf_node : public node
 {
     T value;
 
-    leaf_node (node_type type, int line, const T & v):
-        node(type, line),
+    leaf_node (node_type type, const location_type & loc, const T & v):
+        node(type, loc),
         value(v)
     {}
 
@@ -232,183 +196,39 @@ inline leaf_node<T> *node::as_leaf()
     return static_cast<leaf_node<T>*>(this);
 }
 
-struct binary_op_expression : list_node
+inline
+node_ptr make_node(ast::node_type type, const location_type & loc)
 {
-    binary_op_expression( const sp<node> & lhs,
-                          node_type op,
-                          const sp<node> & rhs ):
-        list_node( op, lhs->line, { lhs, rhs } )
-    {}
-};
+    return std::make_shared<node>(type, loc);
+}
 
-#if 0
-struct statement;
-
-template <typename T>
-struct list_node : public node, public vector<T>
+inline
+node_ptr make_list(ast::node_type type, const location_type & loc,
+                   std::initializer_list<node_ptr> elements)
 {
-    using vector<T>::vector;
-    list_node() {}
-    list_node( int line ): node(line) {}
-};
+    return std::make_shared<list_node>(type, loc, elements);
+}
 
-typedef list_node<int> int_list;
-
-struct identifier : public node
+inline
+node_ptr make_list(const location_type & loc,
+                   std::initializer_list<node_ptr> elements)
 {
-    using node::node;
-    string name;
-};
+    return std::make_shared<list_node>(anonymous, loc, elements);
+}
 
-struct expression : public node
+inline
+node_ptr make_id(const location_type & loc,
+                 const string & name)
 {
-protected:
-    expression() {}
-    expression(int line): node(line) {}
-};
+    return std::make_shared<leaf_node<string>>(identifier, loc, name);
+}
 
-typedef list_node<sp<expression>> expression_list;
-
-struct range : public node
+template <typename T> inline
+node_ptr make_const(const location_type & loc,
+                    const T & value)
 {
-    range() {}
-    range( const sp<expression> & start,
-           const sp<expression> & end):
-        node(start ? start->line : end->line),
-        start(start),
-        end(end)
-    {}
-    sp<expression> start;
-    sp<expression> end;
-};
-
-typedef list_node<range> range_list;
-
-struct call : public expression
-{
-    identifier id;
-    expression_list args;
-    int_list dimensions;
-    expression_list range;
-};
-
-typedef list_node<identifier> id_list;
-
-typedef list_node<statement> statement_list;
-
-struct expression_block : public node
-{
-    statement_list environment;
-    sp<expression> expr;
-};
-
-struct statement : public node
-{
-    identifier id;
-    id_list params;
-    expression_block body;
-};
-
-struct for_iteration : public node
-{
-    identifier iterator;
-    sp<expression> size;
-    sp<expression> hop;
-    sp<expression> domain;
-};
-
-typedef list_node<for_iteration> for_iteration_list;
-
-struct for_expression : public expression
-{
-    for_iteration_list iterations;
-    expression_block body;
-};
-
-struct reduce_expression : public expression
-{
-    identifier id1;
-    identifier id2;
-    sp<expression> domain;
-    expression_block body;
-};
-
-enum binary_operator
-{
-    add,
-    subtract,
-    multiply,
-    divide,
-    equals,
-    not_equals,
-    less_than,
-    more_than
-};
-
-struct binop_expression : public expression
-{
-    binop_expression( const sp<expression> & lhs,
-                      binary_operator op,
-                      const sp<expression> & rhs ):
-        expression(lhs->line),
-        op(op), lhs(lhs), rhs(rhs)
-    {}
-    binary_operator op;
-    sp<expression> lhs;
-    sp<expression> rhs;
-};
-
-struct range_expression : public expression
-{
-    range_expression( const range & r ): expression(r.line), r(r) {}
-    range r;
-};
-
-enum numerical_type
-{
-    int_literal,
-    real_literal
-};
-
-struct numerical_expression : public expression
-{
-    numerical_expression( int value, int line = 0 ):
-        expression(line),
-        type(int_literal),
-        i(value)
-    {}
-
-    numerical_expression( double value, int line = 0 ):
-        expression(line),
-        type(real_literal),
-        d(value)
-    {}
-
-    numerical_type type;
-    union {
-        int i;
-        double d;
-    };
-};
-
-struct hash_expression : public expression
-{
-    hash_expression() {}
-    hash_expression( const identifier & id, const sp<expression> & dim = nullptr ):
-        expression(id.line),
-        id(id),
-        dim(dim)
-    {}
-    identifier id;
-    sp<expression> dim;
-};
-
-struct program : public node
-{
-    statement_list statements;
-};
-
-#endif
+    return std::make_shared<leaf_node<T>>(constant, loc, value);
+}
 
 }
 

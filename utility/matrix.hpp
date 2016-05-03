@@ -86,6 +86,11 @@ public:
         return m;
     }
 
+    static matrix<T> identity( int size )
+    {
+        return identity(size, size);
+    }
+
     bool operator== (const matrix<T> & other) const
     {
         return m_rows == other.m_rows &&
@@ -175,6 +180,112 @@ public:
         return dst;
     }
 
+    void remove_column( int column_to_remove, int count )
+    {
+        if (count == 0)
+            return;
+
+        assert(count > 0);
+        assert(column_to_remove >= 0 && column_to_remove + count <= m_columns);
+
+        matrix<T> dst(m_rows, m_columns - count);
+
+        for (int row = 0; row < m_rows; ++row)
+        {
+            for (int col = 0; col < column_to_remove; ++col)
+            {
+                dst(row,col) = (*this)(row,col);
+            }
+            for (int col = column_to_remove; col < dst.m_columns; ++col)
+            {
+                dst(row, col) = (*this)(row, col + count);
+            }
+        }
+
+        (*this) = dst;
+    }
+
+    void remove_row( int row_to_remove, int count )
+    {
+        if (count == 0)
+            return;
+
+        assert(count > 0);
+        assert(row_to_remove >= 0 && row_to_remove + count <= m_rows);
+
+        matrix<T> dst(m_rows - count, m_columns);
+
+        for (int row = 0; row < row_to_remove; ++row)
+        {
+            for (int col = 0; col < m_columns; ++col)
+            {
+                dst(row,col) = (*this)(row,col);
+            }
+        }
+        for (int row = row_to_remove; row < dst.m_rows; ++row)
+        {
+            for (int col = 0; col < m_columns; ++col)
+            {
+                dst(row,col) = (*this)(row + count, col);
+            }
+        }
+
+        (*this) = dst;
+    }
+
+    void insert_column( int column_to_insert, int count )
+    {
+        if (count == 0)
+            return;
+
+        assert(count > 0);
+        assert(column_to_insert >= 0 && column_to_insert <= m_columns);
+
+        matrix<T> dst(m_rows, m_columns + count);
+
+        for (int row = 0; row < m_rows; ++row)
+        {
+            for (int col = 0; col < column_to_insert; ++col)
+            {
+                dst(row,col) = (*this)(row,col);
+            }
+            for (int col = column_to_insert; col < m_columns; ++col)
+            {
+                dst(row, col + count) = (*this)(row,col);
+            }
+        }
+
+        (*this) = dst;
+    }
+
+    void insert_row( int row_to_insert, int count )
+    {
+        if (count == 0)
+            return;
+
+        assert(count > 0);
+        assert(row_to_insert >= 0 && row_to_insert < m_rows);
+
+        matrix<T> dst(m_rows + count, m_columns);
+
+        for (int row = 0; row < row_to_insert; ++row)
+        {
+            for (int col = 0; col < m_columns; ++col)
+            {
+                dst(row,col) = (*this)(row,col);
+            }
+        }
+        for (int row = row_to_insert; row < m_rows; ++row)
+        {
+            for (int col = 0; col < m_columns; ++col)
+            {
+                dst(row + count,col) = (*this)(row,col);
+            }
+        }
+
+        (*this) = dst;
+    }
+
 private:
     int m_rows;
     int m_columns;
@@ -229,6 +340,22 @@ vector<T> operator+( const vector<T> & v1, const vector<T> & v2 )
     vector<T> dst(v1.size());
     for (unsigned int i = 0; i < dst.size(); ++i)
         dst[i] = v1[i] + v2[i];
+    return dst;
+}
+
+template <typename T>
+matrix<T> operator+( const matrix<T> & m1, const matrix<T> & m2)
+{
+    assert(m1.rows() == m2.rows());
+    assert(m1.columns() == m2.columns());
+    matrix<T> dst(m1.rows(), m1.columns());
+    for (int row = 0; row < m1.rows(); ++row)
+    {
+        for (int col = 0; col < m2.columns(); ++col)
+        {
+            dst(row,col) = m1(row,col) + m2(row,col);
+        }
+    }
     return dst;
 }
 

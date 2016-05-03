@@ -87,14 +87,30 @@ llvm_from_polyhedral::llvm_from_polyhedral
         const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
         if (actor)
         {
+#if 0
             bool period_overlaps =
                     actor->steady_count % stmt->buffer[actor->flow_dimension] != 0;
             bool init_overlaps =
                     actor->init_count % stmt->buffer[actor->flow_dimension] != 0;
 
             buf.has_phase = period_overlaps || init_overlaps;
-            buf.phase_index = buf_sizes[phase_buffer]++;
+#endif
             transpose(buf.domain, actor->flow_dimension);
+
+            // FIXME:
+            // Find out offset after init.
+            // if period % size != 0
+            //    has_phase = true
+            // else
+            //    has_phase = false
+            //    if init % size != 0
+            //       offset init in buffer so that it ends exactly
+            //       at buffer end, thus avoiding the need for phase
+
+            //buf.has_phase = stmt->buffer_period % buf.domain[0] != 0;
+            buf.has_phase = true;
+
+            buf.phase_index = buf_sizes[phase_buffer]++;
         }
         else
         {
@@ -149,9 +165,19 @@ llvm_from_polyhedral::llvm_from_polyhedral
 
     //
 
+
+    // Declare input access function
+
+    vector<type_type> input_access_func_param_types = { int32_type(), pointer(int8_type()) };
+    llvm::FunctionType * input_access_func_type =
+            llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context()),
+                                    input_access_func_param_types,
+                                    false);
+
     vector<type_type> buffer_struct_member_types;
     for(int idx = 0; idx < buffer_kind_count; ++idx)
         buffer_struct_member_types.push_back(pointer(buf_elem_types[idx]));
+    buffer_struct_member_types.push_back(pointer(input_access_func_type));
 
     m_buffer_struct_type =
             llvm::StructType::create(buffer_struct_member_types);
@@ -344,13 +370,20 @@ llvm_from_polyhedral::create_process_function
         ctx.stack_buffers[buf.index] = buf_ptr;
     }
 
+    // Load input access function pointer
+
+    {
+        vector<value_type> address = { value((int32_t)0), value((int32_t)buffer_kind_count) };
+        ctx.input_access_func =
+                m_builder.CreateLoad(m_builder.CreateGEP(buffer_info_ptr, address));
+    }
+
     // End block
 
     ctx.end_block = llvm::BasicBlock::Create(llvm_context(), "", ctx.func);
     m_builder.SetInsertPoint(ctx.end_block);
 
-    if (mode == periodic_schedule)
-        advance_buffers(ctx);
+    advance_buffers(ctx);
 
     m_builder.CreateRetVoid();
 
@@ -371,13 +404,9 @@ llvm_from_polyhedral::generate_statement( const string & name,
 
 llvm_from_polyhedral::block_type
 llvm_from_polyhedral::generate_statement
-( statement *stmt, const index_type & ctx_index,
+( statement *stmt, const index_type & index,
   const context & ctx, block_type block )
 {
-    // Drop first dimension denoting period (always zero).
-    assert(!ctx_index.empty());
-    vector<value_type> index(ctx_index.begin()+1, ctx_index.end());
-
     m_builder.SetInsertPoint(block);
 
     // Offset steady-period index by initialization count
@@ -386,6 +415,7 @@ llvm_from_polyhedral::generate_statement
     // - Could this be avoided by rather modifying how the index is generated
     //   in the first place?
     vector<value_type> global_index = index;
+#if 0
     const dataflow::actor *actor = m_dataflow->find_actor_for(stmt);
     if (ctx.mode == periodic_schedule && actor)
     {
@@ -393,20 +423,21 @@ llvm_from_polyhedral::generate_statement
         flow_index = m_builder.CreateAdd(flow_index,
                                          this->value((int64_t)actor->init_count));
     }
+#endif
 
     value_type value;
 
     if (dynamic_cast<input_access*>(stmt->expr))
     {
-        value = generate_input_access(stmt, index, ctx);
+        // FIXME: input index...
+        generate_input_access(stmt, index, ctx);
     }
     else
     {
         value = generate_expression(stmt->expr, global_index, ctx);
+        value_type dst = generate_buffer_access(stmt, global_index, ctx);
+        store_buffer_elem(value, dst, stmt->expr->type);
     }
-
-    value_type dst = generate_buffer_access(stmt, global_index, ctx);
-    store_buffer_elem(value, dst, stmt->expr->type);
 
     return m_builder.GetInsertBlock();
 }
@@ -852,39 +883,49 @@ llvm_from_polyhedral::generate_buffer_access
     return buffer_ptr;
 }
 
-llvm_from_polyhedral::value_type
+void
 llvm_from_polyhedral::generate_input_access
 ( statement *stmt, const index_type & index, const context & ctx)
 {
+    // FIXME: input index...
+
+    int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
+
     vector<value_type> the_index(index);
     vector<int> the_domain(stmt->domain);
     const dataflow::actor * actor = m_dataflow->find_actor_for(stmt);
 
     if (actor)
     {
-        switch(ctx.mode)
-        {
-        case initial_schedule:
-            the_domain[actor->flow_dimension] = actor->init_count;
-            break;
-        case periodic_schedule:
-            the_domain[actor->flow_dimension] = actor->steady_count;
-            break;
-        }
-        transpose(the_index, actor->flow_dimension);
+        assert(index.size() == 1);
+        assert(the_domain.size() >= index.size());
+
         transpose(the_domain, actor->flow_dimension);
+
+        // Form data index from iteration index
+
+        // Pad iteration index with zeros
+        for(int i = 1; i < the_domain.size(); ++i)
+            the_index.push_back(value((int64_t)0));
+
+        value_type dst = generate_buffer_access(stmt, the_index, ctx);
+        dst = m_builder.CreateBitCast(dst, pointer(int8_type()));
+
+        vector<value_type> args = { value((int32_t)input_num), dst };
+        m_builder.CreateCall( ctx.input_access_func, args );
     }
+    else
+    {
+        value_type flat_index = this->flat_index(the_index, the_domain);
 
-    value_type flat_index = this->flat_index(the_index, the_domain);
+        value_type input_val = ctx.inputs[input_num];
+        assert(input_val->getType()->isPointerTy());
+        input_val = m_builder.CreateGEP(input_val, flat_index);
+        input_val = load_buffer_elem(input_val, stmt->expr->type);
 
-    int input_num = reinterpret_cast<input_access*>(stmt->expr)->index;
-
-    value_type input = ctx.inputs[input_num];
-    assert(input->getType()->isPointerTy());
-    input = m_builder.CreateGEP(input, flat_index);
-    input = load_buffer_elem(input, stmt->expr->type);
-
-    return input;
+        value_type dst = generate_buffer_access(stmt, the_index, ctx);
+        store_buffer_elem(input_val, dst, stmt->expr->type);
+    }
 }
 
 llvm_from_polyhedral::value_type
@@ -981,7 +1022,8 @@ void llvm_from_polyhedral::advance_buffers(const context & ctx)
         if (!buf.has_phase)
             continue;
 
-        int offset = actor->steady_count;
+        int offset = ctx.mode == initial_schedule ?
+                    stmt->buffer_period_offset : stmt->buffer_period;
         int buffer_size = stmt->buffer[actor->flow_dimension];
 
         value_type phase_ptr =
@@ -1008,15 +1050,17 @@ llvm_from_polyhedral::buffer_index
     // Prepare info
 
     vector<value_type> the_index(index);
-    vector<int> the_domain = stmt->domain;
+    //vector<int> the_domain = stmt->domain;
     vector<int> the_buffer_size = stmt->buffer;
 
+#if 0
     if (actor)
     {
         the_domain[actor->flow_dimension] = actor->init_count;
         if (ctx.mode == periodic_schedule)
             the_domain[actor->flow_dimension] += actor->steady_count;
     }
+#endif
 
     // Add flow index phase
 
@@ -1038,7 +1082,7 @@ llvm_from_polyhedral::buffer_index
 
     for (int dim = 0; dim < the_index.size(); ++dim)
     {
-        int domain_size = the_domain[dim];
+        //int domain_size = the_domain[dim];
         int buffer_size = the_buffer_size[dim];
 
         if (buffer_size < 2)
@@ -1047,8 +1091,10 @@ llvm_from_polyhedral::buffer_index
             continue;
         }
 
+        // FIXME: Avoid wrapping when possible
         bool may_wrap =
-                domain_size > buffer_size ||
+                //domain_size > buffer_size ||
+                true ||
                 (actor && dim == actor->flow_dimension && buf.has_phase);
 
         if (may_wrap)

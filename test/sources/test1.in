@@ -1,0 +1,5 @@
+
+
+f(a) = { let ff = [i:10 -> a + i]; ff };
+main = [j -> f(j)[5]]
+

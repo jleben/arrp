@@ -3,14 +3,17 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace stream {
 
 using std::string;
 using std::ostream;
+using std::vector;
 
 enum class primitive_type
 {
+    undefined,
     boolean,
     integer,
     real
@@ -62,9 +65,44 @@ enum class primitive_op
 
 string name_of_primitive( primitive_op op );
 
+struct prim_op_overload
+{
+    prim_op_overload() {}
+    prim_op_overload(std::initializer_list<primitive_type> l):
+        types(l) {}
+    vector<primitive_type> types;
+};
+
+vector<prim_op_overload> overloads(primitive_op);
+
+struct ambiguous_type {};
+struct no_type {};
+
+primitive_type result_type(primitive_op, vector<primitive_type> & args);
+
+primitive_type common_type(primitive_type, primitive_type);
+
+primitive_type common_type(const vector<primitive_type> & types);
+
 inline ostream & operator<<(ostream & s, primitive_op op)
 {
     s << name_of_primitive(op);
+    return s;
+}
+
+inline ostream & operator<<(ostream & s, primitive_type t)
+{
+    switch(t)
+    {
+    case primitive_type::boolean:
+        s << "boolean"; break;
+    case primitive_type::integer:
+        s << "integer"; break;
+    case primitive_type::real:
+        s << "real"; break;
+    default:
+        s << "?";
+    }
     return s;
 }
 

@@ -1,0 +1,92 @@
+
+## General
+
+pi = 3.14159265359;
+
+fold(f,a) = {
+  let folding = [k:#a -> case
+    k == 0: a[k];
+    else: f(a[k], this[k-1])
+  ];
+  folding[#a-1];
+}
+;
+
+add(a,b) = a + b;
+
+sum(a) = fold(add, a);
+
+slice(pos,len,a) = [j:len -> a[pos + j]];
+
+## App
+
+sampling_rate = 250000000.0;
+cutoff_frequency = 108000000.0;
+num_taps = 64;
+max_amp = 27000.0;
+bandwidth = 10000.0;
+
+
+fm_demodulate(sr, max, bandwidth, x) =
+{
+  let gain = max*sr/(bandwidth*pi);
+  [t -> atan(x[t] * x[t+1]) * gain]
+};
+
+lp_filter(rate, cutoff, taps, decimation, x) =
+{
+
+  let m = taps - 1.0;
+  let w = 2 * pi * cutoff / rate;
+  let coefs = [k:taps ->
+      if k - m/2 == 0
+      then w / pi
+      else sin(w*(k-m/2)) / pi / (k-m/2) * (0.54 - 0.46 * cos(2*pi*k/m))
+  ];
+  [t -> sum(slice(t*(1+decimation), taps, x) * coefs)]
+};
+
+bp_filter(rate, low, high, taps, x) =
+{
+  lp_filter(rate, high, taps, 0, x) - lp_filter(rate, low, taps, 0, x);
+};
+
+equalizer(rate, amps, freqs, taps, x) =
+{
+  let channels = [b:#amps -> bp_filter(rate, freqs[b], freqs[b+1], taps, x) * amps[b]];
+  sum(channels);
+  ##[t -> sum([b:#amps -> bp_filter(rate, freqs[b], freqs[b+1], taps, x)[t] * amps[b]])]
+};
+
+
+in = [i ->
+  case i == 0: 0;
+  else: this[i-1] + 1
+];
+
+n_bands = 10;
+lowest_freq = 55;
+highest_freq = 1760;
+
+eq_freqs = [i:n_bands+1 ->
+  exp(i*(log(highest_freq)-log(lowest_freq))/(n_bands-1) + log(lowest_freq))
+];
+
+eq_amps = {
+  let half_bands = (n_bands-1)/2;
+  [i:n_bands ->
+    if i > half_bands
+    then 2 - (i - half_bands) / 5
+    else 2 + (i - half_bands) / 5
+  ]
+};
+
+##filtered = lp_filter(sampling_rate, cutoff_frequency, num_taps, 0, in);
+
+filtered = lp_filter(sampling_rate, cutoff_frequency, num_taps, 4, in);
+fm_demodulated = fm_demodulate(sampling_rate, max_amp, bandwidth, filtered);
+equalized = equalizer(sampling_rate, eq_amps, eq_freqs, num_taps, fm_demodulated);
+
+##equalized = equalizer(sampling_rate, eq_amps, eq_freqs, num_taps, in);
+
+main = equalized;

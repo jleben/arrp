@@ -165,6 +165,14 @@ struct topic
 };
 
 } // namespace debug
+
+template<typename T>
+class verbose
+{
+public:
+    static bool & enabled() { static bool e = false; return e; }
+};
+
 } // namespace stream
 
 #endif // STREAM_LANG_DEBUG_INCLUDED

@@ -21,82 +21,42 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "arg_parser.hpp"
 #include "compiler.hpp"
 #include "../common/ast_printer.hpp"
-#include "../common/polyhedral_model_printer.hpp"
-#include "../frontend/parser.h"
-#include "../frontend/environment_builder.hpp"
-#include "../frontend/type_checker.hpp"
-#include "../polyhedral/translator.hpp"
-#include "../polyhedral/ast_generator.hpp"
-#include "../llvm/llvm_ir_from_cloog.hpp"
-#include "../llvm/llvm_from_polyhedral.hpp"
-#include "../interface/cpp-intf-gen.hpp"
+//#include "../common/polyhedral_model_printer.hpp"
+#include "../common/func_model_printer.hpp"
+#include "../frontend/error.hpp"
+#include "../frontend/driver.hpp"
+#include "../frontend/functional_gen.hpp"
+#include "../frontend/func_reducer.hpp"
+#include "../frontend/array_reduction.hpp"
+#include "../frontend/array_transpose.hpp"
+#include "../frontend/type_check.hpp"
+#include "../frontend/ph_model_gen.hpp"
+#include "../polyhedral/scheduling.hpp"
+#include "../polyhedral/storage_alloc.hpp"
+#include "../polyhedral/modulo_avoidance.hpp"
+//#include "../polyhedral/ast_gen.hpp"
+#include "../polyhedral/isl_ast_gen.hpp"
+//#include "../llvm/llvm_ir_from_cloog.hpp"
+//#include "../llvm/llvm_from_polyhedral.hpp"
+#include "../cpp/cpp_target.hpp"
+//#include "../interface/cpp-intf-gen.hpp"
+
+#include <isl-cpp/printer.hpp>
 
 #include <json++/json.hh>
 
 #include <fstream>
 #include <iostream>
 #include <functional>
+#include <algorithm>
 
 using namespace std;
 
 namespace stream {
 namespace compiler {
 
-void print_help()
-{
-    using namespace std;
-
-    cout << "Usage:" << endl
-         << "  streamc <input file> [<option>...]" << endl;
-
-    cout << "Options:" << endl;
-
-    cout << "  --generate or --gen or -g <symbol> [<type>...] :" << endl
-         << "  \tGenerate output for top-level function or expression <symbol>" << endl
-         << "  \twith given argument types." << endl
-         << "  \tEach following argument <type> is used as the type of" << endl
-         << "  \ta function parameter in generic function instantiation." << endl
-         << "  \tA <type> can be one of the following:" << endl
-         << "  \t- \"int\" - integer number," << endl
-         << "  \t- \"real\" - real number," << endl
-         << "  \t- a stream, e.g. \"[10,4,5]\""
-         << " - each number represents size in one dimension." << endl
-            ;
-
-    cout << "  --output or -o <name>: Generate LLVM IR output file with <name>"
-            " (default: 'out.ll')." << endl;
-
-    cout << "  --cpp <name> : Generate C++ header file with <name>." << endl;
-
-    cout << "  --meta or -m <name> : Generate JSON description file with <name>." << endl;
-
-    cout << "  --print or -p <topic> : Enable printing of <topic>." << endl
-         << "  \tAvailable topics:" << endl;
-    cout << "  \t- tokens = Lexical tokens (if enabled at compiler build time)." << endl;
-    cout << "  \t- ast = Abstract syntax tree of input code." << endl;
-    cout << "  \t- symbols = Top-level symbols in the environment." << endl;
-    cout << "  \t- poly = Polyhedral model." << endl;
-    cout << "  \t- out-ast = Abstract syntax tree of output code." << endl;
-
-    cout << "  --debug or -d <topic> : Enable debugging output for <topic>." << endl
-         << "  \tAvailable topics:" << endl
-         << "  \t- polyhedral" << endl
-         << "  \t- polyhedral.model" << endl
-         << "  \t- polyhedral.model.transform" << endl
-         << "  \t- polyhedral.ast" << endl
-         << "  \t- polyhedral.ast.buffer-size" << endl
-         << "  \t- dataflow" << endl
-            ;
-    cout << "  --no-debug or -D <topic> : Disable debugging output for <topic>." << endl;
-}
-
 result::code compile(const arguments & args)
 {
-    for(const string & topic : args.debug_topics)
-        debug::set_status_for_id(topic, debug::enabled);
-    for(const string & topic : args.no_debug_topics)
-        debug::set_status_for_id(topic, debug::disabled);
-
     if (args.input_filename.empty())
     {
         cerr << "streamc: error: Missing argument: input filename." << endl;
@@ -116,19 +76,17 @@ result::code compile(const arguments & args)
 
 result::code compile_source(istream & source, const arguments & args)
 {
-    stream::Parser parser(source);
-    parser.setPrintsTokens(args.print[arguments::tokens_output]);
+    stream::parsing::driver parser(source, cout);
 
-    if (args.print[arguments::tokens_output])
-        cout << "== Tokens ==" << endl;
-
-    int success = parser.parse();
-    if (success != 0)
+    int parser_error = parser.parse();
+    if (parser_error)
         return result::syntactic_error;
 
-    const ast::node_ptr & ast_root = parser.ast();
+    auto ast_root = parser.ast();
+    if (!ast_root)
+        return result::ok;
 
-    if (args.print[arguments::ast_output])
+    if (verbose<ast::output>::enabled())
     {
         cout << endl;
         cout << "== Abstract Syntax Tree ==" << endl;
@@ -137,94 +95,290 @@ result::code compile_source(istream & source, const arguments & args)
         cout << endl;
     }
 
-    stream::semantic::environment env;
-    stream::semantic::environment_builder env_builder(env);
-    if (!env_builder.process(ast_root))
-        return result::symbolic_error;
-
-    if (args.print[arguments::symbols_output])
+    try
     {
-        cout << endl;
-        cout << "== Environment ==" << endl;
-        cout << env;
+        vector<functional::id_ptr> ids;
+
+        {
+            functional::generator fgen;
+            ids = fgen.generate(ast_root);
+        }
+
+        if (verbose<functional::model>::enabled())
+        {
+            functional::printer printer;
+            for (const auto & id : ids)
+            {
+                printer.print(id, cout);
+                cout << endl;
+            }
+        }
+
+        // FIXME: choice of function to compile
+        auto criteria = [](functional::id_ptr id) -> bool {
+            return id->name == "main";
+        };
+        auto id_it = std::find_if(ids.begin(), ids.end(), criteria);
+        if (id_it == ids.end())
+        {
+            throw error("No function named \"main\".");
+        }
+        auto id = *id_it;
+
+        unordered_set<functional::id_ptr> array_ids;
+
+        functional::name_provider func_name_provider('.');
+
+        {
+            functional::func_reducer reducer(func_name_provider);
+            id = reducer.reduce(id, {});
+            array_ids = reducer.ids();
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "-- Reduced functions:" << endl;
+                functional::printer printer;
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+            }
+        }
+
+        if (verbose<functional::type_checker>::enabled())
+        {
+            cout << "Type = " << *id->expr->type << endl;
+        }
+
+        if (id->expr->type->is_function())
+        {
+            cerr << "Functions not supported in output. "
+                 << "All functions must be fully applied."
+                 << endl;
+            return result::semantic_error;
+        }
+
+        {
+            functional::array_reducer reducer(func_name_provider);
+            id = reducer.process(id);
+            array_ids = reducer.ids();
+            array_ids.insert(id);
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "-- Reduced arrays:" << endl;
+                functional::printer printer;
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+            }
+        }
+
+        {
+            functional::array_transposer transposer;
+            transposer.process(array_ids);
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "-- Transposed arrays:" << endl;
+                functional::printer printer;
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+            }
+        }
+
+        {
+            // Rename ids for C++ compatibility
+
+            unordered_set<string> unique_names;
+            vector<char> forbidden = { ':', '.' };
+            for (auto & id : array_ids)
+            {
+                string name = id->name;
+                for (auto & c : name)
+                {
+                    if (std::count(forbidden.begin(), forbidden.end(), c))
+                    {
+                        c = '_';
+                    }
+                }
+
+                int i = 0;
+                string unique_name = name;
+                while (unique_names.find(unique_name) != unique_names.end())
+                {
+                    unique_name = name + to_string(++i);
+                }
+
+                if (verbose<cpp_gen::renaming>::enabled())
+                    cout << "Renaming id: " << id->name << " -> " << unique_name << endl;
+
+                id->name = unique_name;
+            }
+        }
+
+        {
+            // Create polyhedral model
+
+            functional::polyhedral_gen gen;
+            auto ph_model = gen.process(array_ids);
+            gen.add_output(ph_model, "output", id);
+
+            // Compute polyhedral schedule
+
+            polyhedral::scheduler poly_scheduler( ph_model );
+
+            auto schedule = poly_scheduler.schedule(args.optimize_schedule,
+                                                    args.sched_reverse);
+
+            // Allocate storage (buffers)
+
+            polyhedral::storage_allocator storage_alloc( ph_model );
+            storage_alloc.allocate(schedule);
+
+            // Print buffers
+
+            if (verbose<polyhedral::storage_output>::enabled())
+            {
+                print_buffer_sizes(ph_model.arrays);
+            }
+
+            // Modulo avoidance
+
+            {
+                avoid_modulo(schedule, ph_model, args.split_statements);
+            }
+
+            // Generate AST for schedule
+
+            auto ast = polyhedral::make_isl_ast(schedule);
+
+            if (verbose<polyhedral::ast_isl>::enabled())
+            {
+                isl::printer printer(ph_model.context);
+                printer.set_format(isl::printer::c_format);
+                if (ast.prelude)
+                {
+                    cout << "AST for prelude:" << endl;
+                    isl_printer_print_ast_node(printer.get(), ast.prelude);
+                }
+                if (ast.period)
+                {
+                    cout << "AST for period:" << endl;
+                    isl_printer_print_ast_node(printer.get(), ast.period);
+                }
+            }
+#if 0
+            auto ast = polyhedral::make_ast(schedule);
+            if (args.print[arguments::ast_output])
+            {
+                cout << endl << "== Prelude AST ==" << endl;
+                clast_pprint(stdout, ast.prelude, 0, ast.options);
+                cout << endl << "== Period AST ==" << endl;
+                clast_pprint(stdout, ast.period, 0, ast.options);
+            }
+#endif
+            // Generate C++ output
+
+            if (!args.cpp_output_filename.empty())
+            {
+                {
+                    string cpp_filename = args.cpp_output_filename + ".cpp";
+                    ofstream cpp_file(cpp_filename);
+                    if (!cpp_file.is_open())
+                    {
+                        cerr << "Could not open C++ output file: "
+                             << cpp_filename << endl;
+                        return result::io_error;
+                    }
+
+                    string hpp_filename = args.cpp_output_filename + ".h";
+                    ofstream hpp_file(hpp_filename);
+                    if (!hpp_file.is_open())
+                    {
+                        cerr << "Could not open C++ header output file: "
+                             << hpp_filename << endl;
+                        return result::io_error;
+                    }
+
+                    cpp_gen::generate(args.cpp_output_filename,
+                                      ph_model,
+                                      ast,
+                                      cpp_file,
+                                      hpp_file);
+                }
+            }
+        }
     }
-
-    if (args.target.name.empty())
-        return result::ok;
-
-    semantic::type_checker type_checker(env);
-
-    const target_info & target = args.target;
-
-    cout << endl;
-    cout << "== Generating: " << target.name;
-    cout << "(";
-    if (target.args.size())
-        cout << *target.args.front();
-    for ( int i = 1; i < target.args.size(); ++i )
+    catch (functional::func_reduce_error & e)
     {
-        cout << ", ";
-        cout << *target.args[i];
-    }
-    cout << ")" << endl;
-
-    auto sym_iter = env.find(target.name);
-    if (sym_iter == env.end())
-    {
-        cerr << "ERROR: no symbol '" << target.name << "' available." << endl;
-        return result::command_line_error;
-    }
-
-    semantic::type_ptr result_type =
-            type_checker.check(sym_iter->second, target.args);
-
-    if (type_checker.has_error())
+        parser.error(e.location, e.what());
+        while(!e.trace.empty())
+        {
+            auto location = e.trace.top();
+            e.trace.pop();
+            cout << ".. from " << '['
+                 << location.begin.line << ':' << location.begin.column
+                 << "-"
+                 << location.end.line << ':' << location.end.column
+                 << ']' << endl;
+        }
         return result::semantic_error;
-
-    cout << "Type: " << *result_type << endl;
-
-    if (result_type->is(semantic::type::function))
-    {
-        sym_iter = env.find(result_type->as<semantic::function>().name);
-        assert(sym_iter != env.end());
     }
+    catch (source_error & e)
+    {
+        parser.error(e.location, e.what());
+        return result::semantic_error;
+    }
+    /*
+    catch(error & e)
+    {
+        cout << "ERROR: " << e.what() << endl;
+        return result::semantic_error;
+    }*/
+
+    return result::ok;
 
 
-    polyhedral::translator poly(env);
-    poly.translate( sym_iter->second, target.args );
+#if STARTED_WORKING_ON_POLYHEDRAL_MODEL
+    polyhedral::model_generator poly_gen(env);
+    auto poly_model = poly_gen.generate( sym_iter->second, target.args );
 
-    return compile_polyhedral_model(poly.statements(), args);
+    return result::generator_error;
+
+    return compile_polyhedral_model(poly_model, args);
+#endif
 }
 
-
+#if STARTED_WORKING_ON_POLYHEDRAL_MODEL
 result::code compile_polyhedral_model
-(const vector<stream::polyhedral::statement*> & statements,
+(const polyhedral::model & model,
  const arguments & args)
 {
+
     // Print polyhedral model
 
     if (args.print[arguments::polyhedral_model_output])
     {
         polyhedral::printer poly_printer;
         cout << endl << "== Polyhedral Model ==" << endl;
-        for( polyhedral::statement * stmt : statements )
+        for( const auto & stmt : model.statements )
         {
             cout << endl;
-            poly_printer.print(stmt, cout);
+            poly_printer.print(stmt.get(), cout);
         }
     }
 
-
     const target_info & target = args.target;
-
-    // Construct dataflow model
-
-    dataflow::model dataflow_model(statements);
 
     // Construct AST from polyhedral and dataflow models
 
-    polyhedral::ast_generator poly_ast_gen( statements,
-                                            &dataflow_model );
+    polyhedral::ast_generator poly_ast_gen( model );
     poly_ast_gen.set_print_ast_enabled(args.print[arguments::target_ast_output]);
 
     auto ast = poly_ast_gen.generate();
@@ -238,9 +392,10 @@ result::code compile_polyhedral_model
 
     if (args.print[arguments::buffer_size_output])
     {
-        print_buffer_sizes(statements);
+        print_buffer_sizes(model.arrays);
     }
 
+#if 0
     // Generate LLVM IR
 
     llvm::Module *module = new llvm::Module(args.input_filename,
@@ -249,7 +404,8 @@ result::code compile_polyhedral_model
     llvm_gen::llvm_from_cloog llvm_cloog(module);
 
     llvm_gen::llvm_from_polyhedral llvm_from_polyhedral
-            (module, statements, &dataflow_model);
+            (module, statements, nullptr);
+
 
     // Generate LLVM IR for finite part
 
@@ -292,19 +448,38 @@ result::code compile_polyhedral_model
                              ctx.start_block,
                              ctx.end_block );
     }
-
+#endif
     // Output C++ interface
 
     if (!args.cpp_output_filename.empty())
     {
-        ofstream cpp_output_file(args.cpp_output_filename);
-        if (!cpp_output_file.is_open())
         {
-            cerr << "Could not open C++ interface output file: "
-                 << args.cpp_output_filename << endl;
-            return result::io_error;
+            string cpp_filename = args.cpp_output_filename + ".cpp";
+            ofstream cpp_file(cpp_filename);
+            if (!cpp_file.is_open())
+            {
+                cerr << "Could not open C++ output file: "
+                     << cpp_filename << endl;
+                return result::io_error;
+            }
+
+            string hpp_filename = args.cpp_output_filename + ".h";
+            ofstream hpp_file(hpp_filename);
+            if (!hpp_file.is_open())
+            {
+                cerr << "Could not open C++ header output file: "
+                     << hpp_filename << endl;
+                return result::io_error;
+            }
+
+            cpp_gen::generate(target.name, target.args,
+                              model,
+                              ast.first, ast.second,
+                              cpp_file,
+                              hpp_file);
         }
 
+#if 0
         cpp_output_file << "#ifndef stream_function_" << target.name << "_included" << endl;
         cpp_output_file << "#define stream_function_" << target.name << "_included" << endl;
         cpp_output_file << endl;
@@ -333,6 +508,7 @@ result::code compile_polyhedral_model
         }
 
         cpp_output_file << "#endif // stream_function_" << target.name << "_included" << endl;
+#endif
     }
 
     // Output meta-data
@@ -492,6 +668,7 @@ result::code compile_polyhedral_model
 #endif
     }
 
+#if 0
     // Output LLVM IR
 
     ofstream output_file(args.output_filename);
@@ -505,26 +682,35 @@ result::code compile_polyhedral_model
 
     if (!llvm_cloog.verify())
         return result::generator_error;
-
+#endif
     return result::ok;
 }
 
-void print_buffer_sizes(const vector<stream::polyhedral::statement*> & stmts)
+#endif // STARTED_WORKING_ON_PH_MODEL
+
+
+void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
 {
     cout << endl << "== Buffer sizes ==" << endl;
-    for (polyhedral::statement *stmt : stmts)
+    for (const auto & array : arrays)
     {
-        int flat_size = 1;
-        cout << stmt->name << ": ";
-        for (auto b : stmt->buffer)
+        cout << array->name << ": ";
+        cout << "[ ";
+        for (auto b : array->buffer_size)
         {
             cout << b << " ";
-            flat_size *= b;
         }
-        cout << "[" << flat_size << "]";
+        cout << "]";
+        int flat_size = 0;
+        if (!array->buffer_size.empty())
+            flat_size = std::accumulate(array->buffer_size.begin(),
+                                        array->buffer_size.end(),
+                                        1, std::multiplies<int>());
+        cout << " = " << flat_size;
         cout << endl;
     }
 }
+
 
 } // namespace compiler
 } // namespace stream
