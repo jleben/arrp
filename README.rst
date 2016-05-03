@@ -9,11 +9,8 @@ Table of Contents:
 
 - `Building <#building>`_
 - `Usage <#usage>`_
-- `Language Syntax`_
-- `Language Semantics`_
-
-.. _Language Syntax: doc/syntax.rst
-.. _Language Semantics: doc/semantics.rst
+- `Language <#language>`_
+- `Targets <#targets>`_
 
 Building
 ########
@@ -103,3 +100,26 @@ will generate a file ``<namespace>.cpp``, containing C++ code in the
 desired namespace::
 
     streamc <input file> --cpp <namespace>
+
+Read the `C++ target`_ document for details on how to use the generated
+C++ code.
+
+
+Language
+########
+
+For details about the programming language,
+please refer to the following documents:
+
+- `Language Syntax`_
+- `Language Semantics`_
+
+Targets
+#######
+
+The only currently available target is C++. Please refer to the
+`C++ target`_ document for details.
+
+.. _Language Syntax: doc/syntax.rst
+.. _Language Semantics: doc/semantics.rst
+.. _C++ Target: doc/target-cpp.rst
