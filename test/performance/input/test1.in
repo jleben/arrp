@@ -1,4 +1,0 @@
-
-d = [x:1 -> x];
-a = [y -> y + d[0]];
-main = [x -> case x == 0: a[0]; else: this[x-1] + a[x]];
