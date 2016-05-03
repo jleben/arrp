@@ -49,6 +49,7 @@ static base_type_ptr state_type()
     return t;
 }
 
+#if 0
 variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name)
 {
     switch(t->get_tag())
@@ -78,14 +79,16 @@ variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name
         throw error("Unexpected type.");
     }
 }
+#endif
 
-func_sig_ptr signature_for(const string & name, const vector<semantic::type_ptr> & args)
+func_sig_ptr signature_for(const string & name)
 {
     auto sig = new func_signature;
     sig->is_inline = true;
     sig->type = make_shared<basic_type>("void");
     sig->name = name;
 
+#if 0
     for (unsigned int input_idx = 0; input_idx < args.size(); ++input_idx)
     {
         ostringstream name;
@@ -96,6 +99,7 @@ func_sig_ptr signature_for(const string & name, const vector<semantic::type_ptr>
 
         sig->parameters.push_back(param);
     }
+#endif
 
     auto state_param_t = make_shared<pointer_type>(state_type());
     auto state_param = make_shared<variable_decl>(state_param_t, "s");
@@ -383,7 +387,6 @@ func_sig_ptr output_func_sig()
 }
 
 void generate(const string & name,
-              const vector<semantic::type_ptr> & args,
               const polyhedral::model & model,
               const polyhedral::ast_isl & ast,
               std::ostream & src_stream,
@@ -433,7 +436,7 @@ void generate(const string & name,
 
     if (ast.prelude)
     {
-        auto sig = signature_for("initialize", args);
+        auto sig = signature_for("initialize");
         b.set_current_function(sig.get());
 
         auto func = make_shared<func_def>(sig);
@@ -457,7 +460,7 @@ void generate(const string & name,
 
     if (ast.period)
     {
-        auto sig = signature_for("process", args);
+        auto sig = signature_for("process");
         b.set_current_function(sig.get());
         poly.set_in_period(true);
 
@@ -496,11 +499,11 @@ void generate(const string & name,
         nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers)));
 
         {
-            auto sig = signature_for("initialize", args);
+            auto sig = signature_for("initialize");
             nmspc->members.push_back(make_shared<func_decl>(sig));
         }
         {
-            auto sig = signature_for("process", args);
+            auto sig = signature_for("process");
             nmspc->members.push_back(make_shared<func_decl>(sig));
         }
         {
@@ -523,34 +526,6 @@ void generate(const string & name,
         }
     }
 }
-#if 0
-void generate_header(const string & name,
-                     const vector<semantic::type_ptr> & args,
-                     const vector<polyhedral::statement*> & statements,
-                     const vector<polyhedral::array_ptr> & arrays,
-                     ostream & stream)
-{
 
-    module header;
-    auto nmspc = make_shared<namespace_node>();
-    nmspc->name = name;
-    header.members.push_back(nmspc);
-
-    nmspc->members.push_back(namespace_member_ptr(state_type_def(arrays,buffers)));
-
-    {
-        auto sig = signature_for("initialize", args);
-        nmspc->members.push_back(make_shared<func_decl>(sig));
-    }
-    {
-        auto sig = signature_for("process", args);
-        nmspc->members.push_back(make_shared<func_decl>(sig));
-    }
-    {
-        cpp_gen::state gen;
-        header.generate(gen, stream);
-    }
-}
-#endif
 }
 }

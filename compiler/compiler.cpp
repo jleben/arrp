@@ -307,7 +307,6 @@ result::code compile_source(istream & source, const arguments & args)
                     }
 
                     cpp_gen::generate(args.cpp_output_filename,
-                                      args.target.args,
                                       ph_model,
                                       ast,
                                       cpp_file,

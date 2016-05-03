@@ -21,7 +21,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_COMPILER_ARG_PARSER
 #define STREAM_LANG_COMPILER_ARG_PARSER
 
-#include "../common/types.hpp"
 #include "../polyhedral/scheduling.hpp"
 #include "../utility/debug.hpp"
 
@@ -48,7 +47,6 @@ void print_help(const arguments &);
 struct target_info
 {
     string name;
-    vector<semantic::type_ptr> args;
 };
 
 class arguments
@@ -162,12 +160,14 @@ private:
             print_help(*this);
             throw abortion();
         }
+#if 0
         else if (opt == "--generate" || opt == "--gen" || opt == "-g")
         {
             target.name.clear();
             target.args.clear();
             parse_target(target, opt);
         }
+#endif
         else if (opt == "--output" || opt == "-o")
         {
             parse_argument(output_filename, "output LLVM IR file");
@@ -225,29 +225,8 @@ private:
     void parse_target(target_info &tgt, const string & parameter)
     {
         parse_argument(tgt.name, "target name");
-
-        string arg;
-        while(try_parse_argument(arg))
-        {
-            tgt.args.push_back( parse_target_arg(arg) );
-        }
     }
-
-    semantic::type_ptr parse_target_arg(const string & arg)
-    {
-        assert(!arg.empty());
-
-        switch(arg[0])
-        {
-        case '[':
-            return parse_target_stream_arg(arg);
-        //case '[':
-            //return parse_range_arg(arg);
-        default:
-            return parse_target_scalar_arg(arg);
-        }
-    }
-
+#if 0
     semantic::type_ptr parse_target_stream_arg(const string & arg)
     {
         if (arg.size() < 3)
@@ -304,7 +283,7 @@ private:
     {
         throw error("Unsupported range argument: " + arg);
     }
-
+#endif
 
     // General
 

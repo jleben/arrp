@@ -10,6 +10,4 @@ function(stream_to_cpp source_file_name cpp_namespace options)
 
 endfunction()
 
-#add_subdirectory(unit_tests)
-#add_subdirectory(integration)
 add_subdirectory(performance)
