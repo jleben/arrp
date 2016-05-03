@@ -10,8 +10,10 @@ Table of Contents:
 - `Building <#building>`_
 - `Usage <#usage>`_
 - `Language Syntax`_
+- `Language Semantics`_
 
 .. _Language Syntax: doc/syntax.rst
+.. _Language Semantics: doc/semantics.rst
 
 Building
 ########
