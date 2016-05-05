@@ -1,20 +1,6 @@
 
-add_executable(fm_radio_c EXCLUDE_FROM_ALL
-  streamit/fm_radio_streamit.c
-)
 
+add_stream_test(fm_radio_s fm_radio.in "" fm_radio_driver.cpp)
+
+add_test(fm_radio_c streamit/fm_radio_streamit.c)
 target_link_libraries(fm_radio_c m)
-
-stream_to_cpp(fm_radio.in fm_radio "")
-
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
-
-add_executable(fm_radio_s EXCLUDE_FROM_ALL
-  #${CMAKE_CURRENT_BINARY_DIR}/fm_radio.cpp
-  fm_radio_driver.cpp
-)
-
-set_source_files_properties(fm_radio_driver.cpp PROPERTIES OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/fm_radio.cpp")
-#add_dependencies(fm_radio ${CMAKE_CURRENT_BINARY_DIR}/fm_radio.cpp)
-
-add_custom_target(fm_radio DEPENDS fm_radio_c fm_radio_s)
