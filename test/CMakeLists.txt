@@ -25,7 +25,7 @@ function(icc_compile_test name)
   add_custom_command(OUTPUT ${name}
     COMMAND /home/jakob/intel/bin/icc
     #COMMAND g++
-      -o ${name} -std=c++11 -O3 -Winline -I ${CMAKE_CURRENT_BINARY_DIR} ${source_paths}
+      -o ${name} -std=c++11 -O3 -Winline -I ${CMAKE_CURRENT_BINARY_DIR} ${source_paths} -lm -lpapi
     DEPENDS ${sources}
   )
   add_custom_target(${name} DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${name})

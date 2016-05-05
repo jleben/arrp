@@ -2,6 +2,8 @@
 #include <thread>
 #include <chrono>
 #include <papi.h>
+#include <cmath>
+#include <algorithm>
 
 #define measure_start(h,l) \
     asm volatile \
@@ -20,6 +22,8 @@
     "CPUID\n\t": \
     "=r" (h), "=r" (l):: \
     "%rax", "%rbx", "%rcx", "%rdx")
+
+using std::string;
 
 template <typename T>
 class test_driver

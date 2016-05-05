@@ -4,6 +4,8 @@
  * $Id: fmref.c,v 1.15 2003-11-05 18:13:10 dmaze Exp $
  */
 
+#include "../drivers/test_driver.hpp"
+
 #ifdef raw
 #include <raw.h>
 #else
@@ -23,12 +25,16 @@
 /* Must be at least NUM_TAPS+1: */
 #define IN_BUFFER_LEN 10000
 
+#define PRINT 0
+#define DEBUG 0
+
 void begin(void);
 
 typedef struct FloatBuffer
 {
   float buff[IN_BUFFER_LEN];
-  int rpos, rlen;
+  int rpos = 0, rlen = 0;
+  void reset() { rpos = 0; rlen = 0; }
 } FloatBuffer;
 
 void fb_compact(FloatBuffer *fb);
@@ -81,74 +87,59 @@ void run_equalizer(FloatBuffer *fbin, FloatBuffer *fbout, EqualizerData *data);
 
 void write_floats(FloatBuffer *fb);
 
-/* Globals: */
-static int numiters = -1;
-
-#ifndef raw
-int main(int argc, char **argv)
+struct fm_radio_test
 {
-  int option;
+    FloatBuffer fb1, fb2, fb3, fb4;
+    LPFData lpf_data;
+    EqualizerData eq_data;
 
-  while ((option = getopt(argc, argv, "i:")) != -1)
-  {
-    switch(option)
+    void initialize()
     {
-    case 'i':
-      numiters = atoi(optarg);
+        fb1.reset();
+        fb2.reset();
+        fb3.reset();
+        fb4.reset();
+        init_lpf_data(&lpf_data, CUTOFF_FREQUENCY, NUM_TAPS, DECIMATION);
+        init_equalizer(&eq_data);
+
+        /* Startup: */
+        get_floats(&fb1);
+        /* LPF needs at least NUM_TAPS+1 inputs; get_floats is fine. */
+        run_lpf(&fb1, &fb2, &lpf_data);
+        /* run_demod needs 1 input, OK here. */
+        /* run_equalizer needs 51 inputs (same reason as for LPF).  This means
+         * running the pipeline up to demod 50 times in advance: */
+
+        for (int i = 0; i < 64; i++)
+        {
+          if (fb1.rlen - fb1.rpos < NUM_TAPS + 1)
+            get_floats(&fb1);
+          run_lpf(&fb1, &fb2, &lpf_data);
+          run_demod(&fb2, &fb3);
+        }
     }
-  }
 
-  printf("numiters = %d\n", numiters);
-  begin();
-  return 0;
-}
-#endif
+    void run()
+    {
+        for(int i = 0; i < 100; ++i)
+        {
+          /* The low-pass filter will need NUM_TAPS+1 items; read them if we
+           * need to. */
+          if (fb1.rlen - fb1.rpos < NUM_TAPS + 1)
+            get_floats(&fb1);
+          run_lpf(&fb1, &fb2, &lpf_data);
+          run_demod(&fb2, &fb3);
+          run_equalizer(&fb3, &fb4, &eq_data);
+          write_floats(&fb4);
+        }
+    }
+};
 
-
-
-void begin(void)
+int main()
 {
-  int i;
-  FloatBuffer fb1, fb2, fb3, fb4;
-  LPFData lpf_data;
-  EqualizerData eq_data;
-
-  fb1.rpos = fb1.rlen = 0;
-  fb2.rpos = fb2.rlen = 0;
-  fb3.rpos = fb3.rlen = 0;
-  fb4.rpos = fb4.rlen = 0;
-
-  init_lpf_data(&lpf_data, CUTOFF_FREQUENCY, NUM_TAPS, DECIMATION);
-  init_equalizer(&eq_data);
-
-  /* Startup: */
-  get_floats(&fb1);
-  /* LPF needs at least NUM_TAPS+1 inputs; get_floats is fine. */
-  run_lpf(&fb1, &fb2, &lpf_data);
-  /* run_demod needs 1 input, OK here. */
-  /* run_equalizer needs 51 inputs (same reason as for LPF).  This means
-   * running the pipeline up to demod 50 times in advance: */
-
-  for (i = 0; i < 64; i++)
-  {
-    if (fb1.rlen - fb1.rpos < NUM_TAPS + 1)
-      get_floats(&fb1);    
-    run_lpf(&fb1, &fb2, &lpf_data);
-    run_demod(&fb2, &fb3);
-  }
-
-  /* Main loop: */
-  while (numiters == -1 || numiters-- > 0)
-  {
-    /* The low-pass filter will need NUM_TAPS+1 items; read them if we
-     * need to. */
-    if (fb1.rlen - fb1.rpos < NUM_TAPS + 1)
-      get_floats(&fb1);    
-    run_lpf(&fb1, &fb2, &lpf_data);
-    run_demod(&fb2, &fb3);
-    run_equalizer(&fb3, &fb4, &eq_data);
-    write_floats(&fb4);
-  }
+    fm_radio_test test;
+    test_driver<fm_radio_test> driver;
+    driver.go(test, 3, 1000);
 }
 
 void fb_compact(FloatBuffer *fb)
@@ -202,10 +193,10 @@ void init_lpf_data(LPFData *data, float freq, int taps, int decimation)
   data->freq = freq;
   data->taps = taps;
   data->decimation = decimation;
-
+#if DEBUG
   printf("m = %.15f\n", m);
   printf("w = %.30f\n", w);
-
+#endif
   for (i = 0; i < taps; i++)
   {
     if (i - m/2 == 0.0)
@@ -275,7 +266,9 @@ void init_equalizer(EqualizerData *data)
     // the gain amplifies the middle bands the most
     float val = (((float)i)-(((float)(EQUALIZER_BANDS-1))/2.0f)) / 5.0f;
     data->gain[i] = val > 0 ? 2.0-val : 2.0+val;
+#if DEBUG
     printf("EQ amp %d = %.15f\n", i, data->gain[i]);
+#endif
   }
 }
 
@@ -307,14 +300,16 @@ void run_equalizer(FloatBuffer *fbin, FloatBuffer *fbout, EqualizerData *data)
   fbout->buff[fbout->rlen++] = sum;
 }
 
+static volatile float v;
+
 void write_floats(FloatBuffer *fb)
 {
   /* printf() any data that's available: */
-#ifdef raw
-  while (fb->rpos < fb->rlen)
-    print_float(fb->buff[fb->rpos++]);
-#else
+#if PRINT
   while (fb->rpos < fb->rlen)
     printf("%f\n", fb->buff[fb->rpos++]);
+#else
+  while (fb->rpos < fb->rlen)
+      v = fb->buff[fb->rpos++];
 #endif
 }
