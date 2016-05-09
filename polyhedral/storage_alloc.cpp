@@ -93,6 +93,16 @@ void storage_allocator::compute_buffer_size
     all_read_sched.map_domain_through(read_relations);
     auto read_sched = all_read_sched.map_for(array_sched_space);
 
+    if (verbose<storage_allocator>::enabled())
+    {
+        cout << ".. Write schedule: ";
+        m_printer.print(write_sched);
+        cout << endl;
+        cout << ".. Read schedule: ";
+        m_printer.print(read_sched);
+        cout << endl;
+    }
+
     if (read_sched.is_empty())
     {
         // No readers - no storage needed.
@@ -104,49 +114,35 @@ void storage_allocator::compute_buffer_size
         throw std::runtime_error("Storage alloc: Array has readers but no writers.");
     }
 
-    // Do the work
+    /*
+    A pair of array elements is live at the same time if
+    mutually one is written before the other one is read.
 
-    map not_later = order_greater_than_or_equal(time_space);
-    map later = order_less_than(time_space);
+    ISCC:
+    w_before_r := unwrap(domain((aw cross ar) ->* wrap (t <<= t)));
+    live_together := w_before_r * (w_before_r^-1);
+    */
 
-    // Find all source instances scheduled before t, for all t.
-    // => Create map: t -> src
-    //    such that: time(src) <= t
+    auto before = order_less_than(time_space);
+    auto written_before_read =
+            write_sched.cross(read_sched).in_range(before.wrapped()).domain().unwrapped();
 
-    auto written_not_later = write_sched.inverse()( not_later );
-
-    // Find all instances of source consumed after time t, for each t;
-    // => Create map: t -> src
-    //    such that: time(sink(src)) <= t, for all sink
-
-    auto read_later = read_sched.inverse()( later );
-
-    // Find all src instances live at the same time.
-    // = Create map: t -> src,
-    //   Such that: time(src) <= t and time(sink(src)) <= t, for all sink
-    auto buffered = written_not_later & read_later;
+    auto live_together =
+            written_before_read & (written_before_read.inverse());
 #if 0
     if (verbose<storage_allocator>::enabled())
     {
-        cout << ".. Buffered: " << endl;
-        m_printer.print(buffered);
-        cout << endl;
+        cout << ".. Written before read:" << endl;
+        m_printer.print_each_in(written_before_read);
+
+        cout << ".. Live together:" << endl;
+        m_printer.print_each_in(live_together);
     }
 #endif
     vector<int> buffer_size;
 
     {
-        auto buffered_reflection = (buffered * buffered);
-#if 0
-        if (verbose<storage_allocator>::enabled())
-        {
-            cout << ".. Buffer reflection: " << endl;
-            m_printer.print(buffered_reflection); cout << endl;
-        }
-#endif
-        isl::local_space space(buffered_reflection.get_space());
         int buf_dim_count = array_space.dimension(isl::space::variable);
-        int time_dim_count = time_space.dimension(isl::space::variable);
         buffer_size.reserve(buf_dim_count);
 
         if (verbose<storage_allocator>::enabled())
@@ -155,11 +151,11 @@ void storage_allocator::compute_buffer_size
         for (int dim = 0; dim < buf_dim_count; ++dim)
         {
             {
-                auto buffered_set = buffered_reflection.wrapped();
-                isl::local_space space(buffered_set.get_space());
-                auto a = space(isl::space::variable, time_dim_count + dim);
-                auto b = space(isl::space::variable, time_dim_count + buf_dim_count + dim);
-                auto max_distance = buffered_reflection.wrapped().maximum(b - a);
+                auto live_together_set = live_together.wrapped();
+                isl::local_space space(live_together_set.get_space());
+                auto a = space(isl::space::variable, dim);
+                auto b = space(isl::space::variable, buf_dim_count + dim);
+                auto max_distance = live_together_set.maximum(b - a);
                 if (!max_distance.is_integer())
                 {
                     ostringstream msg;
@@ -172,10 +168,10 @@ void storage_allocator::compute_buffer_size
                 buffer_size.push_back((int) max_distance.integer() + 1);
             }
             {
-                isl::local_space space(buffered_reflection.get_space());
-                auto a = space(isl::space::output, dim);
-                auto b = space(isl::space::output, buf_dim_count + dim);
-                buffered_reflection.add_constraint(a == b);
+                isl::local_space space(live_together.get_space());
+                auto a = space(isl::space::input, dim);
+                auto b = space(isl::space::output, dim);
+                live_together.add_constraint(a == b);
             }
         }
 
