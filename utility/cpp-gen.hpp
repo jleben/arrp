@@ -109,6 +109,12 @@ enum class_key
     struct_class
 };
 
+enum inline_mode
+{
+    default_inline,
+    explicit_inline
+};
+
 class module_member;
 typedef std::shared_ptr<module_member> module_member_ptr;
 
@@ -342,7 +348,30 @@ public:
 class func_signature
 {
 public:
-    bool is_inline = false;
+    func_signature(const string & name, inline_mode in = default_inline):
+        inlining(in),
+        name(name),
+        type(std::make_shared<basic_type>("void"))
+    {}
+    func_signature(const string & name,
+                   const vector<variable_decl_ptr> & p,
+                   inline_mode in = default_inline):
+        inlining(in),
+        name(name),
+        type(std::make_shared<basic_type>("void")),
+        parameters(p)
+    {}
+    func_signature(const string & name,
+                   const vector<variable_decl_ptr> & p,
+                   type_ptr r,
+                   inline_mode in = default_inline):
+        inlining(in),
+        name(name),
+        type(r),
+        parameters(p)
+    {}
+
+    inline_mode inlining = default_inline;
     string name;
     type_ptr type;
     vector<variable_decl_ptr> parameters;

@@ -316,13 +316,6 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     cpp_gen::buffer & buffer_info = m_buffers[array->name];
 
     expression_ptr buffer = make_shared<id_expression>(array->name);
-    auto state_arg_name = ctx->current_function()->parameters.back()->name;
-    auto state_arg = make_shared<id_expression>(state_arg_name);
-
-    if (!buffer_info.on_stack)
-    {
-        buffer = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, buffer);
-    }
 
     if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
         return buffer;
@@ -333,10 +326,7 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     {
         assert(array->is_infinite);
 
-        auto phase_id = make_shared<id_expression>(array->name + "_ph");
-        auto phase = make_shared<bin_op_expression>(op::member_of_pointer,
-                                                    state_arg,
-                                                    phase_id);
+        auto phase = make_shared<id_expression>(array->name + "_ph");
 
         expression_ptr & i = buffer_index[0];
         i = make_shared<bin_op_expression>(op::add, i, phase);
@@ -405,12 +395,7 @@ cpp_from_polyhedral::generate_buffer_phase
         return nullptr;
 
     auto array = info->second;
-    auto state_arg_name = ctx->current_function()->parameters.back()->name;
-    auto state_arg = make_shared<id_expression>(state_arg_name);
-    auto phase_id = make_shared<id_expression>(array->name + "_ph");
-    auto phase = make_shared<bin_op_expression>(op::member_of_pointer,
-                                                state_arg,
-                                                phase_id);
+    auto phase = make_shared<id_expression>(array->name + "_ph");
     return phase;
 }
 

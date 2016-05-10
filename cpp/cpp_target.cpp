@@ -43,6 +43,30 @@ static int volume( const vector<int> & extent )
     return v;
 }
 
+func_sig_ptr input_func_sig(inline_mode inlined)
+{
+    auto fp_t = make_shared<basic_type>("float");
+    auto int_t = make_shared<basic_type>("int");
+    vector<variable_decl_ptr> params =
+    {
+        decl(int_t,""),
+        decl(pointer(fp_t),"")
+    };
+
+    return make_shared<func_signature>("input", params, inlined);
+}
+
+func_sig_ptr output_func_sig(inline_mode inlined)
+{
+    auto fp_t = make_shared<basic_type>("float");
+    vector<variable_decl_ptr> params =
+    {
+        decl(pointer(fp_t),"")
+    };
+
+    return make_shared<func_signature>("output", params, inlined);
+}
+
 static base_type_ptr state_type()
 {
     static base_type_ptr t(make_shared<basic_type>("state"));
@@ -81,6 +105,7 @@ variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name
 }
 #endif
 
+#if 0
 func_sig_ptr signature_for(const string & name)
 {
     auto sig = new func_signature;
@@ -107,6 +132,7 @@ func_sig_ptr signature_for(const string & name)
 
     return func_sig_ptr(sig);
 }
+#endif
 
 variable_decl_ptr buffer_decl(polyhedral::array_ptr array)
 {
@@ -120,11 +146,30 @@ variable_decl_ptr buffer_decl(polyhedral::array_ptr array)
 class_node * state_type_def(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers)
 {
-    auto def = new class_node(struct_class, "state");
+    auto def = new class_node(class_class, "state");
     def->alignment = 16; // for vectorization;
 
-    def->sections.resize(1);
-    auto & sec = def->sections.back();
+    def->sections.resize(2);
+    def->sections[0].access = public_access;
+    def->sections[1].access = private_access;
+
+    {
+        auto & sec = def->sections[0];
+        auto init_func =
+                make_shared<func_decl>(make_shared<func_signature>("initialize"));
+        sec.members.push_back(init_func);
+        auto proc_func =
+                make_shared<func_decl>(make_shared<func_signature>("process"));
+        sec.members.push_back(proc_func);
+        auto input_func =
+                make_shared<func_decl>(input_func_sig(default_inline));
+        sec.members.push_back(input_func);
+        auto output_func =
+                make_shared<func_decl>(output_func_sig(default_inline));
+        sec.members.push_back(output_func);
+    }
+
+    auto & sec = def->sections[1];
 
     for (auto array : model.arrays)
     {
@@ -251,11 +296,7 @@ static void advance_buffers(const polyhedral::model & model,
                     array->period_offset : array->period;
         int buffer_size = array->buffer_size[0];
 
-        auto phase_id = make_shared<id_expression>(array->name + "_ph");
-
-        auto state_arg_name = ctx->current_function()->parameters.back()->name;
-        auto state_arg = make_shared<id_expression>(state_arg_name);
-        auto phase = make_shared<bin_op_expression>(op::member_of_pointer, state_arg, phase_id);
+        auto phase = make_shared<id_expression>(array->name + "_ph");
 
         auto next_phase = make_shared<bin_op_expression>(op::add, phase, literal(offset));
         next_phase = make_shared<bin_op_expression>(op::rem, next_phase, literal(buffer_size));
@@ -265,7 +306,7 @@ static void advance_buffers(const polyhedral::model & model,
         ctx->add(phase_change);
     }
 }
-
+#if 0
 void add_remainder_function(cpp_gen::module &module, namespace_node & nmspc)
 {
     auto int_type = make_shared<basic_type>("int");
@@ -326,7 +367,8 @@ void add_remainder_function(cpp_gen::module &module, namespace_node & nmspc)
         nmspc.members.push_back(f);
     }
 }
-
+#endif
+#if 0
 func_sig_ptr output_getter_signature(const polyhedral::array_ptr & out_array)
 {
     auto sig = make_shared<func_signature>();
@@ -361,31 +403,7 @@ void add_output_getter_func(cpp_gen::module &module, namespace_node & nmspc,
 
     nmspc.members.push_back(func);
 }
-
-func_sig_ptr input_func_sig()
-{
-    auto sig = make_shared<func_signature>();
-    sig->is_inline = true;
-    sig->name = "input";
-    sig->type = make_shared<basic_type>("void");
-    auto fp_t = make_shared<basic_type>("float");
-    auto int_t = make_shared<basic_type>("int");
-    sig->parameters.push_back( decl(int_t,"") );
-    sig->parameters.push_back( decl(pointer(fp_t),"") );
-    return sig;
-}
-
-func_sig_ptr output_func_sig()
-{
-    auto sig = make_shared<func_signature>();
-    sig->is_inline = true;
-    sig->name = "output";
-    sig->type = make_shared<basic_type>("void");
-    auto fp_t = make_shared<basic_type>("float");
-    sig->parameters.push_back( decl(pointer(fp_t),"") );
-    return sig;
-}
-
+#endif
 void generate(const string & name,
               const polyhedral::model & model,
               const polyhedral::ast_isl & ast,
@@ -412,11 +430,9 @@ void generate(const string & name,
 
     // FIXME: rather include header:
     nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers)));
-    nmspc->members.push_back(make_shared<func_decl>(input_func_sig()));
-    nmspc->members.push_back(make_shared<func_decl>(output_func_sig()));
 
     // FIXME: not of much use with infinite I/O
-    add_output_getter_func(m, *nmspc, model.arrays.back());
+    //add_output_getter_func(m, *nmspc, model.arrays.back());
 
     auto stmt_func = [&]
             ( const string & name,
@@ -434,51 +450,56 @@ void generate(const string & name,
     isl.set_stmt_func(stmt_func);
     isl.set_id_func(id_func);
 
-    if (ast.prelude)
     {
-        auto sig = signature_for("initialize");
-        b.set_current_function(sig.get());
+        auto sig = make_shared<func_signature>("state::initialize", explicit_inline);
 
         auto func = make_shared<func_def>(sig);
 
-        b.push(&func->body.statements);
-
-        for (auto array : model.arrays)
+        if (ast.prelude)
         {
-            if (buffers[array->name].on_stack)
-                b.add(make_shared<var_decl_expression>(buffer_decl(array)));
+            b.set_current_function(sig.get());
+
+            b.push(&func->body.statements);
+
+            for (auto array : model.arrays)
+            {
+                if (buffers[array->name].on_stack)
+                    b.add(make_shared<var_decl_expression>(buffer_decl(array)));
+            }
+
+            isl.generate(ast.prelude);
+
+            //advance_buffers(model, buffers, &b, true);
+
+            b.pop();
         }
-
-        isl.generate(ast.prelude);
-
-        //advance_buffers(model, buffers, &b, true);
-
-        b.pop();
 
         nmspc->members.push_back(func);
     }
 
-    if (ast.period)
     {
-        auto sig = signature_for("process");
-        b.set_current_function(sig.get());
-        poly.set_in_period(true);
-
+        auto sig = make_shared<func_signature>("state::process", explicit_inline);
         auto func = make_shared<func_def>(sig);
 
-        b.push(&func->body.statements);
-
-        for (auto array : model.arrays)
+        if (ast.period)
         {
-            if (buffers[array->name].on_stack)
-                b.add(make_shared<var_decl_expression>(buffer_decl(array)));
+            b.set_current_function(sig.get());
+            poly.set_in_period(true);
+
+            b.push(&func->body.statements);
+
+            for (auto array : model.arrays)
+            {
+                if (buffers[array->name].on_stack)
+                    b.add(make_shared<var_decl_expression>(buffer_decl(array)));
+            }
+
+            isl.generate(ast.period);
+
+            advance_buffers(model, buffers, &b, false);
+
+            b.pop();
         }
-
-        isl.generate(ast.period);
-
-        advance_buffers(model, buffers, &b, false);
-
-        b.pop();
 
         nmspc->members.push_back(func);
     }
@@ -489,7 +510,7 @@ void generate(const string & name,
         cpp_gen::state gen_state(opt);
         m.generate(gen_state, src_stream);
     }
-
+#if 0
     {
         module header;
         auto nmspc = make_shared<namespace_node>();
@@ -525,6 +546,7 @@ void generate(const string & name,
             header.generate(gen, hdr_stream);
         }
     }
+#endif
 }
 
 }

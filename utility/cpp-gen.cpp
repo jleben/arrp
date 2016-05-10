@@ -174,7 +174,7 @@ void array_decl::generate(cpp_gen::state & state, ostream & stream)
 
 void func_signature::generate(cpp_gen::state & state, ostream & stream)
 {
-    if (is_inline)
+    if (inlining == explicit_inline)
         stream << "inline ";
 
     type->generate(state, stream);
