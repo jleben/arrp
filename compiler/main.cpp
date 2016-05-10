@@ -89,7 +89,8 @@ int main(int argc, char *argv[])
     args.add_verbose_topic<functional::func_reducer>("func-reduction");
     args.add_verbose_topic<functional::array_reducer>("array-reduction");
     args.add_verbose_topic<functional::array_transposer>("array-transpose");
-    args.add_verbose_topic<functional::polyhedral_gen>("ph-model");
+    args.add_verbose_topic<functional::polyhedral_gen>("ph-model-gen");
+    args.add_verbose_topic<polyhedral::model>("ph-model");
     args.add_verbose_topic<polyhedral::modulo_avoidance>("mod-avoid");
     args.add_verbose_topic<polyhedral::scheduler>("ph-scheduling");
     args.add_verbose_topic<polyhedral::ast_isl>("ph-ast");

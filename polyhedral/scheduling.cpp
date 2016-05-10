@@ -91,11 +91,29 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
         print_each_in(m_model_summary.dependencies);
     }
 
+    if (verbose<polyhedral::model>::enabled())
+    {
+        cout << endl << "### Domains: ###" << endl;
+        m_printer.print(m_model_summary.domains);
+        cout << endl;
+
+        cout << endl << "### Dependencies:" << endl;
+        m_printer.print(m_model_summary.dependencies);
+        cout << endl;
+    }
+
     polyhedral::schedule schedule(m_model.context);
 
     schedule.full = make_schedule(m_model_summary.domains,
                                   m_model_summary.dependencies,
                                   optimize);
+
+    if (verbose<polyhedral::model>::enabled())
+    {
+        cout << endl << "### Schedule: ###" << endl;
+        m_printer.print(schedule.full);
+        cout << endl;
+    }
 
     auto periodic_schedule = make_periodic_schedule(schedule.full);
     schedule.prelude = periodic_schedule.first;
