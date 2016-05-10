@@ -23,9 +23,14 @@ function(icc_compile_test name sources deps)
   endforeach()
 
   add_custom_command(OUTPUT ${name}
-    COMMAND /home/jakob/intel/bin/icc
-    #COMMAND g++
-      -o ${name} -std=c++11 -O3 -Winline -I ${CMAKE_CURRENT_BINARY_DIR} ${source_paths} -lm -lpapi
+    #COMMAND /home/jakob/intel/bin/icc
+    COMMAND g++
+      -o ${name}
+      #-std=c++11 -O3 -Winline -inline-forceinline -fp-model strict
+      -std=c++11 -O3 -Winline -g
+      -I ${CMAKE_CURRENT_BINARY_DIR}
+      ${source_paths}
+      -lm -lpapi
     DEPENDS ${sources} ${deps}
   )
   add_custom_target(${name} DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${name})
