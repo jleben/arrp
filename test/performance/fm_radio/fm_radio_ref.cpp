@@ -5,6 +5,7 @@
  */
 
 #include "../drivers/test_driver.hpp"
+#include <valgrind/callgrind.h>
 
 #ifdef raw
 #include <raw.h>
@@ -121,7 +122,8 @@ struct fm_radio_test
 
     void run()
     {
-        for(int i = 0; i < 100; ++i)
+        CALLGRIND_TOGGLE_COLLECT;
+        for(int i = 0; i < 500; ++i)
         {
           /* The low-pass filter will need NUM_TAPS+1 items; read them if we
            * need to. */
@@ -132,14 +134,23 @@ struct fm_radio_test
           run_equalizer(&fb3, &fb4, &eq_data);
           write_floats(&fb4);
         }
+        CALLGRIND_TOGGLE_COLLECT;
     }
 };
 
 int main()
 {
     fm_radio_test test;
-    test_driver<fm_radio_test> driver;
-    driver.go(test, 3, 1000);
+
+    for (int i = 0; i < 1000; ++i)
+    {
+        test.initialize();
+        test.run();
+    }
+
+
+    //test_driver<fm_radio_test> driver;
+    //driver.go(test, 3, 1000);
 }
 
 void fb_compact(FloatBuffer *fb)
