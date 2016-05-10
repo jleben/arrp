@@ -256,7 +256,7 @@ result::code compile_source(istream & source, const arguments & args)
 
             // Generate AST for schedule
 
-            auto ast = polyhedral::make_isl_ast(schedule);
+            auto ast = polyhedral::make_isl_ast(schedule, args.separate_loops);
 
             if (verbose<polyhedral::ast_isl>::enabled())
             {

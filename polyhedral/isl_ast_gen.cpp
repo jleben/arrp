@@ -41,14 +41,30 @@ isl_ast_node * after_for(isl_ast_node * node, isl_ast_build *build, void *user)
     return node;
 }
 
-ast_isl make_isl_ast( const schedule & sched )
+ast_isl make_isl_ast( const schedule & sched, bool separate_loops )
 {
-    isl::printer printer(sched.sched.ctx());
-
     ast_isl output;
 
     auto build = isl_ast_build_from_context(sched.params.copy());
     //build = isl_ast_build_set_after_each_for(build, &after_for, nullptr);
+
+    if (separate_loops)
+    {
+        int sched_dims = 0;
+        sched.full.for_each([&](const isl::map & m){
+            sched_dims = m.get_space().dimension(isl::space::output);
+            return false;
+        });
+        assert(sched_dims);
+
+        isl::space opt_space(sched.full.ctx(),
+                             isl::input_tuple(sched_dims),
+                             isl::output_tuple("separate", 1));
+        isl::union_map options = isl::map::universe(opt_space);
+
+        build = isl_ast_build_set_options(build, options.copy());
+        assert(build);
+    }
 
     if (!sched.prelude.is_empty())
         output.prelude = isl_ast_build_node_from_schedule_map(build, sched.prelude.copy());

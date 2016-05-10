@@ -115,6 +115,7 @@ public:
     vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
     bool split_statements = false;
+    bool separate_loops = false;
 
 public:
     arguments(int argc, char *argv[]):
@@ -213,6 +214,10 @@ private:
         else if (opt == "--split-stmts")
         {
             split_statements = true;
+        }
+        else if (opt == "--separate-loops")
+        {
+            separate_loops = true;
         }
         else
         {

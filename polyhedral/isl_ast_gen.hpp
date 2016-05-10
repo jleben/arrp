@@ -27,7 +27,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 namespace stream {
 namespace polyhedral {
 
-ast_isl make_isl_ast( const schedule & );
+ast_isl make_isl_ast( const schedule &, bool separate_loops );
 
 }
 }
