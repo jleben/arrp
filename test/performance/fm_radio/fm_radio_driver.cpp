@@ -8,32 +8,39 @@
 
 using namespace std;
 
-namespace fm_radio_s_kernel {
-static volatile float v;
-inline void state::output(float * data)
+struct fm_radio_printer : public fm_radio_s_kernel::state<fm_radio_printer>
 {
-#if PRINT
-    cout << std::showpoint << std::setprecision(15) << (double) *data << endl;
-#else
-    v = *data;
-#endif
-}
-}
+    fm_radio_printer() { io = this; }
+
+    void output(float * data)
+    {
+        cout << std::showpoint << std::setprecision(15) << (double) *data << endl;
+    }
+};
 
 struct fm_radio_test
 {
-    fm_radio_s_kernel::state s;
+    typedef fm_radio_s_kernel::state<fm_radio_test> kernel_t;
+
+    kernel_t kernel;
+    volatile float dummy;
+
     void initialize()
     {
-        s = fm_radio_s_kernel::state();
-        s.initialize();
+        kernel = kernel_t();
+        kernel.io = this;
+        kernel.initialize();
     }
     void run()
     {
         CALLGRIND_TOGGLE_COLLECT;
         for (int i = 0; i < 500; ++i)
-            s.process();
+            kernel.process();
         CALLGRIND_TOGGLE_COLLECT;
+    }
+    void output(float * data)
+    {
+        dummy = *data;
     }
 };
 
@@ -41,12 +48,10 @@ int main()
 {
 #if PRINT
 
-    fm_radio_s_kernel::state s;
-
-    s.initialize();
-
+    fm_radio_printer p;
+    p.initialize();
     for (int i = 0; i < 20; ++i)
-        s.process();
+        p.process();
 
 #else // PRINT
 
@@ -64,4 +69,5 @@ int main()
 #endif
 
 #endif // PRINT
+
 }

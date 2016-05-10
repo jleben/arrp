@@ -76,6 +76,20 @@ void class_node::generate(cpp_gen::state & state, ostream & stream)
 {
     state.new_line(stream);
 
+    if (template_parameters.size())
+    {
+        stream << "template <";
+        int i = 0;
+        for(auto & param : template_parameters)
+        {
+            stream << "typename " << param;
+            if (i > 0)
+                stream << ", ";
+        }
+        stream << ">";
+        state.new_line(stream);
+    }
+
     switch(key)
     {
     case class_class:
@@ -174,6 +188,20 @@ void array_decl::generate(cpp_gen::state & state, ostream & stream)
 
 void func_signature::generate(cpp_gen::state & state, ostream & stream)
 {
+    if (template_parameters.size())
+    {
+        stream << "template <";
+        int i = 0;
+        for(auto & param : template_parameters)
+        {
+            stream << "typename " << param;
+            if (i > 0)
+                stream << ", ";
+        }
+        stream << ">";
+        state.new_line(stream);
+    }
+
     if (inlining == explicit_inline)
         stream << "inline ";
 
@@ -419,7 +447,8 @@ void if_expression::generate(cpp_gen::state & state, ostream & stream)
 
 void call_expression::generate(cpp_gen::state & state, ostream & stream)
 {
-    stream << func_name << "(";
+    callee->generate(state, stream);
+    stream << "(";
     for (unsigned int a = 0; a < args.size(); ++a)
     {
         if (a > 0)

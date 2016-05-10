@@ -219,6 +219,7 @@ class class_node : public namespace_member, public class_member
 {
 public:
     class_key key;
+    vector<string> template_parameters;
     int alignment = 0;
     string name;
     vector<class_section> sections;
@@ -374,6 +375,7 @@ public:
     inline_mode inlining = default_inline;
     string name;
     type_ptr type;
+    vector<string> template_parameters;
     vector<variable_decl_ptr> parameters;
     void generate(state &, ostream &);
 };
@@ -540,21 +542,23 @@ public:
 class call_expression : public expression
 {
 public:
-    string func_name;
+    expression_ptr callee;
     vector<expression_ptr> args;
 
-    call_expression(string f, std::initializer_list<expression_ptr> a):
-        func_name(f), args(a)
+    call_expression(expression_ptr c, const vector<expression_ptr> & a):
+        callee(c), args(a)
     {}
-    call_expression(string f, expression_ptr a):
-        func_name(f), args{a}
+    template <typename ...T>
+    call_expression(string name, T ... a ):
+        callee(std::make_shared<id_expression>(name)),
+        args {a...}
     {}
-    call_expression(string f, expression_ptr a, expression_ptr b):
-        func_name(f), args{a,b}
+    template <typename ...T>
+    call_expression(expression_ptr c, T ... a ):
+        callee(c),
+        args {a...}
     {}
-    call_expression(string f, const vector<expression_ptr> & a):
-        func_name(f), args(a)
-    {}
+
     void generate(state &, ostream &);
 };
 
@@ -794,6 +798,11 @@ inline expression_ptr decl_expr(type_ptr t, const id_expression & id,
 inline base_type_ptr pointer(base_type_ptr t)
 {
     return std::make_shared<pointer_type>(t);
+}
+
+inline type_ptr reference(base_type_ptr t)
+{
+    return std::make_shared<reference_type_node>(t);
 }
 
 inline statement_ptr block(const vector<statement_ptr> & stmts)

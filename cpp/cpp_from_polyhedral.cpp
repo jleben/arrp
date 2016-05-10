@@ -100,7 +100,10 @@ expression_ptr cpp_from_polyhedral::generate_expression
         auto array_index = mapped_index(index, call->source.matrix, ctx);
         auto array_access = generate_buffer_access(call->source.array, array_index, ctx);
         auto array_address = make_shared<un_op_expression>(op::address, array_access);
-        return make_shared<call_expression>(call->name, array_address);
+        // FIXME: don't hardcode "io"
+        auto callee = make_shared<bin_op_expression>
+                (op::member_of_pointer, make_id("io"), make_id(call->name));
+        return make_shared<call_expression>(callee, array_address);
     }
     else
     {

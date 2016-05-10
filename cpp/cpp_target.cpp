@@ -42,7 +42,7 @@ static int volume( const vector<int> & extent )
         v *= e;
     return v;
 }
-
+#if 0
 func_sig_ptr input_func_sig(inline_mode inlined)
 {
     auto fp_t = make_shared<basic_type>("float");
@@ -73,7 +73,6 @@ static base_type_ptr state_type()
     return t;
 }
 
-#if 0
 variable_decl_ptr variable_for(const semantic::type_ptr & t, const string & name)
 {
     switch(t->get_tag())
@@ -147,26 +146,25 @@ class_node * state_type_def(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers)
 {
     auto def = new class_node(class_class, "state");
+    def->template_parameters.push_back("IO");
     def->alignment = 16; // for vectorization;
 
     def->sections.resize(2);
     def->sections[0].access = public_access;
     def->sections[1].access = private_access;
 
+    auto io_type = make_shared<basic_type>("IO");
     {
         auto & sec = def->sections[0];
+
+        sec.members.push_back(make_shared<data_field>(decl(pointer(io_type), "io")));
+
         auto init_func =
                 make_shared<func_decl>(make_shared<func_signature>("initialize"));
         sec.members.push_back(init_func);
         auto proc_func =
                 make_shared<func_decl>(make_shared<func_signature>("process"));
         sec.members.push_back(proc_func);
-        auto input_func =
-                make_shared<func_decl>(input_func_sig(default_inline));
-        sec.members.push_back(input_func);
-        auto output_func =
-                make_shared<func_decl>(output_func_sig(default_inline));
-        sec.members.push_back(output_func);
     }
 
     auto & sec = def->sections[1];
@@ -451,7 +449,8 @@ void generate(const string & name,
     isl.set_id_func(id_func);
 
     {
-        auto sig = make_shared<func_signature>("state::initialize", explicit_inline);
+        auto sig = make_shared<func_signature>("state<IO>::initialize", explicit_inline);
+        sig->template_parameters.push_back("IO");
 
         auto func = make_shared<func_def>(sig);
 
@@ -478,7 +477,9 @@ void generate(const string & name,
     }
 
     {
-        auto sig = make_shared<func_signature>("state::process", explicit_inline);
+        auto sig = make_shared<func_signature>("state<IO>::process", explicit_inline);
+        sig->template_parameters.push_back("IO");
+
         auto func = make_shared<func_def>(sig);
 
         if (ast.period)
