@@ -30,6 +30,7 @@
 %left LOGIC_OR
 %left LOGIC_AND
 %left EQ NEQ LESS MORE LESS_EQ MORE_EQ
+%left PLUSPLUS
 %left '+' '-'
 %left '*' '/' INT_DIV '%'
 %left '^'
@@ -168,11 +169,16 @@ expr:
   |
   array_func
   |
+  array_enum
+  |
   array_apply
   |
   array_self_apply
   |
   array_size
+  |
+  expr PLUSPLUS expr
+  { $$ = make_list( array_concat, @$, {$1, $3} ); }
   |
   LOGIC_NOT expr
   { $$ = make_list( primitive, @$, {make_const(@1,op_type::negate), $2} ); }
@@ -242,6 +248,27 @@ array_self_apply:
 array_func:
   '[' array_arg_list RIGHT_ARROW array_body ']'
   { $$ = make_list( ast::array_def, @$, {$2, $4} ); }
+;
+
+array_enum:
+  '[' array_elem_list ']'
+  {
+    $$ = $2;
+    $$->type = ast::array_enum;
+    $$->location = @$;
+  }
+;
+
+array_elem_list:
+  expr
+  { $$ = make_list( @$, {$1} ); }
+  |
+  array_elem_list ';' expr
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
 ;
 
 array_body:

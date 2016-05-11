@@ -54,6 +54,8 @@ private:
     expr_ptr do_case_expr(ast::node_ptr);
     expr_ptr do_array_def(ast::node_ptr);
     expr_ptr do_array_apply(ast::node_ptr);
+    expr_ptr do_array_enum(ast::node_ptr);
+    expr_ptr do_array_concat(ast::node_ptr);
     expr_ptr do_func_apply(ast::node_ptr);
 
     stack<array_ptr> m_array_stack;

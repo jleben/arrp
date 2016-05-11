@@ -25,6 +25,9 @@ private:
     type_ptr visit_bool(const shared_ptr<constant<bool>> &);
     type_ptr visit_ref(const shared_ptr<reference> &);
     type_ptr visit_primitive(const shared_ptr<primitive> & prim);
+    type_ptr visit_operation(const shared_ptr<operation> &);
+    type_ptr process_array_concat(const shared_ptr<operation> &);
+    type_ptr process_array_enum(const shared_ptr<operation> &);
     type_ptr visit_affine(const shared_ptr<affine_expr> &);
     type_ptr visit_cases(const shared_ptr<case_expr> & cexpr);
     type_ptr visit_array(const shared_ptr<array> & arr);

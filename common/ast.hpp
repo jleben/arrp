@@ -67,10 +67,12 @@ enum node_type
 
     array_self_ref,
     array_def,
+    array_enum,
     array_params,
     array_param,
     array_apply,
     array_size,
+    array_concat,
 
     func_def,
     func_apply,

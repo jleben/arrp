@@ -169,10 +169,11 @@ namespace stream { namespace parsing {
         MORE = 276,
         LESS_EQ = 277,
         MORE_EQ = 278,
-        INT_DIV = 279,
-        DOTDOT = 280,
-        LOGIC_NOT = 281,
-        UMINUS = 282
+        PLUSPLUS = 279,
+        INT_DIV = 280,
+        DOTDOT = 281,
+        LOGIC_NOT = 282,
+        UMINUS = 283
       };
     };
 
@@ -341,12 +342,12 @@ namespace stream { namespace parsing {
   static const signed char yypgoto_[];
 
   // YYDEFGOTO[NTERM-NUM].
-  static const signed char yydefgoto_[];
+  static const short int yydefgoto_[];
 
   // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
   // positive, shift that token.  If negative, reduce the rule whose
   // number is the opposite.  If YYTABLE_NINF, syntax error.
-  static const unsigned char yytable_[];
+  static const short int yytable_[];
 
   static const short int yycheck_[];
 
@@ -463,13 +464,13 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 424,     ///< Last index in yytable_.
-      yynnts_ = 28,  ///< Number of nonterminal symbols.
+      yylast_ = 428,     ///< Last index in yytable_.
+      yynnts_ = 30,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 46  ///< Number of tokens.
+      yyntokens_ = 47  ///< Number of tokens.
     };
 
 
@@ -480,7 +481,7 @@ namespace stream { namespace parsing {
 
 #line 13 "parser.y" // lalr1.cc:372
 } } // stream::parsing
-#line 484 "parser.hpp" // lalr1.cc:372
+#line 485 "parser.hpp" // lalr1.cc:372
 
 
 

@@ -66,6 +66,7 @@ blank [ \t]
 "case" { return parser::token::CASE; }
 "let" { return parser::token::LET; }
 ".." { return parser::token::DOTDOT; }
+"++" { return parser::token::PLUSPLUS; }
 "true" {
   *yylval = ast::make_const( *yylloc, true );
   return parser::token::TRUE;

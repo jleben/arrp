@@ -148,6 +148,19 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
         return make_shared<array_type>(common_size, result_elem_type);
 }
 
+type_ptr type_checker::visit_operation(const shared_ptr<operation> & op)
+{
+    switch(op->kind)
+    {
+    case operation::array_concatenate:
+        return process_array_concat(op);
+    case operation::array_enumerate:
+        return process_array_enum(op);
+    default:
+        throw error("Unexpected operation type.");
+    }
+}
+
 type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 {
     array_size_vec common_size;
@@ -273,6 +286,137 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
     }
 
     return type;
+}
+
+type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
+{
+    array_size_vec common_elem_size;
+    int total_elem_count = 0;
+    vector<primitive_type> elem_types;
+
+    for (auto & operand : op->operands)
+    {
+        if (total_elem_count == -1)
+        {
+            throw source_error
+                    ("Can not concatenate to end of infinite array.",
+                     operand.location);
+        }
+
+        auto type = visit(operand);
+
+        if (dynamic_pointer_cast<function_type>(type))
+        {
+            throw source_error("Function not allowed here.", operand.location);
+        }
+        else if (auto arr = dynamic_pointer_cast<array_type>(type))
+        {
+            assert(!arr->size.empty());
+
+            int elem_count = arr->size[0];
+            array_size_vec elem_size(++arr->size.begin(), arr->size.end());
+
+            if (elem_count >= 0)
+                total_elem_count += elem_count;
+            else
+                total_elem_count = -1;
+
+            if (common_elem_size.empty())
+            {
+                common_elem_size = elem_size;
+            }
+            else if (elem_size.size() && common_elem_size != elem_size)
+            {
+                ostringstream msg;
+                msg << "Element size mismatch: "
+                    << elem_size << " != " << common_elem_size;
+                throw source_error(msg.str(), operand.location);
+            }
+
+            elem_types.push_back(arr->element);
+        }
+        else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
+        {
+            elem_types.push_back(scalar->primitive);
+            ++total_elem_count;
+        }
+        else
+        {
+            throw error("Unexpected operand type.");
+        }
+    }
+
+    primitive_type result_elem_type;
+
+    try {
+        result_elem_type = common_type(elem_types);
+    } catch (no_type &) {
+        throw source_error("Incompatible element types.", op->location);
+    }
+
+    assert(total_elem_count != 0);
+
+    array_size_vec result_size;
+    result_size.push_back(total_elem_count);
+    result_size.insert(result_size.end(),
+                       common_elem_size.begin(), common_elem_size.end());
+
+    return make_shared<array_type>(result_size, result_elem_type);
+}
+
+type_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
+{
+    array_size_vec common_elem_size;
+    vector<primitive_type> elem_types;
+
+    for (auto & operand : op->operands)
+    {
+        auto type = visit(operand);
+
+        if (dynamic_pointer_cast<function_type>(type))
+        {
+            throw source_error("Function not allowed here.", operand.location);
+        }
+        else if (auto arr = dynamic_pointer_cast<array_type>(type))
+        {
+            if (common_elem_size.empty())
+            {
+                common_elem_size = arr->size;
+            }
+            else if (common_elem_size != arr->size)
+            {
+                ostringstream msg;
+                msg << "Element size mismatch: "
+                    << arr->size << " != " << common_elem_size;
+                throw source_error(msg.str(), operand.location);
+            }
+
+            elem_types.push_back(arr->element);
+        }
+        else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
+        {
+            elem_types.push_back(scalar->primitive);
+        }
+        else
+        {
+            throw error("Unexpected operand type.");
+        }
+    }
+
+    primitive_type result_elem_type;
+
+    try {
+        result_elem_type = common_type(elem_types);
+    } catch (no_type &) {
+        throw source_error("Incompatible element types.", op->location);
+    }
+
+    array_size_vec result_size;
+    result_size.push_back(op->operands.size());
+    result_size.insert(result_size.end(),
+                       common_elem_size.begin(), common_elem_size.end());
+
+    return make_shared<array_type>(result_size, result_elem_type);
 }
 
 type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & self)

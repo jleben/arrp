@@ -68,6 +68,28 @@ void printer::print(expr_ptr expr, ostream & out)
         }
         out << ")";
     }
+    else if (auto op = dynamic_pointer_cast<const operation>(expr))
+    {
+        switch(op->kind)
+        {
+        case operation::array_concatenate:
+            out << "++"; break;
+        case operation::array_enumerate:
+            out << ".."; break;
+        default:
+            out << "?";
+        }
+
+        out << "(";
+        int count = 0;
+        for(auto & operand : op->operands)
+        {
+            print(operand, out);
+            if (++count < op->operands.size())
+                out << ",";
+        }
+        out << ")";
+    }
     else if (auto ae = dynamic_pointer_cast<const affine_expr>(expr))
     {
         print(ae->expr, out);

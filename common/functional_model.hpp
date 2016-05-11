@@ -195,6 +195,17 @@ public:
 };
 typedef std::shared_ptr<array> array_ptr;
 
+class operation : public expression
+{
+public:
+    enum {
+        array_concatenate,
+        array_enumerate,
+    } kind;
+
+    vector<expr_slot> operands;
+};
+
 class array_app : public expression
 {
 public:
@@ -217,7 +228,7 @@ public:
 class reference : public expression
 {
 public:
-    reference(var_ptr v, const location_type & loc, type_ptr type = nullptr):
+    reference(var_ptr v, const location_type & loc = location_type(), type_ptr type = nullptr):
         expression(loc, type), var(v) {}
     var_ptr var;
 };

@@ -39,6 +39,7 @@ protected:
     virtual expr_ptr visit_ref(const shared_ptr<reference> &) override;
     virtual expr_ptr visit_array_self_ref(const shared_ptr<array_self_ref> &) override;
     virtual expr_ptr visit_primitive(const shared_ptr<primitive> & prim) override;
+    virtual expr_ptr visit_operation(const shared_ptr<operation> &) override;
     virtual expr_ptr visit_affine(const shared_ptr<affine_expr> &) override;
     virtual expr_ptr visit_cases(const shared_ptr<case_expr> & cexpr) override;
     virtual expr_ptr visit_array(const shared_ptr<array> & arr) override;

@@ -43,6 +43,10 @@ public:
         {
             return visit_primitive(prim);
         }
+        else if (auto op = dynamic_pointer_cast<operation>(expr))
+        {
+            return visit_operation(op);
+        }
         else if (auto ae = dynamic_pointer_cast<affine_expr>(expr))
         {
             return visit_affine(ae);
@@ -83,6 +87,7 @@ public:
     virtual R visit_ref(const shared_ptr<reference> &) = 0;
     virtual R visit_array_self_ref(const shared_ptr<array_self_ref> &) = 0;
     virtual R visit_primitive(const shared_ptr<primitive> & prim) = 0;
+    virtual R visit_operation(const shared_ptr<operation> &) = 0;
     virtual R visit_affine(const shared_ptr<affine_expr> &) = 0;
     virtual R visit_cases(const shared_ptr<case_expr> & cexpr) = 0;
     virtual R visit_array(const shared_ptr<array> & arr) = 0;
@@ -123,6 +128,10 @@ public:
         else if (auto prim = dynamic_pointer_cast<primitive>(expr))
         {
             visit_primitive(prim);
+        }
+        else if (auto op = dynamic_pointer_cast<operation>(expr))
+        {
+            visit_operation(op);
         }
         else if (auto ae = dynamic_pointer_cast<affine_expr>(expr))
         {
@@ -171,6 +180,13 @@ public:
     virtual void visit_primitive(const shared_ptr<primitive> & prim)
     {
         for(auto & operand : prim->operands)
+        {
+            visit(operand);
+        }
+    }
+    virtual void visit_operation(const shared_ptr<operation> & op)
+    {
+        for(auto & operand : op->operands)
         {
             visit(operand);
         }

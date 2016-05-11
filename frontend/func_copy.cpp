@@ -91,6 +91,19 @@ expr_ptr copier::visit_primitive(const shared_ptr<primitive> & op)
     return new_op;
 }
 
+expr_ptr copier::visit_operation(const shared_ptr<operation> & op)
+{
+    auto new_op = make_shared<operation>();
+    new_op->location = op->location;
+    new_op->type = op->type;
+    new_op->kind = op->kind;
+    for (auto & operand : op->operands)
+    {
+        new_op->operands.push_back(copy(operand));
+    }
+    return new_op;
+}
+
 expr_ptr copier::visit_affine(const shared_ptr<affine_expr> &)
 {
     throw error("Affine expression not supported.");

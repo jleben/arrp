@@ -183,6 +183,14 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     {
         return do_array_def(root);
     }
+    case ast::array_enum:
+    {
+        return do_array_enum(root);
+    }
+    case ast::array_concat:
+    {
+        return do_array_concat(root);
+    }
     case ast::array_apply:
     {
         return do_array_apply(root);
@@ -329,6 +337,34 @@ expr_ptr generator::do_array_apply(ast::node_ptr root)
     result->object = expr_slot(object);
     result->args = args;
     result->location = root->location;
+
+    return result;
+}
+
+expr_ptr generator::do_array_enum(ast::node_ptr root)
+{
+    auto result = make_shared<operation>();
+    result->location = root->location;
+    result->kind = operation::array_enumerate;
+
+    for (auto & child_node : root->as_list()->elements)
+    {
+        result->operands.emplace_back(do_expr(child_node));
+    }
+
+    return result;
+}
+
+expr_ptr generator::do_array_concat(ast::node_ptr root)
+{
+    auto result = make_shared<operation>();
+    result->location = root->location;
+    result->kind = operation::array_concatenate;
+
+    for (auto & child_node : root->as_list()->elements)
+    {
+        result->operands.emplace_back(do_expr(child_node));
+    }
 
     return result;
 }

@@ -188,6 +188,10 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
         //cout << "-- case: "; p.print(r, cout); cout << endl;
         return r;
     }
+    else if (auto op = dynamic_pointer_cast<operation>(expr))
+    {
+        return reduce(op);
+    }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         return reduce(ref);
@@ -367,6 +371,167 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     arr->expr->type = make_shared<scalar_type>(result_arr_type->element);
     arr->type = result_arr_type;
+
+    return arr;
+}
+
+expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
+{
+    for (auto & operand : op->operands)
+    {
+        operand = reduce(operand);
+
+        if (auto arr = dynamic_pointer_cast<array>(operand.expr))
+        {
+            if (arr->is_recursive)
+                throw source_error("Recursive arrays not supported as operands.",
+                                   operand.location);
+        }
+    }
+
+    auto result_arr_type = dynamic_pointer_cast<array_type>(op->type);
+    assert(result_arr_type);
+
+    auto arr = make_shared<array>();
+    arr->type = result_arr_type;
+
+    // Create vars for result array
+
+    decl_var_stacker decl_vars(m_declared_vars);
+
+    for (auto dim_size : result_arr_type->size)
+    {
+        expr_ptr range = nullptr;
+        if (dim_size != array_var::unconstrained)
+            range = make_shared<constant<int>>(dim_size, location_type(), make_int_type());
+        auto v = make_shared<array_var>(new_var_name(), range, location_type());
+        arr->vars.push_back(v);
+        decl_vars.push(v);
+    }
+
+    auto domains = make_shared<case_expr>();
+    domains->type = make_shared<scalar_type>(result_arr_type->element);
+    arr->expr = domains;
+
+    int current_index = 0;
+
+    for (auto & operand : op->operands)
+    {
+        auto ar_type = dynamic_pointer_cast<array_type>(operand->type);
+
+        // Found out size of this elem in first result dimension
+
+        int current_size;
+        switch(op->kind)
+        {
+        case operation::array_enumerate:
+        {
+            current_size = 1;
+            break;
+        }
+        case operation::array_concatenate:
+        {
+            if (ar_type)
+                current_size = ar_type->size.front();
+            else
+                current_size = 1;
+            break;
+        }
+        default:
+            throw error("Unexpected operation type.");
+        }
+
+        // Create conditional expression for bounds
+
+        expr_ptr bounds;
+        if (current_size == 1)
+        {
+            bounds = make_shared<primitive>
+                    (primitive_op::compare_eq,
+                     make_shared<reference>(arr->vars.front()),
+                     make_shared<constant<int>>(current_index));
+        }
+        else
+        {
+            expr_ptr lb =
+                    make_shared<primitive>
+                    (primitive_op::compare_geq,
+                     make_shared<reference>(arr->vars.front()),
+                     make_shared<constant<int>>(current_index));
+            if (current_size == -1)
+            {
+                bounds = lb;
+            }
+            else
+            {
+                expr_ptr ub =
+                        make_shared<primitive>
+                        (primitive_op::compare_leq,
+                         make_shared<reference>(arr->vars.front()),
+                         make_shared<constant<int>>(current_index + current_size - 1));
+                bounds = make_shared<primitive>
+                        (primitive_op::logic_and, lb, ub);
+            }
+        }
+
+        // Substitute vars in array operand
+
+        if (ar_type)
+        {
+            vector<expr_ptr> args;
+
+            switch(op->kind)
+            {
+            case operation::array_enumerate:
+            {
+                for( auto v = ++arr->vars.begin(); v != arr->vars.end(); ++v)
+                    args.push_back(make_shared<reference>(*v, location_type(), make_int_type()));
+                break;
+            }
+            case operation::array_concatenate:
+            {
+                expr_ptr first_arg = make_shared<reference>
+                        (arr->vars.front(), location_type(), make_int_type());
+                if (current_index > 0)
+                {
+                    auto offset =
+                            make_shared<constant<int> >
+                            (current_index, location_type(), make_int_type());
+
+                    first_arg = make_shared<primitive>
+                            (primitive_op::subtract, first_arg, offset);
+                    first_arg->type = make_int_type();
+                }
+
+                args.push_back(first_arg);
+
+                for( auto v = ++arr->vars.begin();
+                     v != arr->vars.begin() + ar_type->size.size();
+                     ++v)
+                {
+                    args.push_back(make_shared<reference>(*v, location_type(), make_int_type()));
+                }
+
+                break;
+            }
+            default:
+                throw error("Unexpected operation type.");
+            }
+
+            operand = apply(operand, args);
+        }
+
+        if (auto nested_domains = dynamic_pointer_cast<case_expr>(operand.expr))
+        {
+            throw source_error("Nested domains not supported.", operand.location);
+        }
+
+        // Store as a case
+
+        domains->cases.emplace_back(expr_slot(bounds), operand);
+
+        current_index += current_size;
+    }
 
     return arr;
 }
