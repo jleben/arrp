@@ -128,14 +128,13 @@ private:
 
     // Scheduling
 
-    isl::union_map make_schedule(const isl::union_set & domains,
+    isl::schedule make_schedule(const isl::union_set & domains,
                                  const isl::union_map & dependencies,
                                  bool optimize);
 
     isl::union_map make_proximity_dependencies(const isl::union_map & dependencies);
 
-    pair<isl::union_map, isl::union_map>
-    make_periodic_schedule(const isl::union_map & schedule);
+    void make_periodic_schedule(polyhedral::schedule &);
 
     int compute_period_duration(const isl::union_map & schedule);
     int compute_prelude_duration(const isl::union_map & schedule);

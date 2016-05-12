@@ -19,6 +19,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "scheduling.hpp"
+#include "../common/error.hpp"
 
 #include <isl/schedule.h>
 #include <isl/schedule_node.h>
@@ -30,6 +31,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <isl-cpp/matrix.hpp>
 #include <isl-cpp/utility.hpp>
 #include <isl-cpp/printer.hpp>
+#include <isl-cpp/schedule.hpp>
 
 #include <algorithm>
 #include <iostream>
@@ -104,9 +106,22 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
 
     polyhedral::schedule schedule(m_model.context);
 
-    schedule.full = make_schedule(m_model_summary.domains,
-                                  m_model_summary.dependencies,
-                                  optimize);
+    schedule.tree = make_schedule(m_model_summary.domains,
+                                   m_model_summary.dependencies,
+                                   optimize);
+
+    schedule.full = schedule.tree.map().in_domain(m_model_summary.domains);
+
+    if (verbose<scheduler>::enabled())
+    {
+        cout << "Schedule:" << endl;
+        isl_printer_print_schedule(m_printer.get(), schedule.tree.get());
+        cout << endl;
+
+        cout << endl << "Schedule map:" << endl;
+        print_each_in(schedule.full);
+        cout << endl;
+    }
 
     if (verbose<polyhedral::model>::enabled())
     {
@@ -115,9 +130,18 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
         cout << endl;
     }
 
-    auto periodic_schedule = make_periodic_schedule(schedule.full);
-    schedule.prelude = periodic_schedule.first;
-    schedule.period = periodic_schedule.second;
+    make_periodic_schedule(schedule);
+
+    if (verbose<scheduler>::enabled())
+    {
+        cout << "Prelude schedule:" << endl;
+        print_each_in(schedule.prelude);
+        cout << endl;
+
+        cout << "Periodic schedule:" << endl;
+        print_each_in(schedule.period);
+        cout << endl;
+    }
 
     for (auto & reversal : reversals)
     {
@@ -226,6 +250,11 @@ scheduler::add_schedule_constraints
     if (sched_dim != 0)
         return isl_bool_false;
 
+    if (verbose<scheduler>::enabled())
+        cout << "Adding schedule constraints for first dimension..." << endl;
+
+    // FIXME: current node not accessible anymore
+#if 0
     {
         isl_schedule_node * node = isl_scheduler_get_current_node(sched);
         while(node)
@@ -243,6 +272,7 @@ scheduler::add_schedule_constraints
         }
         isl_schedule_node_free(node);
     }
+#endif
 
     // FIXME: Add constraint:
     // Streaming coefficients for dependent statements are equal to
@@ -266,10 +296,11 @@ scheduler::add_schedule_constraints
                 (sched, stmt->domain.get_space().get());
         if (coef_pos < 0)
         {
-            cerr << "Warning: coefficients not found for statement "
-                 << stmt->name << endl;
             continue;
         }
+
+        if (verbose<scheduler>::enabled())
+            cout << ".. Adding constraints for statement: " << stmt->name << endl;
 
         int n_params = stmt->domain.get_space().dimension(isl::space::parameter);
         int var_coef_pos = coef_pos + n_params;
@@ -285,12 +316,17 @@ scheduler::add_schedule_constraints
     return isl_bool_true;
 }
 
-isl::union_map scheduler::make_schedule
+isl::schedule scheduler::make_schedule
 (const isl::union_set & domains, const isl::union_map & dependencies,
  bool optimize)
 {
     // FIXME: statements with no dependencies
     // seem to always end up with an empty schedule.
+
+    int sched_whole_comp =
+            isl_options_get_schedule_whole_component(domains.ctx().get());
+    cout << "Schedule whole comp = " << sched_whole_comp << endl;
+    isl_options_set_schedule_whole_component(domains.ctx().get(), 0);
 
     isl_schedule_constraints *constr =
             isl_schedule_constraints_on_domain(domains.copy());
@@ -311,23 +347,7 @@ isl::union_map scheduler::make_schedule
             isl_schedule_constraints_compute_schedule(constr);
     assert(sched);
 
-    isl::union_map sched_map( isl_schedule_get_map(sched) );
-    sched_map = sched_map.in_domain(domains);
-
-    if (verbose<scheduler>::enabled())
-    {
-        cout << "Schedule:" << endl;
-        isl_printer_print_schedule(m_printer.get(), sched);
-        cout << endl;
-
-        cout << endl << "Schedule map:" << endl;
-        print_each_in(sched_map);
-        cout << endl;
-    }
-
-    isl_schedule_free(sched);
-
-    return sched_map;
+    return sched;
 }
 
 isl::union_map
@@ -378,14 +398,116 @@ scheduler::make_proximity_dependencies(const isl::union_map & dependencies)
     return proximity_deps;
 }
 
-pair<isl::union_map, isl::union_map>
-scheduler::make_periodic_schedule(const isl::union_map & schedule)
+void
+scheduler::make_periodic_schedule(polyhedral::schedule & sched)
 {
-    int period_dur = compute_period_duration(schedule);
-    int prelude_dur = compute_prelude_duration(schedule);
-    auto sched_prelude = prelude_schedule(schedule, prelude_dur);
-    auto sched_period = periodic_schedule(schedule, prelude_dur, period_dur);
-    return make_pair(sched_prelude, sched_period);
+    isl_schedule_node * domain_node = isl_schedule_get_root(sched.tree.get());
+    assert_or_throw(isl_schedule_node_get_type(domain_node) == isl_schedule_node_domain);
+
+    isl_schedule_node * root = isl_schedule_node_get_child(domain_node, 0);
+    assert_or_throw(root != nullptr);
+
+    isl_schedule_node * infinite_band = nullptr;
+    bool root_is_sequence = false;
+
+    auto node_is_infinite = [&sched](isl_schedule_node * node) -> bool
+    {
+        isl::union_set domain = isl_schedule_node_get_domain(node);
+        domain = domain & sched.full.domain();
+        bool is_infinite = false;
+        domain.for_each([&](const isl::set & stmt_domain){
+            auto i0 = stmt_domain.get_space().var(0);
+            auto i0_max = stmt_domain.maximum(i0);
+            if (i0_max.is_infinity())
+            {
+                is_infinite = true;
+                return false;
+            }
+            return true;
+        });
+        return is_infinite;
+    };
+
+    auto root_type = isl_schedule_node_get_type(root);
+    if (root_type == isl_schedule_node_band)
+    {
+        if (node_is_infinite(root))
+            infinite_band = isl_schedule_node_copy(root);
+    }
+    else
+    {
+        assert_or_throw(root_type == isl_schedule_node_sequence);
+        root_is_sequence = true;
+        int elem_count = isl_schedule_node_n_children(root);
+        for (int i = 0; i < elem_count; ++i)
+        {
+            if (infinite_band)
+            {
+                throw error("Schedule sequence contains infinite element that is not last.");
+            }
+
+            isl_schedule_node * filter = isl_schedule_node_get_child(root, i);
+            assert_or_throw(filter != nullptr);
+            assert_or_throw(isl_schedule_node_get_type(filter) == isl_schedule_node_filter);
+
+            if (isl_schedule_node_has_children(filter))
+            {
+                isl_schedule_node * child = isl_schedule_node_get_child(filter, 0);
+                assert_or_throw(child != nullptr);
+                auto type = isl_schedule_node_get_type(child);
+                if (type == isl_schedule_node_band)
+                {
+                    if (node_is_infinite(child))
+                        infinite_band = isl_schedule_node_copy(child);
+                }
+                else
+                {
+                    assert_or_throw(type == isl_schedule_node_leaf);
+                }
+                isl_schedule_node_free(child);
+            }
+
+            isl_schedule_node_free(filter);
+        }
+    }
+
+    if (infinite_band)
+    {
+        isl::union_map infinite_sched =
+                isl_schedule_node_get_subtree_schedule_union_map(infinite_band);
+        infinite_sched = infinite_sched.in_domain(sched.full.domain());
+
+        int prelude_dur = compute_prelude_duration(infinite_sched);
+        int period_dur = compute_period_duration(infinite_sched);
+
+        if (prelude_dur > 0)
+        {
+            // NOTE: This assumes that a statement can only be
+            // scheduled in one of the root sequence elements.
+
+            sched.full.for_each([&](isl::map & s){
+                auto stmt = statement_for(s.id(isl::space::input));
+                if (stmt->is_infinite)
+                {
+                    int stream_dim = root_is_sequence ? 1 : 0;
+                    auto t = s.get_space().out(stream_dim);
+                    s.add_constraint(t < prelude_dur);
+                }
+                sched.prelude = sched.prelude | s;
+                return true;
+            });
+        }
+
+        sched.period = periodic_schedule(infinite_sched, prelude_dur, period_dur);
+    }
+    else
+    {
+        sched.prelude = sched.full;
+    }
+
+    infinite_band = isl_schedule_node_free(infinite_band);
+    root = isl_schedule_node_free(root);
+    domain_node = isl_schedule_node_free(domain_node);
 }
 
 #if 1
@@ -607,13 +729,6 @@ isl::union_map scheduler::prelude_schedule
         return true;
     });
 
-    if (verbose<scheduler>::enabled())
-    {
-        cout << "Prelude schedule:" << endl;
-        print_each_in(sched_prelude);
-        cout << endl;
-    }
-
     return sched_prelude;
 }
 
@@ -680,13 +795,6 @@ isl::union_map scheduler::periodic_schedule
 
         return true;
     });
-
-    if (verbose<scheduler>::enabled())
-    {
-        cout << "Periodic schedule:" << endl;
-        print_each_in(sched_period);
-        cout << endl;
-    }
 
     return sched_period;
 }

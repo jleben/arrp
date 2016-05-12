@@ -199,10 +199,10 @@ class schedule
 {
 public:
     schedule(const isl::context & ctx):
-        sched(nullptr), full(ctx), prelude(ctx), period(ctx),
+        tree(nullptr), full(ctx), prelude(ctx), period(ctx),
         params(isl::set(isl::space(ctx, isl::parameter_tuple())))
     {}
-    isl::schedule sched;
+    isl::schedule tree;
     isl::union_map full;
     isl::union_map prelude;
     isl::union_map period;
