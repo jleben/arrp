@@ -55,6 +55,11 @@ void storage_allocator::allocate(const polyhedral::schedule & schedule)
 
     for (auto & array : m_model.arrays)
     {
+        if (verbose<storage_allocator>::enabled())
+        {
+            cout << endl << "== Array " << array->name << endl;
+        }
+
         compute_buffer_size(schedule, array, *time_space);
 
         find_inter_period_dependency(schedule, array);
@@ -70,7 +75,7 @@ void storage_allocator::compute_buffer_size
 {
     if (verbose<storage_allocator>::enabled())
     {
-        cout << "Computing buffer size for array: " << array->name << endl;
+        cout << ".. Buffer size:" << endl;
     }
 
     using namespace isl;
@@ -95,10 +100,10 @@ void storage_allocator::compute_buffer_size
 
     if (verbose<storage_allocator>::enabled())
     {
-        cout << ".. Write schedule: ";
+        cout << "  Write schedule: ";
         m_printer.print(write_sched);
         cout << endl;
-        cout << ".. Read schedule: ";
+        cout << "  Read schedule: ";
         m_printer.print(read_sched);
         cout << endl;
     }
@@ -146,7 +151,7 @@ void storage_allocator::compute_buffer_size
         buffer_size.reserve(buf_dim_count);
 
         if (verbose<storage_allocator>::enabled())
-            cout << ".. Max reuse distance:" << endl;
+            cout << "  Max reuse distance:" << endl;
 
         for (int dim = 0; dim < buf_dim_count; ++dim)
         {
@@ -201,7 +206,7 @@ void storage_allocator::find_inter_period_dependency
 
     if (verbose<storage_allocator>::enabled())
     {
-        cout << "Array " << array->name << ":" << endl;
+        cout << ".. Inter-period dependency:" << endl;
         cout << "  written: "; m_printer.print(written_in_period); cout << endl;
         cout << "  read: "; m_printer.print(read_in_period); cout << endl;
         cout << "  remaining: "; m_printer.print(remaining); cout << endl;
