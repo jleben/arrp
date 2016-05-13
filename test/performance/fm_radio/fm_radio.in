@@ -53,9 +53,9 @@ bp_filter(rate, low, high, taps, x) =
 
 equalizer(rate, amps, freqs, taps, x) =
 {
-  let channels = [b:#amps -> bp_filter(rate, freqs[b], freqs[b+1], taps, x) * amps[b]];
-  sum(channels);
-  ##[t -> sum([b:#amps -> bp_filter(rate, freqs[b], freqs[b+1], taps, x)[t] * amps[b]])]
+  let lps = [c:#freqs -> lp_filter(rate, freqs[c], taps, 0, x)];
+  let bps = [c:#amps -> (lps[c+1] - lps[c]) * amps[c]];
+  sum(bps);
 };
 
 
@@ -87,6 +87,6 @@ filtered = lp_filter(sampling_rate, cutoff_frequency, num_taps, 4, in);
 fm_demodulated = fm_demodulate(sampling_rate, max_amp, bandwidth, filtered);
 equalized = equalizer(sampling_rate, eq_amps, eq_freqs, num_taps, fm_demodulated);
 
-##equalized = equalizer(sampling_rate, eq_amps, eq_freqs, num_taps, in);
+equalized_in = equalizer(sampling_rate, eq_amps, eq_freqs, num_taps, in);
 
 main = equalized;
