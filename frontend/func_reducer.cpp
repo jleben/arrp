@@ -192,6 +192,8 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
     }
     else
     {
+        // FIXME: Doesn't work for full applications
+        // within partial applications.
         m_type_checker.process(reduced_expr);
 
         // Add ids to enclosing scope, if any.
