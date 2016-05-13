@@ -218,10 +218,14 @@ buffer_analysis(const polyhedral::model & model)
 
         buffers[array->name] = buf;
 
-        if (array->inter_period_dependency || array == model.arrays.back())
+        if (array->inter_period_dependency)
+        {
             buffers_in_memory.push_back(array.get());
+        }
         else
+        {
             buffers_on_stack.push_back(array.get());
+        }
     }
 
     auto buffer_size_is_smaller =
