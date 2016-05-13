@@ -51,7 +51,7 @@ int main()
     auto p = new fm_radio_printer;
     cout << "initializing" << endl;
     p->initialize();
-    for (int i = 0; i < 50; ++i)
+    for (int i = 0; i < 10; ++i)
     {
         cout << "processing" << endl;
         p->process();
@@ -61,15 +61,20 @@ int main()
 
     auto test = new fm_radio_test;
 
+#if 0
+    test->initialize();
+    test->run();
+#endif
 #if 1
     for (int i = 0; i < 1000; ++i)
     {
         test->initialize();
         test->run();
     }
-#else
+#endif
+#if 0
     test_driver<fm_radio_test> driver;
-    driver.go(test, 3, 1000);
+    driver.go(*test, 3, 1000);
 #endif
 
 #endif // PRINT

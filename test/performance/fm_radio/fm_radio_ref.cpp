@@ -140,17 +140,24 @@ struct fm_radio_test
 
 int main()
 {
-    fm_radio_test test;
 
+    auto test = new fm_radio_test;
+
+#if 0
+    test->initialize();
+    test->run();
+#endif
+#if 1
     for (int i = 0; i < 1000; ++i)
     {
-        test.initialize();
-        test.run();
+        test->initialize();
+        test->run();
     }
-
-
-    //test_driver<fm_radio_test> driver;
-    //driver.go(test, 3, 1000);
+#endif
+#if 0
+    test_driver<fm_radio_test> driver;
+    driver.go(*test, 3, 1000);
+#endif
 }
 
 void fb_compact(FloatBuffer *fb)
