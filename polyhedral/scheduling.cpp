@@ -409,6 +409,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
 
     isl_schedule_node * infinite_band = nullptr;
     bool root_is_sequence = false;
+    int root_seq_elems = 0;
 
     auto node_is_infinite = [&sched](isl_schedule_node * node) -> bool
     {
@@ -438,7 +439,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
     {
         assert_or_throw(root_type == isl_schedule_node_sequence);
         root_is_sequence = true;
-        int elem_count = isl_schedule_node_n_children(root);
+        int elem_count = root_seq_elems = isl_schedule_node_n_children(root);
         for (int i = 0; i < elem_count; ++i)
         {
             if (infinite_band)
@@ -480,25 +481,46 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         int prelude_dur = compute_prelude_duration(infinite_sched);
         int period_dur = compute_period_duration(infinite_sched);
 
+        isl::union_set prelude_dom(sched.full.ctx()), period_dom(sched.full.ctx());
+
         if (prelude_dur > 0)
         {
-            // NOTE: This assumes that a statement can only be
-            // scheduled in one of the root sequence elements.
-
-            sched.full.for_each([&](isl::map & s){
-                auto stmt = statement_for(s.id(isl::space::input));
-                if (stmt->is_infinite)
-                {
-                    int stream_dim = root_is_sequence ? 1 : 0;
-                    auto t = s.get_space().out(stream_dim);
-                    s.add_constraint(t < prelude_dur);
-                }
-                sched.prelude = sched.prelude | s;
+            // Add prelude part of the infinite schedule part.
+            infinite_sched.for_each([&](isl::map & m)
+            {
+                m.limit_above(isl::space::output, 0, prelude_dur - 1);
+                prelude_dom = prelude_dom | m.domain();
                 return true;
             });
         }
 
-        sched.period = periodic_schedule(infinite_sched, prelude_dur, period_dur);
+        if (root_is_sequence && root_seq_elems >= 2)
+        {
+            // Add all finite sequence elements (all other than the last).
+            sched.full.for_each([&](isl::map & m){
+                m.limit_above(isl::space::output, 0, root_seq_elems - 2);
+                prelude_dom = prelude_dom | m.domain();
+                return true;
+            });
+        }
+
+        {
+            infinite_sched.for_each([&](isl::map & m)
+            {
+                m.limit_below(isl::space::output, 0, prelude_dur);
+                m.limit_above(isl::space::output, 0, prelude_dur + period_dur - 1);
+                period_dom = period_dom | m.domain();
+                return true;
+            });
+        }
+
+        auto prelude_sched = sched.tree;
+        prelude_sched.intersect_domain(prelude_dom);
+        sched.prelude = prelude_sched.map().in_domain(prelude_dom);
+
+        auto period_sched = sched.tree;
+        period_sched.intersect_domain(period_dom);
+        sched.period = period_sched.map().in_domain(period_dom);
     }
     else
     {
