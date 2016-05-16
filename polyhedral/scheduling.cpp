@@ -514,16 +514,17 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
             });
         }
 
-        auto prelude_sched = sched.tree;
-        prelude_sched.intersect_domain(prelude_dom);
-        sched.prelude = prelude_sched.map().in_domain(prelude_dom);
+        sched.prelude_tree = sched.tree;
+        sched.prelude_tree.intersect_domain(prelude_dom);
+        sched.prelude = sched.prelude_tree.map().in_domain(prelude_dom);
 
-        auto period_sched = sched.tree;
-        period_sched.intersect_domain(period_dom);
-        sched.period = period_sched.map().in_domain(period_dom);
+        sched.period_tree = sched.tree;
+        sched.period_tree.intersect_domain(period_dom);
+        sched.period = sched.period_tree.map().in_domain(period_dom);
     }
     else
     {
+        sched.prelude_tree = sched.tree;
         sched.prelude = sched.full;
     }
 

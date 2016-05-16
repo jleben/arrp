@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
     args.add_verbose_topic<polyhedral::modulo_avoidance>("mod-avoid");
     args.add_verbose_topic<polyhedral::scheduler>("ph-scheduling");
     args.add_verbose_topic<polyhedral::ast_isl>("ph-ast");
+    args.add_verbose_topic<polyhedral::ast_gen>("ph-ast-gen");
     args.add_verbose_topic<polyhedral::storage_allocator>("storage-alloc");
     args.add_verbose_topic<polyhedral::storage_output>("storage");
     args.add_verbose_topic<cpp_gen::renaming>("renaming");

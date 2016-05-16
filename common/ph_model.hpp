@@ -199,12 +199,16 @@ class schedule
 {
 public:
     schedule(const isl::context & ctx):
-        tree(nullptr), full(ctx), prelude(ctx), period(ctx),
+        tree(nullptr), full(ctx),
+        prelude_tree(nullptr), prelude(ctx),
+        period_tree(nullptr), period(ctx),
         params(isl::set(isl::space(ctx, isl::parameter_tuple())))
     {}
     isl::schedule tree;
     isl::union_map full;
+    isl::schedule prelude_tree;
     isl::union_map prelude;
+    isl::schedule period_tree;
     isl::union_map period;
     isl::set params;
 };
