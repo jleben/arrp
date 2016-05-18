@@ -111,6 +111,7 @@ public:
     string output_filename;
     string meta_output_filename;
     string cpp_output_filename;
+    vector<string> import_dirs;
     target_info target;
     vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
@@ -169,6 +170,12 @@ private:
             parse_target(target, opt);
         }
 #endif
+        else if (opt == "--import" || opt == "-i")
+        {
+            string dir;
+            parse_argument(dir, "import directory");
+            import_dirs.push_back(dir);
+        }
         else if (opt == "--output" || opt == "-o")
         {
             parse_argument(output_filename, "output LLVM IR file");

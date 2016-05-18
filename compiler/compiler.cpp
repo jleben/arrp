@@ -89,6 +89,7 @@ result::code compile_module
 (const module_source & source, istream & text, const arguments & args)
 {
     module_parser parser;
+    parser.set_import_dirs(args.import_dirs);
 
     module * main_module;
 
