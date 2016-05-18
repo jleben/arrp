@@ -104,10 +104,13 @@ id_ptr generator::do_stmt(ast::node_ptr root)
     vector<func_var_ptr> params;
     if (params_node)
     {
+        stacker<string, name_stack_t> name_stacker(name, m_name_stack);
+
         for(auto & param : params_node->as_list()->elements)
         {
             auto name = param->as_leaf<string>()->value;
             auto var = make_shared<func_var>(name, location_in_module(param->location));
+            var->qualified_name = qualified_name(name);
             params.push_back(var);
         }
     }

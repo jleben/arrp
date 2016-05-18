@@ -247,6 +247,7 @@ class func_var : public var
 public:
     func_var() {}
     func_var(const string & name, const location_type & loc): var(name,loc) {}
+    string qualified_name;
 };
 typedef std::shared_ptr<func_var> func_var_ptr;
 

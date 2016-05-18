@@ -119,7 +119,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
         if (var->ref_count > 1 && !dynamic_pointer_cast<reference>(arg))
         {
-            auto arg_id_name = m_name_provider.new_name(var->name);
+            auto arg_id_name = m_name_provider.new_name(var->qualified_name);
             auto arg_id = make_shared<identifier>(arg_id_name, arg, location_type());
             arg = make_shared<reference>(arg_id, arg->location);
 
