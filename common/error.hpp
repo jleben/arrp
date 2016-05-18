@@ -43,6 +43,8 @@ struct undefined {};
 struct error : public std::exception
 {
 public:
+    error() {}
+
     error(const string & what):
         m_msg(what)
     {}

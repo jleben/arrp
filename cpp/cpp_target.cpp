@@ -133,17 +133,19 @@ func_sig_ptr signature_for(const string & name)
 }
 #endif
 
-variable_decl_ptr buffer_decl(polyhedral::array_ptr array)
+variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
+                              name_mapper & namer)
 {
     auto elem_type = type_for(array->type);
     if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
-        return decl(elem_type, array->name);
+        return decl(elem_type, namer(array->name));
     else
-        return make_shared<array_decl>(elem_type, array->name, array->buffer_size);
+        return make_shared<array_decl>(elem_type, namer(array->name), array->buffer_size);
 }
 
 class_node * state_type_def(const polyhedral::model & model,
-                            unordered_map<string,buffer> & buffers)
+                            unordered_map<string,buffer> & buffers,
+                            name_mapper & namer)
 {
     auto def = new class_node(class_class, "state");
     def->template_parameters.push_back("IO");
@@ -173,7 +175,7 @@ class_node * state_type_def(const polyhedral::model & model,
     {
         if (buffers[array->name].on_stack)
             continue;
-        sec.members.push_back(make_shared<data_field>(buffer_decl(array)));
+        sec.members.push_back(make_shared<data_field>(buffer_decl(array,namer)));
     }
 
     for (auto array : model.arrays)
@@ -181,7 +183,7 @@ class_node * state_type_def(const polyhedral::model & model,
         if (!buffers[array->name].has_phase)
             continue;
         auto int_t = make_shared<basic_type>("int");
-        auto field = decl(int_t, array->name + "_ph");
+        auto field = decl(int_t, namer(array->name + "_ph"));
         field->value = literal((int)0);
         sec.members.push_back(make_shared<data_field>(field));
     }
@@ -285,7 +287,9 @@ buffer_analysis(const polyhedral::model & model)
 
 static void advance_buffers(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers,
-                            builder * ctx, bool init)
+                            builder * ctx,
+                            name_mapper & namer,
+                            bool init)
 {
     for (const auto & array : model.arrays)
     {
@@ -298,7 +302,7 @@ static void advance_buffers(const polyhedral::model & model,
                     array->period_offset : array->period;
         int buffer_size = array->buffer_size[0];
 
-        auto phase = make_shared<id_expression>(array->name + "_ph");
+        auto phase = make_shared<id_expression>(namer(array->name + "_ph"));
 
         auto next_phase = make_shared<bin_op_expression>(op::add, phase, literal(offset));
         next_phase = make_shared<bin_op_expression>(op::rem, next_phase, literal(buffer_size));
@@ -414,11 +418,12 @@ void generate(const string & name,
 {
     unordered_map<string,buffer> buffers = buffer_analysis(model);
 
+    cpp_gen::name_mapper name_mapper;
     module m;
     builder b(&m);
     //cpp_from_cloog cloog(&b);
     cpp_from_isl isl(&b);
-    cpp_from_polyhedral poly(model, buffers);
+    cpp_from_polyhedral poly(model, buffers, name_mapper);
 
     m.members.push_back(make_shared<include_dir>("cmath"));
     m.members.push_back(make_shared<include_dir>("algorithm"));
@@ -431,7 +436,7 @@ void generate(const string & name,
     //add_remainder_function(m,*nmspc);
 
     // FIXME: rather include header:
-    nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers)));
+    nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers,name_mapper)));
 
     // FIXME: not of much use with infinite I/O
     //add_output_getter_func(m, *nmspc, model.arrays.back());
@@ -467,12 +472,12 @@ void generate(const string & name,
             for (auto array : model.arrays)
             {
                 if (buffers[array->name].on_stack)
-                    b.add(make_shared<var_decl_expression>(buffer_decl(array)));
+                    b.add(make_shared<var_decl_expression>(buffer_decl(array,name_mapper)));
             }
 
             isl.generate(ast.prelude);
 
-            //advance_buffers(model, buffers, &b, true);
+            //advance_buffers(model, buffers, &b, name_mapper, true);
 
             b.pop();
         }
@@ -496,12 +501,12 @@ void generate(const string & name,
             for (auto array : model.arrays)
             {
                 if (buffers[array->name].on_stack)
-                    b.add(make_shared<var_decl_expression>(buffer_decl(array)));
+                    b.add(make_shared<var_decl_expression>(buffer_decl(array,name_mapper)));
             }
 
             isl.generate(ast.period);
 
-            advance_buffers(model, buffers, &b, false);
+            advance_buffers(model, buffers, &b, name_mapper, false);
 
             b.pop();
         }

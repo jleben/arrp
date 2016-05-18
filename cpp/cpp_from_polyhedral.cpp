@@ -10,9 +10,11 @@ using index_type = cpp_from_polyhedral::index_type;
 
 cpp_from_polyhedral::cpp_from_polyhedral
 (const polyhedral::model & model,
- const unordered_map<string,buffer> & buffers):
+ const unordered_map<string,buffer> & buffers,
+ name_mapper & nm):
     m_model(model),
-    m_buffers(buffers)
+    m_buffers(buffers),
+    m_name_mapper(nm)
 {}
 
 static primitive_type prim_type(const functional::expression * expr)
@@ -315,10 +317,11 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 (polyhedral::array_ptr array, const index_type & index, builder * ctx)
 {
     index_type buffer_index = index;
+    string array_name = m_name_mapper(array->name);
 
     cpp_gen::buffer & buffer_info = m_buffers[array->name];
 
-    expression_ptr buffer = make_shared<id_expression>(array->name);
+    expression_ptr buffer = make_shared<id_expression>(array_name);
 
     if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
         return buffer;
@@ -329,7 +332,7 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     {
         assert(array->is_infinite);
 
-        auto phase = make_shared<id_expression>(array->name + "_ph");
+        auto phase = make_shared<id_expression>(array_name + "_ph");
 
         expression_ptr & i = buffer_index[0];
         i = make_shared<bin_op_expression>(op::add, i, phase);
@@ -398,7 +401,7 @@ cpp_from_polyhedral::generate_buffer_phase
         return nullptr;
 
     auto array = info->second;
-    auto phase = make_shared<id_expression>(array->name + "_ph");
+    auto phase = make_shared<id_expression>(m_name_mapper(array->name + "_ph"));
     return phase;
 }
 
@@ -440,7 +443,6 @@ cpp_from_polyhedral::mapped_index
 
     return target_index;
 }
-
 
 }
 }

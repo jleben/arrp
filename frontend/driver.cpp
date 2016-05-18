@@ -1,31 +1,22 @@
 #include "driver.hpp"
+#include "../common/module.hpp"
+
+using namespace std;
 
 namespace stream {
 namespace parsing {
 
-void driver::error(const parser::location_type& l, const std::string& m)
+void driver::error(const parser::location_type& loc, const std::string& m)
 {
-    using namespace std;
+    code_range range;
+    range.start.line = loc.begin.line;
+    range.start.column = loc.begin.column;
+    range.end.line = loc.end.line;
+    range.end.column = loc.end.column;
 
-    cout << "ERROR [" << l.begin.line << ":" << l.begin.column << "]: "
+    cerr << "** ERROR at " << m_path << ":" << range.start << ": "
          << m << endl;
-
-    m_input.seekg(0);
-
-    if (l.end.line == l.begin.line)
-    {
-        string line_text;
-
-        for(int line = 0; line < l.begin.line; ++line)
-        {
-            std::getline(m_input, line_text);
-        }
-
-        cout << "    " << line_text << endl;
-        cout << "    " << string(l.begin.column-1,' ');
-        cout << string(l.end.column - l.begin.column, '^');
-        cout << endl;
-    }
+    print_code_range(cerr, m_path, range);
 }
 
 }

@@ -22,13 +22,14 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_LANG_FRONTEND_ERROR_INCLUDED
 
 #include "../common/error.hpp"
+#include "../common/module.hpp"
 #include "location.hh"
 
 namespace stream {
 
 struct source_error : public error
 {
-    using location_type = parsing::location;
+    using location_type = code_location;
 
     source_error(const string & what, const location_type & location):
         error(what),

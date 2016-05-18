@@ -20,7 +20,7 @@ public:
     {
         string base;
 
-        int sep_pos = name.find(m_separator);
+        int sep_pos = name.rfind(m_separator);
         if (sep_pos == string::npos)
             base = name;
         else

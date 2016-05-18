@@ -1,6 +1,7 @@
 #include "functional_gen.hpp"
 #include "error.hpp"
 #include "../utility/stacker.hpp"
+#include "../utility/debug.hpp"
 
 using namespace std;
 
@@ -28,12 +29,45 @@ unordered_map<string, primitive_op> generator::m_prim_ops =
      { "max", primitive_op::max },
 };
 
-vector<id_ptr>
-generator::generate(ast::node_ptr ast)
+source_error generator::module_error(const string & what, const parsing::location & loc)
 {
+    return source_error(what, location_in_module(loc));
+}
+
+vector<id_ptr> generator::generate(const vector<module*> modules)
+{
+    vector<id_ptr> ids;
+
+    for (auto mod : modules)
+    {
+        vector<id_ptr> mod_ids = generate(mod);
+
+        for (auto id : mod_ids)
+            m_final_ids.emplace(id->name, id);
+
+        ids.insert(ids.end(), mod_ids.begin(), mod_ids.end());
+    }
+
+    return ids;
+}
+
+vector<id_ptr>
+generator::generate(module * mod)
+{
+    if (verbose<generator>::enabled())
+    {
+        cout << "## Generating functional model for module "
+             << mod->name << " ##" << endl;
+    }
+
+    revertable<module*> current_module(m_current_module, mod);
+    stacker<string,name_stack_t> name_stacker(mod->name, m_name_stack);
+
+    auto ast = mod->ast;
+
     if (ast->type != ast::program)
     {
-        throw source_error("Invalid AST root.", ast->location);
+        throw module_error("Invalid AST root.", ast->location);
     }
 
     functional::scope func_scope;
@@ -42,16 +76,21 @@ generator::generate(ast::node_ptr ast)
     {
         context_type::scope_holder scope(m_context);
 
-        auto stmt_list = ast->as_list();
-        for (auto & stmt : stmt_list->elements)
+        auto stmts = ast->as_list()->elements[2];
+
+        if (stmts)
         {
-            do_stmt(stmt);
+            for (auto & stmt : stmts->as_list()->elements)
+            {
+                do_stmt(stmt);
+            }
         }
     }
 
     m_func_scope_stack.pop();
 
     vector<id_ptr> ids(func_scope.ids.begin(), func_scope.ids.end());
+
     return ids;
 }
 
@@ -68,7 +107,7 @@ id_ptr generator::do_stmt(ast::node_ptr root)
         for(auto & param : params_node->as_list()->elements)
         {
             auto name = param->as_leaf<string>()->value;
-            auto var = make_shared<func_var>(name, param->location);
+            auto var = make_shared<func_var>(name, location_in_module(param->location));
             params.push_back(var);
         }
     }
@@ -77,7 +116,7 @@ id_ptr generator::do_stmt(ast::node_ptr root)
 
     if (!params.empty())
     {
-        func = make_shared<function>(params, nullptr, root->location);
+        func = make_shared<function>(params, nullptr, location_in_module(root->location));
         m_func_scope_stack.push(&func->scope);
     }
 
@@ -95,6 +134,8 @@ id_ptr generator::do_stmt(ast::node_ptr root)
             }
         }
 
+        stacker<string, name_stack_t> name_stacker(name, m_name_stack);
+
         expr = do_block(block);
     }
 
@@ -105,13 +146,17 @@ id_ptr generator::do_stmt(ast::node_ptr root)
         expr = func;
     }
 
-    auto id = make_shared<identifier>(name, expr, name_node->location);
+    auto id = make_shared<identifier>(qualified_name(name), expr,
+                                      location_in_module(name_node->location));
 
     try  {
         m_context.bind(name, id);
     } catch (context_error & e) {
-        throw source_error(e.what(), name_node->location);
+        throw module_error(e.what(), name_node->location);
     }
+
+    if (verbose<generator>::enabled())
+        cout << "Storing id " << id->name << endl;
 
     assert(!m_func_scope_stack.empty());
     m_func_scope_stack.top()->ids.push_back(id);
@@ -142,34 +187,58 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     case ast::constant:
     {
         if (auto b = dynamic_pointer_cast<ast::leaf_node<bool>>(root))
-            return make_shared<constant<bool>>(b->value, root->location);
+            return make_shared<constant<bool>>(b->value, location_in_module(root->location));
         else if(auto i = dynamic_pointer_cast<ast::leaf_node<int>>(root))
-            return make_shared<constant<int>>(i->value, root->location);
+            return make_shared<constant<int>>(i->value, location_in_module(root->location));
         else if(auto d = dynamic_pointer_cast<ast::leaf_node<double>>(root))
-            return make_shared<constant<double>>(d->value, root->location);
+            return make_shared<constant<double>>(d->value, location_in_module(root->location));
         else
-            throw source_error("Invalid constant type.", root->location);
+            throw module_error("Invalid constant type.", root->location);
     }
     case ast::identifier:
     {
         auto name = root->as_leaf<string>()->value;
+        if (verbose<generator>::enabled())
+            cout << "Looking up name: " << name << endl;
         auto item = m_context.find(name);
         if (!item)
-            throw source_error("Undefined name.", root->location);
+            throw module_error("Undefined name.", root->location);
         auto var = item.value();
         ++var->ref_count;
-        return make_shared<reference>(var, root->location);
+        return make_shared<reference>(var, location_in_module(root->location));
+    }
+    case ast::qualified_id:
+    {
+        auto & elems = root->as_list()->elements;
+
+        auto module_name = elems[0]->as_leaf<string>()->value;
+        auto module_alias_decl = m_current_module->imports.find(module_name);
+        if(module_alias_decl != m_current_module->imports.end())
+            module_name = module_alias_decl->second->name;
+
+        auto name = elems[1]->as_leaf<string>()->value;
+        auto qname = module_name + '.' + name;
+
+        auto decl = m_final_ids.find(qname);
+        if (verbose<generator>::enabled())
+            cout << "Looking up qualified name: " << qname << endl;
+        if (decl == m_final_ids.end())
+            throw module_error("Undefined name.", root->location);
+
+        auto id = decl->second;
+        ++id->ref_count;
+        return make_shared<reference>(id, location_in_module(root->location));
     }
     case ast::array_self_ref:
     {
         if (m_array_stack.empty())
         {
-            throw source_error("Array self reference without array.",
+            throw module_error("Array self reference without array.",
                                root->location);
         }
         auto arr = m_array_stack.top();
         arr->is_recursive = true;
-        return make_shared<array_self_ref>(arr, root->location);
+        return make_shared<array_self_ref>(arr, location_in_module(root->location));
     }
     case ast::primitive:
     {
@@ -202,14 +271,15 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         auto dim_node = root->as_list()->elements[1];
         if (dim_node)
             dim = do_expr(dim_node);
-        return make_shared<array_size>(object, dim, root->location);
+        return make_shared<array_size>(object, dim,
+                                       location_in_module(root->location));
     }
     case ast::func_apply:
     {
         return do_func_apply(root);
     }
     default:
-        throw source_error("Unsupported expression.", root->location);
+        throw module_error("Unsupported expression.", root->location);
     }
 }
 
@@ -226,7 +296,7 @@ expr_ptr generator::do_primitive(ast::node_ptr root)
     }
 
     auto op = make_shared<primitive>(type, operands);
-    op->location = root->location;
+    op->location = location_in_module(root->location);
 
     return op;
 }
@@ -265,7 +335,7 @@ expr_ptr generator::do_case_expr(ast::node_ptr root)
     // FIXME: location of else_domain?
     result->cases.emplace_back(expr_slot(else_domain), expr_slot(else_expr));
 
-    result->location = root->location;
+    result->location = location_in_module(root->location);
 
     return result;
 }
@@ -276,7 +346,7 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
     auto expr_node = root->as_list()->elements[1];
 
     auto ar = make_shared<array>();
-    ar->location = root->location;
+    ar->location = location_in_module(root->location);
     stacker<array_ptr> ar_stacker(ar, m_array_stack);
 
     vector<array_var_ptr> params;
@@ -292,7 +362,8 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
         if (size_node)
             range = do_expr(size_node);
 
-        auto var = make_shared<array_var>(name, range, param->location);
+        auto var = make_shared<array_var>(name, range,
+                                          location_in_module(param->location));
 
         params.push_back(var);
     }
@@ -336,7 +407,7 @@ expr_ptr generator::do_array_apply(ast::node_ptr root)
     auto result = make_shared<array_app>();
     result->object = expr_slot(object);
     result->args = args;
-    result->location = root->location;
+    result->location = location_in_module(root->location);
 
     return result;
 }
@@ -344,7 +415,7 @@ expr_ptr generator::do_array_apply(ast::node_ptr root)
 expr_ptr generator::do_array_enum(ast::node_ptr root)
 {
     auto result = make_shared<operation>();
-    result->location = root->location;
+    result->location = location_in_module(root->location);
     result->kind = operation::array_enumerate;
 
     for (auto & child_node : root->as_list()->elements)
@@ -358,7 +429,7 @@ expr_ptr generator::do_array_enum(ast::node_ptr root)
 expr_ptr generator::do_array_concat(ast::node_ptr root)
 {
     auto result = make_shared<operation>();
-    result->location = root->location;
+    result->location = location_in_module(root->location);
     result->kind = operation::array_concatenate;
 
     for (auto & child_node : root->as_list()->elements)
@@ -390,7 +461,7 @@ expr_ptr generator::do_func_apply(ast::node_ptr root)
         {
             auto op_type = op_it->second;
             auto op = make_shared<primitive>(op_type, args);
-            op->location = root->location;
+            op->location = location_in_module(root->location);
             return op;
         }
     }
@@ -400,9 +471,18 @@ expr_ptr generator::do_func_apply(ast::node_ptr root)
     auto result = make_shared<func_app>();
     result->object = expr_slot(object);
     result->args = args;
-    result->location = root->location;
+    result->location = location_in_module(root->location);
 
     return result;
+}
+
+string generator::qualified_name(const string & name)
+{
+    ostringstream qname;
+    for (auto & name : m_name_stack)
+        qname << name << '.';
+    qname << name;
+    return qname.str();
 }
 
 }

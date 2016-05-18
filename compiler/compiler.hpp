@@ -2,6 +2,7 @@
 #define STREAM_LANG_COMPILER_INCLUDED
 
 #include "arg_parser.hpp"
+#include "../common/module.hpp"
 #include "../common/ph_model.hpp"
 
 #include <iostream>
@@ -26,7 +27,7 @@ enum code
 
 result::code compile(const arguments &);
 
-result::code compile_source(istream &, const arguments &);
+result::code compile_module(const module_source &, istream & text, const arguments &);
 
 result::code compile_polyhedral_model
 (const polyhedral::model &,

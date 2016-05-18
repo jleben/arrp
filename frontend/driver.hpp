@@ -18,14 +18,16 @@ class driver
     class scanner scanner;
     class parser parser;
     std::istream m_input;
+    string m_path;
 
     ast::node_ptr m_ast;
 
 public:
-    driver(std::istream & in, std::ostream & out):
+    driver(std::istream & in, std::ostream & out, const string & path):
         scanner(*this, in, out),
         parser(*this),
-        m_input(in.rdbuf())
+        m_input(in.rdbuf()),
+        m_path(path)
     {
     }
 

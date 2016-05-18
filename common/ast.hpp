@@ -62,6 +62,7 @@ enum node_type
 
     constant,
     identifier,
+    qualified_id,
     primitive,
     case_expr,
 

@@ -79,6 +79,9 @@ blank [ \t]
   *yylval = ast::make_node(ast::array_self_ref, *yylloc);
   return parser::token::THIS;
 }
+"module" { return parser::token::MODULE; }
+"import" { return parser::token::IMPORT; }
+"as" { return parser::token::AS; }
 [0-9]+\.[0-9]+ {
   *yylval = ast::make_const( *yylloc, std::stod(yytext) );
   return parser::token::REAL;
@@ -91,6 +94,9 @@ blank [ \t]
   *yylval = ast::make_id( *yylloc, yytext );
   return parser::token::ID;
 }
-
+\"[^"\n]\" {
+  *yylval = ast::make_const( *yylloc, std::string(yytext) );
+  return parser::token::STRING;
+}
 
 . { return parser::token::INVALID; }

@@ -20,9 +20,10 @@
 
 %token END 0  "end of file"
 %token INVALID "invalid token"
-%token INT REAL ID TRUE FALSE
+%token INT REAL ID TRUE FALSE STRING
 %token IF THEN CASE THIS
 %token LET
+%token MODULE IMPORT AS
 
 %left '='
 %right RIGHT_ARROW
@@ -59,18 +60,58 @@ using op_type = stream::primitive_op;
 
 
 program:
-  stmt_list optional_semicolon
+  module_decl imports statements
   {
-    $$ = $1;
-    $$->type = program;
-    $$->location = @$;
+    $$ = make_list(program, @$, { $1, $2, $3 });
     driver.m_ast = $$;
   }
-  |
+;
+
+module_decl:
   // empty
+  { $$ = nullptr; }
+  |
+  MODULE id ';'
+  { $$ = $2; }
+;
+
+imports:
+  // empty
+  { $$ = nullptr; }
+  |
+  import_list ';'
+;
+
+import_list:
+  import
   {
-    $$ = make_list(program, location_type(), {});
-    driver.m_ast = $$;
+    $$ = make_list( @$, { $1 } );
+  }
+  |
+  import_list ';' import
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
+;
+
+statements:
+  // empty
+  { $$ = nullptr; }
+  |
+  stmt_list optional_semicolon
+;
+
+import:
+  IMPORT id
+  {
+  $$ = make_list( @$, { $2, nullptr } );
+  }
+  |
+  IMPORT id AS id
+  {
+  $$ = make_list( @$, { $2, $4 } );
   }
 ;
 
@@ -158,6 +199,9 @@ let_block:
 
 expr:
   id
+  |
+  id '.' id
+  { $$ = make_list( qualified_id, @$, {$1, $3} ); }
   |
   number
   |

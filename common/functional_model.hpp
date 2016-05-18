@@ -24,6 +24,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "primitives.hpp"
 #include "func_types.hpp"
 #include "linear_algebra.hpp"
+#include "module.hpp"
 #include "../frontend/location.hh"
 #include <memory>
 #include <vector>
@@ -39,7 +40,7 @@ struct model; // to control verbose output
 using std::vector;
 using std::pair;
 using std::unordered_set;
-typedef parsing::location location_type;
+typedef code_location location_type;
 
 class var
 {

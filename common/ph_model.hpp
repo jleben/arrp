@@ -47,7 +47,7 @@ using std::vector;
 using std::string;
 using std::unordered_map;
 using affine_matrix = utility::mapping;
-typedef parsing::location location_type;
+typedef code_location location_type;
 
 class array;
 class statement;

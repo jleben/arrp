@@ -22,6 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_LANG_CPP_GEN_FROM_POLYHEDRAL_INCLUDED
 
 #include "cpp_target.hpp"
+#include "name_mapper.hpp"
 #include "../utility/cpp-gen.hpp"
 #include "../common/ph_model.hpp"
 #include "../common/functional_model.hpp"
@@ -42,7 +43,8 @@ public:
     typedef vector<expression_ptr> index_type;
 
     cpp_from_polyhedral(const polyhedral::model &,
-                        const unordered_map<string,buffer> & buffers);
+                        const unordered_map<string,buffer> & buffers,
+                        name_mapper &);
 
     void generate_statement(const string & name,
                             const index_type & index,
@@ -92,6 +94,7 @@ private:
     unordered_map<string,buffer> m_buffers;
     bool m_in_period = false;
     polyhedral::statement * m_current_stmt = nullptr;
+    name_mapper & m_name_mapper;
 };
 
 }

@@ -53,7 +53,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
 {
     auto array = m_arrays.at(id);
 
-    string stmt_name = id->name + "_" + name;
+    string stmt_name = id->name + "." + name;
 
     auto tuple = isl::set_tuple( isl::identifier(stmt_name, nullptr), 1 );
     auto space = isl::space(model.context, tuple);
@@ -92,7 +92,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
 
 ph::array_ptr polyhedral_gen::make_array(id_ptr id)
 {
-    string array_name = id->name + "_a";
+    string array_name = id->name;
 
     vector<array_var_ptr> vars;
     if (auto arr = dynamic_pointer_cast<functional::array>(id->expr.expr))
@@ -186,7 +186,7 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
 {
     // TODO: Is sub-domain statement infinite?
 
-    string stmt_name = id->name + "_s";
+    string stmt_name = id->name + ".s";
 
     if (auto arr = dynamic_pointer_cast<functional::array>(id->expr.expr))
     {
