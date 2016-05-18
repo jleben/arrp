@@ -29,10 +29,6 @@ result::code compile(const arguments &);
 
 result::code compile_module(const module_source &, istream & text, const arguments &);
 
-result::code compile_polyhedral_model
-(const polyhedral::model &,
- const arguments &);
-
 void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> &);
 
 }
