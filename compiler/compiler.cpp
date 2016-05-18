@@ -146,6 +146,7 @@ result::code compile_module
             {
                 cout << "-- Reduced functions:" << endl;
                 functional::printer printer;
+                printer.set_print_scopes(false);
                 for (const auto & id : array_ids)
                 {
                     printer.print(id, cout);
@@ -177,6 +178,7 @@ result::code compile_module
             {
                 cout << "-- Reduced arrays:" << endl;
                 functional::printer printer;
+                printer.set_print_scopes(false);
                 for (const auto & id : array_ids)
                 {
                     printer.print(id, cout);
@@ -192,6 +194,7 @@ result::code compile_module
             {
                 cout << "-- Transposed arrays:" << endl;
                 functional::printer printer;
+                printer.set_print_scopes(false);
                 for (const auto & id : array_ids)
                 {
                     printer.print(id, cout);
