@@ -57,8 +57,6 @@ isl_schedule_node * mark_loop_type_separate(const isl::context & ctx, isl_schedu
         {
             node = isl_schedule_node_band_member_set_ast_loop_type
                     (node, d, isl_ast_loop_separate);
-            auto loop_type = isl_schedule_node_band_member_get_ast_loop_type
-                    (node, d);
         }
     }
 
