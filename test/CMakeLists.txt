@@ -53,4 +53,4 @@ function(add_test name)
   add_dependencies(tests ${name})
 endfunction()
 
-add_subdirectory(performance)
+add_subdirectory(apps)
