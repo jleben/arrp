@@ -8,7 +8,7 @@
 
 using namespace std;
 
-struct fm_radio_printer : public fm_radio_s_kernel::state<fm_radio_printer>
+struct fm_radio_printer : public fm_radio::state<fm_radio_printer>
 {
     fm_radio_printer() { io = this; }
 
@@ -20,7 +20,7 @@ struct fm_radio_printer : public fm_radio_s_kernel::state<fm_radio_printer>
 
 struct fm_radio_test
 {
-    typedef fm_radio_s_kernel::state<fm_radio_test> kernel_t;
+    typedef fm_radio::state<fm_radio_test> kernel_t;
 
     kernel_t * kernel;
     volatile float dummy;
