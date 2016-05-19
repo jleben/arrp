@@ -1,0 +1,16 @@
+module array;
+
+slice(pos,len,a) = [i:len -> a[pos + i]];
+
+scan(f,a) = {
+  [i:#a -> case
+    i == 0: a[i];
+    else: f(a[i], this[i-1])
+  ]
+};
+
+fold(f,a) = {
+  let s = scan(f,a);
+  s[#a-1];
+}
+;

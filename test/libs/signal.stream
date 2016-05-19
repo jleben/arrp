@@ -1,0 +1,11 @@
+module signal;
+
+phase(freq) = {
+  let freq_sig =  freq * [t->1];
+  [t -> case t==0: 0; else: if this[t-1] >= 1 then this[t-1] - 1 else this[t-1] + freq_sig[t]];
+};
+
+sine(freq) = {
+  let ph = phase(freq);
+  sin(ph);
+};

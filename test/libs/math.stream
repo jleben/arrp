@@ -1,0 +1,6 @@
+module math;
+import array;
+
+add(x,y) = x + y;
+
+sum(a) = array.fold(add,a);
