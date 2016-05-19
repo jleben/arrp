@@ -1,5 +1,5 @@
 
 
 f(a) = { let ff = [i:10 -> a + i]; ff };
-main = [j -> f(j)[5]]
+main = [j:100 -> f(j)[5]]
 
