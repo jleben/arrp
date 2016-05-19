@@ -327,6 +327,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     }
 
     auto arr = make_shared<array>();
+    arr->type = result_arr_type;
 
     // Create vars for result array
 
@@ -368,9 +369,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     }
 
     arr->expr = reduce_primitive(op);
-
     arr->expr->type = make_shared<scalar_type>(result_arr_type->element);
-    arr->type = result_arr_type;
 
     return arr;
 }

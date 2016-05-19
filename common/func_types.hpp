@@ -21,6 +21,9 @@ public:
     virtual bool is_scalar() const { return false; }
     virtual bool is_array() const { return false; }
     virtual bool is_function() const { return false; }
+    virtual bool is_constant() const { return false; }
+    virtual bool is_affine() const { return false; }
+    virtual bool is_data() const { return false; }
 };
 typedef shared_ptr<type> type_ptr;
 
@@ -29,8 +32,17 @@ class scalar_type : public type
 public:
     scalar_type(primitive_type p): primitive(p) {}
     primitive_type primitive;
-    void print(ostream &) const override;
+
     bool is_scalar() const override { return true; }
+    bool is_constant() const override { return constant_flag; }
+    bool is_affine() const override { return affine_flag; }
+    bool is_data() const override { return data_flag; }
+
+    void print(ostream &) const override;
+
+    bool affine_flag = false;
+    bool constant_flag = false;
+    bool data_flag = true;
 };
 
 inline shared_ptr<scalar_type> make_bool_type()
@@ -50,6 +62,7 @@ public:
     array_type(const array_size_vec & s, primitive_type e): size(s), element(e) {}
     void print(ostream &) const override;
     bool is_array() const override { return true; }
+    bool is_data() const override { return true; }
     array_size_vec size;
     primitive_type element;
 };

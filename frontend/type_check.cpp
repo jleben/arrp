@@ -53,17 +53,29 @@ type_ptr type_checker::visit(const expr_ptr & expr)
 
 type_ptr type_checker::visit_int(const shared_ptr<constant<int>> &)
 {
-    return make_shared<scalar_type>(primitive_type::integer);
+    auto s = make_shared<scalar_type>(primitive_type::integer);
+    s->constant_flag = true;
+    s->affine_flag = true;
+    s->data_flag = true;
+    return s;
 }
 
 type_ptr type_checker::visit_double(const shared_ptr<constant<double>> &)
 {
-    return make_shared<scalar_type>(primitive_type::real);
+    auto s = make_shared<scalar_type>(primitive_type::real);
+    s->constant_flag = true;
+    s->affine_flag = true;
+    s->data_flag = true;
+    return s;
 }
 
 type_ptr type_checker::visit_bool(const shared_ptr<constant<bool>> &)
 {
-    return make_shared<scalar_type>(primitive_type::boolean);
+    auto s = make_shared<scalar_type>(primitive_type::boolean);
+    s->constant_flag = true;
+    s->affine_flag = false;
+    s->data_flag = true;
+    return s;
 }
 
 type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
@@ -76,7 +88,11 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
-        type = make_shared<scalar_type>(primitive_type::integer);
+        auto s = make_shared<scalar_type>(primitive_type::integer);
+        s->constant_flag = false;
+        s->affine_flag = true;
+        s->data_flag = avar->range.expr != nullptr;
+        type = s;
     }
     else
     {
@@ -90,10 +106,12 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 {
     array_size_vec common_size;
     vector<primitive_type> elem_types;
+    vector<type_ptr> operand_types;
 
     for (auto & operand : prim->operands)
     {
         auto type = visit(operand);
+        operand_types.push_back(type);
 
         if (dynamic_pointer_cast<function_type>(type))
         {
@@ -143,9 +161,49 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
     }
 
     if (common_size.empty())
-        return make_shared<scalar_type>(result_elem_type);
+    {
+        auto s = make_shared<scalar_type>(result_elem_type);
+
+        switch(prim->kind)
+        {
+        case primitive_op::add:
+        case primitive_op::subtract:
+        {
+            auto lhs = operand_types[0];
+            auto rhs = operand_types[1];
+            s->data_flag = lhs->is_data() && rhs->is_data();
+            s->constant_flag = lhs->is_constant() && rhs->is_constant();
+            s->affine_flag = lhs->is_affine() && rhs->is_affine();
+            break;
+        }
+        case primitive_op::multiply:
+        {
+            auto lhs = operand_types[0];
+            auto rhs = operand_types[1];
+            s->data_flag = lhs->is_data() && rhs->is_data();
+            s->constant_flag = lhs->is_constant() && rhs->is_constant();
+            s->affine_flag =
+                    (lhs->is_constant() && rhs->is_affine()) ||
+                    (lhs->is_affine() && rhs->is_constant());
+            break;
+        }
+        case primitive_op::divide:
+        {
+            auto lhs = operand_types[0];
+            auto rhs = operand_types[1];
+            s->data_flag = lhs->is_data() && rhs->is_data();
+            s->constant_flag = lhs->is_constant() && rhs->is_constant();
+            break;
+        }
+        default:;
+        }
+
+        return s;
+    }
     else
+    {
         return make_shared<array_type>(common_size, result_elem_type);
+    }
 }
 
 type_ptr type_checker::visit_operation(const shared_ptr<operation> & op)
@@ -172,6 +230,11 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
         auto & expr = c.second;
 
         auto type = visit(expr);
+
+        if (!type->is_data())
+        {
+            throw source_error("Expression can not be used as data.", expr.location);
+        }
 
         to_linear_set(domain);
 
@@ -213,9 +276,15 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
     }
 
     if (common_size.empty())
-        return make_shared<scalar_type>(result_elem_type);
+    {
+        auto st = make_shared<scalar_type>(result_elem_type);
+        st->data_flag = true;
+        return st;
+    }
     else
+    {
         return make_shared<array_type>(common_size, result_elem_type);
+    }
 }
 
 type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
@@ -271,10 +340,14 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 
     auto elem_type = visit(arr->expr);
 
-    if (auto func = dynamic_pointer_cast<function_type>(elem_type))
+    if (elem_type->is_function())
     {
         throw source_error("Function not allowed as array element.",
                            arr->expr.location);
+    }
+    if (!elem_type->is_data())
+    {
+        throw source_error("Expression can not be used as data.", arr->expr.location);
     }
 
     auto type = make_shared<array_type>(size, elem_type);
@@ -304,6 +377,12 @@ type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
         }
 
         auto type = visit(operand);
+
+        if (!type->is_data())
+        {
+            throw source_error("Expression can not be used as data.",
+                               operand.location);
+        }
 
         if (dynamic_pointer_cast<function_type>(type))
         {
@@ -372,6 +451,12 @@ type_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
     for (auto & operand : op->operands)
     {
         auto type = visit(operand);
+
+        if (!type->is_data())
+        {
+            throw source_error("Expression can not be used as data.",
+                               operand.location);
+        }
 
         if (dynamic_pointer_cast<function_type>(type))
         {
@@ -491,6 +576,25 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
     for (int arg_idx = 0; arg_idx < app->args.size(); ++arg_idx)
     {
         auto & arg = app->args[arg_idx];
+
+        auto arg_type = dynamic_pointer_cast<scalar_type>(visit(arg));
+
+        if (!arg_type)
+        {
+            throw source_error("Array argument is not a scalar.",
+                              arg.location);
+        }
+        if (arg_type->primitive != primitive_type::integer)
+        {
+            throw source_error("Array argument is not an integer.",
+                               arg.location);
+        }
+        if (!arg_type->is_affine())
+        {
+            throw source_error("Array argument is not an affine expression.",
+                               arg.location);
+        }
+
         auto lin_arg = to_linear_expr(arg);
         auto max_arg = maximum(lin_arg);
         int bound = object_size[arg_idx];
@@ -521,9 +625,15 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
                                object_size.end());
 
     if (remaining_size.empty())
-        return make_shared<scalar_type>(object_type->element);
+    {
+        auto st = make_shared<scalar_type>(object_type->element);
+        st->data_flag = true;
+        return st;
+    }
     else
+    {
         return make_shared<array_type>(remaining_size, object_type->element);
+    }
 }
 
 type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
@@ -561,7 +671,11 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
         throw source_error(msg.str(), as->location);
     }
 
-    return make_shared<scalar_type>(primitive_type::integer);
+    auto result = make_shared<scalar_type>(primitive_type::integer);
+    result->constant_flag = true;
+    result->affine_flag = true;
+    result->data_flag = true;
+    return result;
 }
 
 type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)

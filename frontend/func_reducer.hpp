@@ -61,6 +61,8 @@ private:
 
     stack<scope*> m_scope_stack;
 
+    bool m_in_partial_application = false;
+
     reduce_context_type m_beta_reduce_context;
 
     stack<location_type> m_trace;

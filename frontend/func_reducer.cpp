@@ -102,8 +102,6 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
     m_trace.push(loc);
 
-    expr_ptr reduced_expr;
-
     if(func->vars.size() < args.size())
         throw reduction_error
             (wrong_arg_count_msg(func->vars.size(), args.size()), loc);
@@ -116,8 +114,10 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
     {
         auto & var = func->vars[i];
         auto arg = args[i];
+        m_type_checker.process(arg);
 
-        if (var->ref_count > 1 && !dynamic_pointer_cast<reference>(arg))
+        if (var->ref_count > 1 && !dynamic_pointer_cast<reference>(arg)
+                && arg->type->is_data())
         {
             auto arg_id_name = m_name_provider.new_name(var->qualified_name);
             auto arg_id = make_shared<identifier>(arg_id_name, arg, location_type());
@@ -153,6 +153,12 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
         m_beta_reduce_context.bind(var, arg);
     }
 
+    // Remember if this is a partial application
+
+    revertable<bool> in_partial_app
+            (m_in_partial_application,
+             func->vars.size() > args.size());
+
     // Reduce
 
     if (verbose<func_reducer>::enabled())
@@ -166,7 +172,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
     reduce(func->scope);
 
-    reduced_expr = reduce(func->expr);
+    expr_ptr reduced_expr = reduce(func->expr);
 
     if (verbose<func_reducer>::enabled())
     {
@@ -192,10 +198,6 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
     }
     else
     {
-        // FIXME: Doesn't work for full applications
-        // within partial applications.
-        m_type_checker.process(reduced_expr);
-
         // Add ids to enclosing scope, if any.
 
         if (!m_scope_stack.empty())
@@ -250,6 +252,7 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
                 m_trace.push(ref->location);
 
                 id->expr = reduce(id->expr);
+
                 m_ids.insert(id);
 
                 m_trace.pop();
@@ -375,28 +378,33 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
     }
     else if (auto app = dynamic_pointer_cast<func_app>(expr))
     {
-        auto object = reduce(app->object);
+        app->object = reduce(app->object);
 
-        if (dynamic_pointer_cast<reference>(object))
+        for (auto & arg : app->args)
+        {
+            arg = reduce(arg);
+        }
+
+        if (m_in_partial_application)
         {
             if (verbose<func_reducer>::enabled())
             {
-                cout << "Aborting function application due to unresolved function"
-                     << " at: " << app->location << endl;
+                cout << app->location << ": "
+                     << "Function left unapplied within another parial application."
+                     << endl;
             }
-
-            return app;
         }
 
-        auto func = dynamic_pointer_cast<function>(object);
+        auto func = dynamic_pointer_cast<function>(app->object.expr);
         if (!func)
         {
             throw source_error("Not a function.", app->object.location);
         }
 
+        // convert vector of slots to vector of expressions
         vector<expr_ptr> reduced_args;
         for (auto & arg : app->args)
-            reduced_args.push_back(reduce(arg));
+            reduced_args.push_back(arg);
 
         auto reduced_func = apply(func, reduced_args, app->location);
         return reduced_func;
