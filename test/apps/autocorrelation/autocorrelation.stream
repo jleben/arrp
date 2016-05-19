@@ -1,0 +1,19 @@
+module autocorrelation;
+
+import array;
+import math;
+import signal;
+
+corr(a,b) = math.sum(a*b);
+
+acorr(t,w,d,a) =
+  corr(array.slice(t,w,a), array.slice(t+d,w,a));
+
+acorr_run(hop,wnd,dmax,a) =
+  [t, d:dmax -> acorr(t*hop,wnd,d,a)];
+
+in = signal.sine(1/8);
+
+win = 20;
+
+main = acorr_run(win,win,win,in);
