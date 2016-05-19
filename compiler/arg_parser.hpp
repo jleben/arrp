@@ -110,7 +110,13 @@ public:
     string input_filename;
     string output_filename;
     string meta_output_filename;
-    string cpp_output_filename;
+
+    struct {
+        bool enabled;
+        string nmspace;
+        string filename;
+    } cpp;
+
     vector<string> import_dirs;
     target_info target;
     vector<polyhedral::scheduler::reversal> sched_reverse;
@@ -186,7 +192,12 @@ private:
         }
         else if (opt == "--cpp")
         {
-            parse_argument(cpp_output_filename, "C++ interface output file");
+            cpp.enabled = true;
+            try_parse_argument(cpp.filename);
+        }
+        else if (opt == "--cpp-namespace")
+        {
+            parse_argument(cpp.nmspace, "C++ output namespace.");
         }
         else if (opt == "--verbose" || opt == "-v")
         {

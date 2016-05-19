@@ -413,8 +413,7 @@ void add_output_getter_func(cpp_gen::module &module, namespace_node & nmspc,
 void generate(const string & name,
               const polyhedral::model & model,
               const polyhedral::ast_isl & ast,
-              std::ostream & src_stream,
-              std::ostream & hdr_stream)
+              std::ostream & src_stream)
 {
     unordered_map<string,buffer> buffers = buffer_analysis(model);
 

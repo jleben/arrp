@@ -257,33 +257,39 @@ result::code compile_module
 
             // Generate C++ output
 
-            if (!args.cpp_output_filename.empty())
+            if (args.cpp.enabled)
             {
+                string file_base = args.cpp.filename;
+                if (file_base.empty())
+                    file_base = main_module->name;
+
+                string cpp_filename = file_base + ".cpp";
+                ofstream cpp_file(cpp_filename);
+                if (!cpp_file.is_open())
                 {
-                    string cpp_filename = args.cpp_output_filename + ".cpp";
-                    ofstream cpp_file(cpp_filename);
-                    if (!cpp_file.is_open())
-                    {
-                        cerr << "Could not open C++ output file: "
-                             << cpp_filename << endl;
-                        return result::io_error;
-                    }
-
-                    string hpp_filename = args.cpp_output_filename + ".h";
-                    ofstream hpp_file(hpp_filename);
-                    if (!hpp_file.is_open())
-                    {
-                        cerr << "Could not open C++ header output file: "
-                             << hpp_filename << endl;
-                        return result::io_error;
-                    }
-
-                    cpp_gen::generate(args.cpp_output_filename,
-                                      ph_model,
-                                      ast,
-                                      cpp_file,
-                                      hpp_file);
+                    cerr << "Could not open C++ output file: "
+                         << cpp_filename << endl;
+                    return result::io_error;
                 }
+
+                string nmspace = args.cpp.nmspace;
+                if (nmspace.empty())
+                    nmspace = main_module->name;
+#if 0
+                string hpp_filename = file_base + ".h";
+                ofstream hpp_file(hpp_filename);
+                if (!hpp_file.is_open())
+                {
+                    cerr << "Could not open C++ header output file: "
+                         << hpp_filename << endl;
+                    return result::io_error;
+                }
+#endif
+
+                cpp_gen::generate(nmspace,
+                                  ph_model,
+                                  ast,
+                                  cpp_file);
             }
         }
     }

@@ -45,8 +45,7 @@ struct renaming {}; // For verbose output
 void generate(const string & name,
               const polyhedral::model & model,
               const polyhedral::ast_isl & ast,
-              ostream & cpp_file,
-              ostream & hpp_file);
+              ostream & cpp_file);
 
 }
 }
