@@ -1,0 +1,10 @@
+
+import importee1;
+import importee2 as i2;
+import test;
+
+a = 111;
+
+main = a + importee1.a / i2.a + i2.b + test.a;
+
+

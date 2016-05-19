@@ -1,0 +1,4 @@
+
+f(a) = { let b = sin(2); cos(a) * sin(a) + b; };
+x = { let b = log(123); b * 5; };
+main = f(5) + x;

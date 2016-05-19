@@ -1,0 +1,4 @@
+module imported_error;
+import syntax_error;
+
+main = 1;

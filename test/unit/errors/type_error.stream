@@ -1,0 +1,3 @@
+module type_error;
+
+main = 2[3];

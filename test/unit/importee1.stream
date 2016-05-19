@@ -1,0 +1,3 @@
+module importee1;
+
+a = 1;

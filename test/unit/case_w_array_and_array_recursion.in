@@ -1,5 +1,3 @@
 
-## BROKEN
-
 a = [x:5 -> x];
 main = [k:10 -> case k==0: a; else: a * this[k-1]];
