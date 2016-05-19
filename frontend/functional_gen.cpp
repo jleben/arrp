@@ -40,6 +40,11 @@ vector<id_ptr> generator::generate(const vector<module*> modules)
 
     for (auto mod : modules)
     {
+        revertable<module*> current_module(m_current_module, mod);
+        stacker<string,name_stack_t> name_stacker(m_name_stack);
+        if (mod != modules.back())
+            name_stacker.push(mod->name);
+
         vector<id_ptr> mod_ids = generate(mod);
 
         for (auto id : mod_ids)
@@ -59,9 +64,6 @@ generator::generate(module * mod)
         cout << "## Generating functional model for module "
              << mod->name << " ##" << endl;
     }
-
-    revertable<module*> current_module(m_current_module, mod);
-    stacker<string,name_stack_t> name_stacker(mod->name, m_name_stack);
 
     auto ast = mod->ast;
 

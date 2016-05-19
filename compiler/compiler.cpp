@@ -123,7 +123,7 @@ result::code compile_module
 
         // FIXME: choice of function to compile
         auto criteria = [&main_module](functional::id_ptr id) -> bool {
-            return id->name == main_module->name + ".main";
+            return id->name == "main";
         };
         auto id_it = std::find_if(ids.begin(), ids.end(), criteria);
         if (id_it == ids.end())
