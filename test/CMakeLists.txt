@@ -5,7 +5,7 @@ function(stream_to_cpp name source)
 
   add_custom_command(OUTPUT ${name}.cpp
     COMMAND $<TARGET_FILE:streamc>
-      ${source_path} --cpp ${name} ${options}
+      ${source_path} --cpp ${name} -i "${CMAKE_SOURCE_DIR}/test/libs" ${options}
     DEPENDS ${source_path} streamc
     VERBATIM
   )
