@@ -4,7 +4,7 @@
 #include <iostream>
 #include <iomanip>
 
-#define PRINT 0
+#define PRINT 1
 
 using namespace std;
 
@@ -16,6 +16,10 @@ struct fm_radio_printer : public fm_radio::state<fm_radio_printer>
     {
         cout << std::showpoint << std::setprecision(15) << (double) *data << endl;
     }
+    void output(double * data)
+    {
+        cout << std::showpoint << std::setprecision(15) << (double) *data << endl;
+    }
 };
 
 struct fm_radio_test
@@ -23,7 +27,8 @@ struct fm_radio_test
     typedef fm_radio::state<fm_radio_test> kernel_t;
 
     kernel_t * kernel;
-    volatile float dummy;
+    volatile float dummy_f;
+    volatile double dummy_d;
 
     void initialize()
     {
@@ -40,7 +45,11 @@ struct fm_radio_test
     }
     void output(float * data)
     {
-        dummy = *data;
+        dummy_f = *data;
+    }
+    void output(double * data)
+    {
+        dummy_d = *data;
     }
 };
 

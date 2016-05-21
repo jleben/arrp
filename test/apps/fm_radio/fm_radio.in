@@ -30,20 +30,20 @@ bandwidth = 10000.0;
 
 fm_demodulate(sr, max, bandwidth, x) =
 {
-  let gain = max*sr/(bandwidth*pi);
-  [t -> atan(x[t] * x[t+1]) * gain]
+  let gain = real32(max*sr/(bandwidth*pi));
+  [t -> real32(atan(x[t] * x[t+1]) * gain)]
 };
 
 lp_filter(rate, cutoff, taps, decimation, x) =
 {
 
-  let m = taps - 1.0;
-  let w = 2 * pi * cutoff / rate;
-  let coefs = [k:taps ->
+  let m = real32(taps - 1.0);
+  let w = real32(2 * pi * cutoff / rate);
+  let coefs = real32([k:taps ->
       if k - m/2 == 0
       then w / pi
       else sin(w*(k-m/2)) / pi / (k-m/2) * (0.54 - 0.46 * cos(2*pi*k/m))
-  ];
+  ]);
   [t -> sum(slice(t*(1+decimation), taps, x) * coefs)]
 };
 
@@ -70,15 +70,15 @@ lowest_freq = 55;
 highest_freq = 1760;
 
 eq_freqs = [i:n_bands+1 ->
-  exp(i*(log(highest_freq)-log(lowest_freq))/(n_bands-1) + log(lowest_freq))
+  real32(exp(i*(log(highest_freq)-log(lowest_freq))/(n_bands-1) + log(lowest_freq)))
 ];
 
 eq_amps = {
   let half_bands = (n_bands-1)/2;
   [i:n_bands ->
     if i > half_bands
-    then 2 - (i - half_bands) / 5
-    else 2 + (i - half_bands) / 5
+    then real32(2 - (i - half_bands) / 5)
+    else real32(2 + (i - half_bands) / 5)
   ]
 };
 
