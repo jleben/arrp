@@ -16,9 +16,81 @@ enum class primitive_type
     undefined,
     boolean,
     integer,
-    real,
-    complex,
+    real32,
+    real64,
+    complex32,
+    complex64,
 };
+
+inline vector<primitive_type> all_real_types()
+{
+    return { primitive_type::real32, primitive_type::real64 };
+}
+
+inline vector<primitive_type> all_complex_types()
+{
+    return { primitive_type::complex32, primitive_type::complex64 };
+}
+
+inline vector<primitive_type> all_primitive_types()
+{
+    using pt = primitive_type;
+    auto types = {
+        pt::boolean,
+        pt::integer,
+        pt::real32,
+        pt::real64,
+        pt::complex32,
+        pt::complex64
+    };
+    return types;
+}
+
+inline vector<primitive_type> all_simple_numeric_types()
+{
+    using pt = primitive_type;
+    auto types = {
+        pt::integer,
+        pt::real32,
+        pt::real64
+    };
+    return types;
+}
+
+inline vector<primitive_type> all_numeric_types()
+{
+    using pt = primitive_type;
+    auto types = {
+        pt::integer,
+        pt::real32,
+        pt::real64,
+        pt::complex32,
+        pt::complex64
+    };
+    return types;
+}
+
+template<primitive_type> bool is_real() { return false; }
+template<> inline bool is_real<primitive_type::real32>() { return true; }
+template<> inline bool is_real<primitive_type::real64>() { return true; }
+
+template<primitive_type> bool is_integer() { return false; }
+template<> inline bool is_integer<primitive_type::integer>() { return true; }
+
+template<primitive_type> bool is_complex() { return false; }
+template<> inline bool is_complex<primitive_type::complex32>() { return true; }
+template<> inline bool is_complex<primitive_type::complex64>() { return true; }
+
+inline bool is_complex(primitive_type t)
+{
+    switch(t) {
+    case primitive_type::complex32:
+    case primitive_type::complex64:
+        return true;
+    default:
+        return false;
+    }
+}
 
 enum class primitive_op
 {
@@ -50,6 +122,11 @@ enum class primitive_op
 
     real,
     imag,
+
+    to_real32,
+    to_real64,
+    to_complex32,
+    to_complex64,
 
     compare_eq,
     compare_neq,
@@ -102,10 +179,14 @@ inline ostream & operator<<(ostream & s, primitive_type t)
         s << "boolean"; break;
     case primitive_type::integer:
         s << "integer"; break;
-    case primitive_type::real:
-        s << "real"; break;
-    case primitive_type::complex:
-        s << "complex"; break;
+    case primitive_type::real32:
+        s << "real32"; break;
+    case primitive_type::real64:
+        s << "real64"; break;
+    case primitive_type::complex32:
+        s << "complex32"; break;
+    case primitive_type::complex64:
+        s << "complex64"; break;
     default:
         s << "?";
     }

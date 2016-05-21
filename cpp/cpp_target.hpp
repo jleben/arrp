@@ -52,10 +52,14 @@ inline basic_type_ptr type_for(primitive_type pt)
         return std::make_shared<basic_type>("bool");
     case primitive_type::integer:
         return std::make_shared<basic_type>("int");
-    case primitive_type::real:
+    case primitive_type::real32:
         return std::make_shared<basic_type>("float");
-    case primitive_type::complex:
+    case primitive_type::real64:
+        return std::make_shared<basic_type>("double");
+    case primitive_type::complex32:
         return std::make_shared<basic_type>("complex<float>");
+    case primitive_type::complex64:
+        return std::make_shared<basic_type>("complex<double>");
     default:
         throw error("Unexpected primitive type.");
     }
@@ -69,10 +73,14 @@ inline int size_for(primitive_type pt)
         return sizeof(bool);
     case primitive_type::integer:
         return sizeof(int);
-    case primitive_type::real:
+    case primitive_type::real32:
         return sizeof(float);
-    case primitive_type::complex:
+    case primitive_type::real64:
+        return sizeof(double);
+    case primitive_type::complex32:
         return sizeof(std::complex<float>);
+    case primitive_type::complex64:
+        return sizeof(std::complex<double>);
     default:
         throw error("Unexpected primitive type.");
     }

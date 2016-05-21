@@ -13,7 +13,7 @@ unordered_map<string, primitive_op> generator::m_prim_ops =
     { "exp", primitive_op::exp },
     { "exp2", primitive_op::exp2 },
     { "log", primitive_op::log },
-    {  "log2", primitive_op::log2 },
+    { "log2", primitive_op::log2 },
     { "log10", primitive_op::log10 },
     { "sqrt", primitive_op::sqrt },
     { "sin", primitive_op::sin },
@@ -28,6 +28,10 @@ unordered_map<string, primitive_op> generator::m_prim_ops =
     { "min", primitive_op::min },
     { "real", primitive_op::real },
     { "imag", primitive_op::imag },
+    { "real32", primitive_op::to_real32 },
+    { "real64", primitive_op::to_real64 },
+    { "complex32", primitive_op::to_complex32 },
+    { "complex64", primitive_op::to_complex64 },
 };
 
 source_error generator::module_error(const string & what, const parsing::location & loc)
@@ -193,11 +197,11 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     case ast::constant:
     {
         if (auto b = dynamic_pointer_cast<ast::leaf_node<bool>>(root))
-            return make_shared<constant<bool>>(b->value, location_in_module(root->location));
+            return make_shared<bool_const>(b->value, location_in_module(root->location));
         else if(auto i = dynamic_pointer_cast<ast::leaf_node<int>>(root))
-            return make_shared<constant<int>>(i->value, location_in_module(root->location));
+            return make_shared<int_const>(i->value, location_in_module(root->location));
         else if(auto d = dynamic_pointer_cast<ast::leaf_node<double>>(root))
-            return make_shared<constant<double>>(d->value, location_in_module(root->location));
+            return make_shared<real_const>(d->value, location_in_module(root->location));
         else if (auto c = dynamic_pointer_cast<ast::leaf_node<complex<double>>>(root))
             return make_shared<complex_const>(c->value, location_in_module(root->location));
         else

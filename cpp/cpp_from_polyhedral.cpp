@@ -29,6 +29,48 @@ static primitive_type prim_type(const functional::expr_ptr & expr)
     return prim_type(expr.get());
 }
 
+static expression_ptr to_complex64(expression_ptr e, primitive_type t)
+{
+    if (t == primitive_type::complex64)
+        return e;
+
+    auto f = make_id("complex<double>");
+
+    if (t == primitive_type::complex32)
+        return call(f, {e});
+    else
+        return call(f, {e, literal((double)0)});
+}
+
+static expression_ptr to_complex32(expression_ptr e, primitive_type t)
+{
+    if (t == primitive_type::complex32)
+        return e;
+
+    auto f = make_id("complex<float>");
+
+    if (t == primitive_type::complex64)
+        return call(f, {e});
+    else
+        return call(f, {e, literal((double)0)});
+}
+
+static expression_ptr to_real64(expression_ptr e, primitive_type t)
+{
+    if (t == primitive_type::real64)
+        return e;
+    else
+        return cast(double_type(), e);
+}
+
+static expression_ptr to_real32(expression_ptr e, primitive_type t)
+{
+    if (t == primitive_type::real32)
+        return e;
+    else
+        return cast(float_type(), e);
+}
+
 void cpp_from_polyhedral::generate_statement
 (const string & name, const index_type & index, builder* ctx)
 {
@@ -85,25 +127,29 @@ expression_ptr cpp_from_polyhedral::generate_expression
         auto target_index = mapped_index(index, read->relation.matrix, ctx);
         result = generate_buffer_access(read->relation.array, target_index, ctx);
     }
-    else if ( auto const_int = dynamic_cast<functional::constant<int>*>(expr.get()) )
+    else if ( auto const_int = dynamic_cast<functional::int_const*>(expr.get()) )
     {
         result = literal(const_int->value);
     }
     else if ( auto const_double = dynamic_cast<functional::constant<double>*>(expr.get()) )
     {
         auto v = const_double->value;
-        //result = literal((float)v);
-        result = literal(v);
+        if (expr->type->scalar()->primitive == primitive_type::real32)
+            result = literal((float)v);
+        else
+            result = literal(v);
     }
-    else if ( auto const_bool = dynamic_cast<functional::constant<bool>*>(expr.get()) )
+    else if ( auto const_bool = dynamic_cast<functional::bool_const*>(expr.get()) )
     {
         result = literal(const_bool->value);
     }
     else if ( auto const_complex = dynamic_cast<functional::complex_const*>(expr.get()) )
     {
         auto v = const_complex->value;
-        result = literal(complex<float>((float)v.real(),(float)v.imag()));
-        //result = literal(v);
+        if (expr->type->scalar()->primitive == primitive_type::complex32)
+            result = literal(complex<float>((float)v.real(),(float)v.imag()));
+        else
+            result = literal(v);
     }
     else if (auto call = dynamic_cast<polyhedral::external_call*>(expr.get()))
     {
@@ -199,25 +245,38 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     case primitive_op::multiply:
     case primitive_op::divide:
     {
-        if ( prim_type(expr->operands[0]) == primitive_type::complex &&
-             prim_type(expr->operands[1]) != primitive_type::complex )
+        using t = primitive_type;
+
+        auto & lhs = operands[0];
+        auto & rhs = operands[1];
+        auto lhs_t = expr->operands[0]->type->scalar()->primitive;
+        auto rhs_t = expr->operands[1]->type->scalar()->primitive;
+        auto r_t = expr->type->scalar()->primitive;
+
+        if ( r_t == t::complex64 )
         {
-            operands[1] = make_shared<cast_expression>
-                    (make_shared<basic_type>("float"), operands[1]);
+            if (is_complex(lhs_t))
+                lhs = to_complex64(lhs, lhs_t);
+            else
+                lhs = to_real64(lhs, lhs_t);
+
+            if (is_complex(rhs_t))
+                rhs = to_complex64(rhs, rhs_t);
+            else
+                rhs = to_real64(rhs, rhs_t);
         }
-        else if ( prim_type(expr->operands[0]) != primitive_type::complex &&
-                  prim_type(expr->operands[1]) == primitive_type::complex )
+        else if ( r_t == t::complex32 )
         {
-            operands[0] = make_shared<cast_expression>
-                    (make_shared<basic_type>("float"), operands[0]);
+            if (!is_complex(lhs_t))
+                lhs = to_real32(lhs, lhs_t);
+            if (!is_complex(rhs_t))
+                rhs = to_real32(rhs, rhs_t);
         }
         else if (expr->kind == primitive_op::divide)
         {
-            if ( prim_type(expr->operands[0]) == primitive_type::integer &&
-                 prim_type(expr->operands[1]) == primitive_type::integer )
+            if ( lhs_t == t::integer && rhs_t == t::integer )
             {
-                operands[0] = make_shared<cast_expression>
-                        (type_for(primitive_type::real), operands[0]);
+                lhs = cast(double_type(), lhs);
             }
         }
 
@@ -257,7 +316,7 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         }
         else
         {
-            return make_shared<cast_expression>(type_for(primitive_type::integer), result);
+            return cast(int_type(), result);
         }
     }
     case primitive_op::modulo:
@@ -351,6 +410,52 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         auto method_id = make_shared<id_expression>("imag");
         auto method = binop(op::member_of_reference, operands[0], method_id);
         return call(method, {});
+    }
+    case primitive_op::to_real32:
+    {
+        if (expr->operands[0]->type->scalar()->primitive != primitive_type::real32)
+            return cast(float_type(), operands[0]);
+        else
+            return operands[0];
+    }
+    case primitive_op::to_real64:
+    {
+        if (expr->operands[0]->type->scalar()->primitive != primitive_type::real64)
+            return cast(double_type(), operands[0]);
+        else
+            return operands[0];
+    }
+    case primitive_op::to_complex32:
+    {
+        auto t = expr->operands[0]->type->scalar()->primitive;
+        if (t != primitive_type::complex32)
+        {
+            auto f = make_shared<id_expression>("complex<float>");
+            if (t == primitive_type::complex64)
+                return call(f, {operands[0]});
+            else
+                return call(f, {operands[0], literal((float)0)});
+        }
+        else
+        {
+            return operands[0];
+        }
+    }
+    case primitive_op::to_complex64:
+    {
+        auto t = expr->operands[0]->type->scalar()->primitive;
+        if (t != primitive_type::complex64)
+        {
+            auto f = make_shared<id_expression>("complex<double>");
+            if (t == primitive_type::complex32)
+                return call(f, {operands[0]});
+            else
+                return call(f, {operands[0], literal((double)0)});
+        }
+        else
+        {
+            return operands[0];
+        }
     }
     default:
         ostringstream text;

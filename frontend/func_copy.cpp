@@ -13,14 +13,14 @@ copier::copier(unordered_set<id_ptr> & ids, name_provider & nmp):
 
 }
 
-expr_ptr copier::visit_int(const shared_ptr<constant<int>> & i)
+expr_ptr copier::visit_int(const shared_ptr<int_const> & i)
 {
-    return make_shared<constant<int>>(*i);
+    return make_shared<int_const>(*i);
 }
 
-expr_ptr copier::visit_double(const shared_ptr<constant<double>> & d)
+expr_ptr copier::visit_real(const shared_ptr<real_const> & d)
 {
-    return make_shared<constant<double>>(*d);
+    return make_shared<real_const>(*d);
 }
 
 expr_ptr copier::visit_complex(const shared_ptr<complex_const> & d)
@@ -28,9 +28,9 @@ expr_ptr copier::visit_complex(const shared_ptr<complex_const> & d)
     return make_shared<complex_const>(*d);
 }
 
-expr_ptr copier::visit_bool(const shared_ptr<constant<bool>> & b)
+expr_ptr copier::visit_bool(const shared_ptr<bool_const> & b)
 {
-    return make_shared<constant<bool>>(*b);
+    return make_shared<bool_const>(*b);
 }
 
 expr_ptr copier::visit_ref(const shared_ptr<reference> & ref)

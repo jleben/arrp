@@ -845,6 +845,28 @@ inline base_type_ptr pointer(base_type_ptr t)
     return std::make_shared<pointer_type>(t);
 }
 
+inline basic_type_ptr float_type()
+{
+    return std::make_shared<basic_type>("float");
+}
+inline basic_type_ptr double_type()
+{
+    return std::make_shared<basic_type>("double");
+}
+inline basic_type_ptr int_type()
+{
+    return std::make_shared<basic_type>("int");
+}
+inline basic_type_ptr bool_type()
+{
+    return std::make_shared<basic_type>("bool");
+}
+
+inline expression_ptr cast(type_ptr t, expression_ptr e)
+{
+    return std::make_shared<cast_expression>(t, e);
+}
+
 inline type_ptr reference(base_type_ptr t)
 {
     return std::make_shared<reference_type_node>(t);

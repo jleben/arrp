@@ -19,6 +19,18 @@ public:
         cout << *data << endl;
     }
 
+    void output(complex<double> * data)
+    {
+        cout << norm(*data) / N << endl;
+#if 0
+        for (int i = 0; i < N; ++i)
+        {
+            cout << norm(data[i]) / N << endl;
+            //cout << data[i].real() << "\t" << data[i].imag() << endl;
+        }
+#endif
+    }
+
     void output(complex<float> * data)
     {
         cout << norm(*data) / N << endl;

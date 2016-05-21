@@ -13,6 +13,8 @@ using std::shared_ptr;
 
 typedef vector<int> array_size_vec;
 
+class scalar_type;
+
 class type
 {
 public:
@@ -24,6 +26,7 @@ public:
     virtual bool is_constant() const { return false; }
     virtual bool is_affine() const { return false; }
     virtual bool is_data() const { return false; }
+    scalar_type * scalar();
 };
 typedef shared_ptr<type> type_ptr;
 
@@ -45,17 +48,15 @@ public:
     bool data_flag = true;
 };
 
-inline shared_ptr<scalar_type> make_bool_type()
-{ return std::make_shared<scalar_type>(primitive_type::boolean); }
+inline scalar_type * type::scalar()
+{
+    if (!is_scalar())
+        return nullptr;
+    return static_cast<scalar_type*>(this);
+}
 
 inline shared_ptr<scalar_type> make_int_type()
 { return std::make_shared<scalar_type>(primitive_type::integer); }
-
-inline shared_ptr<scalar_type> make_real_type()
-{ return std::make_shared<scalar_type>(primitive_type::real); }
-
-inline shared_ptr<scalar_type> make_complex_type()
-{ return std::make_shared<scalar_type>(primitive_type::complex); }
 
 class array_type : public type
 {

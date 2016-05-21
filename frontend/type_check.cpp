@@ -51,7 +51,7 @@ type_ptr type_checker::visit(const expr_ptr & expr)
     return expr->type;
 }
 
-type_ptr type_checker::visit_int(const shared_ptr<constant<int>> &)
+type_ptr type_checker::visit_int(const shared_ptr<int_const> &)
 {
     auto s = make_shared<scalar_type>(primitive_type::integer);
     s->constant_flag = true;
@@ -60,9 +60,9 @@ type_ptr type_checker::visit_int(const shared_ptr<constant<int>> &)
     return s;
 }
 
-type_ptr type_checker::visit_double(const shared_ptr<constant<double>> &)
+type_ptr type_checker::visit_real(const shared_ptr<real_const> &)
 {
-    auto s = make_shared<scalar_type>(primitive_type::real);
+    auto s = make_shared<scalar_type>(primitive_type::real64);
     s->constant_flag = true;
     s->affine_flag = true;
     s->data_flag = true;
@@ -71,14 +71,14 @@ type_ptr type_checker::visit_double(const shared_ptr<constant<double>> &)
 
 type_ptr type_checker::visit_complex(const shared_ptr<complex_const> &)
 {
-    auto s = make_shared<scalar_type>(primitive_type::complex);
+    auto s = make_shared<scalar_type>(primitive_type::complex64);
     s->constant_flag = true;
     s->affine_flag = false;
     s->data_flag = true;
     return s;
 }
 
-type_ptr type_checker::visit_bool(const shared_ptr<constant<bool>> &)
+type_ptr type_checker::visit_bool(const shared_ptr<bool_const> &)
 {
     auto s = make_shared<scalar_type>(primitive_type::boolean);
     s->constant_flag = true;

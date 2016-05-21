@@ -19,19 +19,19 @@ public:
     {
         using namespace std;
 
-        if (auto const_int = dynamic_pointer_cast<constant<int>>(expr))
+        if (auto const_int = dynamic_pointer_cast<int_const>(expr))
         {
             return visit_int(const_int);
         }
-        else if (auto const_double = dynamic_pointer_cast<constant<double>>(expr))
+        else if (auto r = dynamic_pointer_cast<real_const>(expr))
         {
-            return visit_double(const_double);
+            return visit_real(r);
         }
         else if (auto const_complex = dynamic_pointer_cast<complex_const>(expr))
         {
             return visit_complex(const_complex);
         }
-        else if (auto const_bool = dynamic_pointer_cast<constant<bool>>(expr))
+        else if (auto const_bool = dynamic_pointer_cast<bool_const>(expr))
         {
             return visit_bool(const_bool);
         }
@@ -85,10 +85,10 @@ public:
         }
     }
 
-    virtual R visit_int(const shared_ptr<constant<int>> &) = 0;
-    virtual R visit_double(const shared_ptr<constant<double>> &) = 0;
+    virtual R visit_int(const shared_ptr<int_const> &) = 0;
+    virtual R visit_real(const shared_ptr<real_const> &) = 0;
     virtual R visit_complex(const shared_ptr<complex_const> &) = 0;
-    virtual R visit_bool(const shared_ptr<constant<bool>> &) = 0;
+    virtual R visit_bool(const shared_ptr<bool_const> &) = 0;
     virtual R visit_ref(const shared_ptr<reference> &) = 0;
     virtual R visit_array_self_ref(const shared_ptr<array_self_ref> &) = 0;
     virtual R visit_primitive(const shared_ptr<primitive> & prim) = 0;
@@ -110,19 +110,19 @@ public:
     {
         using namespace std;
 
-        if (auto const_int = dynamic_pointer_cast<constant<int>>(expr))
+        if (auto const_int = dynamic_pointer_cast<int_const>(expr))
         {
             visit_int(const_int);
         }
-        else if (auto const_double = dynamic_pointer_cast<constant<double>>(expr))
+        else if (auto r = dynamic_pointer_cast<real_const>(expr))
         {
-            visit_double(const_double);
+            visit_real(r);
         }
-        else if (auto const_double = dynamic_pointer_cast<complex_const>(expr))
+        else if (auto r = dynamic_pointer_cast<complex_const>(expr))
         {
-            visit_complex(const_double);
+            visit_complex(r);
         }
-        else if (auto const_bool = dynamic_pointer_cast<constant<bool>>(expr))
+        else if (auto const_bool = dynamic_pointer_cast<bool_const>(expr))
         {
             visit_bool(const_bool);
         }
@@ -176,13 +176,13 @@ public:
         }
     }
 
-    virtual void visit_int(const shared_ptr<constant<int>> &)
+    virtual void visit_int(const shared_ptr<int_const> &)
     {}
-    virtual void visit_double(const shared_ptr<constant<double>> &)
+    virtual void visit_real(const shared_ptr<real_const> &)
     {}
     virtual void visit_complex(const shared_ptr<complex_const> &)
     {}
-    virtual void visit_bool(const shared_ptr<constant<bool>> &)
+    virtual void visit_bool(const shared_ptr<bool_const> &)
     {}
     virtual void visit_ref(const shared_ptr<reference> &)
     {}
@@ -253,11 +253,11 @@ public:
 class rewriter_base : public visitor<expr_ptr>
 {
 public:
-    virtual expr_ptr visit_int(const shared_ptr<constant<int>> & e) override
+    virtual expr_ptr visit_int(const shared_ptr<int_const> & e) override
     {
         return e;
     }
-    virtual expr_ptr visit_double(const shared_ptr<constant<double>> & e) override
+    virtual expr_ptr visit_real(const shared_ptr<real_const> & e) override
     {
         return e;
     }
@@ -265,7 +265,7 @@ public:
     {
         return e;
     }
-    virtual expr_ptr visit_bool(const shared_ptr<constant<bool>> & e) override
+    virtual expr_ptr visit_bool(const shared_ptr<bool_const> & e) override
     {
         return e;
     }

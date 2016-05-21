@@ -31,15 +31,15 @@ void printer::print(id_ptr id, ostream & out)
 
 void printer::print(expr_ptr expr, ostream & out)
 {
-    if (auto const_int = dynamic_pointer_cast<const constant<int>>(expr))
+    if (auto const_int = dynamic_pointer_cast<int_const>(expr))
     {
         out << const_int->value;
     }
-    else if (auto const_double = dynamic_pointer_cast<const constant<double>>(expr))
+    else if (auto const_double = dynamic_pointer_cast<real_const>(expr))
     {
         out << const_double->value;
     }
-    else if (auto const_bool = dynamic_pointer_cast<const constant<bool>>(expr))
+    else if (auto const_bool = dynamic_pointer_cast<bool_const>(expr))
     {
         out << (const_bool->value ? "true" : "false");
     }

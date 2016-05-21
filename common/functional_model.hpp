@@ -120,7 +120,6 @@ public:
     vector<id_ptr> ids;
 };
 
-
 template <typename T>
 class constant : public expression
 {
@@ -131,6 +130,9 @@ public:
     T value;
 };
 
+typedef constant<bool> bool_const;
+typedef constant<int> int_const;
+typedef constant<double> real_const;
 typedef constant<std::complex<double>> complex_const;
 
 class primitive : public expression

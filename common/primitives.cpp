@@ -1,6 +1,8 @@
 #include "primitives.hpp"
+#include "../common/error.hpp"
 
 #include <numeric>
+#include <sstream>
 
 using namespace std;
 
@@ -62,6 +64,14 @@ string name_of_primitive( primitive_op op )
         return "real";
     case primitive_op::imag:
         return "imag";
+    case primitive_op::to_real32:
+        return "real32";
+    case primitive_op::to_real64:
+        return "real64";
+    case primitive_op::to_complex32:
+        return "complex32";
+    case primitive_op::to_complex64:
+        return "complex64";
     case primitive_op::compare_eq:
         return "==";
     case primitive_op::compare_neq:
@@ -89,13 +99,17 @@ vector<prim_op_overload> overloads(primitive_op op)
 {
     using pt = primitive_type;
 
+    vector<prim_op_overload> overloads;
+
     switch(op)
     {
     case primitive_op::negate:
         return {
             { pt::integer, pt::integer },
-            { pt::real, pt::real },
-            { pt::complex, pt::complex },
+            { pt::real32, pt::real32 },
+            { pt::real64, pt::real64 },
+            { pt::complex32, pt::complex32 },
+            { pt::complex64, pt::complex64 },
             { pt::boolean, pt::boolean }
         };
     case primitive_op::add:
@@ -103,23 +117,29 @@ vector<prim_op_overload> overloads(primitive_op op)
     case primitive_op::multiply:
         return {
             { pt::integer, pt::integer, pt::integer },
-            { pt::real, pt::real, pt::real },
-            { pt::complex, pt::complex, pt::complex }
+            { pt::real32, pt::real32, pt::real32 },
+            { pt::real64, pt::real64, pt::real64 },
+            { pt::complex32, pt::complex32, pt::complex32 },
+            { pt::complex64, pt::complex64, pt::complex64 }
         };
     case primitive_op::divide:
         return {
-            { pt::real, pt::real, pt::real },
-            { pt::complex, pt::complex, pt::complex }
+            { pt::real32, pt::real32, pt::real32 },
+            { pt::real64, pt::real64, pt::real64 },
+            { pt::complex32, pt::complex32, pt::complex32 },
+            { pt::complex64, pt::complex64, pt::complex64 }
         };
     case primitive_op::divide_integer:
         return {
             { pt::integer, pt::integer, pt::integer },
-            { pt::real, pt::real, pt::integer }
+            { pt::real32, pt::real32, pt::integer },
+            { pt::real64, pt::real64, pt::integer }
         };
     case primitive_op::raise:
         return {
             { pt::integer, pt::integer, pt::integer },
-            { pt::real, pt::real, pt::real },
+            { pt::real32, pt::real32, pt::real32 },
+            { pt::real64, pt::real64, pt::real64 },
         };
     case primitive_op::exp:
     case primitive_op::log:
@@ -132,48 +152,95 @@ vector<prim_op_overload> overloads(primitive_op op)
     case primitive_op::atan:
     case primitive_op::sqrt:
         return {
-            { pt::real, pt::real },
-            { pt::complex, pt::complex }
+            { pt::real32, pt::real32 },
+            { pt::real64, pt::real64 },
+            { pt::complex32, pt::complex32 },
+            { pt::complex64, pt::complex64 }
         };
     case primitive_op::log2:
-        return { { pt::real, pt::real } };
+        return {
+            { pt::real32, pt::real32 },
+            { pt::real64, pt::real64 }
+        };
     case primitive_op::exp2:
-        return { {pt::integer, pt::integer }, { pt::real, pt::real } };
+        return {
+            { pt::integer, pt::integer },
+            { pt::real32, pt::real32 },
+            { pt::real64, pt::real64 },
+        };
     case primitive_op::ceil:
     case primitive_op::floor:
-        return { {pt::integer, pt::integer }, { pt::real, pt::integer } };
+        return {
+            { pt::integer, pt::integer },
+            { pt::real32, pt::integer },
+            { pt::real64, pt::integer }
+        };
     case primitive_op::abs:
-        return { {pt::integer, pt::integer }, { pt::real, pt::real } };
+        return {
+            { pt::integer, pt::integer },
+            { pt::real32, pt::real32 },
+            { pt::real64, pt::real64 }
+        };
     case primitive_op::min:
     case primitive_op::max:
-        return { { pt::integer, pt::integer, pt::integer }, { pt::real, pt::real, pt::real } };
+        return {
+            { pt::integer, pt::integer, pt::integer },
+            { pt::real32, pt::real32, pt::real32 },
+            { pt::real64, pt::real64, pt::real64 }
+        };
     case primitive_op::real:
     case primitive_op::imag:
-        return { { pt::complex, pt::complex, pt::real } };
+        return {
+            { pt::complex32, pt::complex32, pt::real32 },
+            { pt::complex64, pt::complex64, pt::real64 },
+        };
+    case primitive_op::to_real32:
+        for (auto t : all_simple_numeric_types())
+            overloads.push_back({ t, pt::real32 });
+        break;
+    case primitive_op::to_real64:
+        for (auto t : all_simple_numeric_types())
+            overloads.push_back({ t, pt::real64 });
+        break;
+    case primitive_op::to_complex32:
+        for (auto t : all_numeric_types())
+            overloads.push_back({ t, pt::complex32 });
+        break;
+    case primitive_op::to_complex64:
+        for (auto t : all_numeric_types())
+            overloads.push_back({ t, pt::complex64 });
+        break;
     case primitive_op::compare_eq:
     case primitive_op::compare_neq:
         return {
             { pt::integer, pt::integer, pt::boolean },
-            { pt::real, pt::real, pt::boolean },
-            { pt::complex, pt::complex, pt::boolean }
+            { pt::real32, pt::real32, pt::boolean },
+            { pt::real64, pt::real64, pt::boolean },
+            { pt::complex32, pt::complex32, pt::boolean },
+            { pt::complex64, pt::complex64, pt::boolean },
         };
     case primitive_op::compare_l:
     case primitive_op::compare_g:
     case primitive_op::compare_leq:
     case primitive_op::compare_geq:
-        return { { pt::integer, pt::integer, pt::boolean }, { pt::real, pt::real, pt::boolean } };
+        return {
+            { pt::integer, pt::integer, pt::boolean },
+            { pt::real32, pt::real32, pt::boolean },
+            { pt::real64, pt::real64, pt::boolean }
+        };
     case primitive_op::logic_and:
     case primitive_op::logic_or:
         return { { pt::boolean, pt::boolean, pt::boolean } };
     case primitive_op::conditional:
-        return {
-            { pt::boolean, pt::integer, pt::integer, pt::integer },
-            { pt::boolean, pt::real, pt::real, pt::real },
-            { pt::boolean, pt::complex, pt::complex, pt::complex }
-        };
-    default:
-        return {};
+    {
+        for (auto t : all_primitive_types())
+            overloads.push_back(prim_op_overload({ pt::boolean, t, t, t }));
+        break;
     }
+    default:;
+    }
+
+    return overloads;
 }
 
 primitive_type result_type(primitive_op op, vector<primitive_type> & args)
@@ -182,7 +249,11 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
 
     auto candidates = overloads(op);
     if (candidates.empty())
-        throw no_type();
+    {
+        ostringstream msg;
+        msg << "No overloads for op: " << op;
+        throw error(msg.str());
+    }
 
     // If any arg is undefined,
     // and all overloads return the same type,
@@ -217,8 +288,13 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
             if (pt == at)
                 continue;
             is_exact = false;
-            auto t = common_type(pt,at);
-            if (t == pt)
+            primitive_type ct;
+            try {
+                ct = common_type(pt,at);
+            } catch (no_type &) {
+                ct = type::undefined;
+            }
+            if (ct == pt)
                 continue;
             is_valid = false;
             break;
@@ -307,12 +383,27 @@ primitive_type common_type(primitive_type t1, primitive_type t2)
         return t2;
     if (t2 == type::undefined)
         return t1;
+
     if (t1 == type::boolean || t2 == type::boolean)
         throw no_type();
-    if (t1 == type::complex || t2 == type::complex)
-        return type::complex;
-    if (t1 == type::real || t2 == type::real)
-        return type::real;
+
+    if (t1 == type::complex64 || t2 == type::complex64)
+        return type::complex64;
+
+    if (t1 == type::complex32 || t2 == type::complex32)
+    {
+        if (t1 == type::real64 || t2 == type::real64)
+            return type::complex64;
+        else
+            return type::complex32;
+    }
+
+    if (t1 == type::real64 || t2 == type::real64)
+        return type::real64;
+
+    if (t1 == type::real32 || t2 == type::real32)
+        return type::real32;
+
     // Else both must be integers (caught by first case),
     // or an unexpected type:
     throw no_type();
