@@ -9,7 +9,7 @@ static const int out_size = 19;
 class autocor_printer : public autocorrelation::state<autocor_printer>
 {
 public:
-    void output(float * data)
+    void output(double * data)
     {
         for (int i = 0; i < out_size; ++i)
         {
