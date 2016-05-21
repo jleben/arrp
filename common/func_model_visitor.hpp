@@ -250,6 +250,103 @@ public:
     }
 };
 
+class rewriter_base : public visitor<expr_ptr>
+{
+public:
+    virtual expr_ptr visit_int(const shared_ptr<constant<int>> & e) override
+    {
+        return e;
+    }
+    virtual expr_ptr visit_double(const shared_ptr<constant<double>> & e) override
+    {
+        return e;
+    }
+    virtual expr_ptr visit_complex(const shared_ptr<complex_const> & e) override
+    {
+        return e;
+    }
+    virtual expr_ptr visit_bool(const shared_ptr<constant<bool>> & e) override
+    {
+        return e;
+    }
+    virtual expr_ptr visit_ref(const shared_ptr<reference> & e) override
+    {
+        return e;
+    }
+    virtual expr_ptr visit_array_self_ref(const shared_ptr<array_self_ref> & e) override
+    {
+        return e;
+    }
+    virtual expr_ptr visit_primitive(const shared_ptr<primitive> & e) override
+    {
+        for(auto & operand : e->operands)
+        {
+            operand = visit(operand);
+        }
+        return e;
+    }
+    virtual expr_ptr visit_operation(const shared_ptr<operation> & e) override
+    {
+        for(auto & operand : e->operands)
+        {
+            operand = visit(operand);
+        }
+        return e;
+    }
+    virtual expr_ptr visit_affine(const shared_ptr<affine_expr> & e) override
+    {
+        return e;
+    }
+    virtual expr_ptr visit_cases(const shared_ptr<case_expr> & e) override
+    {
+        for (auto & c : e->cases)
+        {
+            c.first = visit(c.first);
+            c.second = visit(c.second);
+        }
+        return e;
+    }
+    virtual expr_ptr visit_array(const shared_ptr<array> & arr) override
+    {
+        for (auto & var : arr->vars)
+        {
+            if (var->range)
+                var->range = visit(var->range);
+        }
+        arr->expr = visit(arr->expr);
+        return arr;
+    }
+    virtual expr_ptr visit_array_app(const shared_ptr<array_app> & app) override
+    {
+        app->object = visit(app->object);
+        for (auto & arg : app->args)
+            arg = visit(arg);
+        return app;
+    }
+    virtual expr_ptr visit_array_size(const shared_ptr<array_size> & as) override
+    {
+        as->object = visit(as->object);
+        if (as->dimension)
+            as->dimension = visit(as->dimension);
+        return as;
+    }
+    virtual expr_ptr visit_func_app(const shared_ptr<func_app> & app) override
+    {
+        app->object = visit(app->object);
+        for (auto & arg : app->args)
+            arg = visit(arg);
+        return app;
+    }
+    virtual expr_ptr visit_func(const shared_ptr<function> & func) override
+    {
+        for(auto & id : func->scope.ids)
+            id->expr = visit(id->expr);
+
+        func->expr = visit(func->expr);
+        return func;
+    }
+};
+
 }
 }
 
