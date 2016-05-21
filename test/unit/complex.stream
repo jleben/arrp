@@ -1,0 +1,10 @@
+
+pi = 3.14159265359;
+lit = 1i;
+add = 1.0 + 1i;
+sub = 1.0 - 1i;
+mul = 1.0 * 1i;
+div = 1.0 / 1i;
+arr = [e:5 -> (1.0*e) + 1i];
+f = sin(1) + pi;
+main = exp(lit) + add + sub + mul + div + arr + f + pi;
