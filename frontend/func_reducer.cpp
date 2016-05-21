@@ -215,204 +215,189 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
 expr_ptr func_reducer::reduce(expr_ptr expr)
 {
-    if (auto op = dynamic_pointer_cast<primitive>(expr))
+    return visit(expr);
+}
+
+expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
+{
+    if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
-        for (auto & operand : op->operands)
-            operand = reduce(operand), operand->location;
-        return reduce_primitive(op);
-    }
-    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
-    {
-        for (auto & a_case : c->cases)
+        if (auto func = dynamic_pointer_cast<function>(id->expr.expr))
         {
-            auto & d = a_case.first;
-            auto & e = a_case.second;
-            d = reduce(d), d->location;
-            e = reduce(e), e->location;
-        }
-        return c;
-    }
-    else if (auto ref = dynamic_pointer_cast<reference>(expr))
-    {
-        if (auto id = dynamic_pointer_cast<identifier>(ref->var))
-        {
-            if (auto func = dynamic_pointer_cast<function>(id->expr.expr))
-            {
-                return m_copier.copy(func);
-            }
-
-            if (m_ids.find(id) == m_ids.end())
-            {
-                if (verbose<func_reducer>::enabled())
-                {
-                    cout << "Reducing id " << id->name
-                         << " referenced at " << ref->location << endl;
-                }
-
-                m_trace.push(ref->location);
-
-                id->expr = reduce(id->expr);
-
-                m_ids.insert(id);
-
-                m_trace.pop();
-            }
-
-            if (is_constant(id->expr))
-                return id->expr;
-
-            return ref;
-        }
-        else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
-        {
-            // TODO: remember location of reference
-            auto binding = m_beta_reduce_context.find(f_var);
-            if (binding)
-            {
-                if (verbose<func_reducer>::enabled())
-                {
-                    cout << "Substituting bound var: " << f_var << endl;
-                }
-                // Reduce the substituted value,
-                // to count bound variables.
-                return reduce(binding.value());
-            }
-            else
-            {
-                if (verbose<func_reducer>::enabled())
-                {
-                    cout << "No substitution for bound var: " << f_var << endl;
-                }
-                return ref;
-            }
-        }
-        else
-        {
-            return ref;
-        }
-    }
-    else if (auto arr = dynamic_pointer_cast<array>(expr))
-    {
-        for (auto & var : arr->vars)
-        {
-            if (var->range)
-                var->range = reduce(var->range);
+            return m_copier.copy(func);
         }
 
-        m_scope_stack.push(&arr->scope);
-
-        reduce(arr->scope);
-
-        arr->expr = reduce(arr->expr);
-
-        m_scope_stack.pop();
-
-        return arr;
-    }
-    else if (auto app = dynamic_pointer_cast<array_app>(expr))
-    {
-        app->object = reduce(app->object);
-        for(auto & arg : app->args)
-            arg = reduce(arg);
-        return app;
-    }
-    else if (auto as = dynamic_pointer_cast<array_size>(expr))
-    {
-        as->object = reduce(as->object);
-        if (as->dimension)
-            as->dimension = reduce(as->dimension);
-
-        m_type_checker.process(as);
-
-        int dim = 0;
-        if (as->dimension)
-        {
-            auto dim_const = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
-            assert(dim_const);
-            dim = dim_const->value - 1;
-        }
-
-        auto arr_type = dynamic_pointer_cast<array_type>(as->object->type);
-        assert(arr_type);
-        assert(dim >= 0 && dim < arr_type->size.size());
-
-        return make_shared<constant<int>>(arr_type->size[dim]);
-    }
-    else if (auto func = dynamic_pointer_cast<function>(expr))
-    {
-        printer p;
-
-        if (verbose<func_reducer>::enabled())
-        {
-            cout << "Pushing scope of reduced function:";
-            cout << " (" << &func->scope << ")";
-            cout << endl;
-        }
-
-        m_scope_stack.push(&func->scope);
-
-        reduce(func->scope);
-
-        auto reduced_expr = reduce(func->expr);
-
-        m_scope_stack.pop();
-
-        if (auto func2 = dynamic_pointer_cast<function>(reduced_expr))
-        {
-            func->vars.insert(func->vars.end(), func2->vars.begin(), func2->vars.end());
-            func->scope.ids.insert(func->scope.ids.end(),
-                                   func2->scope.ids.begin(), func2->scope.ids.end());
-            reduced_expr = func2->expr;
-        }
-
-        func->expr = reduced_expr;
-
-        if (verbose<func_reducer>::enabled())
-        {
-            cout << "Popping scope of reduced function:";
-            cout << " (" << &func->scope << ")";
-            cout << endl;
-        }
-
-        return func;
-    }
-    else if (auto app = dynamic_pointer_cast<func_app>(expr))
-    {
-        app->object = reduce(app->object);
-
-        for (auto & arg : app->args)
-        {
-            arg = reduce(arg);
-        }
-
-        if (m_in_partial_application)
+        if (m_ids.find(id) == m_ids.end())
         {
             if (verbose<func_reducer>::enabled())
             {
-                cout << app->location << ": "
-                     << "Function left unapplied within another parial application."
-                     << endl;
+                cout << "Reducing id " << id->name
+                     << " referenced at " << ref->location << endl;
             }
+
+            m_trace.push(ref->location);
+
+            id->expr = reduce(id->expr);
+
+            m_ids.insert(id);
+
+            m_trace.pop();
         }
 
-        auto func = dynamic_pointer_cast<function>(app->object.expr);
-        if (!func)
+        if (is_constant(id->expr))
+            return id->expr;
+
+        return ref;
+    }
+    else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
+    {
+        // TODO: remember location of reference
+        auto binding = m_beta_reduce_context.find(f_var);
+        if (binding)
         {
-            throw source_error("Not a function.", app->object.location);
+            if (verbose<func_reducer>::enabled())
+            {
+                cout << "Substituting bound var: " << f_var << endl;
+            }
+            // Reduce the substituted value,
+            // to count bound variables.
+            return reduce(binding.value());
         }
-
-        // convert vector of slots to vector of expressions
-        vector<expr_ptr> reduced_args;
-        for (auto & arg : app->args)
-            reduced_args.push_back(arg);
-
-        auto reduced_func = apply(func, reduced_args, app->location);
-        return reduced_func;
+        else
+        {
+            if (verbose<func_reducer>::enabled())
+            {
+                cout << "No substitution for bound var: " << f_var << endl;
+            }
+            return ref;
+        }
     }
     else
     {
-        return expr;
+        return ref;
     }
+}
+
+expr_ptr func_reducer::visit_primitive(const shared_ptr<primitive> & prim)
+{
+    auto result = dynamic_pointer_cast<primitive>(rewriter_base::visit_primitive(prim));
+    assert(result);
+    return reduce_primitive(result);
+}
+
+expr_ptr func_reducer::visit_array(const shared_ptr<array> & arr)
+{
+    for (auto & var : arr->vars)
+    {
+        if (var->range)
+            var->range = reduce(var->range);
+    }
+
+    m_scope_stack.push(&arr->scope);
+
+    reduce(arr->scope);
+
+    arr->expr = reduce(arr->expr);
+
+    m_scope_stack.pop();
+
+    return arr;
+}
+
+expr_ptr func_reducer::visit_array_size(const shared_ptr<array_size> & as)
+{
+    as->object = reduce(as->object);
+    if (as->dimension)
+        as->dimension = reduce(as->dimension);
+
+    m_type_checker.process(as);
+
+    int dim = 0;
+    if (as->dimension)
+    {
+        auto dim_const = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
+        assert(dim_const);
+        dim = dim_const->value - 1;
+    }
+
+    auto arr_type = dynamic_pointer_cast<array_type>(as->object->type);
+    assert(arr_type);
+    assert(dim >= 0 && dim < arr_type->size.size());
+
+    return make_shared<constant<int>>(arr_type->size[dim]);
+}
+
+expr_ptr func_reducer::visit_func(const shared_ptr<function> & func)
+{
+    printer p;
+
+    if (verbose<func_reducer>::enabled())
+    {
+        cout << "Pushing scope of reduced function:";
+        cout << " (" << &func->scope << ")";
+        cout << endl;
+    }
+
+    m_scope_stack.push(&func->scope);
+
+    reduce(func->scope);
+
+    auto reduced_expr = reduce(func->expr);
+
+    m_scope_stack.pop();
+
+    if (auto func2 = dynamic_pointer_cast<function>(reduced_expr))
+    {
+        func->vars.insert(func->vars.end(), func2->vars.begin(), func2->vars.end());
+        func->scope.ids.insert(func->scope.ids.end(),
+                               func2->scope.ids.begin(), func2->scope.ids.end());
+        reduced_expr = func2->expr;
+    }
+
+    func->expr = reduced_expr;
+
+    if (verbose<func_reducer>::enabled())
+    {
+        cout << "Popping scope of reduced function:";
+        cout << " (" << &func->scope << ")";
+        cout << endl;
+    }
+
+    return func;
+}
+
+expr_ptr func_reducer::visit_func_app(const shared_ptr<func_app> & app)
+{
+    app->object = reduce(app->object);
+
+    for (auto & arg : app->args)
+    {
+        arg = reduce(arg);
+    }
+
+    if (m_in_partial_application)
+    {
+        if (verbose<func_reducer>::enabled())
+        {
+            cout << app->location << ": "
+                 << "Function left unapplied within another parial application."
+                 << endl;
+        }
+    }
+
+    auto func = dynamic_pointer_cast<function>(app->object.expr);
+    if (!func)
+    {
+        throw source_error("Not a function.", app->object.location);
+    }
+
+    // convert vector of slots to vector of expressions
+    vector<expr_ptr> reduced_args;
+    for (auto & arg : app->args)
+        reduced_args.push_back(arg);
+
+    auto reduced_func = apply(func, reduced_args, app->location);
+    return reduced_func;
 }
 
 void func_reducer::reduce(scope & s)

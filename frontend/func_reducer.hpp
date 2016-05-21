@@ -28,7 +28,7 @@ public:
     stack<location_type> trace;
 };
 
-class func_reducer
+class func_reducer : public rewriter_base
 {
     // FIXME: when array vars are passed as function arguments,
     // they can propagate into other top-level expressions,
@@ -46,6 +46,14 @@ private:
     void reduce(scope & s);
     expr_ptr apply(shared_ptr<function>, const vector<expr_ptr> & args,
                    const location_type &);
+
+    expr_ptr visit_ref(const shared_ptr<reference> & e) override;
+    expr_ptr visit_primitive(const shared_ptr<primitive> & e) override;
+    expr_ptr visit_array(const shared_ptr<array> & arr) override;
+    expr_ptr visit_array_size(const shared_ptr<array_size> & as) override;
+    expr_ptr visit_func(const shared_ptr<function> & func) override;
+    expr_ptr visit_func_app(const shared_ptr<func_app> & app) override;
+
 
     func_reduce_error
     reduction_error(const string & msg, const location_type & loc)
