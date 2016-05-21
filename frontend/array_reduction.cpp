@@ -282,7 +282,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
         arg = reduce(arg);
     }
 
-    bool requires_reduction = false;
+    bool requires_reduction = true;
 
     if (auto arr = dynamic_pointer_cast<array>(app->object.expr))
     {
@@ -298,6 +298,16 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
     else if (dynamic_pointer_cast<array_app>(app->object.expr))
     {
         requires_reduction = true;
+    }
+    else if (dynamic_pointer_cast<array_self_ref>(app->object.expr))
+    {
+        requires_reduction = false;
+    }
+    else
+    {
+        auto object_ar = dynamic_pointer_cast<array_type>(app->object->type);
+        if (object_ar && object_ar->size.size() >= app->args.size())
+            requires_reduction = false;
     }
 
     if (!requires_reduction)
@@ -350,9 +360,12 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
         if (!operand->type->is_array())
             continue;
 
+        int op_dims = operand->type->array()->size.size();
+        assert(op_dims <= arr->vars.size());
+
         vector<expr_ptr> args;
-        for (auto & v : arr->vars)
-            args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
+        for (int d = 0; d < op_dims; ++d)
+            args.push_back(make_shared<reference>(arr->vars[d], location_type(), make_int_type()));
 
         operand = apply(operand, args);
     }
@@ -483,8 +496,12 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
             {
             case operation::array_enumerate:
             {
-                for( auto v = ++arr->vars.begin(); v != arr->vars.end(); ++v)
-                    args.push_back(make_shared<reference>(*v, location_type(), make_int_type()));
+                for (int d = 0; d < ar_type->size.size(); ++d)
+                {
+                    auto & v = arr->vars[d+1];
+                    args.push_back(make_shared<reference>
+                                   (v, location_type(), make_int_type()));
+                }
                 break;
             }
             case operation::array_concatenate:
@@ -504,11 +521,11 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
 
                 args.push_back(first_arg);
 
-                for( auto v = ++arr->vars.begin();
-                     v != arr->vars.begin() + ar_type->size.size();
-                     ++v)
+                for (int d = 1; d < ar_type->size.size(); ++d)
                 {
-                    args.push_back(make_shared<reference>(*v, location_type(), make_int_type()));
+                    auto & v = arr->vars[d];
+                    args.push_back(make_shared<reference>
+                                   (v, location_type(), make_int_type()));
                 }
 
                 break;
@@ -575,9 +592,15 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         if (!expr->type->is_array())
             continue;
 
+        int expr_dims = expr->type->array()->size.size();
+        assert(expr_dims <= arr->vars.size());
+
         vector<expr_ptr> args;
-        for (auto & v : arr->vars)
+        for(int d = 0; d < expr_dims; ++d)
+        {
+            auto & v = arr->vars[d];
             args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
+        }
 
         // FIXME: Update array recursions?
         // Although a recursion would usually appear inside a case,
@@ -696,13 +719,19 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
     return s;
 }
 
-expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & args)
+expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args)
 {
     if (verbose<array_reducer>::enabled())
         cout << "Applying : " << *expr->type << endl;
 
     auto ar_type = dynamic_pointer_cast<array_type>(expr->type);
-    assert(ar_type);
+
+    if (!ar_type)
+        return expr;
+
+    int used_arg_count = min(given_args.size(), ar_type->size.size());
+    vector<expr_ptr> args(given_args.begin(),
+                          given_args.begin() + used_arg_count);
 
     type_ptr result_type;
     {

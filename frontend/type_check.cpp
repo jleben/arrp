@@ -93,6 +93,10 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
+        if (verbose<type_checker>::enabled())
+        {
+            cout << "Visiting id " << id->name << endl;
+        }
         type = visit(id->expr);
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
@@ -128,17 +132,15 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
-            if (common_size.empty())
-            {
-                common_size = arr->size;
-            }
-            else if (common_size != arr->size)
-            {
+            try {
+                common_size = common_array_size(common_size, arr->size);
+            } catch (no_type &) {
                 ostringstream msg;
                 msg << "Operand size mismatch: "
                     << arr->size << " != " << common_size;
                 throw source_error(msg.str(), operand.location);
             }
+
             elem_types.push_back(arr->element);
         }
         else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
@@ -255,17 +257,15 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
-            if (common_size.empty())
-            {
-                common_size = arr->size;
-            }
-            else if (common_size != arr->size)
-            {
+            try {
+                common_size = common_array_size(common_size, arr->size);
+            } catch (no_type &) {
                 ostringstream msg;
                 msg << "Case size mismatch: "
                     << arr->size << " != " << common_size;
                 throw source_error(msg.str(), expr.location);
             }
+
             elem_types.push_back(arr->element);
         }
         else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
@@ -411,12 +411,9 @@ type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
             else
                 total_elem_count = -1;
 
-            if (common_elem_size.empty())
-            {
-                common_elem_size = elem_size;
-            }
-            else if (elem_size.size() && common_elem_size != elem_size)
-            {
+            try {
+                common_elem_size = common_array_size(common_elem_size, elem_size);
+            } catch (no_type &) {
                 ostringstream msg;
                 msg << "Element size mismatch: "
                     << elem_size << " != " << common_elem_size;
@@ -475,12 +472,9 @@ type_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
-            if (common_elem_size.empty())
-            {
-                common_elem_size = arr->size;
-            }
-            else if (common_elem_size != arr->size)
-            {
+            try {
+                common_elem_size = common_array_size(common_elem_size, arr->size);
+            } catch (no_type &) {
                 ostringstream msg;
                 msg << "Element size mismatch: "
                     << arr->size << " != " << common_elem_size;
@@ -555,30 +549,35 @@ type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
 
 type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
 {
-    auto object_type = dynamic_pointer_cast<array_type>(visit(app->object));
+    auto object_type = visit(app->object);
+    array_size_vec object_size;
+    primitive_type elem_type;
 
-    if (!object_type)
-        throw source_error("Object of array application is not an array.",
-                           app->object.location);
-
-    auto & object_size = object_type->size;
-
-    if (app->args.size() > object_size.size())
+    if (object_type->is_array())
     {
-        ostringstream msg;
-        msg << "Too many arguments in array application: "
-            << object_type->size.size() << " expected, "
-            << app->args.size() << " given.";
-        throw source_error(msg.str(), app->location);
+        auto at = object_type->array();
+        object_size = at->size;
+        elem_type = at->element;
+    }
+    else if (object_type->is_scalar())
+    {
+        auto st = object_type->scalar();
+        elem_type = st->primitive;
+    }
+    else
+    {
+        throw source_error("Object can not be applied as array.",
+                           app->object.location);
     }
 
     if(auto self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
     {
-        if (self->arr->vars.size() != app->args.size())
+        int num_vars = self->arr->vars.size();
+        if (num_vars != app->args.size())
         {
             ostringstream msg;
-            msg << "Array self reference partially applied."
-                << " Expected " << object_size.size() << " arguments, but "
+            msg << "Array self reference must be applied exactly."
+                << " Expected " << num_vars << " arguments, but "
                 << app->args.size() << " given.";
             throw source_error(msg.str(), app->location);
         }
@@ -606,6 +605,9 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
                                arg.location);
         }
 
+        if (arg_idx >= object_size.size())
+            continue;
+
         auto lin_arg = to_linear_expr(arg);
         auto max_arg = maximum(lin_arg);
         int bound = object_size[arg_idx];
@@ -632,18 +634,17 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
         }
     }
 
-    vector<int> remaining_size(object_size.begin() + app->args.size(),
-                               object_size.end());
-
-    if (remaining_size.empty())
+    if (object_size.size() <= app->args.size())
     {
-        auto st = make_shared<scalar_type>(object_type->element);
+        auto st = make_shared<scalar_type>(elem_type);
         st->data_flag = true;
         return st;
     }
     else
     {
-        return make_shared<array_type>(remaining_size, object_type->element);
+        vector<int> remaining_size(object_size.begin() + app->args.size(),
+                                   object_size.end());
+        return make_shared<array_type>(remaining_size, elem_type);
     }
 }
 

@@ -60,5 +60,25 @@ array_type::array_type(const array_size_vec & size, const type_ptr & elem_type)
     this->size = full_size;
 }
 
+array_size_vec common_array_size(const array_size_vec & a, const array_size_vec & b)
+{
+    if (a.empty())
+        return b;
+    if (b.empty())
+        return a;
+
+    int common_dims = min(a.size(), b.size());
+    for (int d = 0; d < common_dims; ++d)
+    {
+        if (a[d] != b[d])
+            throw no_type();
+    }
+
+    if (a.size() > b.size())
+        return a;
+    else
+        return b;
+}
+
 }
 }

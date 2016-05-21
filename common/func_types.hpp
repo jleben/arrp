@@ -14,6 +14,7 @@ using std::shared_ptr;
 typedef vector<int> array_size_vec;
 
 class scalar_type;
+class array_type;
 
 class type
 {
@@ -27,6 +28,7 @@ public:
     virtual bool is_affine() const { return false; }
     virtual bool is_data() const { return false; }
     scalar_type * scalar();
+    array_type * array();
 };
 typedef shared_ptr<type> type_ptr;
 
@@ -71,6 +73,13 @@ public:
     primitive_type element;
 };
 
+inline array_type * type::array()
+{
+    if (!is_array())
+        return nullptr;
+    return static_cast<array_type*>(this);
+}
+
 class function_type : public type
 {
 public:
@@ -79,6 +88,8 @@ public:
     bool is_function() const override { return true; }
     int arg_count;
 };
+
+array_size_vec common_array_size(const array_size_vec &, const array_size_vec &);
 
 inline std::ostream & operator<<(std::ostream & s, const stream::functional::type & t)
 {
