@@ -460,10 +460,10 @@ void call_expression::generate(cpp_gen::state & state, ostream & stream)
 
 void cast_expression::generate(cpp_gen::state & state, ostream & stream)
 {
-    stream << "(";
     type->generate(state, stream);
-    stream << ")";
+    stream << "(";
     expr->generate(state, stream);
+    stream << ")";
 }
 
 void array_access_expression::generate(cpp_gen::state & state, ostream & stream)
