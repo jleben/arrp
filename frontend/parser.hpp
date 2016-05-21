@@ -151,33 +151,34 @@ namespace stream { namespace parsing {
         INVALID = 258,
         INT = 259,
         REAL = 260,
-        ID = 261,
-        TRUE = 262,
-        FALSE = 263,
-        STRING = 264,
-        IF = 265,
-        THEN = 266,
-        CASE = 267,
-        THIS = 268,
-        LET = 269,
-        MODULE = 270,
-        IMPORT = 271,
-        AS = 272,
-        RIGHT_ARROW = 273,
-        ELSE = 274,
-        LOGIC_OR = 275,
-        LOGIC_AND = 276,
-        EQ = 277,
-        NEQ = 278,
-        LESS = 279,
-        MORE = 280,
-        LESS_EQ = 281,
-        MORE_EQ = 282,
-        PLUSPLUS = 283,
-        INT_DIV = 284,
-        DOTDOT = 285,
-        LOGIC_NOT = 286,
-        UMINUS = 287
+        COMPLEX = 261,
+        ID = 262,
+        TRUE = 263,
+        FALSE = 264,
+        STRING = 265,
+        IF = 266,
+        THEN = 267,
+        CASE = 268,
+        THIS = 269,
+        LET = 270,
+        MODULE = 271,
+        IMPORT = 272,
+        AS = 273,
+        RIGHT_ARROW = 274,
+        ELSE = 275,
+        LOGIC_OR = 276,
+        LOGIC_AND = 277,
+        EQ = 278,
+        NEQ = 279,
+        LESS = 280,
+        MORE = 281,
+        LESS_EQ = 282,
+        MORE_EQ = 283,
+        PLUSPLUS = 284,
+        INT_DIV = 285,
+        DOTDOT = 286,
+        LOGIC_NOT = 287,
+        UMINUS = 288
       };
     };
 
@@ -468,13 +469,13 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 419,     ///< Last index in yytable_.
-      yynnts_ = 35,  ///< Number of nonterminal symbols.
+      yylast_ = 421,     ///< Last index in yytable_.
+      yynnts_ = 36,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 52  ///< Number of tokens.
+      yyntokens_ = 53  ///< Number of tokens.
     };
 
 
@@ -485,7 +486,7 @@ namespace stream { namespace parsing {
 
 #line 13 "parser.y" // lalr1.cc:372
 } } // stream::parsing
-#line 489 "parser.hpp" // lalr1.cc:372
+#line 490 "parser.hpp" // lalr1.cc:372
 
 
 

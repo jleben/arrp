@@ -34,6 +34,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <stack>
 #include <unordered_map>
 #include <initializer_list>
+#include <complex>
 
 namespace stream {
 namespace cpp_gen {
@@ -285,21 +286,6 @@ public:
     void generate(state &, ostream &);
 };
 
-inline basic_type_ptr type_for(primitive_type pt)
-{
-    switch(pt)
-    {
-    case primitive_type::boolean:
-        return std::make_shared<basic_type>("bool");
-    case primitive_type::integer:
-        return std::make_shared<basic_type>("int");
-    case primitive_type::real:
-        return std::make_shared<basic_type>("float");
-    default:
-        throw error("Unexpected primitive type.");
-    }
-}
-
 // Declarations
 
 class variable_decl
@@ -413,6 +399,37 @@ public:
     virtual void generate(state &, ostream &) = 0;
 };
 
+template<typename X> inline
+void print_literal(ostream & stream, const X & v)
+{
+    stream << v;
+}
+
+inline void print_literal(ostream & stream, double v)
+{
+    using namespace std;
+    cout << "printing double literal" << endl;
+#if 1
+    char buf[128];
+    snprintf(buf, 128, "%a", v);
+    stream << buf;
+#endif
+#if 0
+    stream.unsetf(std::ios_base::floatfield);
+    stream << std::showpoint << std::setprecision(12);
+    stream << v;
+#endif
+}
+
+inline void print_literal(ostream & stream, float v)
+{
+    using namespace std;
+    cout << "printing float literal" << endl;
+    char buf[128];
+    snprintf(buf, 128, "%af", v);
+    stream << buf;
+}
+
 template <typename T>
 class literal_expression : public expression
 {
@@ -423,23 +440,45 @@ public:
 
     void generate(state &, ostream & stream)
     {
-        stream << std::showpoint << std::setprecision(12) << value;
+        print_literal(stream, value);
     }
 };
 
-inline expression_ptr literal(bool v)
-{
-    return std::make_shared<literal_expression<bool>>(v);
-}
+template <typename T> string complex_type_name();
 
-inline expression_ptr literal(int v)
-{
-    return std::make_shared<literal_expression<int>>(v);
-}
+template <> inline
+string complex_type_name<double>() { return "complex<double>"; }
 
-inline expression_ptr literal(long v)
+template <> inline
+string complex_type_name<float>() { return "complex<float>"; }
+
+template <typename T>
+class literal_expression<std::complex<T>> : public expression
 {
-    return std::make_shared<literal_expression<long>>(v);
+public:
+    typedef std::complex<T> value_type;
+
+    literal_expression(value_type v = value_type()): value(v) {}
+
+    value_type value;
+
+    void generate(state &, ostream & stream)
+    {
+        // FIXME:
+        // Generate complex literals?
+        stream << complex_type_name<T>();
+        stream << '(';
+        print_literal(stream, value.real());
+        stream << ',';
+        print_literal(stream, value.imag());
+        stream << ')';
+    }
+};
+
+template <typename T>
+inline expression_ptr literal(T v)
+{
+    return std::make_shared<literal_expression<T>>(v);
 }
 
 class id_expression : public expression
@@ -750,6 +789,12 @@ private:
 };
 
 // Helpers
+
+
+inline expression_ptr call(expression_ptr f, const vector<expression_ptr> & a)
+{
+    return std::make_shared<call_expression>(f, a);
+}
 
 inline expression_ptr binop(op o, expression_ptr l, expression_ptr r)
 {

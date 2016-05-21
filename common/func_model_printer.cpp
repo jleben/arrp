@@ -43,6 +43,13 @@ void printer::print(expr_ptr expr, ostream & out)
     {
         out << (const_bool->value ? "true" : "false");
     }
+    else if (auto const_complex = dynamic_pointer_cast<complex_const>(expr))
+    {
+        auto & v = const_complex->value;
+        if (v.real())
+            out << v.real() << '+';
+        out << v.imag() << 'i';
+    }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         if (m_print_var_address)

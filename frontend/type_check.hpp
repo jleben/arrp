@@ -22,6 +22,7 @@ private:
     type_ptr visit(const expr_ptr & expr);
     type_ptr visit_int(const shared_ptr<constant<int>> &);
     type_ptr visit_double(const shared_ptr<constant<double>> &);
+    type_ptr visit_complex(const shared_ptr<complex_const> &);
     type_ptr visit_bool(const shared_ptr<constant<bool>> &);
     type_ptr visit_ref(const shared_ptr<reference> &);
     type_ptr visit_primitive(const shared_ptr<primitive> & prim);

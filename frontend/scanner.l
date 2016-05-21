@@ -1,5 +1,6 @@
 %{
 #include "scanner_internal.hpp"
+#include <complex>
 %}
 
 %option c++
@@ -82,6 +83,12 @@ blank [ \t]
 "module" { return parser::token::MODULE; }
 "import" { return parser::token::IMPORT; }
 "as" { return parser::token::AS; }
+[0-9]+(\.[0-9]+)?i {
+  double im = std::stod(std::string(yytext,strlen(yytext)-1));
+  std::complex<double> v(0, im);
+  *yylval = ast::make_const( *yylloc, v );
+  return parser::token::COMPLEX;
+}
 [0-9]+\.[0-9]+ {
   *yylval = ast::make_const( *yylloc, std::stod(yytext) );
   return parser::token::REAL;

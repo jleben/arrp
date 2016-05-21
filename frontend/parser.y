@@ -20,7 +20,7 @@
 
 %token END 0  "end of file"
 %token INVALID "invalid token"
-%token INT REAL ID TRUE FALSE STRING
+%token INT REAL COMPLEX ID TRUE FALSE STRING
 %token IF THEN CASE THIS
 %token LET
 %token MODULE IMPORT AS
@@ -397,12 +397,17 @@ number:
   int
   |
   real
+  |
+  complex
 ;
 
 int: INT
 ;
 
 real: REAL
+;
+
+complex: COMPLEX
 ;
 
 boolean:

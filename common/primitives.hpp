@@ -16,7 +16,8 @@ enum class primitive_type
     undefined,
     boolean,
     integer,
-    real
+    real,
+    complex,
 };
 
 enum class primitive_op
@@ -46,6 +47,9 @@ enum class primitive_op
     abs,
     min,
     max,
+
+    real,
+    imag,
 
     compare_eq,
     compare_neq,
@@ -100,6 +104,8 @@ inline ostream & operator<<(ostream & s, primitive_type t)
         s << "integer"; break;
     case primitive_type::real:
         s << "real"; break;
+    case primitive_type::complex:
+        s << "complex"; break;
     default:
         s << "?";
     }

@@ -27,6 +27,10 @@ public:
         {
             return visit_double(const_double);
         }
+        else if (auto const_complex = dynamic_pointer_cast<complex_const>(expr))
+        {
+            return visit_complex(const_complex);
+        }
         else if (auto const_bool = dynamic_pointer_cast<constant<bool>>(expr))
         {
             return visit_bool(const_bool);
@@ -83,6 +87,7 @@ public:
 
     virtual R visit_int(const shared_ptr<constant<int>> &) = 0;
     virtual R visit_double(const shared_ptr<constant<double>> &) = 0;
+    virtual R visit_complex(const shared_ptr<complex_const> &) = 0;
     virtual R visit_bool(const shared_ptr<constant<bool>> &) = 0;
     virtual R visit_ref(const shared_ptr<reference> &) = 0;
     virtual R visit_array_self_ref(const shared_ptr<array_self_ref> &) = 0;
@@ -112,6 +117,10 @@ public:
         else if (auto const_double = dynamic_pointer_cast<constant<double>>(expr))
         {
             visit_double(const_double);
+        }
+        else if (auto const_double = dynamic_pointer_cast<complex_const>(expr))
+        {
+            visit_complex(const_double);
         }
         else if (auto const_bool = dynamic_pointer_cast<constant<bool>>(expr))
         {
@@ -170,6 +179,8 @@ public:
     virtual void visit_int(const shared_ptr<constant<int>> &)
     {}
     virtual void visit_double(const shared_ptr<constant<double>> &)
+    {}
+    virtual void visit_complex(const shared_ptr<complex_const> &)
     {}
     virtual void visit_bool(const shared_ptr<constant<bool>> &)
     {}

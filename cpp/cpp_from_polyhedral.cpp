@@ -91,11 +91,19 @@ expression_ptr cpp_from_polyhedral::generate_expression
     }
     else if ( auto const_double = dynamic_cast<functional::constant<double>*>(expr.get()) )
     {
-        result = literal(const_double->value);
+        auto v = const_double->value;
+        //result = literal((float)v);
+        result = literal(v);
     }
     else if ( auto const_bool = dynamic_cast<functional::constant<bool>*>(expr.get()) )
     {
         result = literal(const_bool->value);
+    }
+    else if ( auto const_complex = dynamic_cast<functional::complex_const*>(expr.get()) )
+    {
+        auto v = const_complex->value;
+        result = literal(complex<float>((float)v.real(),(float)v.imag()));
+        //result = literal(v);
     }
     else if (auto call = dynamic_cast<polyhedral::external_call*>(expr.get()))
     {
@@ -187,11 +195,46 @@ expression_ptr cpp_from_polyhedral::generate_primitive
             return make_shared<un_op_expression>(op::u_minus, operand);
     }
     case primitive_op::add:
-        return make_shared<bin_op_expression>(op::add, operands[0], operands[1]);
     case primitive_op::subtract:
-        return make_shared<bin_op_expression>(op::sub, operands[0], operands[1]);
     case primitive_op::multiply:
-        return make_shared<bin_op_expression>(op::mult, operands[0], operands[1]);
+    case primitive_op::divide:
+    {
+        if ( prim_type(expr->operands[0]) == primitive_type::complex &&
+             prim_type(expr->operands[1]) != primitive_type::complex )
+        {
+            operands[1] = make_shared<cast_expression>
+                    (make_shared<basic_type>("float"), operands[1]);
+        }
+        else if ( prim_type(expr->operands[0]) != primitive_type::complex &&
+                  prim_type(expr->operands[1]) == primitive_type::complex )
+        {
+            operands[0] = make_shared<cast_expression>
+                    (make_shared<basic_type>("float"), operands[0]);
+        }
+        else if (expr->kind == primitive_op::divide)
+        {
+            if ( prim_type(expr->operands[0]) == primitive_type::integer &&
+                 prim_type(expr->operands[1]) == primitive_type::integer )
+            {
+                operands[0] = make_shared<cast_expression>
+                        (type_for(primitive_type::real), operands[0]);
+            }
+        }
+
+        switch(expr->kind)
+        {
+        case primitive_op::add:
+            return make_shared<bin_op_expression>(op::add, operands[0], operands[1]);
+        case primitive_op::subtract:
+            return make_shared<bin_op_expression>(op::sub, operands[0], operands[1]);
+        case primitive_op::multiply:
+            return make_shared<bin_op_expression>(op::mult, operands[0], operands[1]);
+        case primitive_op::divide:
+            return make_shared<bin_op_expression>(op::div, operands[0], operands[1]);
+        default:
+            throw error("Unexpected.");
+        }
+    }
     case primitive_op::compare_g:
         return make_shared<bin_op_expression>(op::greater, operands[0], operands[1]);
     case primitive_op::compare_geq:
@@ -204,15 +247,6 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         return make_shared<bin_op_expression>(op::equal, operands[0], operands[1]);
     case primitive_op::compare_neq:
         return make_shared<bin_op_expression>(op::not_equal, operands[0], operands[1]);
-    case primitive_op::divide:
-    {
-        if ( prim_type(expr->operands[0]) != primitive_type::real &&
-             prim_type(expr->operands[1]) != primitive_type::real )
-            operands[0] = make_shared<cast_expression>
-                    (type_for(primitive_type::real), operands[0]);
-
-        return make_shared<bin_op_expression>(op::div, operands[0], operands[1]);
-    }
     case primitive_op::divide_integer:
     {
         auto result = make_shared<bin_op_expression>(op::div, operands[0], operands[1]);
@@ -305,6 +339,18 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     case primitive_op::atan:
     {
         return make_shared<call_expression>("atan", operands[0]);
+    }
+    case primitive_op::real:
+    {
+        auto method_id = make_shared<id_expression>("real");
+        auto method = binop(op::member_of_reference, operands[0], method_id);
+        return call(method, {});
+    }
+    case primitive_op::imag:
+    {
+        auto method_id = make_shared<id_expression>("imag");
+        auto method = binop(op::member_of_reference, operands[0], method_id);
+        return call(method, {});
     }
     default:
         ostringstream text;

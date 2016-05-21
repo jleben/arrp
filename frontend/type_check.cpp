@@ -69,6 +69,15 @@ type_ptr type_checker::visit_double(const shared_ptr<constant<double>> &)
     return s;
 }
 
+type_ptr type_checker::visit_complex(const shared_ptr<complex_const> &)
+{
+    auto s = make_shared<scalar_type>(primitive_type::complex);
+    s->constant_flag = true;
+    s->affine_flag = false;
+    s->data_flag = true;
+    return s;
+}
+
 type_ptr type_checker::visit_bool(const shared_ptr<constant<bool>> &)
 {
     auto s = make_shared<scalar_type>(primitive_type::boolean);
@@ -183,8 +192,8 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
             s->data_flag = lhs->is_data() && rhs->is_data();
             s->constant_flag = lhs->is_constant() && rhs->is_constant();
             s->affine_flag =
-                    (lhs->is_constant() && rhs->is_affine()) ||
-                    (lhs->is_affine() && rhs->is_constant());
+                    lhs->is_affine() && rhs->is_affine() &&
+                    (lhs->is_constant() || rhs->is_constant());
             break;
         }
         case primitive_op::divide:
@@ -195,7 +204,9 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
             s->constant_flag = lhs->is_constant() && rhs->is_constant();
             break;
         }
-        default:;
+        default:
+            // FIXME: Reject non-data operands for all other operations?
+            ;
         }
 
         return s;

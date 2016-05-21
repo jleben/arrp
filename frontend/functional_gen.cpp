@@ -14,19 +14,20 @@ unordered_map<string, primitive_op> generator::m_prim_ops =
     { "exp2", primitive_op::exp2 },
     { "log", primitive_op::log },
     {  "log2", primitive_op::log2 },
-     { "log10", primitive_op::log10 },
-     { "sqrt", primitive_op::sqrt },
-     { "sin", primitive_op::sin },
-     { "cos", primitive_op::cos },
-     { "tan", primitive_op::tan },
-     { "asin", primitive_op::asin },
-     { "acos", primitive_op::acos },
-     { "atan", primitive_op::atan },
-     { "ceil", primitive_op::ceil },
-     { "floor", primitive_op::floor },
-     { "abs", primitive_op::abs },
-     { "min", primitive_op::min },
-     { "max", primitive_op::max },
+    { "log10", primitive_op::log10 },
+    { "sqrt", primitive_op::sqrt },
+    { "sin", primitive_op::sin },
+    { "cos", primitive_op::cos },
+    { "tan", primitive_op::tan },
+    { "asin", primitive_op::asin },
+    { "acos", primitive_op::acos },
+    { "atan", primitive_op::atan },
+    { "ceil", primitive_op::ceil },
+    { "floor", primitive_op::floor },
+    { "abs", primitive_op::abs },
+    { "min", primitive_op::min },
+    { "real", primitive_op::real },
+    { "imag", primitive_op::imag },
 };
 
 source_error generator::module_error(const string & what, const parsing::location & loc)
@@ -197,6 +198,8 @@ expr_ptr generator::do_expr(ast::node_ptr root)
             return make_shared<constant<int>>(i->value, location_in_module(root->location));
         else if(auto d = dynamic_pointer_cast<ast::leaf_node<double>>(root))
             return make_shared<constant<double>>(d->value, location_in_module(root->location));
+        else if (auto c = dynamic_pointer_cast<ast::leaf_node<complex<double>>>(root))
+            return make_shared<complex_const>(c->value, location_in_module(root->location));
         else
             throw module_error("Invalid constant type.", root->location);
     }

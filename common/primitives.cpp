@@ -58,6 +58,10 @@ string name_of_primitive( primitive_op op )
         return "min";
     case primitive_op::max:
         return "max";
+    case primitive_op::real:
+        return "real";
+    case primitive_op::imag:
+        return "imag";
     case primitive_op::compare_eq:
         return "==";
     case primitive_op::compare_neq:
@@ -91,28 +95,47 @@ vector<prim_op_overload> overloads(primitive_op op)
         return {
             { pt::integer, pt::integer },
             { pt::real, pt::real },
+            { pt::complex, pt::complex },
             { pt::boolean, pt::boolean }
         };
     case primitive_op::add:
     case primitive_op::subtract:
     case primitive_op::multiply:
-    case primitive_op::raise:
-        return { { pt::integer, pt::integer, pt::integer }, { pt::real, pt::real, pt::real } };
+        return {
+            { pt::integer, pt::integer, pt::integer },
+            { pt::real, pt::real, pt::real },
+            { pt::complex, pt::complex, pt::complex }
+        };
     case primitive_op::divide:
-        return { { pt::real, pt::real, pt::real } };
+        return {
+            { pt::real, pt::real, pt::real },
+            { pt::complex, pt::complex, pt::complex }
+        };
     case primitive_op::divide_integer:
-        return { { pt::integer, pt::integer, pt::integer }, { pt::real, pt::real, pt::integer } };
+        return {
+            { pt::integer, pt::integer, pt::integer },
+            { pt::real, pt::real, pt::integer }
+        };
+    case primitive_op::raise:
+        return {
+            { pt::integer, pt::integer, pt::integer },
+            { pt::real, pt::real, pt::real },
+        };
     case primitive_op::exp:
     case primitive_op::log:
-    case primitive_op::log2:
     case primitive_op::log10:
-    case primitive_op::sqrt:
     case primitive_op::sin:
     case primitive_op::cos:
     case primitive_op::tan:
     case primitive_op::asin:
     case primitive_op::acos:
     case primitive_op::atan:
+    case primitive_op::sqrt:
+        return {
+            { pt::real, pt::real },
+            { pt::complex, pt::complex }
+        };
+    case primitive_op::log2:
         return { { pt::real, pt::real } };
     case primitive_op::exp2:
         return { {pt::integer, pt::integer }, { pt::real, pt::real } };
@@ -124,8 +147,16 @@ vector<prim_op_overload> overloads(primitive_op op)
     case primitive_op::min:
     case primitive_op::max:
         return { { pt::integer, pt::integer, pt::integer }, { pt::real, pt::real, pt::real } };
+    case primitive_op::real:
+    case primitive_op::imag:
+        return { { pt::complex, pt::complex, pt::real } };
     case primitive_op::compare_eq:
     case primitive_op::compare_neq:
+        return {
+            { pt::integer, pt::integer, pt::boolean },
+            { pt::real, pt::real, pt::boolean },
+            { pt::complex, pt::complex, pt::boolean }
+        };
     case primitive_op::compare_l:
     case primitive_op::compare_g:
     case primitive_op::compare_leq:
@@ -137,7 +168,8 @@ vector<prim_op_overload> overloads(primitive_op op)
     case primitive_op::conditional:
         return {
             { pt::boolean, pt::integer, pt::integer, pt::integer },
-            { pt::boolean, pt::real, pt::real, pt::real }
+            { pt::boolean, pt::real, pt::real, pt::real },
+            { pt::boolean, pt::complex, pt::complex, pt::complex }
         };
     default:
         return {};
@@ -201,11 +233,68 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
     {
         throw no_type();
     }
-    if (promoted.size() > 1)
+
+    if (promoted.size() == 1)
+    {
+        return candidates[promoted.front()].types.back();
+    }
+
+#if 0
+    cout << "Multiple promotions for " << op;
+    for(auto & a : args)
+        cout << " " << a;
+    cout << " = " << promoted.size() << endl;
+    for (auto & c : promoted)
+    {
+        for (int p = 0; p < candidates[c].types.size() - 1; ++p)
+        {
+            cout << candidates[c].types[p] << " ";
+        }
+        cout << "-> " << candidates[c].types.back();
+        cout << endl;
+    }
+#endif
+
+    // Check if one overload is the singular bottom of their order
+
+    vector<int> lowest_promoted;
+
+    // FIXME: optimize:
+    for (auto i : promoted)
+    {
+        bool ok = true;
+
+        for(auto j : promoted)
+        {
+            if (j == i)
+                continue;
+
+            for (int k = 0; ok && k < candidates[i].types.size()-1; ++k)
+            {
+                auto a = candidates[i].types[k];
+                auto b = candidates[j].types[k];
+                auto c = common_type(a,b);
+                ok = (c == b);
+            }
+
+            if (!ok)
+                break;
+        }
+
+        if (ok)
+            lowest_promoted.push_back(i);
+    }
+
+    if (lowest_promoted.size() != 1)
     {
         throw ambiguous_type();
     }
-    return candidates[promoted.front()].types.back();
+
+    auto result = candidates[lowest_promoted.front()].types.back();
+
+    //cout << "result = " << result << endl;
+
+    return result;
 }
 
 primitive_type common_type(primitive_type t1, primitive_type t2)
@@ -218,10 +307,14 @@ primitive_type common_type(primitive_type t1, primitive_type t2)
         return t2;
     if (t2 == type::undefined)
         return t1;
-    if ( (t1 == type::real && t2 == type::integer) ||
-         (t2 == type::real && t1 == type::integer) )
+    if (t1 == type::boolean || t2 == type::boolean)
+        throw no_type();
+    if (t1 == type::complex || t2 == type::complex)
+        return type::complex;
+    if (t1 == type::real || t2 == type::real)
         return type::real;
-
+    // Else both must be integers (caught by first case),
+    // or an unexpected type:
     throw no_type();
 }
 

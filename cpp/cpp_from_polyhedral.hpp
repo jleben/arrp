@@ -73,23 +73,6 @@ private:
                              const polyhedral::affine_matrix &,
                              builder * );
 
-    expression_ptr literal(bool v)
-    {
-        return std::make_shared<literal_expression<bool>>(v);
-    }
-    expression_ptr literal(int v)
-    {
-        return std::make_shared<literal_expression<int>>(v);
-    }
-    expression_ptr literal(long v)
-    {
-        return std::make_shared<literal_expression<long>>(v);
-    }
-    expression_ptr literal(double v)
-    {
-        return std::make_shared<literal_expression<double>>(v);
-    }
-
     polyhedral::model m_model;
     unordered_map<string,buffer> m_buffers;
     bool m_in_period = false;

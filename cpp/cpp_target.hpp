@@ -22,6 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_LANG_CPP_TARGET_INCLUDED
 
 #include "../common/ph_model.hpp"
+#include "../utility/cpp-gen.hpp"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -41,6 +42,41 @@ struct buffer
 };
 
 struct renaming {}; // For verbose output
+
+
+inline basic_type_ptr type_for(primitive_type pt)
+{
+    switch(pt)
+    {
+    case primitive_type::boolean:
+        return std::make_shared<basic_type>("bool");
+    case primitive_type::integer:
+        return std::make_shared<basic_type>("int");
+    case primitive_type::real:
+        return std::make_shared<basic_type>("float");
+    case primitive_type::complex:
+        return std::make_shared<basic_type>("complex<float>");
+    default:
+        throw error("Unexpected primitive type.");
+    }
+}
+
+inline int size_for(primitive_type pt)
+{
+    switch(pt)
+    {
+    case primitive_type::boolean:
+        return sizeof(bool);
+    case primitive_type::integer:
+        return sizeof(int);
+    case primitive_type::real:
+        return sizeof(float);
+    case primitive_type::complex:
+        return sizeof(std::complex<float>);
+    default:
+        throw error("Unexpected primitive type.");
+    }
+}
 
 void generate(const string & name,
               const polyhedral::model & model,

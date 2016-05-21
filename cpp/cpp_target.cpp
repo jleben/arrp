@@ -243,23 +243,7 @@ buffer_analysis(const polyhedral::model & model)
         polyhedral::array *array = buffers_on_stack[idx];
         buffer & b = buffers[array->name];
 
-        int elem_size = 0;
-        switch(array->type)
-        {
-        case primitive_type::integer:
-            elem_size = 4; break;
-        case primitive_type::real:
-            elem_size = 8; break;
-        case primitive_type::boolean:
-            elem_size = 4; break;
-        default:
-        {
-            ostringstream msg;
-            msg << "Unexpected type for array " << array->name
-                << " = " << array->type;
-            throw error(msg.str());
-        }
-        }
+        int elem_size = size_for(array->type);
 
         int mem_size = b.size * elem_size;
         // FIXME: use user option for max stack size
@@ -426,6 +410,7 @@ void generate(const string & name,
 
     m.members.push_back(make_shared<include_dir>("cmath"));
     m.members.push_back(make_shared<include_dir>("algorithm"));
+    m.members.push_back(make_shared<include_dir>("complex"));
     m.members.push_back(make_shared<using_decl>("namespace std"));
 
     auto nmspc = make_shared<namespace_node>();

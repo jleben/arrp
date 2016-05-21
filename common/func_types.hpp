@@ -54,6 +54,9 @@ inline shared_ptr<scalar_type> make_int_type()
 inline shared_ptr<scalar_type> make_real_type()
 { return std::make_shared<scalar_type>(primitive_type::real); }
 
+inline shared_ptr<scalar_type> make_complex_type()
+{ return std::make_shared<scalar_type>(primitive_type::complex); }
+
 class array_type : public type
 {
 public:

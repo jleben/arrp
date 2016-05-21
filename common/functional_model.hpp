@@ -31,6 +31,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <utility>
 #include <iostream>
 #include <unordered_set>
+#include <complex>
 
 namespace stream {
 namespace functional {
@@ -129,6 +130,8 @@ public:
         expression(loc, type), value(v) {}
     T value;
 };
+
+typedef constant<std::complex<double>> complex_const;
 
 class primitive : public expression
 {

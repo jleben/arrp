@@ -23,6 +23,11 @@ expr_ptr copier::visit_double(const shared_ptr<constant<double>> & d)
     return make_shared<constant<double>>(*d);
 }
 
+expr_ptr copier::visit_complex(const shared_ptr<complex_const> & d)
+{
+    return make_shared<complex_const>(*d);
+}
+
 expr_ptr copier::visit_bool(const shared_ptr<constant<bool>> & b)
 {
     return make_shared<constant<bool>>(*b);
