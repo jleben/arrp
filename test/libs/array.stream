@@ -12,5 +12,11 @@ scan(f,a) = {
 fold(f,a) = {
   let s = scan(f,a);
   s[#a-1];
-}
-;
+};
+
+iterate(f,init) = {
+  [i -> case
+      i == 0: init;
+      else: f(this[i-1])
+  ];
+};
