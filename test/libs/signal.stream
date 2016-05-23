@@ -1,14 +1,16 @@
 module signal;
+import array;
+import math;
 
-phase(freq) = {
-  [t -> case t==0: 0; else:
+phase(freq, init) = {
+  [t -> case t==0: init; else:
     if this[t-1] + freq[t] >= 1
     then this[t-1] + freq[t] - 1
     else this[t-1] + freq[t]
   ];
 };
 
-sine(freq) = {
-  let ph = phase(freq);
+sine(freq, init_ph) = {
+  let ph = phase(freq, init_ph);
   sin(ph * 2 * math.pi);
 };
