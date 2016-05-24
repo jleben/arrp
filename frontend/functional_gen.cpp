@@ -256,10 +256,12 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     {
         return do_primitive(root);
     }
+#if 0
     case ast::case_expr:
     {
         return do_case_expr(root);
     }
+#endif
     case ast::array_def:
     {
         return do_array_def(root);
@@ -313,6 +315,7 @@ expr_ptr generator::do_primitive(ast::node_ptr root)
     return op;
 }
 
+#if 0
 expr_ptr generator::do_case_expr(ast::node_ptr root)
 {
     auto cases_node = root->as_list()->elements[0];
@@ -351,56 +354,121 @@ expr_ptr generator::do_case_expr(ast::node_ptr root)
 
     return result;
 }
-
+#endif
 expr_ptr generator::do_array_def(ast::node_ptr root)
 {
-    auto params_node = root->as_list()->elements[0];
-    auto expr_node = root->as_list()->elements[1];
+    auto ranges_node = root->as_list()->elements[0];
+    auto patterns_node = root->as_list()->elements[1];
 
     auto ar = make_shared<array>();
     ar->location = location_in_module(root->location);
     stacker<array_ptr> ar_stacker(ar, m_array_stack);
 
-    vector<array_var_ptr> params;
-
-    for (auto & param : params_node->as_list()->elements)
+    for (auto & range_node : ranges_node->as_list()->elements)
     {
-        auto name_node = param->as_list()->elements[0];
-        auto size_node = param->as_list()->elements[1];
-
-        auto name = name_node->as_leaf<string>()->value;
+        string name = string("i") + to_string(ar->vars.size());
 
         expr_ptr range;
-        if (size_node)
-            range = do_expr(size_node);
+        if (range_node->type != ast::star)
+            range = do_expr(range_node);
 
-        auto var = make_shared<array_var>(name, range,
-                                          location_in_module(param->location));
+        auto var = make_shared<array_var>
+                (name, range, location_in_module(range_node->location));
 
-        params.push_back(var);
+        ar->vars.push_back(var);
     }
 
-    expr_ptr expr;
-
-    {
-        context_type::scope_holder scope(m_context);
-        for (auto & param : params)
-        {
-            try {
-                m_context.bind(param->name, param);
-            } catch (context_error & e) {
-                throw source_error(e.what(), param->location);
-            }
-        }
-
-        expr = do_expr(expr_node);
-    }
-
-    for (auto & param : params)
-        ar->vars.push_back(param);
-    ar->expr = expr_slot(expr);
+    ar->expr = do_array_patterns(patterns_node);
 
     return ar;
+}
+
+expr_ptr generator::do_array_patterns(ast::node_ptr root)
+{
+    auto patterns = make_shared<array_patterns>();
+    patterns->location = location_in_module(root->location);
+
+    for (auto & pattern_node : root->as_list()->elements)
+    {
+        patterns->patterns.push_back(do_array_pattern(pattern_node));
+    }
+
+    return patterns;
+}
+
+array_patterns::pattern
+generator::do_array_pattern(ast::node_ptr root)
+{
+    auto ar = m_array_stack.top();
+
+    auto index_nodes = root->as_list()->elements[0];
+    auto domains_node = root->as_list()->elements[1];
+    auto universal_node = root->as_list()->elements[2];
+
+    array_patterns::pattern pattern;
+
+    if (index_nodes->as_list()->elements.size() != ar->vars.size())
+    {
+        throw source_error("Number of indexes does not match number "
+                           "of array dimensions.",
+                           location_in_module(index_nodes->location));
+    }
+    int dim_idx = 0;
+    for (auto & index_node : index_nodes->as_list()->elements)
+    {
+        struct array_patterns::index e;
+        if (index_node->type == ast::identifier)
+        {
+            string name = index_node->as_leaf<string>()->value;
+            assert(dim_idx < ar->vars.size());
+            e.var = make_shared<array_var>
+                    (name, ar->vars[dim_idx]->range,
+                     location_in_module(index_node->location));
+        }
+        else
+        {
+            e.value = index_node->as_leaf<int>()->value;
+        }
+        pattern.indexes.push_back(e);
+        ++dim_idx;
+    }
+
+    context_type::scope_holder scope(m_context);
+
+    for (auto & index : pattern.indexes)
+    {
+        if (!index.var)
+            continue;
+
+        try {
+            m_context.bind(index.var->name, index.var);
+        } catch (context_error & e) {
+            throw source_error(e.what(), index.var->location);
+        }
+    }
+
+    if (domains_node)
+        pattern.domains = expr_slot(do_array_domains(domains_node));
+
+    pattern.expr = expr_slot(do_expr(universal_node));
+
+    return pattern;
+}
+
+expr_ptr generator::do_array_domains(ast::node_ptr root)
+{
+    auto domains = make_shared<case_expr>();
+    domains->location = location_in_module(root->location);
+
+    for (auto & domain_node : root->as_list()->elements)
+    {
+        auto & d = domain_node->as_list()->elements[0];
+        auto & e = domain_node->as_list()->elements[1];
+        domains->cases.emplace_back
+                (expr_slot(do_expr(d)), expr_slot(do_expr(e)));
+    }
+
+    return domains;
 }
 
 expr_ptr generator::do_array_apply(ast::node_ptr root)

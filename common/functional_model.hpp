@@ -201,6 +201,25 @@ public:
 };
 typedef std::shared_ptr<array> array_ptr;
 
+class array_patterns : public expression
+{
+public:
+    struct index
+    {
+        array_var_ptr var;
+        int value;
+    };
+
+    struct pattern
+    {
+        vector<index> indexes;
+        expr_slot domains;
+        expr_slot expr;
+    };
+
+    vector<pattern> patterns;
+};
+
 class operation : public expression
 {
 public:

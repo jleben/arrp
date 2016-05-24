@@ -349,27 +349,90 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
         }
     }
 
-    auto elem_type = visit(arr->expr);
+    array_size_vec common_size;
+    vector<primitive_type> elem_types;
 
-    if (elem_type->is_function())
+    auto process_type = [&](expr_slot & e)
     {
-        throw source_error("Function not allowed as array element.",
-                           arr->expr.location);
-    }
-    if (!elem_type->is_data())
+        auto & type = e->type;
+
+        if (!type->is_data())
+        {
+            throw source_error("Expression can not be used as data.", e.location);
+        }
+
+        if (dynamic_pointer_cast<function_type>(type))
+        {
+            throw source_error("Function not allowed here.", e.location);
+        }
+        else if (auto at = dynamic_pointer_cast<array_type>(type))
+        {
+            try {
+                common_size = common_array_size(common_size, at->size);
+            } catch (no_type &) {
+                ostringstream msg;
+                msg << "Size mismatch: "
+                    << at->size << " != " << common_size;
+                throw source_error(msg.str(), e.location);
+            }
+
+            elem_types.push_back(at->element);
+        }
+        else if (auto st = dynamic_pointer_cast<scalar_type>(type))
+        {
+            elem_types.push_back(st->primitive);
+        }
+        else
+        {
+            throw error("Unexpected type.");
+        }
+    };
+
+    auto patterns = dynamic_pointer_cast<array_patterns>(arr->expr.expr);
+    for (auto & pattern : patterns->patterns)
     {
-        throw source_error("Expression can not be used as data.", arr->expr.location);
+        if (pattern.domains)
+        {
+            auto cexpr = dynamic_pointer_cast<case_expr>(pattern.domains.expr);
+
+            for (auto & c : cexpr->cases)
+            {
+                auto & domain = c.first;
+                auto & expr = c.second;
+
+                to_linear_set(domain);
+
+                visit(expr);
+                process_type(expr);
+            }
+        }
+
+        visit(pattern.expr);
+        process_type(pattern.expr);
     }
 
-    auto type = make_shared<array_type>(size, elem_type);
+    primitive_type result_elem_type;
 
-    if (type->element == primitive_type::undefined)
+    try {
+        result_elem_type = common_type(elem_types);
+    } catch (no_type &) {
+        throw source_error("Incompatible types.", arr->location);
+    }
+
+    if (result_elem_type == primitive_type::undefined)
     {
         throw source_error("Array element type can not be inferred.",
                            arr->expr.location);
     }
 
+    auto type = make_shared<array_type>(size, result_elem_type);
+
     return type;
+}
+
+type_ptr type_checker::visit_array_patterns(const shared_ptr<array_patterns> & ap)
+{
+    throw error("Unexpected.");
 }
 
 type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)

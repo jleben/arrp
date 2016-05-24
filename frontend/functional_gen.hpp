@@ -55,8 +55,11 @@ private:
     expr_ptr do_block(ast::node_ptr);
     expr_ptr do_expr(ast::node_ptr);
     expr_ptr do_primitive(ast::node_ptr);
-    expr_ptr do_case_expr(ast::node_ptr);
+    //expr_ptr do_case_expr(ast::node_ptr);
     expr_ptr do_array_def(ast::node_ptr);
+    expr_ptr do_array_patterns(ast::node_ptr);
+    array_patterns::pattern do_array_pattern(ast::node_ptr);
+    expr_ptr do_array_domains(ast::node_ptr);
     expr_ptr do_array_apply(ast::node_ptr);
     expr_ptr do_array_enum(ast::node_ptr);
     expr_ptr do_array_concat(ast::node_ptr);

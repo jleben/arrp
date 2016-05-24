@@ -40,6 +40,7 @@ blank [ \t]
 , { return (parser::token_type) ','; }
 ; { return (parser::token_type) ';'; }
 : { return (parser::token_type) ':'; }
+\| { return (parser::token_type) '|'; }
 \? { return (parser::token_type) '?'; }
 \+ { return (parser::token_type) '+'; }
 \- { return (parser::token_type) '-'; }

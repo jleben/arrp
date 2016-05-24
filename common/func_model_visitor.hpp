@@ -63,6 +63,10 @@ public:
         {
             return visit_array(ar);
         }
+        else if (auto ap = dynamic_pointer_cast<array_patterns>(expr))
+        {
+            return visit_array_patterns(ap);
+        }
         else if (auto app = dynamic_pointer_cast<array_app>(expr))
         {
             return visit_array_app(app);
@@ -96,6 +100,7 @@ public:
     virtual R visit_affine(const shared_ptr<affine_expr> &) = 0;
     virtual R visit_cases(const shared_ptr<case_expr> & cexpr) = 0;
     virtual R visit_array(const shared_ptr<array> & arr) = 0;
+    virtual R visit_array_patterns(const shared_ptr<array_patterns> &) = 0;
     virtual R visit_array_app(const shared_ptr<array_app> & app) = 0;
     virtual R visit_array_size(const shared_ptr<array_size> & as) = 0;
     virtual R visit_func_app(const shared_ptr<func_app> & app) = 0;
@@ -153,6 +158,10 @@ public:
         else if (auto ar = dynamic_pointer_cast<array>(expr))
         {
             visit_array(ar);
+        }
+        else if (auto ap = dynamic_pointer_cast<array_patterns>(expr))
+        {
+            visit_array_patterns(ap);
         }
         else if (auto app = dynamic_pointer_cast<array_app>(expr))
         {
@@ -220,6 +229,20 @@ public:
                 visit(var->range);
         }
         visit(arr->expr);
+    }
+    virtual void visit_array_patterns(const shared_ptr<array_patterns> & ap)
+    {
+        for (auto & pattern : ap->patterns)
+        {
+            for (auto & index : pattern.indexes)
+            {
+                if (index.var && index.var->range)
+                    visit(index.var->range);
+            }
+            if (pattern.domains)
+                visit(pattern.domains);
+            visit(pattern.expr);
+        }
     }
     virtual void visit_array_app(const shared_ptr<array_app> & app)
     {
@@ -315,6 +338,21 @@ public:
         }
         arr->expr = visit(arr->expr);
         return arr;
+    }
+    virtual expr_ptr visit_array_patterns(const shared_ptr<array_patterns> & ap) override
+    {
+        for (auto & pattern : ap->patterns)
+        {
+            for (auto & index : pattern.indexes)
+            {
+                if (index.var && index.var->range)
+                    index.var->range = visit(index.var->range);
+            }
+            if (pattern.domains)
+                pattern.domains = visit(pattern.domains);
+            pattern.expr = visit(pattern.expr);
+        }
+        return ap;
     }
     virtual expr_ptr visit_array_app(const shared_ptr<array_app> & app) override
     {

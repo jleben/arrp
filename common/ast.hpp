@@ -65,6 +65,7 @@ enum node_type
     qualified_id,
     primitive,
     case_expr,
+    star,
 
     array_self_ref,
     array_def,

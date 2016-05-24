@@ -290,8 +290,77 @@ array_self_apply:
 ;
 
 array_func:
-  '[' array_arg_list RIGHT_ARROW array_body ']'
+  '[' array_range_list ':' array_pattern_list optional_semicolon ']'
   { $$ = make_list( ast::array_def, @$, {$2, $4} ); }
+;
+
+array_range_list:
+  array_range
+  { $$ = make_list( @$, {$1} ); }
+  |
+  array_range_list ',' array_range
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
+;
+
+array_range:
+  expr
+  |
+  '*'
+  { $$ = make_node(star, @$); }
+;
+
+array_pattern_list:
+  array_pattern
+  { $$ = make_list( @$, {$1} ); }
+  |
+  array_pattern_list ';' array_pattern
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
+;
+
+array_pattern:
+  array_pattern_vars RIGHT_ARROW expr
+  { $$ = make_list( @$, { $1, nullptr, $3 } ); }
+  |
+  array_pattern_vars array_domain_list '|' expr
+  { $$ = make_list( @$, { $1, $2, $4 } ); }
+;
+
+array_pattern_vars:
+  array_pattern_var
+  { $$ = make_list( @$, {$1} ); }
+  |
+  array_pattern_vars ',' array_pattern_var
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
+;
+
+array_pattern_var: id | int;
+
+array_domain_list:
+  array_domain
+  { $$ = make_list( @$, {$1} ); }
+  |
+  array_domain_list array_domain
+  {
+    $$ = $1;
+    $$->as_list()->append( $2 );
+    $$->location = @$;
+  }
+;
+array_domain:
+  '|' expr RIGHT_ARROW expr
+  { $$ = make_list( @$, { $2, $4 } ); }
 ;
 
 array_enum:
@@ -313,31 +382,6 @@ array_elem_list:
     $$->as_list()->append( $3 );
     $$->location = @$;
   }
-;
-
-array_body:
-  expr
-  |
-  case_expr
-;
-
-array_arg_list:
-  array_arg
-  { $$ = make_list( array_params, @$, {$1} ); }
-  |
-  array_arg_list ',' array_arg
-  {
-    $$ = $1;
-    $$->as_list()->append( $3 );
-  }
-;
-
-array_arg:
-  id
-  { $$ = make_list( array_param, @$, {$1, nullptr} ); }
-  |
-  id ':' expr
-  { $$ = make_list( array_param, @$, {$1, $3} ); }
 ;
 
 array_size:
@@ -369,28 +413,6 @@ expr_list:
 if_expr:
   IF expr THEN expr ELSE expr
   { $$ = make_list( primitive, @$, {make_const(@1,op_type::conditional), $2, $4, $6} ); }
-;
-
-case_expr:
-  CASE expr_in_domain_list ';' ELSE ':' expr %prec ELSE
-  { $$ = make_list( ast::case_expr, @$, { $2, $6 } ); }
-;
-
-expr_in_domain_list:
-  expr_in_domain
-  { $$ = make_list( @$, {$1} ); }
-  |
-  expr_in_domain_list ';' expr_in_domain
-  {
-    $$ = $1;
-    $$->location = @$;
-    $$->as_list()->append( $3 );
-  }
-;
-
-expr_in_domain:
-  expr ':' expr
-  { $$ = make_list( @$, { $1, $3 } ); }
 ;
 
 number:

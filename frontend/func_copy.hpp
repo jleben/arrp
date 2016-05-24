@@ -44,6 +44,7 @@ protected:
     virtual expr_ptr visit_affine(const shared_ptr<affine_expr> &) override;
     virtual expr_ptr visit_cases(const shared_ptr<case_expr> & cexpr) override;
     virtual expr_ptr visit_array(const shared_ptr<array> & arr) override;
+    virtual expr_ptr visit_array_patterns(const shared_ptr<array_patterns> & ap) override;
     virtual expr_ptr visit_array_app(const shared_ptr<array_app> & app) override;
     virtual expr_ptr visit_array_size(const shared_ptr<array_size> & as) override;
     virtual expr_ptr visit_func_app(const shared_ptr<func_app> & app) override;

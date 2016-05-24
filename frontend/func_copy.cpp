@@ -161,6 +161,22 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
     return new_arr;
 }
 
+expr_ptr copier::visit_array_patterns(const shared_ptr<array_patterns> & ap)
+{
+    for (auto & pattern : ap->patterns)
+    {
+        for (auto & index : pattern.indexes)
+        {
+            if (index.var && index.var->range)
+                index.var->range = copy(index.var->range);
+        }
+        if (pattern.domains)
+            pattern.domains = copy(pattern.domains);
+        pattern.expr = copy(pattern.expr);
+    }
+    return ap;
+}
+
 expr_ptr copier::visit_array_app(const shared_ptr<array_app> & app)
 {
     auto new_app = make_shared<array_app>();

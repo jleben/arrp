@@ -33,6 +33,7 @@ private:
     type_ptr visit_cases(const shared_ptr<case_expr> & cexpr) override;
     type_ptr visit_array(const shared_ptr<array> & arr) override;
     type_ptr process_array(const shared_ptr<array> & arr);
+    type_ptr visit_array_patterns(const shared_ptr<array_patterns> & ap) override;
     type_ptr visit_array_self_ref(const shared_ptr<array_self_ref> &) override;
     type_ptr visit_array_app(const shared_ptr<array_app> & app) override;
     type_ptr visit_array_size(const shared_ptr<array_size> & as) override;
