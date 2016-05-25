@@ -36,9 +36,13 @@ string wrong_arg_count_msg(int required, int actual)
 }
 
 func_reducer::func_reducer(name_provider & nmp):
+    m_trace("trace"),
     m_name_provider(nmp),
-    m_copier(m_ids, nmp)
-{}
+    m_copier(m_ids, nmp),
+    m_type_checker(m_trace)
+{
+    m_trace.set_enabled(false);
+}
 
 id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 {
@@ -100,8 +104,6 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
         cout << "Function application at: " << loc << endl;
     }
 
-    m_trace.push(loc);
-
     if(func->vars.size() < args.size())
         throw reduction_error
             (wrong_arg_count_msg(func->vars.size(), args.size()), loc);
@@ -161,6 +163,8 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
     // Reduce
 
+    m_trace.push(loc);
+
     if (verbose<func_reducer>::enabled())
     {
         cout << "Pushing scope of applied function:";
@@ -174,6 +178,9 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
     expr_ptr reduced_expr = reduce(func->expr);
 
+    if (!m_in_partial_application)
+        m_type_checker.process(reduced_expr);
+
     if (verbose<func_reducer>::enabled())
     {
         cout << "Popping scope of applied function:";
@@ -183,6 +190,7 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
 
     m_scope_stack.pop();
 
+    m_trace.pop();
 
     if (func->vars.size() > args.size())
     {
@@ -207,8 +215,6 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
             parent_ids.insert(parent_ids.end(), ids.begin(), ids.end());
         }
     }
-
-    m_trace.pop();
 
     return reduced_expr;
 }
@@ -235,13 +241,12 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
                      << " referenced at " << ref->location << endl;
             }
 
-            m_trace.push(ref->location);
+            stacker<location_type, tracing_stack<location_type>> tracer(m_trace);
+            tracer.push(location_type()); // Separator
 
             id->expr = reduce(id->expr);
 
             m_ids.insert(id);
-
-            m_trace.pop();
         }
 
         if (is_constant(id->expr))
@@ -251,7 +256,6 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
     }
     else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
     {
-        // TODO: remember location of reference
         auto binding = m_beta_reduce_context.find(f_var);
         if (binding)
         {

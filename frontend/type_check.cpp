@@ -38,8 +38,21 @@ string text(primitive_op op, const vector<primitive_type> & args)
     return text.str();
 }
 
+type_checker::type_checker(stack<location_type> & trace):
+    m_trace(trace)
+{
+    m_printer.set_print_var_address(true);
+}
+
 void type_checker::process(const expr_ptr & expr)
 {
+    if (verbose<type_checker>::enabled())
+    {
+        cout << "Processing:" << endl;
+        m_printer.print(expr, cout);
+        cout << endl;
+    }
+
     visit(expr);
 }
 
@@ -95,9 +108,14 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
     {
         if (verbose<type_checker>::enabled())
         {
-            cout << "Visiting id " << id->name << endl;
+            cout << "Visiting id:" << endl;
+            m_printer.print(id, cout);
+            cout << endl;
         }
+        // FIXME: if this is a top-level id, add separator to trace.
         type = visit(id->expr);
+        if (verbose<type_checker>::enabled())
+            cout << "Done visiting id " << id->name << endl;
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
@@ -128,7 +146,7 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 
         if (dynamic_pointer_cast<function_type>(type))
         {
-            throw source_error("Function not allowed as operand.", operand.location);
+            throw type_error("Function not allowed as operand.", operand.location);
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
@@ -138,7 +156,7 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
                 ostringstream msg;
                 msg << "Operand size mismatch: "
                     << arr->size << " != " << common_size;
-                throw source_error(msg.str(), operand.location);
+                throw type_error(msg.str(), operand.location);
             }
 
             elem_types.push_back(arr->element);
@@ -162,13 +180,13 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
     {
         string msg("Invalid operand types: ");
         msg += text(prim->kind, elem_types);
-        throw source_error(msg, prim->location);
+        throw type_error(msg, prim->location);
     }
     catch (ambiguous_type &)
     {
         string msg("Ambiguous type resolution:");
         msg += text(prim->kind, elem_types);
-        throw source_error(msg, prim->location);
+        throw type_error(msg, prim->location);
     }
 
     if (common_size.empty())
@@ -246,14 +264,14 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 
         if (!type->is_data())
         {
-            throw source_error("Expression can not be used as data.", expr.location);
+            throw type_error("Expression can not be used as data.", expr.location);
         }
 
         to_linear_set(domain);
 
         if (dynamic_pointer_cast<function_type>(type))
         {
-            throw source_error("Function not allowed in case.", expr.location);
+            throw type_error("Function not allowed in case.", expr.location);
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
@@ -263,7 +281,7 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
                 ostringstream msg;
                 msg << "Case size mismatch: "
                     << arr->size << " != " << common_size;
-                throw source_error(msg.str(), expr.location);
+                throw type_error(msg.str(), expr.location);
             }
 
             elem_types.push_back(arr->element);
@@ -283,7 +301,7 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
     try {
         result_elem_type = common_type(elem_types);
     } catch (no_type &) {
-        throw source_error("Incompatible case types.", cexpr->location);
+        throw type_error("Incompatible case types.", cexpr->location);
     }
 
     if (common_size.empty())
@@ -333,13 +351,13 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
                 {
                     ostringstream msg;
                     msg << "Array bound not positive (" <<  c->value << ")";
-                    throw source_error(msg.str(), var->range.location);
+                    throw type_error(msg.str(), var->range.location);
                 }
                 size.push_back(c->value);
             }
             else
             {
-                throw source_error("Array bound not a constant integer.",
+                throw type_error("Array bound not a constant integer.",
                                    var->range.location);
             }
         }
@@ -358,12 +376,12 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 
         if (!type->is_data())
         {
-            throw source_error("Expression can not be used as data.", e.location);
+            throw type_error("Expression can not be used as data.", e.location);
         }
 
         if (dynamic_pointer_cast<function_type>(type))
         {
-            throw source_error("Function not allowed here.", e.location);
+            throw type_error("Function not allowed here.", e.location);
         }
         else if (auto at = dynamic_pointer_cast<array_type>(type))
         {
@@ -373,7 +391,7 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
                 ostringstream msg;
                 msg << "Size mismatch: "
                     << at->size << " != " << common_subdom_size;
-                throw source_error(msg.str(), e.location);
+                throw type_error(msg.str(), e.location);
             }
 
             elem_types.push_back(at->element);
@@ -416,12 +434,12 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
     try {
         result_elem_type = common_type(elem_types);
     } catch (no_type &) {
-        throw source_error("Incompatible types.", arr->location);
+        throw type_error("Incompatible types.", arr->location);
     }
 
     if (result_elem_type == primitive_type::undefined)
     {
-        throw source_error("Array element type can not be inferred.",
+        throw type_error("Array element type can not be inferred.",
                            arr->expr.location);
     }
 
@@ -447,7 +465,7 @@ type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
     {
         if (total_elem_count == -1)
         {
-            throw source_error
+            throw type_error
                     ("Can not concatenate to end of infinite array.",
                      operand.location);
         }
@@ -456,13 +474,13 @@ type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
 
         if (!type->is_data())
         {
-            throw source_error("Expression can not be used as data.",
+            throw type_error("Expression can not be used as data.",
                                operand.location);
         }
 
         if (dynamic_pointer_cast<function_type>(type))
         {
-            throw source_error("Function not allowed here.", operand.location);
+            throw type_error("Function not allowed here.", operand.location);
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
@@ -482,7 +500,7 @@ type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
                 ostringstream msg;
                 msg << "Element size mismatch: "
                     << elem_size << " != " << common_elem_size;
-                throw source_error(msg.str(), operand.location);
+                throw type_error(msg.str(), operand.location);
             }
 
             elem_types.push_back(arr->element);
@@ -503,7 +521,7 @@ type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
     try {
         result_elem_type = common_type(elem_types);
     } catch (no_type &) {
-        throw source_error("Incompatible element types.", op->location);
+        throw type_error("Incompatible element types.", op->location);
     }
 
     assert(total_elem_count != 0);
@@ -527,13 +545,13 @@ type_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
 
         if (!type->is_data())
         {
-            throw source_error("Expression can not be used as data.",
+            throw type_error("Expression can not be used as data.",
                                operand.location);
         }
 
         if (dynamic_pointer_cast<function_type>(type))
         {
-            throw source_error("Function not allowed here.", operand.location);
+            throw type_error("Function not allowed here.", operand.location);
         }
         else if (auto arr = dynamic_pointer_cast<array_type>(type))
         {
@@ -543,7 +561,7 @@ type_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
                 ostringstream msg;
                 msg << "Element size mismatch: "
                     << arr->size << " != " << common_elem_size;
-                throw source_error(msg.str(), operand.location);
+                throw type_error(msg.str(), operand.location);
             }
 
             elem_types.push_back(arr->element);
@@ -563,7 +581,7 @@ type_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
     try {
         result_elem_type = common_type(elem_types);
     } catch (no_type &) {
-        throw source_error("Incompatible element types.", op->location);
+        throw type_error("Incompatible element types.", op->location);
     }
 
     array_size_vec result_size;
@@ -631,7 +649,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
     }
     else
     {
-        throw source_error("Object can not be applied as array.",
+        throw type_error("Object can not be applied as array.",
                            app->object.location);
     }
 
@@ -644,7 +662,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
             msg << "Array self reference must be applied exactly."
                 << " Expected " << num_vars << " arguments, but "
                 << app->args.size() << " given.";
-            throw source_error(msg.str(), app->location);
+            throw type_error(msg.str(), app->location);
         }
     }
 
@@ -656,17 +674,17 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
 
         if (!arg_type)
         {
-            throw source_error("Array argument is not a scalar.",
+            throw type_error("Array argument is not a scalar.",
                               arg.location);
         }
         if (arg_type->primitive != primitive_type::integer)
         {
-            throw source_error("Array argument is not an integer.",
+            throw type_error("Array argument is not an integer.",
                                arg.location);
         }
         if (!arg_type->is_affine())
         {
-            throw source_error("Array argument is not an affine expression.",
+            throw type_error("Array argument is not an affine expression.",
                                arg.location);
         }
 
@@ -684,7 +702,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
                 ostringstream msg;
                 msg << "Argument range (" << max_value << ")"
                     << " out of array bound (" << bound << ")";
-                throw source_error(msg.str(),
+                throw type_error(msg.str(),
                                    arg.location);
             }
         }
@@ -692,7 +710,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
         {
             if (bound != array_var::unconstrained)
             {
-                throw source_error("Unbounded argument to"
+                throw type_error("Unbounded argument to"
                                    " bounded array dimension.",
                                    arg.location);
             }
@@ -718,7 +736,7 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
     visit(as->object);
     auto arr_type = dynamic_pointer_cast<array_type>(as->object->type);
     if (!arr_type)
-        throw source_error("Not an array.", as->object.location);
+        throw type_error("Not an array.", as->object.location);
 
     assert(!arr_type->size.empty());
 
@@ -728,14 +746,14 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
     {
         auto dim_const = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
         if (!dim_const)
-            throw source_error("Not an integer constant.", as->dimension.location);
+            throw type_error("Not an integer constant.", as->dimension.location);
 
         dim = dim_const->value;
         if (dim < 1 || dim > arr_type->size.size())
         {
             ostringstream msg;
             msg << "Dimension index out of bounds: " << dim;
-            throw source_error(msg.str(), as->dimension.location);
+            throw type_error(msg.str(), as->dimension.location);
         }
     }
 
@@ -745,7 +763,7 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
     {
         ostringstream msg;
         msg << "Dimension " << dim << " is unbounded.";
-        throw source_error(msg.str(), as->location);
+        throw type_error(msg.str(), as->location);
     }
 
     auto result = make_shared<scalar_type>(primitive_type::integer);
@@ -761,7 +779,7 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
 #if 0
     auto func_type = dynamic_pointer_cast<function_type>(visit(app->object));
     if (!func_type)
-        throw source_error("Not a function.", app->object.location);
+        throw type_error("Not a function.", app->object.location);
 
     if (app->args.size() > func_type->arg_count)
     {
@@ -769,7 +787,7 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
         msg << "Too many arguments in function application: "
             << func_type->arg_count << " expected, "
             << app->args.size() << " given.";
-        throw source_error(msg.str(), app->location);
+        throw type_error(msg.str(), app->location);
     }
 
     int remaining_arg_count = func_type->arg_count - app->args.size();

@@ -18,16 +18,6 @@ namespace functional {
 using std::stack;
 using std::unordered_set;
 
-class func_reduce_error : public source_error
-{
-public:
-    func_reduce_error(const string & msg,
-                      const stack<location_type> & trace,
-                      const location_type & loc):
-        source_error(msg, loc), trace(trace) {}
-    stack<location_type> trace;
-};
-
 class func_reducer : public rewriter_base
 {
     // FIXME: when array vars are passed as function arguments,
@@ -55,10 +45,10 @@ private:
     expr_ptr visit_func_app(const shared_ptr<func_app> & app) override;
 
 
-    func_reduce_error
+    source_error
     reduction_error(const string & msg, const location_type & loc)
     {
-        return func_reduce_error(msg, m_trace, loc);
+        return source_error(msg, loc, m_trace);
     }
 
 
@@ -73,7 +63,7 @@ private:
 
     reduce_context_type m_beta_reduce_context;
 
-    stack<location_type> m_trace;
+    tracing_stack<location_type> m_trace;
     stack<array_ptr> m_array_copy_stack;
 
     unordered_set<id_ptr> m_ids;

@@ -48,9 +48,9 @@ ostream & operator<< (ostream & s, const code_location & l)
 {
     if (l.module)
     {
-        s << "in module '" << l.module->name << "'";
+        s << "module '" << l.module->name << "'";
         if (!l.module->source.path.empty())
-            s << " at " << l.module->source.path;
+            s << ": " << l.module->source.path;
         s << ':';
     }
     s << l.range;

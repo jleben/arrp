@@ -24,8 +24,11 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../common/error.hpp"
 #include "../common/module.hpp"
 #include "location.hh"
+#include <stack>
 
 namespace stream {
+
+using std::stack;
 
 struct source_error : public error
 {
@@ -36,7 +39,16 @@ struct source_error : public error
         location(location)
     {}
 
+    source_error(const string & what,
+                 const location_type & location,
+                 const stack<location_type> & trace):
+        error(what),
+        location(location),
+        trace(trace)
+    {}
+
     location_type location;
+    stack<location_type> trace;
 };
 
 }

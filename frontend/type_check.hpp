@@ -3,6 +3,8 @@
 
 #include "../common/functional_model.hpp"
 #include "../common/func_model_visitor.hpp"
+#include "../common/func_model_printer.hpp"
+#include "error.hpp"
 
 #include <unordered_set>
 
@@ -14,6 +16,8 @@ using std::unordered_set;
 class type_checker : public visitor<type_ptr>
 {
 public:
+    type_checker(stack<location_type> & trace);
+
     void process(const expr_ptr &);
 
     static type_ptr make_array_type(array_size_vec & size, const type_ptr & elem_type);
@@ -40,7 +44,16 @@ private:
     type_ptr visit_func_app(const shared_ptr<func_app> & app) override;
     type_ptr visit_func(const shared_ptr<function> & func) override;
 
+    source_error type_error(const string & msg, const location_type & loc)
+    {
+        return source_error(msg, loc, m_trace);
+    }
+
     bool m_force_revisit = false;
+
+    printer m_printer;
+
+    stack<location_type> & m_trace;
 };
 
 }

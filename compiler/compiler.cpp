@@ -293,21 +293,20 @@ result::code compile_module
             }
         }
     }
-    catch (functional::func_reduce_error & e)
+    catch (source_error & e)
     {
-        cerr << "** ERROR " << e.location << ": " << e.what() << endl;
-        print_code_range(cerr, e.location.path(), e.location.range);
+        list<code_location> reverse_locations;
         while(!e.trace.empty())
         {
             auto location = e.trace.top();
+            if (!location.module)
+                break;
+            reverse_locations.push_front(location);
             e.trace.pop();
-            cout << ".. from " << location << endl;
         }
-        return result::semantic_error;
-    }
-    catch (source_error & e)
-    {
-        cerr << "** ERROR " << e.location << ": " << e.what() << endl;
+        for (auto & location : reverse_locations)
+            cout << ".. From " << location << endl;
+        cerr << "** ERROR: " << e.location << ": " << e.what() << endl;
         print_code_range(cerr, e.location.path(), e.location.range);
         return result::semantic_error;
     }
