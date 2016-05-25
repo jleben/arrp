@@ -1,4 +1,4 @@
 
-f(a) = { let z = [t -> a]; z };
+f(a) = { let z = [*:t -> a]; z };
 
-main = [t -> [k:5 -> f(k)[t]]];
+main = [*:t -> [5:k -> f(k)[t]]];

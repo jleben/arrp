@@ -1,2 +1,0 @@
-
-main = [i -> case i==0: [j:5->j]; else: 3]
