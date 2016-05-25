@@ -103,13 +103,15 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto c = dynamic_pointer_cast<const case_expr>(expr))
     {
-        out << "case ";
+        int ci = 0;
         for (auto & a_case : c->cases)
         {
+            if (ci++ > 0)
+                out << ' ';
+            out << "| ";
             print(a_case.first, out);
-            out << ": ";
+            out << " -> ";
             print(a_case.second, out);
-            out << "; ";
         }
     }
     else if (auto ar = dynamic_pointer_cast<const array>(expr))
@@ -168,8 +170,18 @@ void printer::print(expr_ptr expr, ostream & out)
                 else
                     out << index.value;
             }
-            out << " -> ";
-            print(pattern.expr, out);
+            if (pattern.domains)
+            {
+                out << " ";
+                print(pattern.domains, out);
+                out << " | ";
+                print(pattern.expr, out);
+            }
+            else
+            {
+                out << " -> ";
+                print(pattern.expr, out);
+            }
             out << ';';
         }
     }
