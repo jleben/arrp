@@ -277,15 +277,21 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
 
     if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr.expr))
     {
-        // replace array self references
+        // Replace array self references
 
         m_sub.arrays[nested_arr] = arr;
 
-        arr->expr = m_sub(nested_arr->expr);
+        nested_arr->expr = m_sub(nested_arr->expr);
 
         m_sub.arrays.erase(nested_arr);
 
-        // combine array vars
+        // Reduce nested applications of self references
+
+        reduce(nested_arr);
+
+        // Merge nested array expression and vars
+
+        arr->expr = nested_arr->expr;
 
         arr->vars.insert(arr->vars.end(),
                          nested_arr->vars.begin(),
