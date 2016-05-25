@@ -194,7 +194,7 @@ void printer::print(expr_ptr expr, ostream & out)
         {
             print(arg, out);
             if(++i < app->args.size())
-                out << ", ";
+                out << ",";
         }
         out << "]";
     }
