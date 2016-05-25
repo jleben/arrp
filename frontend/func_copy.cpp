@@ -42,8 +42,6 @@ expr_ptr copier::visit_ref(const shared_ptr<reference> & ref)
             return make_shared<reference>(binding.value(), ref->location, ref->type);
         else
         {
-            if (verbose<functional::model>::enabled())
-                cout << "WARNING: Copying: no substitution for array var: " << a_var << endl;
             return make_shared<reference>(*ref);
         }
     }
