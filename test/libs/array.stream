@@ -1,11 +1,11 @@
 module array;
 
-slice(pos,len,a) = [i:len -> a[pos + i]];
+slice(pos,len,a) = [len:i -> a[pos + i]];
 
 scan(f,a) = {
-  [i:#a -> case
-    i == 0: a[i];
-    else: f(a[i], this[i-1])
+  [#a:
+    0 -> a[0];
+    i -> f(a[i], this[i-1]);
   ]
 };
 
@@ -15,8 +15,8 @@ fold(f,a) = {
 };
 
 iterate(f,init) = {
-  [i -> case
-      i == 0: init;
-      else: f(this[i-1])
+  [*:
+    0 -> init;
+    i -> f(this[i-1]);
   ];
 };
