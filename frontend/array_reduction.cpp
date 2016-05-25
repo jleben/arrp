@@ -310,13 +310,13 @@ expr_ptr array_reducer::reduce
     auto subdomains = make_shared<case_expr>();
     subdomains->type = ap->type;
 
+    array_ref_sub::var_map::scope_holder scope(m_sub.vars);
+
     expr_ptr previous_domain;
 
     for (auto & pattern : ap->patterns)
     {
         // Substitute array variables
-
-        array_ref_sub::var_map::scope_holder scope(m_sub.vars);
 
         {
             int dim_idx = 0;
@@ -378,6 +378,16 @@ expr_ptr array_reducer::reduce
 
         previous_domain = unite(previous_domain, pattern_constraint);
     }
+
+    // Subtitute vars in local ids
+
+    for (auto & id : ar->scope.ids)
+    {
+        id->expr = m_sub(id->expr);
+    }
+
+    // If only one subdomain, and it has not constraints,
+    // return its expression.
 
     if (subdomains->cases.size() == 1)
     {
