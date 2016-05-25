@@ -321,7 +321,7 @@ type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
 
 type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 {
-    vector<int> size;
+    array_size_vec size;
 
     for (auto & var : arr->vars)
     {
@@ -349,7 +349,7 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
         }
     }
 
-    array_size_vec common_size;
+    array_size_vec common_subdom_size;
     vector<primitive_type> elem_types;
 
     auto process_type = [&](expr_slot & e)
@@ -368,11 +368,11 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
         else if (auto at = dynamic_pointer_cast<array_type>(type))
         {
             try {
-                common_size = common_array_size(common_size, at->size);
+                common_subdom_size = common_array_size(common_subdom_size, at->size);
             } catch (no_type &) {
                 ostringstream msg;
                 msg << "Size mismatch: "
-                    << at->size << " != " << common_size;
+                    << at->size << " != " << common_subdom_size;
                 throw source_error(msg.str(), e.location);
             }
 
@@ -425,8 +425,10 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
                            arr->expr.location);
     }
 
-    auto type = make_shared<array_type>(size, result_elem_type);
+    patterns->type = make_shared<array_type>(common_subdom_size, result_elem_type);
 
+    size.insert(size.end(), common_subdom_size.begin(), common_subdom_size.end());
+    auto type = make_shared<array_type>(size, result_elem_type);
     return type;
 }
 

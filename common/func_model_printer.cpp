@@ -126,10 +126,10 @@ void printer::print(expr_ptr expr, ostream & out)
                     print(var->range, out);
                 }
                 if (--count)
-                    out << ", ";
+                    out << ",";
             }
         }
-        out << " -> ";
+        out << ": ";
         print(ar->expr, out);
         if (m_print_scopes && ar->scope.ids.size())
         {
@@ -143,6 +143,35 @@ void printer::print(expr_ptr expr, ostream & out)
             }
         }
         out << "]";
+    }
+    else if (auto p = dynamic_pointer_cast<array_patterns>(expr))
+    {
+        auto pi = 0;
+        for (auto & pattern : p->patterns)
+        {
+            if (pi++ > 0)
+                out << ' ';
+            auto dim = 0;
+            for (auto & index : pattern.indexes)
+            {
+                if (dim++ > 0)
+                    out << ',';
+                if (index.var)
+                {
+                    out << index.var->name;
+                    if (index.var->range)
+                    {
+                        out << ":";
+                        print(index.var->range, out);
+                    }
+                }
+                else
+                    out << index.value;
+            }
+            out << " -> ";
+            print(pattern.expr, out);
+            out << ';';
+        }
     }
     else if (auto app = dynamic_pointer_cast<array_app>(expr))
     {

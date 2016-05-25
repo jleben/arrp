@@ -12,10 +12,61 @@ using namespace std;
 namespace stream {
 namespace functional {
 
+expr_ptr make_ref(array_var_ptr var)
+{
+    return make_shared<reference>(var, location_type(), make_int_type());
+}
+
+expr_ptr unite(expr_ptr a, expr_ptr b)
+{
+    if (!a)
+        return b;
+    if (!b)
+        return a;
+    auto r = make_shared<primitive>(primitive_op::logic_or, a, b);
+    r->type = make_shared<scalar_type>(primitive_type::boolean);
+    return r;
+}
+
+expr_ptr intersect(expr_ptr a, expr_ptr b)
+{
+    if (!a)
+        return b;
+    if (!b)
+        return a;
+    auto r = make_shared<primitive>(primitive_op::logic_and, a, b);
+    r->type = make_shared<scalar_type>(primitive_type::boolean);
+    return r;
+}
+
+expr_ptr negate(expr_ptr a)
+{
+    if (!a)
+        return nullptr;
+    auto r = make_shared<primitive>(primitive_op::negate, a);
+    r->type = make_shared<scalar_type>(primitive_type::boolean);
+    return r;
+}
+
+expr_ptr equal(expr_ptr a, expr_ptr b)
+{
+    auto r = make_shared<primitive>(primitive_op::compare_eq, a, b);
+    r->type = make_shared<scalar_type>(primitive_type::boolean);
+    return r;
+}
+
+expr_ptr int_expr(int v)
+{
+    auto r = make_shared<int_const>(v);
+    r->type = make_int_type();
+    return r;
+}
+
 array_reducer::array_reducer(name_provider & nmp):
     m_declared_vars("declared var"),
     m_name_provider(nmp),
-    m_copier(m_processed_ids, nmp)
+    m_copier(m_processed_ids, nmp),
+    m_sub(m_copier, m_printer)
 {
     m_declared_vars.set_enabled(verbose<array_reducer>::enabled());
 
@@ -73,7 +124,7 @@ id_ptr array_reducer::process(id_ptr id)
 
         assert(ordered_unbound_vars.size() == unbound_vars.size());
 
-        m_context.enter_scope();
+        m_sub.vars.enter_scope();
 
         vector<array_var_ptr> new_vars;
 
@@ -86,17 +137,17 @@ id_ptr array_reducer::process(id_ptr id)
             new_vars.push_back(new_var);
 
             auto ref = make_shared<reference>(new_var, location_type(), make_int_type());
-            m_context.bind(var, ref);
+            m_sub.vars.bind(var, ref);
         }
 
         auto ar = make_shared<array>();
         ar->vars = new_vars;
-        ar->expr = substitute(id->expr);
+        ar->expr = m_sub(id->expr);
 
         auto ar_size = array_size(ar);
         ar->type = make_shared<array_type>(ar_size, ar->expr->type);
 
-        m_context.exit_scope();
+        m_sub.vars.exit_scope();
 
         // Reduce expression to get rid of nested arrays
 
@@ -196,36 +247,6 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     {
         return reduce(ref);
     }
-    else if (auto self = dynamic_pointer_cast<array_self_ref>(expr))
-    {
-        auto sub_it = m_array_ref_sub.find(self->arr);
-        if (sub_it == m_array_ref_sub.end())
-            return expr;
-
-        array_ptr sub = sub_it->second;
-
-        if (verbose<array_reducer>::enabled())
-        {
-            cout << "Substituting array self reference: "
-                 << self->arr << " : " << *self->type
-                 << " -> "
-                 << sub << " : " << *sub->type
-                 << endl;
-        }
-
-        auto original_type = self->type;
-
-        self->arr = sub;
-        self->type = sub->type;
-
-        auto app = make_shared<array_app>();
-        app->object = self;
-        app->type = original_type;
-        for (auto & var : sub->vars)
-            app->args.emplace_back(make_shared<reference>(var, location_type(), make_int_type()));
-
-        return app;
-    }
 
     return expr;
 }
@@ -247,18 +268,22 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
         declared_vars.push(var);
     }
 
+    if (auto patterns = dynamic_pointer_cast<array_patterns>(arr->expr.expr))
+    {
+        arr->expr = reduce(arr, patterns);
+    }
+
     arr->expr = eta_expand(reduce(arr->expr));
 
     if (auto nested_arr = dynamic_pointer_cast<array>(arr->expr.expr))
     {
         // replace array self references
 
-        m_array_ref_sub[nested_arr] = arr;
+        m_sub.arrays[nested_arr] = arr;
 
-        reduce(nested_arr);
-        arr->expr = nested_arr->expr;
+        arr->expr = m_sub(nested_arr->expr);
 
-        m_array_ref_sub.erase(nested_arr);
+        m_sub.arrays.erase(nested_arr);
 
         // combine array vars
 
@@ -270,6 +295,94 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
     }
 
     return arr;
+}
+
+expr_ptr array_reducer::reduce
+(std::shared_ptr<array> ar,
+ std::shared_ptr<array_patterns> ap)
+{
+    auto subdomains = make_shared<case_expr>();
+    subdomains->type = ap->type;
+
+    expr_ptr previous_domain;
+
+    for (auto & pattern : ap->patterns)
+    {
+        // Substitute array variables
+
+        array_ref_sub::var_map::scope_holder scope(m_sub.vars);
+
+        {
+            int dim_idx = 0;
+            for (auto & index : pattern.indexes)
+            {
+                if (index.var)
+                    m_sub.vars.bind(index.var, make_ref(ar->vars[dim_idx]));
+                ++dim_idx;
+            }
+        }
+
+        if (pattern.domains)
+            pattern.domains = m_sub(pattern.domains);
+
+        pattern.expr = m_sub(pattern.expr);
+
+        // Create pattern constraint expressions
+
+        expr_ptr pattern_constraint;
+
+        {
+            int dim_idx = 0;
+            for (auto & index : pattern.indexes)
+            {
+                if (!index.var)
+                {
+                    auto v = make_ref(ar->vars[dim_idx]);
+                    pattern_constraint =
+                            intersect(pattern_constraint,
+                                      equal(v, int_expr(index.value)));
+                }
+                ++dim_idx;
+            }
+        }
+
+        // Create subdomain expressions
+
+        expr_ptr pattern_domain =
+                intersect(negate(previous_domain), pattern_constraint);
+
+        expr_ptr prev_case_domain;
+
+        if (pattern.domains)
+        {
+            auto cexpr = dynamic_pointer_cast<case_expr>(pattern.domains.expr);
+            for (auto & c : cexpr->cases)
+            {
+                auto dom = c.first;
+                dom = intersect(negate(prev_case_domain), dom);
+                dom = intersect(pattern_domain, dom);
+                prev_case_domain = unite(prev_case_domain, c.first);
+                c.first = dom;
+                subdomains->cases.push_back(c);
+            }
+        }
+
+        auto last_case = intersect(pattern_domain, negate(prev_case_domain));
+        subdomains->cases.emplace_back(expr_slot(last_case), pattern.expr);
+
+        previous_domain = unite(previous_domain, pattern_constraint);
+    }
+
+    if (subdomains->cases.size() == 1)
+    {
+        auto & c = subdomains->cases.front();
+        auto & domain = c.first;
+        auto & expr = c.second;
+        if (!domain)
+            return expr;
+    }
+
+    return subdomains;
 }
 
 expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
@@ -766,14 +879,14 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args
         expr_ptr result;
 
         {
-            context_type::scope_holder scope(m_context);
+            array_ref_sub::var_map::scope_holder scope(m_sub.vars);
 
             for (int i = 0; i < args.size(); ++i)
             {
-                m_context.bind(arr->vars[i], args[i]);
+                m_sub.vars.bind(arr->vars[i], args[i]);
             }
 
-            result = substitute(arr->expr);
+            result = m_sub(arr->expr);
         }
 
         // Reduce primitive ops
@@ -805,62 +918,6 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args
         return app;
         //throw error("Unexpected object of array application.");
     }
-}
-
-expr_ptr array_reducer::substitute(expr_ptr expr)
-{
-    if (auto ref = dynamic_pointer_cast<reference>(expr))
-    {
-        if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
-        {
-            auto binding = m_context.find(avar);
-            if (binding)
-            {
-                if (verbose<array_reducer>::enabled())
-                {
-                    cout << "Substituting array var " << avar << " with ";
-                    m_printer.print(binding.value(), cout);
-                    cout << endl;
-                }
-
-                return binding.value();
-            }
-            else if (verbose<array_reducer>::enabled())
-            {
-                cout << "No substitution for array var " << avar << endl;
-            }
-        }
-        return ref;
-    }
-    else if (auto c = dynamic_pointer_cast<case_expr>(expr))
-    {
-        for (auto & a_case : c->cases)
-        {
-            a_case.first = substitute(a_case.first);
-            a_case.second = substitute(a_case.second);
-        }
-        return c;
-    }
-    else if (auto arr = dynamic_pointer_cast<array>(expr))
-    {
-        arr->expr = substitute(arr->expr);
-        return arr;
-    }
-    else if (auto app = dynamic_pointer_cast<array_app>(expr))
-    {
-        app->object = substitute(app->object);
-        for (auto & arg : app->args)
-            arg = substitute(arg);
-        return app;
-    }
-    else if (auto op = dynamic_pointer_cast<primitive>(expr))
-    {
-        for (auto & operand : op->operands)
-            operand = substitute(operand);
-        return op;
-    }
-    else
-        return expr;
 }
 
 expr_ptr array_reducer::eta_expand(expr_ptr expr)
@@ -907,6 +964,61 @@ string array_reducer::new_var_name()
     ostringstream text;
     text << "_v" << var_count;
     return text.str();
+}
+
+expr_ptr array_ref_sub::visit_ref(const shared_ptr<reference> & ref)
+{
+    if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
+    {
+        auto binding = vars.find(avar);
+        if (binding)
+        {
+            if (verbose<array_reducer>::enabled())
+            {
+                cout << "Substituting array var " << avar << " with ";
+                m_printer.print(binding.value(), cout);
+                cout << endl;
+            }
+
+            return m_copier.copy(binding.value());
+        }
+        else if (verbose<array_reducer>::enabled())
+        {
+            cout << "No substitution for array var " << avar << endl;
+        }
+    }
+    return ref;
+}
+
+expr_ptr array_ref_sub::visit_array_self_ref(const shared_ptr<array_self_ref> & self)
+{
+    auto sub_it = arrays.find(self->arr);
+    if (sub_it == arrays.end())
+        return self;
+
+    array_ptr sub = sub_it->second;
+
+    if (verbose<array_reducer>::enabled())
+    {
+        cout << "Substituting array self reference: "
+             << self->arr << " : " << *self->type
+             << " -> "
+             << sub << " : " << *sub->type
+             << endl;
+    }
+
+    auto original_type = self->type;
+
+    self->arr = sub;
+    self->type = sub->type;
+
+    auto app = make_shared<array_app>();
+    app->object = self;
+    app->type = original_type;
+    for (auto & var : sub->vars)
+        app->args.emplace_back(make_shared<reference>(var, location_type(), make_int_type()));
+
+    return app;
 }
 
 }

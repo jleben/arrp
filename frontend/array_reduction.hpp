@@ -21,6 +21,27 @@ using std::unordered_set;
 using std::unordered_map;
 using std::stack;
 
+class array_ref_sub : public rewriter_base
+{
+public:
+    using var_map = context<var_ptr, expr_ptr>;
+
+    array_ref_sub(copier & c, printer & p):
+        m_copier(c), m_printer(p) {}
+
+    expr_ptr visit_ref(const shared_ptr<reference> & e) override;
+    expr_ptr visit_array_self_ref(const shared_ptr<array_self_ref> &e) override;
+
+    var_map vars;
+    unordered_map<array_ptr, array_ptr> arrays;
+
+    expr_ptr operator()(const expr_ptr & e) { return visit(e); }
+
+private:
+    copier & m_copier;
+    printer & m_printer;
+};
+
 class array_reducer
 {
 public:
@@ -34,6 +55,7 @@ private:
     void reduce(id_ptr id);
     expr_ptr reduce(expr_ptr);
     expr_ptr reduce(std::shared_ptr<array>);
+    expr_ptr reduce(std::shared_ptr<array>, std::shared_ptr<array_patterns>);
     expr_ptr reduce(std::shared_ptr<array_app>);
     expr_ptr reduce(std::shared_ptr<primitive>);
     expr_ptr reduce(std::shared_ptr<operation>);
@@ -45,9 +67,6 @@ private:
     expr_ptr substitute(expr_ptr);
     expr_ptr eta_expand(expr_ptr);
 
-    using context_type = context<var_ptr, expr_ptr>;
-    context_type m_context;
-
     isl::context m_isl_ctx;
 
     string new_var_name();
@@ -56,7 +75,6 @@ private:
     unordered_set<id_ptr> m_final_ids;
     unordered_set<id_ptr> m_processed_ids;
     unordered_map<id_ptr, expr_ptr> m_id_sub;
-    unordered_map<array_ptr, array_ptr> m_array_ref_sub;
 
     using decl_var_stack = tracing_stack<array_var_ptr, stack_adapter<deque<array_var_ptr>>>;
     using decl_var_stacker = stacker<array_var_ptr, decl_var_stack>;
@@ -64,11 +82,10 @@ private:
 
     stack<unordered_set<array_var_ptr>> m_unbound_vars;
 
-    name_provider m_name_provider;
-
-    copier m_copier;
-
     printer m_printer;
+    name_provider m_name_provider;
+    copier m_copier;
+    array_ref_sub m_sub;
 };
 
 }
