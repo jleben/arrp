@@ -132,8 +132,9 @@ id_ptr array_reducer::process(id_ptr id)
         {
             assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range.expr) );
 
-            auto new_var = make_shared<array_var>(*var);
-            new_var->location = location_type();
+            auto name = "i" + to_string(new_vars.size());
+            auto new_var =
+                    make_shared<array_var>(name, var->range, location_type());
             new_vars.push_back(new_var);
 
             auto ref = make_shared<reference>(new_var, location_type(), make_int_type());
@@ -293,9 +294,12 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
 
         arr->expr = nested_arr->expr;
 
-        arr->vars.insert(arr->vars.end(),
-                         nested_arr->vars.begin(),
-                         nested_arr->vars.end());
+        int d = arr->vars.size();
+        for (auto & var : nested_arr->vars)
+        {
+            var->name = "i" + to_string(d);
+            arr->vars.push_back(var);
+        }
 
         arr->is_recursive = nested_arr->is_recursive;
     }
