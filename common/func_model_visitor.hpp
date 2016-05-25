@@ -336,6 +336,10 @@ public:
             if (var->range)
                 var->range = visit(var->range);
         }
+
+        for(auto & id : arr->scope.ids)
+            id->expr = visit(id->expr);
+
         arr->expr = visit(arr->expr);
         return arr;
     }
