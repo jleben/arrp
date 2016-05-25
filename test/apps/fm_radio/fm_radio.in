@@ -5,9 +5,9 @@ module fm_radio;
 pi = 3.14159265359;
 
 fold(f,a) = {
-  let folding = [k:#a -> case
-    k == 0: a[k];
-    else: f(a[k], this[k-1])
+  let folding = [#a:
+    0 -> a[0];
+    k -> f(a[k], this[k-1]);
   ];
   folding[#a-1];
 }
@@ -17,7 +17,7 @@ add(a,b) = a + b;
 
 sum(a) = fold(add, a);
 
-slice(pos,len,a) = [j:len -> a[pos + j]];
+slice(pos,len,a) = [len: j -> a[pos + j]];
 
 ## App
 
@@ -31,7 +31,7 @@ bandwidth = 10000.0;
 fm_demodulate(sr, max, bandwidth, x) =
 {
   let gain = real32(max*sr/(bandwidth*pi));
-  [t -> real32(atan(x[t] * x[t+1]) * gain)]
+  [*:t -> real32(atan(x[t] * x[t+1]) * gain)]
 };
 
 lp_filter(rate, cutoff, taps, decimation, x) =
@@ -39,12 +39,12 @@ lp_filter(rate, cutoff, taps, decimation, x) =
 
   let m = real32(taps - 1.0);
   let w = real32(2 * pi * cutoff / rate);
-  let coefs = real32([k:taps ->
+  let coefs = real32([taps:k ->
       if k - m/2 == 0
       then w / pi
       else sin(w*(k-m/2)) / pi / (k-m/2) * (0.54 - 0.46 * cos(2*pi*k/m))
   ]);
-  [t -> sum(slice(t*(1+decimation), taps, x) * coefs)]
+  [*:t -> sum(slice(t*(1+decimation), taps, x) * coefs)]
 };
 
 bp_filter(rate, low, high, taps, x) =
@@ -54,28 +54,28 @@ bp_filter(rate, low, high, taps, x) =
 
 equalizer(rate, amps, freqs, taps, x) =
 {
-  let lps = [c:#freqs -> lp_filter(rate, freqs[c], taps, 0, x)];
-  let bps = [c:#amps -> (lps[c+1] - lps[c]) * amps[c]];
+  let lps = [#freqs:c -> lp_filter(rate, freqs[c], taps, 0, x)];
+  let bps = [#amps:c -> (lps[c+1] - lps[c]) * amps[c]];
   sum(bps);
 };
 
 
-in = [i ->
-  case i == 0: 0;
-  else: this[i-1] + 1
+in = [*:
+  0 -> 0;
+  i -> this[i-1] + 1;
 ];
 
 n_bands = 10;
 lowest_freq = 55;
 highest_freq = 1760;
 
-eq_freqs = [i:n_bands+1 ->
+eq_freqs = [n_bands+1:i ->
   real32(exp(i*(log(highest_freq)-log(lowest_freq))/(n_bands-1) + log(lowest_freq)))
 ];
 
 eq_amps = {
   let half_bands = (n_bands-1)/2;
-  [i:n_bands ->
+  [n_bands:i ->
     if i > half_bands
     then real32(2 - (i - half_bands) / 5)
     else real32(2 + (i - half_bands) / 5)
