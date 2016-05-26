@@ -93,22 +93,48 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
     }
 }
 
-expr_ptr func_reducer::apply(shared_ptr<function> func,
-                             const vector<expr_ptr> & args,
-                             const location_type & loc)
+expr_ptr func_reducer::apply
+(expr_ptr e, const vector<expr_ptr> & args, const location_type & loc)
 {
-    printer p;
+    if (verbose<func_reducer>::enabled())
+    {
+        cout << "+ Function application at: " << loc << endl;
+    }
+
+    auto arg_it = args.begin();
+    std::shared_ptr<function> f;
+    while((f = dynamic_pointer_cast<function>(e)) && arg_it != args.end())
+    {
+        vector<expr_ptr> applied_args;
+        while(arg_it != args.end() && applied_args.size() < f->vars.size())
+            applied_args.push_back(*arg_it++);
+
+        e = do_apply(f, applied_args, loc);
+    }
+    if (arg_it != args.end())
+    {
+        ostringstream msg;
+        msg << "Too many arguments in function application. "
+            << (arg_it - args.begin()) << "expected." << endl;
+        throw source_error(msg.str(), loc, m_trace);
+    }
 
     if (verbose<func_reducer>::enabled())
     {
-        cout << "Function application at: " << loc << endl;
+        cout << "- Function application at: " << loc << endl;
     }
 
-    if(func->vars.size() < args.size())
-        throw reduction_error
-            (wrong_arg_count_msg(func->vars.size(), args.size()), loc);
+    return e;
+}
 
-    reduce_context_type::scope_holder scope(m_beta_reduce_context);
+expr_ptr func_reducer::do_apply
+(shared_ptr<function> func,
+ const vector<expr_ptr> & args,
+ const location_type & loc)
+{
+    assert_or_throw(func->vars.size() >= args.size());
+
+    reduce_context_type::scope_holder scope(m_var_sub.m_context);
 
     // Prepare arguments
 
@@ -152,57 +178,63 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
         {
             cout << "+ bound var: " << var << endl;
         }
-        m_beta_reduce_context.bind(var, arg);
+        m_var_sub.m_context.bind(var, arg);
     }
 
     // Remember if this is a partial application
 
-    revertable<bool> in_partial_app
-            (m_in_partial_application,
-             func->vars.size() > args.size());
+    bool is_partial_app = func->vars.size() > args.size();
 
     // Reduce
 
     m_trace.push(loc);
 
-    if (verbose<func_reducer>::enabled())
+    // Substitute
+
+    m_var_sub(func);
+
+    // Reduce
+
+    if (!is_partial_app)
     {
-        cout << "Pushing scope of applied function:";
-        cout << " (" << &func->scope << ")";
-        cout << endl;
+        if (verbose<func_reducer>::enabled())
+        {
+            cout << "Pushing scope of applied function:";
+            cout << " (" << &func->scope << ")";
+            cout << endl;
+        }
+
+        m_scope_stack.push(&func->scope);
+
+        reduce(func->scope);
+
+        func->expr = reduce(func->expr);
+
+        m_type_checker.process(func->expr);
+
+        if (verbose<func_reducer>::enabled())
+        {
+            cout << "Popping scope of applied function:";
+            cout << " (" << &func->scope << ")";
+            cout << endl;
+        }
+
+        m_scope_stack.pop();
     }
-
-    m_scope_stack.push(&func->scope);
-
-    reduce(func->scope);
-
-    expr_ptr reduced_expr = reduce(func->expr);
-
-    if (!m_in_partial_application)
-        m_type_checker.process(reduced_expr);
-
-    if (verbose<func_reducer>::enabled())
-    {
-        cout << "Popping scope of applied function:";
-        cout << " (" << &func->scope << ")";
-        cout << endl;
-    }
-
-    m_scope_stack.pop();
 
     m_trace.pop();
 
-    if (func->vars.size() > args.size())
+    if (is_partial_app)
     {
-        // Generate partially applied function
+        // Return partially applied function
 
         vector<func_var_ptr> remaining_vars
                 (func->vars.begin() + args.size(),
                  func->vars.end());
 
-        auto new_func = make_shared<function>(remaining_vars, reduced_expr, loc);
-        new_func->scope.ids = func->scope.ids;
-        reduced_expr = new_func;
+        func->vars = remaining_vars;
+
+        return func;
     }
     else
     {
@@ -214,9 +246,11 @@ expr_ptr func_reducer::apply(shared_ptr<function> func,
             auto & ids = func->scope.ids;
             parent_ids.insert(parent_ids.end(), ids.begin(), ids.end());
         }
-    }
 
-    return reduced_expr;
+        // Return function expression
+
+        return func->expr;
+    }
 }
 
 expr_ptr func_reducer::reduce(expr_ptr expr)
@@ -253,28 +287,6 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
             return id->expr;
 
         return ref;
-    }
-    else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
-    {
-        auto binding = m_beta_reduce_context.find(f_var);
-        if (binding)
-        {
-            if (verbose<func_reducer>::enabled())
-            {
-                cout << "Substituting bound var: " << f_var << endl;
-            }
-            // Reduce the substituted value,
-            // to count bound variables.
-            return reduce(binding.value());
-        }
-        else
-        {
-            if (verbose<func_reducer>::enabled())
-            {
-                cout << "No substitution for bound var: " << f_var << endl;
-            }
-            return ref;
-        }
     }
     else
     {
@@ -333,6 +345,9 @@ expr_ptr func_reducer::visit_array_size(const shared_ptr<array_size> & as)
 
 expr_ptr func_reducer::visit_func(const shared_ptr<function> & func)
 {
+    return func;
+
+#if 0
     printer p;
 
     if (verbose<func_reducer>::enabled())
@@ -368,6 +383,7 @@ expr_ptr func_reducer::visit_func(const shared_ptr<function> & func)
     }
 
     return func;
+#endif
 }
 
 expr_ptr func_reducer::visit_func_app(const shared_ptr<func_app> & app)
@@ -377,16 +393,6 @@ expr_ptr func_reducer::visit_func_app(const shared_ptr<func_app> & app)
     for (auto & arg : app->args)
     {
         arg = reduce(arg);
-    }
-
-    if (m_in_partial_application)
-    {
-        if (verbose<func_reducer>::enabled())
-        {
-            cout << app->location << ": "
-                 << "Function left unapplied within another parial application."
-                 << endl;
-        }
     }
 
     auto func = dynamic_pointer_cast<function>(app->object.expr);
@@ -417,6 +423,31 @@ void func_reducer::reduce(scope & s)
 
         id->expr = reduce(id->expr);
     }
+}
+
+expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
+{
+    if (auto fv = dynamic_pointer_cast<func_var>(ref->var))
+    {
+        auto binding = m_context.find(fv);
+        if (binding)
+        {
+            if (verbose<func_reducer>::enabled())
+            {
+                cout << "Substituting a reference to var: " << fv << endl;
+            }
+            return binding.value();
+        }
+        else
+        {
+            if (verbose<func_reducer>::enabled())
+            {
+                cout << "No substitution for reference to var: " << fv << endl;
+            }
+        }
+    }
+
+    return ref;
 }
 
 }

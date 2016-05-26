@@ -18,6 +18,21 @@ namespace functional {
 using std::stack;
 using std::unordered_set;
 
+class func_var_sub : public rewriter_base
+{
+public:
+    using context_type = context<var_ptr, expr_ptr>;
+
+    expr_ptr operator()(const expr_ptr & e)
+    {
+        return visit(e);
+    }
+
+    expr_ptr visit_ref(const shared_ptr<reference> & e) override;
+
+    context_type m_context;
+};
+
 class func_reducer : public rewriter_base
 {
     // FIXME: when array vars are passed as function arguments,
@@ -34,8 +49,10 @@ public:
 private:
     expr_ptr reduce(expr_ptr);
     void reduce(scope & s);
-    expr_ptr apply(shared_ptr<function>, const vector<expr_ptr> & args,
+    expr_ptr apply(expr_ptr e, const vector<expr_ptr> & args,
                    const location_type &);
+    expr_ptr do_apply(shared_ptr<function>, const vector<expr_ptr> & args,
+                      const location_type &);
 
     expr_ptr visit_ref(const shared_ptr<reference> & e) override;
     expr_ptr visit_primitive(const shared_ptr<primitive> & e) override;
@@ -59,9 +76,7 @@ private:
 
     stack<scope*> m_scope_stack;
 
-    bool m_in_partial_application = false;
-
-    reduce_context_type m_beta_reduce_context;
+    func_var_sub m_var_sub;
 
     tracing_stack<location_type> m_trace;
     stack<array_ptr> m_array_copy_stack;
