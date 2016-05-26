@@ -649,8 +649,9 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
     }
     else
     {
-        throw type_error("Object can not be applied as array.",
-                           app->object.location);
+        ostringstream msg;
+        msg << "Object of type " << *object_type << " can not be applied as array.";
+        throw type_error(msg.str(), app->object.location);
     }
 
     if(auto self = dynamic_pointer_cast<array_self_ref>(app->object.expr))
