@@ -10,9 +10,9 @@ acorr(t,w,d,a) =
   corr(array.slice(t,w,a), array.slice(t+d,w,a));
 
 acorr_run(hop,wnd,dmax,a) =
-  [t, d:dmax -> acorr(t*hop,wnd,d,a)];
+  [*,dmax: t,d -> acorr(t*hop,wnd,d,a)];
 
-in = signal.sine(1/8);
+in = signal.sine(1/8, 0);
 
 win = 20;
 
