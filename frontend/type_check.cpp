@@ -193,6 +193,16 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
     {
         auto s = make_shared<scalar_type>(result_elem_type);
 
+        s->data_flag = true;
+        for (auto & t : operand_types)
+            s->data_flag &= t->is_data();
+
+        // This denotes whether the result depends on a variable,
+        // rather than whether it is a compile-time constant.
+        s->constant_flag = true;
+        for (auto & t : operand_types)
+            s->constant_flag &= t->is_constant();
+
         switch(prim->kind)
         {
         case primitive_op::add:
@@ -200,8 +210,6 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
         {
             auto lhs = operand_types[0];
             auto rhs = operand_types[1];
-            s->data_flag = lhs->is_data() && rhs->is_data();
-            s->constant_flag = lhs->is_constant() && rhs->is_constant();
             s->affine_flag = lhs->is_affine() && rhs->is_affine();
             break;
         }
@@ -209,19 +217,18 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
         {
             auto lhs = operand_types[0];
             auto rhs = operand_types[1];
-            s->data_flag = lhs->is_data() && rhs->is_data();
-            s->constant_flag = lhs->is_constant() && rhs->is_constant();
             s->affine_flag =
                     lhs->is_affine() && rhs->is_affine() &&
                     (lhs->is_constant() || rhs->is_constant());
             break;
         }
-        case primitive_op::divide:
+        case primitive_op::divide_integer:
         {
             auto lhs = operand_types[0];
             auto rhs = operand_types[1];
-            s->data_flag = lhs->is_data() && rhs->is_data();
-            s->constant_flag = lhs->is_constant() && rhs->is_constant();
+            s->affine_flag =
+                    lhs->is_affine() && rhs->is_affine() &&
+                    rhs->is_constant();
             break;
         }
         default:
@@ -692,6 +699,8 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
         if (arg_idx >= object_size.size())
             continue;
 
+        // FIXME: test lower & upper bound
+#if 0
         auto lin_arg = to_linear_expr(arg);
         auto max_arg = maximum(lin_arg);
         int bound = object_size[arg_idx];
@@ -716,6 +725,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
                                    arg.location);
             }
         }
+#endif
     }
 
     if (object_size.size() <= app->args.size())

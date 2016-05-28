@@ -3,6 +3,7 @@
 
 #include "../common/functional_model.hpp"
 #include "../common/ph_model.hpp"
+#include "../common/func_model_visitor.hpp"
 
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
@@ -20,7 +21,7 @@ using std::string;
 using std::unordered_map;
 using std::unordered_set;
 
-class polyhedral_gen
+class polyhedral_gen : public rewriter_base
 {
 public:
     polyhedral_gen();
@@ -59,16 +60,18 @@ private:
                                    expr_ptr subdomain_expr,
                                    expr_ptr expr);
 
-    expr_ptr make_affine_array_reads(polyhedral::stmt_ptr,
-                                     expr_ptr, const space_map &);
-
     isl::set to_affine_set(expr_ptr, const space_map &);
     isl::expression to_affine_expr(expr_ptr, const space_map &);
+
+    expr_ptr visit_ref(const shared_ptr<reference> & e) override;
+    expr_ptr visit_array_app(const shared_ptr<array_app> & app) override;
 
     isl::context m_isl_ctx;
     isl::printer m_isl_printer;
     unordered_map<id_ptr, polyhedral::array_ptr> m_arrays;
     id_ptr m_current_id;
+    polyhedral::stmt_ptr m_current_stmt;
+    space_map * m_space_map = nullptr;
 };
 
 }

@@ -10,7 +10,7 @@ struct undefined_value {};
 
 bool to_b(expr_ptr expr)
 {
-    if(auto b = dynamic_cast<constant<bool>*>(expr.get()))
+    if(auto b = dynamic_cast<bool_const*>(expr.get()))
     {
         return b->value;
     }
@@ -22,7 +22,7 @@ bool to_b(expr_ptr expr)
 
 int to_i(expr_ptr expr)
 {
-    if (auto i = dynamic_cast<constant<int>*>(expr.get()))
+    if (auto i = dynamic_cast<int_const*>(expr.get()))
     {
         return i->value;
     }
@@ -34,11 +34,11 @@ int to_i(expr_ptr expr)
 
 double to_d(expr_ptr expr)
 {
-    if (auto d = dynamic_cast<constant<double>*>(expr.get()))
+    if (auto d = dynamic_cast<real_const*>(expr.get()))
     {
         return d->value;
     }
-    else if (auto i = dynamic_cast<constant<int>*>(expr.get()))
+    else if (auto i = dynamic_cast<int_const*>(expr.get()))
     {
         return i->value;
     }
@@ -67,9 +67,9 @@ expr_ptr try_reduce(F f)
     return f();
 }
 
-expr_ptr c_i(int i) { return make_shared<constant<int>>(i); }
-expr_ptr c_d(double d) { return make_shared<constant<double>>(d); }
-expr_ptr c_b(bool b) { return make_shared<constant<bool>>(b); }
+expr_ptr c_i(int i) { return make_shared<int_const>(i); }
+expr_ptr c_d(double d) { return make_shared<real_const>(d); }
+expr_ptr c_b(bool b) { return make_shared<bool_const>(b); }
 
 expr_ptr reduce_primitive(std::shared_ptr<primitive> op)
 {

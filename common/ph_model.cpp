@@ -36,28 +36,58 @@ isl::map to_isl_map(const stmt_ptr & stmt, const array_relation & relation)
 {
     auto space = isl::space::from(stmt->domain.get_space(),
                                   relation.array->domain.get_space());
-    auto ctx = space.get_context();
+#if 0
+    auto to_expr_on_map = [](const isl::expression & e, const isl::space & s)
+    {
+        auto ls = isl::local_space(s).wrapped();
+        int n_in = s.dimension(isl::space::input);
+        //int n_out = s.dimension(isl::space::output);
 
+        // FIXME: other dimension types?
+        auto m = isl_aff_zero_on_domain(ls.copy());
+        for (int i = 0; i < n_in; ++i)
+        {
+            auto v = e.coefficient(isl::space::variable, i);
+            m = isl_aff_set_coefficient_val
+                    (m, isl_dim_set, i, v.copy());
+        }
+        m = isl_aff_set_constant_val(m, e.constant().copy());
+        return isl::expression(m);
+    };
+#endif
     if (relation.size.empty())
     {
-        auto eq = to_isl_matrix(relation.matrix, ctx, upper_bound);
-        auto ineq = isl::matrix(ctx, eq.row_count(), eq.column_count(), 0);
-        return isl::basic_map(space, eq, ineq);
+        auto map = isl::basic_map::universe(space);
+        int out_idx = 0;
+        for (int d = 0; d < relation.expr.size(); ++d)
+        {
+            auto e = relation.expr.at(d);
+            auto o = space.out(out_idx);
+            map.add_constraint(o == e);
+            ++out_idx;
+        }
+        return map;
     }
     else
     {
-        assert(relation.size.size() == relation.matrix.output_dimension());
-        auto lb = to_isl_matrix(relation.matrix, ctx, lower_bound);
-        auto ub_matrix = relation.matrix;
-        for (int dim = 0; dim < ub_matrix.output_dimension(); ++dim)
+        auto map = isl::basic_map::universe(space);
+        int out_idx = 0;
+        for (int d = 0; d < relation.expr.size(); ++d)
         {
-            assert(relation.size[dim] > 0);
-            ub_matrix.constant(dim) += relation.size[dim] - 1;
+            auto e = relation.expr.at(d);
+            auto o = space(isl::space::output, out_idx);
+
+            // lower bound
+            map.add_constraint(o >= e);
+
+            // upper bound
+            assert(relation.size[out_idx] > 0);
+            e = e + relation.size[out_idx];
+            map.add_constraint(o < e);
+
+            ++out_idx;
         }
-        auto ub = to_isl_matrix(ub_matrix, ctx, upper_bound);
-        auto ineq = isl::matrix::concatenate_vertically(lb, ub);
-        auto eq = isl::matrix(ctx, ineq.row_count(), ineq.column_count(), 0);
-        return isl::basic_map(space, eq, ineq);
+        return map;
     }
 }
 

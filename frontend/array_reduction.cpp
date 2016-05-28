@@ -130,7 +130,7 @@ id_ptr array_reducer::process(id_ptr id)
 
         for (auto & var : ordered_unbound_vars)
         {
-            assert( !var->range || dynamic_pointer_cast<constant<int>>(var->range.expr) );
+            assert( !var->range || dynamic_pointer_cast<int_const>(var->range.expr) );
 
             auto name = "i" + to_string(new_vars.size());
             auto new_var =
@@ -480,7 +480,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     {
         expr_ptr range = nullptr;
         if (dim_size != array_var::unconstrained)
-            range = make_shared<constant<int>>(dim_size, location_type(), make_int_type());
+            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
         auto v = make_shared<array_var>(new_var_name(), range, location_type());
         arr->vars.push_back(v);
         decl_vars.push(v);
@@ -548,7 +548,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
     {
         expr_ptr range = nullptr;
         if (dim_size != array_var::unconstrained)
-            range = make_shared<constant<int>>(dim_size, location_type(), make_int_type());
+            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
         auto v = make_shared<array_var>(new_var_name(), range, location_type());
         arr->vars.push_back(v);
         decl_vars.push(v);
@@ -594,7 +594,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
             bounds = make_shared<primitive>
                     (primitive_op::compare_eq,
                      make_shared<reference>(arr->vars.front()),
-                     make_shared<constant<int>>(current_index));
+                     make_shared<int_const>(current_index));
         }
         else
         {
@@ -602,7 +602,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                     make_shared<primitive>
                     (primitive_op::compare_geq,
                      make_shared<reference>(arr->vars.front()),
-                     make_shared<constant<int>>(current_index));
+                     make_shared<int_const>(current_index));
             if (current_size == -1)
             {
                 bounds = lb;
@@ -613,7 +613,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                         make_shared<primitive>
                         (primitive_op::compare_leq,
                          make_shared<reference>(arr->vars.front()),
-                         make_shared<constant<int>>(current_index + current_size - 1));
+                         make_shared<int_const>(current_index + current_size - 1));
                 bounds = make_shared<primitive>
                         (primitive_op::logic_and, lb, ub);
             }
@@ -644,7 +644,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                 if (current_index > 0)
                 {
                     auto offset =
-                            make_shared<constant<int> >
+                            make_shared<int_const >
                             (current_index, location_type(), make_int_type());
 
                     first_arg = make_shared<primitive>
@@ -713,7 +713,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
     {
         expr_ptr range = nullptr;
         if (dim_size != array_var::unconstrained)
-            range = make_shared<constant<int>>(dim_size, location_type(), make_int_type());
+            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
         auto v = make_shared<array_var>(new_var_name(), range, location_type());
         arr->vars.push_back(v);
         decl_vars.push(v);
@@ -840,7 +840,7 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
     {
         if (var->range)
         {
-            auto c = dynamic_pointer_cast<constant<int>>(var->range.expr);
+            auto c = dynamic_pointer_cast<int_const>(var->range.expr);
             assert(c);
             s.push_back(c->value);
         }
@@ -965,7 +965,7 @@ expr_ptr array_reducer::eta_expand(expr_ptr expr)
     {
         expr_ptr range;
         if (dim_size != array_var::unconstrained)
-            range = make_shared<constant<int>>(dim_size, location_type(), make_int_type());
+            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
         auto var = make_shared<array_var>(new_var_name(), range, location_type());
         new_ar->vars.push_back(var);
         args.push_back(make_shared<reference>(var, location_type(), make_int_type()));

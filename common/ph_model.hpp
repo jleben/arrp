@@ -31,6 +31,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
 #include <isl-cpp/schedule.hpp>
+#include <isl-cpp/expression.hpp>
 
 #include <isl/ast.h>
 
@@ -39,11 +40,13 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <iostream>
 #include <memory>
 #include <unordered_map>
+#include <list>
 
 namespace stream {
 namespace polyhedral {
 
 using std::vector;
+using std::list;
 using std::string;
 using std::unordered_map;
 using affine_matrix = utility::mapping;
@@ -61,12 +64,13 @@ enum {
 struct array_relation
 {
     array_relation() {}
-    array_relation(array_ptr a, const affine_matrix & m,
+    array_relation(array_ptr a,
+                   const isl::multi_expression & e,
                    const vector<int> & s = vector<int>()):
-        array(a), matrix(m), size(s) {}
+        array(a), expr(e), size(s) {}
 
     array_ptr array = nullptr;
-    affine_matrix matrix;
+    isl::multi_expression expr { nullptr };
     vector<int> size;
 };
 
@@ -110,7 +114,7 @@ public:
     isl::set domain;
     functional::expr_ptr expr = nullptr;
     array_relation write_relation;
-    vector<array_relation*> read_relations;
+    list<array_relation> read_relations;
     unordered_map<array*, int> array_access_offset;
     bool streaming_needs_modulo = false;
     bool is_infinite = false;
@@ -119,19 +123,24 @@ public:
 class array_read : public functional::expression
 {
 public:
-    array_read(array_ptr a, const affine_matrix & r,
-               const location_type & l):
-        expression(l), relation(a,r) {}
+    array_read() {}
+    array_read(array_ptr a,
+               const vector<functional::expr_ptr> & i,
+               const location_type & l = location_type()):
+        expression(l), array(a), indexes(i)
+    {
+        type = std::make_shared<functional::scalar_type>(a->type);
+    }
 
-    array_relation relation;
-    //array_ptr array;
-    //affine_matrix matrix;
+    array_ptr array;
+    vector<functional::expr_ptr> indexes;
+    array_relation * relation = nullptr;
 };
 
 class iterator_read : public functional::expression
 {
 public:
-    iterator_read(int i, const location_type & l):
+    iterator_read(int i, const location_type & l = location_type()):
         expression(l, functional::make_int_type()), index(i) {}
     int index;
 };
@@ -139,10 +148,11 @@ public:
 class external_call : public functional::expression
 {
 public:
-    external_call(const location_type & l):
+    external_call(const location_type & l = location_type()):
         expression(l) {}
+
     string name;
-    array_relation source;
+    vector<functional::expr_ptr> args;
 };
 
 class model
@@ -178,8 +188,8 @@ public:
             for(const auto & rel : stmt->read_relations)
             {
                 auto space = isl::space::from(stmt->domain.get_space(),
-                                              rel->array->domain.get_space());
-                auto map = to_isl_map(stmt, *rel);
+                                              rel.array->domain.get_space());
+                auto map = to_isl_map(stmt, rel);
                 read_relations = read_relations | map;
             }
         }

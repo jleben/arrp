@@ -15,11 +15,11 @@ namespace functional {
 
 static bool is_constant(expr_ptr expr)
 {
-    if (dynamic_cast<constant<int>*>(expr.get()))
+    if (dynamic_cast<int_const*>(expr.get()))
         return true;
-    if (dynamic_cast<constant<double>*>(expr.get()))
+    if (dynamic_cast<real_const*>(expr.get()))
         return true;
-    if (dynamic_cast<constant<bool>*>(expr.get()))
+    if (dynamic_cast<bool_const*>(expr.get()))
         return true;
     return false;
 }
@@ -331,7 +331,7 @@ expr_ptr func_reducer::visit_array_size(const shared_ptr<array_size> & as)
     int dim = 0;
     if (as->dimension)
     {
-        auto dim_const = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
+        auto dim_const = dynamic_pointer_cast<int_const>(as->dimension.expr);
         assert(dim_const);
         dim = dim_const->value - 1;
     }
@@ -340,7 +340,7 @@ expr_ptr func_reducer::visit_array_size(const shared_ptr<array_size> & as)
     assert(arr_type);
     assert(dim >= 0 && dim < arr_type->size.size());
 
-    return make_shared<constant<int>>(arr_type->size[dim]);
+    return make_shared<int_const>(arr_type->size[dim]);
 }
 
 expr_ptr func_reducer::visit_func(const shared_ptr<function> & func)

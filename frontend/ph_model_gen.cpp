@@ -43,7 +43,6 @@ polyhedral_gen::process(const unordered_set<id_ptr> & input)
         m_current_id = id;
         make_statements(id, output);
     }
-    m_current_id = nullptr;
 
     return output;
 }
@@ -59,33 +58,74 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     auto space = isl::space(model.context, tuple);
     auto domain = isl::set::universe(space);
     auto lspace = isl::local_space(space);
-    auto index = lspace(isl::space::variable, 0);
-    if (array->size.empty())
     {
-        domain.add_constraint(index == 0);
-    }
-    else
-    {
-        domain.add_constraint( index >= 0 );
-        if (!array->is_infinite)
-            domain.add_constraint( index < array->size[0] );
+        auto index = lspace(isl::space::variable, 0);
+        if (array->size.empty())
+        {
+            domain.add_constraint(index == 0);
+        }
+        else
+        {
+            domain.add_constraint( index >= 0 );
+            if (!array->is_infinite)
+                domain.add_constraint( index < array->size[0] );
+        }
     }
 
     auto stmt = make_shared<polyhedral::statement>(domain);
     stmt->is_infinite = array->is_infinite;
 
-    auto call = make_shared<polyhedral::external_call>(location_type());
+    // functional call expression
+
+    auto call = make_shared<polyhedral::external_call>();
     call->name = name;
-    call->source.array = array;
-    call->source.matrix = polyhedral::affine_matrix::identity(1, array->domain.dimensions());
-    if (!array->size.empty())
+
+    vector<expr_ptr> ar_index;
+    ar_index.push_back(make_shared<ph::iterator_read>(0));
+    for (int d = 1; d < array->domain.dimensions(); ++d)
+        ar_index.push_back(make_shared<int_const>(0));
+
+    auto read = make_shared<ph::array_read>(array, ar_index);
+
+    call->args.push_back(read);
+
+    // isl index expression
+
     {
-        call->source.size = array->size;
-        call->source.size[0] = 1;
+        auto s = isl::space::from(stmt->domain.get_space(),
+                                  array->domain.get_space());
+
+        auto m = isl::multi_expression::zero(s, array->domain.dimensions());
+        m.set(0, s.in(0));
+        for (int d = 1; d < array->domain.dimensions(); ++d)
+        {
+            auto e = s.val(0);
+            m.set(d, e);
+        }
+
+        vector<int> size;
+        if (array->size.empty())
+        {
+            size = {1};
+        }
+        else
+        {
+            size = array->size;
+            size[0] = 1;
+        }
+
+        stmt->read_relations.emplace_back(array, m, size);
+
+        read->relation = &stmt->read_relations.back();
+
+        if (verbose<polyhedral_gen>::enabled())
+        {
+            cout << "Output read relation:" << endl;
+            m_isl_printer.print(m); cout << endl;
+        }
     }
 
     stmt->expr = call;
-    stmt->read_relations.push_back(&call->source);
 
     model.statements.push_back(stmt);
 }
@@ -269,6 +309,8 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
     auto local_space = isl::local_space(space);
     space_map sm(space, local_space, vars);
 
+    m_space_map = &sm;
+
     if (subdomain_expr)
     {
         auto subdomain = to_affine_set(subdomain_expr, sm);
@@ -287,13 +329,19 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
     }
 
     {
-        auto write_mtx = ph::affine_matrix::identity
-                (stmt->domain.dimensions(),
-                 array->domain.dimensions());
-        stmt->write_relation = { array, write_mtx };
+        int n_dim = array->domain.dimensions();
+        stmt->write_relation.array = array;
+        assert(stmt->domain.dimensions() == n_dim);
+        auto s = isl::space::from(stmt->domain.get_space(),
+                                  array->domain.get_space());
+        auto m = isl::multi_expression::zero(s, n_dim);
+        for (int d = 0; d < n_dim; ++d)
+            m.set(d, s.in(d));
+        stmt->write_relation.expr = m;
     }
 
-    stmt->expr = make_affine_array_reads(stmt, expr, sm);
+    m_current_stmt = stmt;
+    stmt->expr = visit(expr);
 
     if (my_verbose_out::enabled())
     {
@@ -303,103 +351,101 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
         m_isl_printer.print(stmt->domain); cout << endl;
 
         cout << "Write relation: " << stmt->write_relation.array->name << endl;
-        cout << stmt->write_relation.matrix;
+        m_isl_printer.print(stmt->write_relation.expr); cout << endl;
 
         for (const auto & rel : stmt->read_relations)
         {
-            cout << "Read relation:" << rel->array->name << endl;
-            cout << rel->matrix;
+            cout << "Read relation:" << rel.array->name << endl;
+            m_isl_printer.print(rel.expr); cout << endl;
         }
     }
 
     return stmt;
 }
 
-expr_ptr polyhedral_gen::make_affine_array_reads
-(polyhedral::stmt_ptr stmt, expr_ptr e, const space_map & sm)
+expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
 {
-    if (auto op = dynamic_pointer_cast<primitive>(e))
+    if (auto av = dynamic_pointer_cast<array_var>(ref->var))
     {
-        for (auto & operand : op->operands)
-        {
-            operand = make_affine_array_reads(stmt, operand, sm);
-        }
-        return op;
+        int i = m_space_map->index_of(av);
+        return make_shared<ph::iterator_read>(i, ref->location);
     }
-    else if (auto ref = dynamic_pointer_cast<reference>(e))
+    else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
-        if (auto av = dynamic_pointer_cast<array_var>(ref->var))
+        auto arr = m_arrays.at(id);
+        assert(arr->size.empty());
+
+        vector<expr_ptr> index = { make_shared<int_const>(0) };
+
+        auto read_expr = make_shared<ph::array_read>(arr, index, ref->location);
+
         {
-            int i = sm.index_of(av);
-            return make_shared<ph::iterator_read>(i, ref->location);
+            auto ls = isl::local_space
+                    (isl::space::from(m_space_map->space, arr->domain.get_space()));
+            ph::array_relation rel(arr, isl::expression::value(ls, 0));
+            m_current_stmt->read_relations.push_back(rel);
+            read_expr->relation = &m_current_stmt->read_relations.back();
         }
-        else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
-        {
-            auto arr = m_arrays.at(id);
-            assert(arr->size.empty());
-
-            polyhedral::affine_matrix matrix(stmt->domain.dimensions(),1);
-            auto read_expr = make_shared<ph::array_read>(arr, matrix, ref->location);
-            read_expr->type = make_shared<scalar_type>(arr->type);
-            stmt->read_relations.push_back(&read_expr->relation);
-            return read_expr;
-        }
-        else
-        {
-            throw error("Unexpected reference type.");
-        }
-    }
-    else if (auto app = dynamic_pointer_cast<array_app>(e))
-    {
-        ph::array_ptr arr;
-
-        if (auto ref = dynamic_pointer_cast<reference>(app->object.expr))
-        {
-            auto id = dynamic_pointer_cast<identifier>(ref->var);
-            assert(id);
-            arr = m_arrays.at(id);
-        }
-        else if (auto sref = dynamic_pointer_cast<array_self_ref>(app->object.expr))
-        {
-            arr = m_arrays.at(m_current_id);
-        }
-        else
-        {
-            throw error("Unexpected expression.");
-        }
-
-        auto space = isl::space::from(sm.space, arr->domain.get_space());
-        auto local_space = isl::local_space(space);
-        space_map sm_rel(space, local_space, sm.vars);
-
-        polyhedral::affine_matrix matrix
-                (space.dimension(isl::space::input),
-                 space.dimension(isl::space::output));
-
-        assert(app->args.size() == matrix.output_dimension());
-
-        for (int out = 0; out < matrix.output_dimension(); ++out)
-        {
-            auto e = to_affine_expr(app->args[out], sm_rel);
-
-            for (int in = 0; in < matrix.input_dimension(); ++in)
-            {
-                matrix.coefficient(in,out) = e.coefficient(isl::space::input, in).integer();
-                matrix.constant(out) = e.constant().integer();
-            }
-        }
-
-        auto read_expr = make_shared<ph::array_read>(arr, matrix, app->location);
-        read_expr->type = make_shared<scalar_type>(arr->type);
-
-        stmt->read_relations.push_back(&read_expr->relation);
 
         return read_expr;
     }
     else
     {
-        return e;
+        throw error("Unexpected reference type.");
     }
+}
+
+expr_ptr polyhedral_gen::visit_array_app
+(const shared_ptr<array_app> & app)
+{
+    auto read_expr = make_shared<ph::array_read>();
+
+    ph::array_ptr arr;
+
+    if (auto ref = dynamic_pointer_cast<reference>(app->object.expr))
+    {
+        auto id = dynamic_pointer_cast<identifier>(ref->var);
+        assert(id);
+        arr = m_arrays.at(id);
+    }
+    else if (auto sref = dynamic_pointer_cast<array_self_ref>(app->object.expr))
+    {
+        arr = m_arrays.at(m_current_id);
+
+    }
+    else
+    {
+        throw error("Unexpected expression.");
+    }
+
+    read_expr->array = arr;
+    read_expr->type = make_shared<scalar_type>(arr->type);
+
+    {
+        auto space = isl::space::from(m_space_map->space, arr->domain.get_space());
+        auto local_space = isl::local_space(space);
+        space_map sm_rel(space, local_space, m_space_map->vars);
+
+        auto m = isl::multi_expression::zero(space, app->args.size());
+
+        assert(app->args.size() == space.dimension(isl::space::output));
+        for (int a = 0; a < app->args.size(); ++a)
+        {
+            auto e = to_affine_expr(app->args[a], sm_rel);
+            m.set(a, e);
+        }
+
+        m_current_stmt->read_relations.emplace_back(arr, m);
+
+        read_expr->relation = &m_current_stmt->read_relations.back();
+    }
+
+    for (auto & arg : app->args)
+    {
+        read_expr->indexes.push_back(visit(arg));
+    }
+
+    return read_expr;
 }
 
 isl::set polyhedral_gen::to_affine_set(expr_ptr e, const space_map & s)
@@ -510,12 +556,22 @@ isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & s)
             else if (rhs.is_constant())
                 return lhs * rhs.constant();
         }
+        case primitive_op::divide_integer:
+        {
+            auto lhs = to_affine_expr(op->operands[0],s);
+            auto rhs = to_affine_expr(op->operands[1],s);
+            if (rhs.is_constant())
+                return isl::floor(lhs / rhs.constant());
+        }
         default:;
         }
     }
 
-    throw source_error("Not an integer affine expression.", e->location);
+    throw error("Not an integer affine expression.");
 }
+
+
+
 
 }
 }

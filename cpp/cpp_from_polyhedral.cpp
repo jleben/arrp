@@ -41,7 +41,7 @@ static expression_ptr to_complex64(expression_ptr e, primitive_type t)
     else
         return call(f, {e, literal((double)0)});
 }
-
+#if 0
 static expression_ptr to_complex32(expression_ptr e, primitive_type t)
 {
     if (t == primitive_type::complex32)
@@ -54,6 +54,7 @@ static expression_ptr to_complex32(expression_ptr e, primitive_type t)
     else
         return call(f, {e, literal((double)0)});
 }
+#endif
 
 static expression_ptr to_real64(expression_ptr e, primitive_type t)
 {
@@ -93,7 +94,8 @@ void cpp_from_polyhedral::generate_statement
 
         if (stmt->write_relation.array)
         {
-            auto array_index = mapped_index(index, stmt->write_relation.matrix, ctx);
+            // FIXME: map write relation (although it's currently identity)
+            auto array_index = index;
             auto dst = generate_buffer_access(stmt->write_relation.array, array_index, ctx);
             auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
             ctx->add(store);
@@ -123,9 +125,14 @@ expression_ptr cpp_from_polyhedral::generate_expression
     }
     else if (auto read = dynamic_cast<polyhedral::array_read*>(expr.get()))
     {
-        // Assuming read size is [1];
-        auto target_index = mapped_index(index, read->relation.matrix, ctx);
-        result = generate_buffer_access(read->relation.array, target_index, ctx);
+        index_type target_index;
+        for (auto & e : read->indexes)
+            target_index.push_back(generate_expression(e, index, ctx));
+
+        result = generate_buffer_access(read->array, target_index, ctx);
+
+        if (!read->relation->size.empty())
+            result = unop(op::address, result);
     }
     else if ( auto const_int = dynamic_cast<functional::int_const*>(expr.get()) )
     {
@@ -153,13 +160,14 @@ expression_ptr cpp_from_polyhedral::generate_expression
     }
     else if (auto call = dynamic_cast<polyhedral::external_call*>(expr.get()))
     {
-        auto array_index = mapped_index(index, call->source.matrix, ctx);
-        auto array_access = generate_buffer_access(call->source.array, array_index, ctx);
-        auto array_address = make_shared<un_op_expression>(op::address, array_access);
+        vector<expression_ptr> args;
+        for (auto & arg : call->args)
+            args.push_back(generate_expression(arg, index, ctx));
+
         // FIXME: don't hardcode "io"
         auto callee = make_shared<bin_op_expression>
                 (op::member_of_pointer, make_id("io"), make_id(call->name));
-        return make_shared<call_expression>(callee, array_address);
+        return make_shared<call_expression>(callee, args);
     }
     else
     {
@@ -596,4 +604,5 @@ cpp_from_polyhedral::mapped_index
 }
 
 }
+
 }

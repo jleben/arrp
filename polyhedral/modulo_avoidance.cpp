@@ -8,11 +8,6 @@ using namespace std;
 namespace stream {
 namespace polyhedral {
 
-void offset_array_relation(array_relation & relation, int offset)
-{
-    relation.matrix.constant(0) += offset;
-}
-
 struct access_info
 {
     isl::set domain { nullptr };
@@ -190,7 +185,7 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
         // Check read relations
         for (auto relation : stmt->read_relations)
         {
-            auto array = relation->array;
+            auto array = relation.array;
             if (checked_arrays.find(array) != checked_arrays.end())
                 continue;
             auto info = is_candidate_array(array, stmt, sched, ms, printer);

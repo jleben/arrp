@@ -124,16 +124,64 @@ template <typename T>
 class constant : public expression
 {
 public:
+    T value;
+protected:
     constant(const T & v): value(v) {}
     constant(const T & v, const location_type & loc, const type_ptr & type = nullptr):
         expression(loc, type), value(v) {}
-    T value;
 };
 
-typedef constant<bool> bool_const;
-typedef constant<int> int_const;
-typedef constant<double> real_const;
-typedef constant<std::complex<double>> complex_const;
+class bool_const : public constant<bool>
+{
+public:
+    bool_const(bool v): constant(v) {}
+    bool_const(bool v, const location_type & loc, const type_ptr & type = nullptr):
+        constant(v, loc, type) {}
+};
+
+class int_const : public constant<int>
+{
+public:
+    int_const(int v): constant(v)
+    {
+        auto t = make_int_type();
+        t->affine_flag = true;
+        t->constant_flag = true;
+        t->data_flag = true;
+        type = t;
+    }
+    int_const(int v, const location_type & loc, const type_ptr & type = nullptr):
+        constant(v, loc, type)
+    {
+        if (!this->type)
+        {
+            auto t = make_int_type();
+            t->affine_flag = true;
+            t->constant_flag = true;
+            t->data_flag = true;
+            this->type = t;
+        }
+    }
+};
+
+class real_const : public constant<double>
+{
+public:
+    real_const(int v): constant(v) {}
+    real_const(double v, const location_type & loc, const type_ptr & type = nullptr):
+        constant(v, loc, type)
+    {}
+};
+
+class complex_const: public constant<std::complex<double>>
+{
+public:
+    typedef std::complex<double> value_type;
+    complex_const(int v): constant(v) {}
+    complex_const(value_type v, const location_type & loc, const type_ptr & type = nullptr):
+        constant<value_type>(v, loc, type)
+    {}
+};
 
 class primitive : public expression
 {
