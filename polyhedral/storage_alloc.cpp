@@ -128,12 +128,16 @@ void storage_allocator::compute_buffer_size
     live_together := w_before_r * (w_before_r^-1);
     */
 
+    auto access_sched = write_sched | read_sched;
+
     auto before = order_less_than(time_space);
-    auto written_before_read =
-            write_sched.cross(read_sched).in_range(before.wrapped()).domain().unwrapped();
+
+    auto accessed_before_accessed =
+            access_sched.cross(access_sched).in_range(before.wrapped()).domain().unwrapped();
 
     auto live_together =
-            written_before_read & (written_before_read.inverse());
+            accessed_before_accessed & accessed_before_accessed.inverse();
+
 #if 0
     if (verbose<storage_allocator>::enabled())
     {
@@ -146,12 +150,20 @@ void storage_allocator::compute_buffer_size
 #endif
     vector<int> buffer_size;
 
-    {
-        int buf_dim_count = array_space.dimension(isl::space::variable);
-        buffer_size.reserve(buf_dim_count);
+    int buf_dim_count = array_space.dimension(isl::space::variable);
+    buffer_size.reserve(buf_dim_count);
 
+    if (live_together.is_empty())
+    {
         if (verbose<storage_allocator>::enabled())
-            cout << "  Max reuse distance:" << endl;
+            cout << "  No elements live together" << endl;
+
+        buffer_size.resize(buf_dim_count, 1);
+    }
+    else
+    {
+        if (verbose<storage_allocator>::enabled())
+            cout << "  Max reuse distance:";
 
         for (int dim = 0; dim < buf_dim_count; ++dim)
         {
