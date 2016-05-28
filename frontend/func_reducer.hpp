@@ -23,6 +23,8 @@ class func_var_sub : public rewriter_base
 public:
     using context_type = context<var_ptr, expr_ptr>;
 
+    func_var_sub(copier & c): m_copier(c) {}
+
     expr_ptr operator()(const expr_ptr & e)
     {
         return visit(e);
@@ -31,6 +33,9 @@ public:
     expr_ptr visit_ref(const shared_ptr<reference> & e) override;
 
     context_type m_context;
+
+private:
+    copier & m_copier;
 };
 
 class func_reducer : public rewriter_base
@@ -76,8 +81,6 @@ private:
 
     stack<scope*> m_scope_stack;
 
-    func_var_sub m_var_sub;
-
     tracing_stack<location_type> m_trace;
     stack<array_ptr> m_array_copy_stack;
 
@@ -85,6 +88,7 @@ private:
 
     name_provider & m_name_provider;
     copier m_copier;
+    func_var_sub m_var_sub;
     type_checker m_type_checker;
 };
 

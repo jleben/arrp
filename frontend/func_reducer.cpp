@@ -39,6 +39,7 @@ func_reducer::func_reducer(name_provider & nmp):
     m_trace("trace"),
     m_name_provider(nmp),
     m_copier(m_ids, nmp),
+    m_var_sub(m_copier),
     m_type_checker(m_trace)
 {
     m_trace.set_enabled(false);
@@ -436,7 +437,7 @@ expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
             {
                 cout << "Substituting a reference to var: " << fv << endl;
             }
-            return binding.value();
+            return m_copier.copy(binding.value());
         }
         else
         {

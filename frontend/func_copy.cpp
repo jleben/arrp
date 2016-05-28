@@ -76,8 +76,13 @@ expr_ptr copier::visit_ref(const shared_ptr<reference> & ref)
 
 expr_ptr copier::visit_array_self_ref(const shared_ptr<array_self_ref> & ref)
 {
-    assert(!m_array_copy_stack.empty());
-    auto arr = m_array_copy_stack.top();
+    // There may not be an array on stack if we are only copying
+    // a nested expression.
+    array_ptr arr;
+    if (m_array_copy_stack.empty())
+        arr = ref->arr;
+    else
+        arr = m_array_copy_stack.top();
     return make_shared<array_self_ref>(arr, ref->location, ref->type);
 }
 
