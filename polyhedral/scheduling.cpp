@@ -69,6 +69,11 @@ statement *statement_for( const isl::identifier & id )
     return reinterpret_cast<statement*>(id.data);
 }
 
+array * array_for( const isl::identifier & id)
+{
+    return reinterpret_cast<array*>(id.data);
+}
+
 scheduler::scheduler( model & m ):
     m_printer(m.context),
     m_model(m),
@@ -476,8 +481,9 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
 
         int prelude_dur = compute_prelude_duration(infinite_sched, sched.full.domain());
 
-        infinite_sched = infinite_sched.in_domain(sched.full.domain());
         int period_dur = compute_period_duration(infinite_sched);
+
+        infinite_sched = infinite_sched.in_domain(sched.full.domain());
 
         isl::union_set prelude_dom(sched.full.ctx()), period_dom(sched.full.ctx());
 
@@ -535,119 +541,190 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
 int scheduler::compute_period_duration
 (const isl::union_map & schedule)
 {
-    // NOTE: Assuming that all the dependencies
-    // are uniform in the infinite dimension of the schedule.
+    if (verbose<scheduler>::enabled())
+        cout << endl << "Computing period duration.." << endl;
 
-    // This implies that, for each statement S,
-    // each p(S) instances of its infinite scheduling hyperplane
-    // corresponding to 1 step in its infinite domain dimension
-    // does exactly the same work and constitutes a repeating period.
-    // p(S) = scheduling coefficient for that schedule and that domain
-    // dimension.
+    int common_period = 0;
 
-    // To get to the common period for all statements, we need to
-    // get the least common multiple of all p(S).
+    isl::union_set unbounded_domains(m_model.context);
 
-
-    // For each statement, get the scheduling coefficient
-    // for its infinite dimension.
-
-    vector<pair<statement*,int>> ks;
-
-    schedule.for_each( [&](const isl::map & stmt_sched)
-    {
-        auto id = stmt_sched.id(isl::space::input);
+    m_model_summary.domains.for_each([&](const isl::set & s){
+        auto id = s.id();
         auto stmt = statement_for(id);
         assert(stmt);
 
         if (!stmt->is_infinite)
             return true;
 
-        // Get scheduling coefficient for the infinite dimension
+        s.for_each([&](isl::basic_set & bs){
 
-        // NOTE: Assuming that the schedule does not differ across
-        // the infinite domain (but may differ across others).
+            isl::basic_set unbounded =
+                    isl::basic_set::universe(bs.get_space());
 
-        stmt_sched.for_each( [&] (const isl::basic_map & stmt_sched_part)
-        {
-            // NOTE: Assuming that the schedule is a bijection,
-            // the coefficients of interest must be only in equalities.
+            bs = isl_basic_set_detect_equalities(bs.copy());
 
-            // - Get the equalities matrix
-            // - Among the rows, find the one that defines the first
-            // dimension of the schedule.
-            // - From this row, get the coefficient for the first dimension
-            // of the statement.
-            auto equalities = stmt_sched_part.equalities_matrix();
-            auto space = stmt_sched_part.get_space();
-            int n_rows = equalities.row_count();
-            int n_in = space.dimension(isl::space::input);
-            int stmt_coef_col = 0;
-            int sched_coef_col = n_in;
-            for (int row = 0; row < n_rows; ++row)
+            // Only add constraints that don't involve infinite dim,
+            // or that are equalities.
+
+            auto constraints =
+                    isl_basic_set_get_constraint_list(bs.get());
+            auto n = isl_constraint_list_n_constraint(constraints);
+            for (int i = 0; i < n; ++i)
             {
-                int sched_coef = equalities(row, sched_coef_col).value().integer();
-                if (sched_coef)
-                {
-                    int stmt_coef = equalities(row, stmt_coef_col).value().integer();
-                    ks.push_back(make_pair(stmt, std::abs(stmt_coef)));
-                    // continue to next partial schedule for this stmt
-                    return true;
-                }
-            }
-            throw error("The first dimension of the schedule does not involve"
-                        " the infinite statement dimension.");
+                isl::constraint c =
+                        isl_constraint_list_get_constraint(constraints, i);
+                if (!isl_constraint_involves_dims(c.get(), isl_dim_set, 0, 1))
+                    unbounded.add_constraint(c);
+                else if (c.is_equality())
+                    unbounded.add_constraint(c);
+            };
+            isl_constraint_list_free(constraints);
+
+            unbounded_domains = unbounded_domains | unbounded;
+
+            return true;
         });
 
         return true;
     });
 
-    // Find least common multiple of the coefficients.
-    // This is the common period of statements.
-
-    int least_common_period = 1;
-    for (const auto & k : ks)
+    if (false && verbose<scheduler>::enabled())
     {
-        int period = k.second;
-        least_common_period = lcm(least_common_period, period);
+        cout << "Unbounded domains:" << endl;
+        m_printer.print_each_in(unbounded_domains);
+    }
+
+    auto deps =
+            m_model_summary.read_relations.in_domain(unbounded_domains).inverse()
+            (m_model_summary.write_relations.in_domain(unbounded_domains));
+
+    deps.map_domain_through(schedule);
+    deps.map_range_through(schedule);
+
+    vector<int> periods;
+
+    deps.for_each( [&](const isl::map & m ){
+        m.for_each( [&](const isl::basic_map & bm){
+
+            if (verbose<scheduler>::enabled())
+            {
+                cout << "Time dep: "; m_printer.print(bm); cout << endl;
+            }
+
+            isl::matrix eq =
+                    isl_basic_map_equalities_matrix
+                    (bm.get(),
+                     isl_dim_in,
+                     isl_dim_out,
+                     isl_dim_div,
+                     isl_dim_param,
+                     isl_dim_cst);
+
+            isl::matrix ineq =
+                    isl_basic_map_inequalities_matrix
+                    (bm.get(),
+                     isl_dim_in,
+                     isl_dim_out,
+                     isl_dim_div,
+                     isl_dim_param,
+                     isl_dim_cst);
+
+            assert(eq.column_count() == ineq.column_count());
+
+            // Combine eq and ineq, and drop column for constants
+
+            isl::matrix c(m_model.context,
+                          eq.row_count() + ineq.row_count(),
+                          eq.column_count() - 1);
+
+            for (auto row = 0; row < eq.row_count(); ++row)
+            {
+                for (auto col = 0; col < c.column_count(); ++col)
+                {
+                    c(row,col) = eq(row,col).value();
+                }
+            }
+            for (auto row = 0; row < ineq.row_count(); ++row)
+            {
+                for (auto col = 0; col < c.column_count(); ++col)
+                {
+                    int offset_row = row + eq.row_count();
+                    c(offset_row,col) = ineq(row,col).value();
+                }
+            }
+
+            auto n = c.nullspace();
+
+            if (false && verbose<scheduler>::enabled())
+            {
+                cout << "Nullspace:" << endl;
+                isl::print(n);
+                cout << endl;
+            }
+
+            int n_dim = bm.get_space().dimension(isl::space::input);
+
+            assert_or_throw(n.column_count() == 1);
+
+            auto t_src = n(0,0).value();
+            auto t_dst = n(n_dim,0).value();
+
+            assert_or_throw(t_src.is_integer());
+            assert_or_throw(t_dst.is_integer());
+            assert_or_throw(t_src.integer() == t_dst.integer());
+
+            if (verbose<scheduler>::enabled())
+                cout << "Period = " << t_src.integer() << endl;
+
+            periods.push_back(t_src.integer());
+
+            return true;
+        });
+        return true;
+    });
+
+    common_period = 1;
+    for (const auto & d : periods)
+    {
+        common_period = lcm(common_period, d);
     }
 
     if (verbose<scheduler>::enabled())
-    {
-        cout << "Period duration = " << least_common_period << endl;
-    }
+        cout << "Common period = " << common_period << endl;
 
-    // FIXME: Check correctness of the following:
 
-    // Compute how much of a statement's infinite dimension is covered
-    // by the period.
-    // This equals the offset in buffer indexes added at each period.
-    for (const auto & k : ks)
-    {
-        auto stmt = k.first;
-        int period = k.second;
-        int span = least_common_period / period;
+    auto & m = m_model_summary;
+    auto write_sched = m.write_relations.in_domain(unbounded_domains);
+    write_sched.map_domain_through(schedule);
+
+    write_sched.for_each([&](isl::map ws){
+
+        int a1 = 0, a2 = 0;
+
+        {
+            ws = isl_map_lower_bound_si(ws.copy(), isl_dim_in, 0, 0);
+            auto a = ws.range();
+            a1 = a.minimum(a.get_space().var(0)).integer();
+        }
+        {
+            ws = isl_map_lower_bound_si(ws.copy(), isl_dim_in, 0, common_period);
+            auto a = ws.range();
+            a2 = a.minimum(a.get_space().var(0)).integer();
+        }
+
+        auto period = a2 - a1;
+
+        auto ar = array_for(ws.id(isl::space::output));
 
         if (verbose<scheduler>::enabled())
-        {
-            cout << "Period spans " << span
-                 << " iterations of " << stmt->name << endl;
-        }
+            cout << "Array " << ar->name << " period = " << period << endl;
 
-        // FIXME: Use the statement's write relation,
-        // do not assume it is identity.
+        ar->period = period;
 
-        if (stmt->write_relation.array)
-        {
-            auto & array = stmt->write_relation.array;
-            if (!array->period)
-                array->period = span;
-            if (array->period != span)
-                cerr << "WARNING: different buffer periods for the same array!" << endl;
-        }
-    }
+        return true;
+    });
 
-    return least_common_period;
+    return common_period;
 }
 #endif
 
@@ -667,10 +744,8 @@ int scheduler::compute_prelude_duration(const isl::union_map & schedule,
     // cut through any hyperplane bounding the infinite dimension
     // of the domain.
 
-    // Assumption: schedule is bounded to iteration domains.
-
     if (verbose<scheduler>::enabled())
-        cout << "Computing prelude duration..." << endl;
+        cout << endl << "Computing prelude duration..." << endl;
 
     int offset = std::numeric_limits<int>::min();
 
@@ -688,6 +763,8 @@ int scheduler::compute_prelude_duration(const isl::union_map & schedule,
                 // NOTE: Assuming each basic map is infinite too.
 
                 auto domain = s.domain();
+
+                domain = isl_basic_set_detect_equalities(domain.copy());
 
                 if (verbose<scheduler>::enabled())
                 {

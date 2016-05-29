@@ -138,7 +138,9 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
     if (auto arr = dynamic_pointer_cast<functional::array>(id->expr.expr))
         vars = arr->vars;
 
-    auto tuple = isl::set_tuple( isl::identifier(array_name, nullptr),
+    auto arr = make_shared<ph::array>();
+
+    auto tuple = isl::set_tuple( isl::identifier(array_name, arr.get()),
                                  std::max((int)vars.size(), 1) );
 
     auto space = isl::space( m_isl_ctx, tuple );
@@ -206,7 +208,9 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
 
     assert_or_throw(element_type != primitive_type::undefined);
 
-    auto arr = make_shared<ph::array>(array_name, domain, element_type);
+    arr->name = array_name;
+    arr->domain = domain;
+    arr->type = element_type;
     arr->is_infinite = is_infinite;
     arr->size = size;
 

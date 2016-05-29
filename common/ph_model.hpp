@@ -79,6 +79,7 @@ isl::map to_isl_map(const stmt_ptr &, const array_relation &);
 class array
 {
 public:
+    array(): domain(nullptr) {}
     array(const string & name,
           const isl::set & domain,
           primitive_type type):
