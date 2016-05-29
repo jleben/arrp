@@ -323,9 +323,6 @@ isl::schedule scheduler::make_schedule
     // FIXME: statements with no dependencies
     // seem to always end up with an empty schedule.
 
-    int sched_whole_comp =
-            isl_options_get_schedule_whole_component(domains.ctx().get());
-    cout << "Schedule whole comp = " << sched_whole_comp << endl;
     isl_options_set_schedule_whole_component(domains.ctx().get(), 0);
 
     isl_schedule_constraints *constr =
@@ -476,9 +473,10 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
     {
         isl::union_map infinite_sched =
                 isl_schedule_node_get_subtree_schedule_union_map(infinite_band);
-        infinite_sched = infinite_sched.in_domain(sched.full.domain());
 
-        int prelude_dur = compute_prelude_duration(infinite_sched);
+        int prelude_dur = compute_prelude_duration(infinite_sched, sched.full.domain());
+
+        infinite_sched = infinite_sched.in_domain(sched.full.domain());
         int period_dur = compute_period_duration(infinite_sched);
 
         isl::union_set prelude_dom(sched.full.ctx()), period_dom(sched.full.ctx());
@@ -653,7 +651,8 @@ int scheduler::compute_period_duration
 }
 #endif
 
-int scheduler::compute_prelude_duration(const isl::union_map & schedule)
+int scheduler::compute_prelude_duration(const isl::union_map & schedule,
+                                        const isl::union_set & domains)
 {
     using namespace isl;
 
@@ -670,46 +669,115 @@ int scheduler::compute_prelude_duration(const isl::union_map & schedule)
 
     // Assumption: schedule is bounded to iteration domains.
 
+    if (verbose<scheduler>::enabled())
+        cout << "Computing prelude duration..." << endl;
+
     int offset = std::numeric_limits<int>::min();
 
-    schedule.for_each( [&](map & stmt_sched)
+    auto bounded_schedule = schedule.in_domain(domains);
+    bounded_schedule.for_each( [&](map & stmt_sched)
     {
         auto id = stmt_sched.id(isl::space::input);
         auto stmt = statement_for(id);
-        auto sched_range = stmt_sched.range();
-        isl::local_space space(sched_range.get_space());
-        auto time = space(isl::space::variable, 0);
+        auto stmt_unbounded_sched = schedule.map_for(stmt_sched.get_space());
+
         if (stmt->is_infinite)
         {
-            // Get domain of schedule.
-            // Translate it by 1.
-            // Subtract it from original domain.
-            // Get latest time of the remaining domain.
+            stmt_sched.for_each([&](basic_map & s)
+            {
+                // NOTE: Assuming each basic map is infinite too.
 
-            auto domain = stmt_sched.domain();
+                auto domain = s.domain();
 
-            auto domain_map_space =
-                    space::from(domain.get_space(), domain.get_space());
-            isl_multi_aff * translation =
-                    isl_multi_aff_identity(domain_map_space.copy());
-            isl_aff * i = isl_multi_aff_get_aff(translation, 0);
-            i = isl_aff_set_constant_si(i, -1);
-            isl_multi_aff_set_aff(translation, 0, i);
+                if (verbose<scheduler>::enabled())
+                {
+                    cout << "----" << endl;
+                    cout << "Domain: ";
+                    m_printer.print(domain); cout << endl;
+                }
 
-            auto translated_domain =
-                    isl::set(isl_set_preimage_multi_aff(domain.copy(), translation));
+                isl::basic_set domain_inf_hull =
+                        isl_basic_set_drop_constraints_involving_dims
+                        (domain.copy(), isl_dim_set, 0, 1);
 
-            auto remaining = domain - translated_domain;
-            auto sched = stmt_sched(remaining);
-            auto time = sched.get_space()(isl::space::variable, 0);
-            auto latest_time = sched.maximum(time);
+                if (verbose<scheduler>::enabled())
+                {
+                    cout << "No constraints: ";
+                    m_printer.print(domain_inf_hull); cout << endl;
+                }
 
-            assert(latest_time.is_integer());
-            offset = std::max(offset, (int) latest_time.integer());
+                auto constraints =
+                        isl_basic_set_get_constraint_list(domain.get());
+                auto n = isl_constraint_list_n_constraint(constraints);
+
+                auto domain_with_eqs = domain_inf_hull;
+                for (int i = 0; i < n; ++i)
+                {
+                    isl::constraint c =
+                            isl_constraint_list_get_constraint(constraints, i);
+                    if (!isl_constraint_involves_dims(c.get(), isl_dim_set, 0, 1))
+                        continue;
+                    if (c.is_equality())
+                        domain_with_eqs.add_constraint(c);
+                };
+
+                auto domain_with_ineqs = domain_inf_hull;
+                for (int i = 0; i < n; ++i)
+                {
+                    isl::constraint c =
+                            isl_constraint_list_get_constraint(constraints, i);
+                    if (!isl_constraint_involves_dims(c.get(), isl_dim_set, 0, 1))
+                        continue;
+                    if (!c.is_equality())
+                        domain_with_ineqs.add_constraint(c);
+                };
+
+                isl_constraint_list_free(constraints);
+
+                if (verbose<scheduler>::enabled())
+                {
+                    cout << "Eqs: ";
+                    m_printer.print(domain_with_eqs); cout << endl;
+                    cout << "Ineqs: ";
+                    m_printer.print(domain_with_ineqs); cout << endl;
+                }
+
+                auto not_in_domain = isl::set(domain_with_eqs) - domain_with_ineqs;
+
+                if (verbose<scheduler>::enabled())
+                {
+                    cout << "Not in domain: ";
+                    m_printer.print(not_in_domain); cout << endl;
+                }
+
+                auto prelude_sched = stmt_unbounded_sched(not_in_domain);
+
+                if (verbose<scheduler>::enabled())
+                {
+                    cout << "Prelude sched: ";
+                    m_printer.print(prelude_sched); cout << endl;
+                }
+
+                auto t = prelude_sched.get_space().var(0);
+                auto latest_prelude = prelude_sched.maximum(t);
+
+                assert(latest_prelude.is_integer());
+
+                if (verbose<scheduler>::enabled())
+                    cout << "Latest: " << latest_prelude.integer() << endl;
+
+                offset = std::max(offset, (int) latest_prelude.integer() + 1);
+
+                if (verbose<scheduler>::enabled())
+                    cout << ">> Offset: " << offset << endl;
+
+                return true;
+            });
         }
         else
         {
-            auto latest_time = sched_range.maximum(time);
+            auto range = stmt_sched.range();
+            auto latest_time = range.maximum(range.get_space().var(0));
             assert(latest_time.is_integer());
             offset = std::max(offset, (int) latest_time.integer() + 1);
         }
