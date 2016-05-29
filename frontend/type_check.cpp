@@ -223,6 +223,7 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
             break;
         }
         case primitive_op::divide_integer:
+        case primitive_op::modulo:
         {
             auto lhs = operand_types[0];
             auto rhs = operand_types[1];
@@ -273,6 +274,8 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
         {
             throw type_error("Expression can not be used as data.", expr.location);
         }
+
+        visit(domain);
 
         to_linear_set(domain);
 
@@ -425,6 +428,7 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
                 auto & domain = c.first;
                 auto & expr = c.second;
 
+                visit(domain);
                 to_linear_set(domain);
 
                 visit(expr);

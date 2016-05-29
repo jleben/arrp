@@ -126,8 +126,12 @@ expr_ptr to_linear_set(expr_ptr expr)
         case primitive_op::compare_geq:
         {
             assert(op->operands.size() == 2);
-            to_linear_expr(op->operands[0]);
-            to_linear_expr(op->operands[1]);
+            auto & lhs = op->operands[0];
+            auto & rhs = op->operands[1];
+            if (!lhs->type->is_affine())
+                throw source_error("Not an affine expression.", lhs.location);
+            if (!rhs->type->is_affine())
+                throw source_error("Not an affine expression.", rhs.location);
             return op;
         }
         case primitive_op::negate:

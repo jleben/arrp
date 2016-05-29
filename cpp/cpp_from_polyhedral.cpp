@@ -329,7 +329,8 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     }
     case primitive_op::modulo:
     {
-        return make_shared<call_expression>("remainder", operands[0], operands[1]);
+        // FIXME: Implement true modulo?
+        return binop(op::rem, operands[0], operands[1]);
     }
     case primitive_op::raise:
     {

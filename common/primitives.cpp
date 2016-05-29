@@ -24,6 +24,8 @@ string name_of_primitive( primitive_op op )
         return "/";
     case primitive_op::divide_integer:
         return ":";
+    case primitive_op::modulo:
+        return "%";
     case primitive_op::raise:
         return "^";
     case primitive_op::exp:
@@ -134,6 +136,10 @@ vector<prim_op_overload> overloads(primitive_op op)
             { pt::integer, pt::integer, pt::integer },
             { pt::real32, pt::real32, pt::integer },
             { pt::real64, pt::real64, pt::integer }
+        };
+    case primitive_op::modulo:
+        return {
+            { pt::integer, pt::integer, pt::integer }
         };
     case primitive_op::raise:
         return {

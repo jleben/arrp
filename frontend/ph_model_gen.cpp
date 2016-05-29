@@ -563,6 +563,13 @@ isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & s)
             if (rhs.is_constant())
                 return isl::floor(lhs / rhs.constant());
         }
+        case primitive_op::modulo:
+        {
+            auto lhs = to_affine_expr(op->operands[0],s);
+            auto rhs = to_affine_expr(op->operands[1],s);
+            if (rhs.is_constant())
+                return lhs % rhs.constant();
+        }
         default:;
         }
     }
