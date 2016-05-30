@@ -16,6 +16,9 @@ typedef vector<int> array_size_vec;
 class scalar_type;
 class array_type;
 
+class type;
+typedef shared_ptr<type> type_ptr;
+
 class type
 {
 public:
@@ -29,8 +32,9 @@ public:
     virtual bool is_data() const { return false; }
     scalar_type * scalar();
     array_type * array();
+
+    static type_ptr infinity();
 };
-typedef shared_ptr<type> type_ptr;
 
 class scalar_type : public type
 {
@@ -59,6 +63,15 @@ inline scalar_type * type::scalar()
 
 inline shared_ptr<scalar_type> make_int_type()
 { return std::make_shared<scalar_type>(primitive_type::integer); }
+
+inline type_ptr type::infinity()
+{
+    auto t = std::make_shared<scalar_type>(primitive_type::infinity);
+    t->data_flag = false;
+    t->affine_flag = false;
+    t->constant_flag = false;
+    return t;
+}
 
 class array_type : public type
 {

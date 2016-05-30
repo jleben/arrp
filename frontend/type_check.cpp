@@ -44,11 +44,37 @@ type_checker::type_checker(stack<location_type> & trace):
     m_printer.set_print_var_address(true);
 }
 
+type_ptr type_checker::process(const id_ptr & id)
+{
+    // FIXME: if this is a top-level id, add separator to trace.
+
+    if (verbose<type_checker>::enabled())
+    {
+        cout << "Type checker: processing id:" << endl;
+        m_printer.print(id, cout);
+        cout << endl;
+    }
+
+    auto t = visit(id->expr);
+
+    if (t->is_scalar())
+    {
+        if (!t->scalar()->is_data())
+            throw type_error("Expression can not be used as data.",
+                             id->expr.location);
+    }
+
+    if (verbose<type_checker>::enabled())
+        cout << "Type checker: processed id: " << id->name << endl;
+
+    return t;
+}
+
 void type_checker::process(const expr_ptr & expr)
 {
     if (verbose<type_checker>::enabled())
     {
-        cout << "Processing:" << endl;
+        cout << "Type checker: processing expression:" << endl;
         m_printer.print(expr, cout);
         cout << endl;
     }
@@ -100,37 +126,32 @@ type_ptr type_checker::visit_bool(const shared_ptr<bool_const> &)
     return s;
 }
 
+type_ptr type_checker::visit_infinity(const shared_ptr<infinity> &)
+{
+    return type::infinity();
+}
+
 type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
-    type_ptr type;
-
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
-        if (verbose<type_checker>::enabled())
-        {
-            cout << "Visiting id:" << endl;
-            m_printer.print(id, cout);
-            cout << endl;
-        }
-        // FIXME: if this is a top-level id, add separator to trace.
-        type = visit(id->expr);
-        if (verbose<type_checker>::enabled())
-            cout << "Done visiting id " << id->name << endl;
+        return process(id);
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
+        bool is_bounded =
+                dynamic_cast<int_const*>(avar->range.expr.get()) != nullptr;
+
         auto s = make_shared<scalar_type>(primitive_type::integer);
         s->constant_flag = false;
         s->affine_flag = true;
-        s->data_flag = avar->range.expr != nullptr;
-        type = s;
+        s->data_flag = is_bounded;
+        return s;
     }
     else
     {
         throw error("Unexpected.");
     }
-
-    return type;
 }
 
 type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
@@ -353,27 +374,28 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 
     for (auto & var : arr->vars)
     {
-        if (var->range)
+        visit(var->range);
+
+        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
         {
-            if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
+            if (c->value < 1)
             {
-                if (c->value < 1)
-                {
-                    ostringstream msg;
-                    msg << "Array bound not positive (" <<  c->value << ")";
-                    throw type_error(msg.str(), var->range.location);
-                }
-                size.push_back(c->value);
+                ostringstream msg;
+                msg << "Array size not positive (" <<  c->value << ")";
+                throw type_error(msg.str(), var->range.location);
             }
-            else
-            {
-                throw type_error("Array bound not a constant integer.",
-                                   var->range.location);
-            }
+            size.push_back(c->value);
+        }
+        else if (dynamic_pointer_cast<infinity>(var->range.expr))
+        {
+            size.push_back(-1);
         }
         else
         {
-            size.push_back(-1);
+            ostringstream msg;
+            msg << "Array size is not a constant integer or infinity: "
+                << var->range->type;
+            throw type_error(msg.str(), var->range.location);
         }
     }
 
@@ -620,11 +642,8 @@ type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
 
     for (auto & var : arr->vars)
     {
-        if (var->range)
+        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
         {
-            auto c = dynamic_pointer_cast<constant<int>>(var->range.expr);
-            if (!c)
-                throw error("Unexpected.");
             size.push_back(c->value);
         }
         else
@@ -749,9 +768,26 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
 type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
 {
     visit(as->object);
-    auto arr_type = dynamic_pointer_cast<array_type>(as->object->type);
-    if (!arr_type)
-        throw type_error("Not an array.", as->object.location);
+
+    if (as->object->type->is_scalar())
+    {
+        // Result is always 1.
+        auto result = make_shared<scalar_type>(primitive_type::integer);
+        result->constant_flag = true;
+        result->affine_flag = true;
+        result->data_flag = true;
+
+        return result;
+    }
+    else if (!as->object->type->is_array())
+    {
+        ostringstream msg;
+        msg << "Invalid type of object for array size operation: "
+            << as->object->type;
+        throw type_error(msg.str(), as->object.location);
+    }
+
+    auto arr_type = as->object->type->array();
 
     assert(!arr_type->size.empty());
 
@@ -764,7 +800,7 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
             throw type_error("Not an integer constant.", as->dimension.location);
 
         dim = dim_const->value;
-        if (dim < 1 || dim > arr_type->size.size())
+        if (dim < 1)
         {
             ostringstream msg;
             msg << "Dimension index out of bounds: " << dim;
@@ -772,20 +808,26 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
         }
     }
 
-    int size = arr_type->size[dim-1];
-    assert(size >= -1);
-    if (size == -1)
-    {
-        ostringstream msg;
-        msg << "Dimension " << dim << " is unbounded.";
-        throw type_error(msg.str(), as->location);
-    }
+    dim -= 1;
 
-    auto result = make_shared<scalar_type>(primitive_type::integer);
-    result->constant_flag = true;
-    result->affine_flag = true;
-    result->data_flag = true;
-    return result;
+    int size;
+    if (dim < arr_type->size.size())
+        size = arr_type->size[dim];
+    else
+        size = 1;
+
+    if (size >= 0)
+    {
+        auto result = make_shared<scalar_type>(primitive_type::integer);
+        result->constant_flag = true;
+        result->affine_flag = true;
+        result->data_flag = true;
+        return result;
+    }
+    else
+    {
+        return type::infinity();
+    }
 }
 
 type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)

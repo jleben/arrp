@@ -183,6 +183,14 @@ public:
     {}
 };
 
+class infinity : public expression
+{
+public:
+    infinity(const location_type & loc = location_type()):
+        expression(loc, type::infinity())
+    {}
+};
+
 class primitive : public expression
 {
 public:

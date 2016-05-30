@@ -43,6 +43,10 @@ void printer::print(expr_ptr expr, ostream & out)
     {
         out << (const_bool->value ? "true" : "false");
     }
+    else if (auto inf = dynamic_pointer_cast<infinity>(expr))
+    {
+        out << "~";
+    }
     else if (auto const_complex = dynamic_pointer_cast<complex_const>(expr))
     {
         auto & v = const_complex->value;

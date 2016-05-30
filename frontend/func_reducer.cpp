@@ -56,7 +56,7 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 
         id->expr = reduce(id->expr);
 
-        m_type_checker.process(id->expr);
+        m_type_checker.process(id);
 
         m_ids.insert(id);
     }
@@ -85,6 +85,8 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
                 dynamic_pointer_cast<function>(m_copier.copy(id->expr).expr);
 
         new_id->expr = apply(func_copy, args, location_type());
+
+        m_type_checker.process(new_id);
 
         return new_id;
     }
@@ -306,8 +308,7 @@ expr_ptr func_reducer::visit_array(const shared_ptr<array> & arr)
 {
     for (auto & var : arr->vars)
     {
-        if (var->range)
-            var->range = reduce(var->range);
+        var->range = reduce(var->range);
     }
 
     m_scope_stack.push(&arr->scope);
@@ -329,6 +330,11 @@ expr_ptr func_reducer::visit_array_size(const shared_ptr<array_size> & as)
 
     m_type_checker.process(as);
 
+    if (as->object->type->is_scalar())
+    {
+        return make_shared<int_const>(1, location_type(), as->type);
+    }
+
     int dim = 0;
     if (as->dimension)
     {
@@ -339,9 +345,18 @@ expr_ptr func_reducer::visit_array_size(const shared_ptr<array_size> & as)
 
     auto arr_type = dynamic_pointer_cast<array_type>(as->object->type);
     assert(arr_type);
-    assert(dim >= 0 && dim < arr_type->size.size());
+    assert(dim >= 0);
 
-    return make_shared<int_const>(arr_type->size[dim]);
+    int size;
+    if (dim >= arr_type->size.size())
+        size = 1;
+    else
+        size = arr_type->size[dim];
+
+    if (size >= 0)
+        return make_shared<int_const>(size, as->location, as->type);
+    else
+        return make_shared<infinity>(as->location);
 }
 
 expr_ptr func_reducer::visit_func(const shared_ptr<function> & func)

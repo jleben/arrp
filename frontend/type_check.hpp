@@ -18,6 +18,7 @@ class type_checker : public visitor<type_ptr>
 public:
     type_checker(stack<location_type> & trace);
 
+    type_ptr process(const id_ptr &);
     void process(const expr_ptr &);
 
     static type_ptr make_array_type(array_size_vec & size, const type_ptr & elem_type);
@@ -28,6 +29,7 @@ private:
     type_ptr visit_real(const shared_ptr<real_const> &) override;
     type_ptr visit_complex(const shared_ptr<complex_const> &) override;
     type_ptr visit_bool(const shared_ptr<bool_const> &) override;
+    type_ptr visit_infinity(const shared_ptr<infinity> &) override;
     type_ptr visit_ref(const shared_ptr<reference> &) override;
     type_ptr visit_primitive(const shared_ptr<primitive> & prim) override;
     type_ptr visit_operation(const shared_ptr<operation> &) override;

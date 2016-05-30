@@ -33,6 +33,11 @@ expr_ptr copier::visit_bool(const shared_ptr<bool_const> & b)
     return make_shared<bool_const>(*b);
 }
 
+expr_ptr copier::visit_infinity(const shared_ptr<infinity> & inf)
+{
+    return make_shared<infinity>(*inf);
+}
+
 expr_ptr copier::visit_ref(const shared_ptr<reference> & ref)
 {
     if (auto a_var = dynamic_pointer_cast<array_var>(ref->var))

@@ -53,7 +53,7 @@ void array_transposer::transpose_array(const id_ptr & id)
     {
         // The range is either a constant integer, or none.
         auto & var = ar->vars[i];
-        if (var->range)
+        if (dynamic_cast<int_const*>(var->range.expr.get()))
         {
             order.push_back(i);
         }

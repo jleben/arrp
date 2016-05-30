@@ -35,6 +35,10 @@ public:
         {
             return visit_bool(const_bool);
         }
+        else if (auto inf = dynamic_pointer_cast<infinity>(expr))
+        {
+            return visit_infinity(inf);
+        }
         else if (auto ref = dynamic_pointer_cast<reference>(expr))
         {
             return visit_ref(ref);
@@ -93,6 +97,7 @@ public:
     virtual R visit_real(const shared_ptr<real_const> &) = 0;
     virtual R visit_complex(const shared_ptr<complex_const> &) = 0;
     virtual R visit_bool(const shared_ptr<bool_const> &) = 0;
+    virtual R visit_infinity(const shared_ptr<infinity> &) = 0;
     virtual R visit_ref(const shared_ptr<reference> &) = 0;
     virtual R visit_array_self_ref(const shared_ptr<array_self_ref> &) = 0;
     virtual R visit_primitive(const shared_ptr<primitive> & prim) = 0;
@@ -130,6 +135,10 @@ public:
         else if (auto const_bool = dynamic_pointer_cast<bool_const>(expr))
         {
             visit_bool(const_bool);
+        }
+        else if (auto inf = dynamic_pointer_cast<infinity>(expr))
+        {
+            visit_infinity(inf);
         }
         else if (auto ref = dynamic_pointer_cast<reference>(expr))
         {
@@ -192,6 +201,8 @@ public:
     virtual void visit_complex(const shared_ptr<complex_const> &)
     {}
     virtual void visit_bool(const shared_ptr<bool_const> &)
+    {}
+    virtual void visit_infinity(const shared_ptr<infinity> &)
     {}
     virtual void visit_ref(const shared_ptr<reference> &)
     {}
@@ -289,6 +300,10 @@ public:
         return e;
     }
     virtual expr_ptr visit_bool(const shared_ptr<bool_const> & e) override
+    {
+        return e;
+    }
+    virtual expr_ptr visit_infinity(const shared_ptr<infinity> & e) override
     {
         return e;
     }

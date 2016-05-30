@@ -37,6 +37,7 @@ protected:
     virtual expr_ptr visit_real(const shared_ptr<real_const> &) override;
     virtual expr_ptr visit_complex(const shared_ptr<complex_const> &) override;
     virtual expr_ptr visit_bool(const shared_ptr<bool_const> &) override;
+    virtual expr_ptr visit_infinity(const shared_ptr<infinity> &) override;
     virtual expr_ptr visit_ref(const shared_ptr<reference> &) override;
     virtual expr_ptr visit_array_self_ref(const shared_ptr<array_self_ref> &) override;
     virtual expr_ptr visit_primitive(const shared_ptr<primitive> & prim) override;

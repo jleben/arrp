@@ -369,7 +369,9 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
         string name = string("i") + to_string(ar->vars.size());
 
         expr_ptr range;
-        if (range_node->type != ast::star)
+        if (range_node->type == ast::star)
+            range = make_shared<infinity>(location_in_module(range_node->location));
+        else
             range = do_expr(range_node);
 
         auto var = make_shared<array_var>

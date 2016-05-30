@@ -130,8 +130,6 @@ id_ptr array_reducer::process(id_ptr id)
 
         for (auto & var : ordered_unbound_vars)
         {
-            assert( !var->range || dynamic_pointer_cast<int_const>(var->range.expr) );
-
             auto name = "i" + to_string(new_vars.size());
             auto new_var =
                     make_shared<array_var>(name, var->range, location_type());
@@ -256,10 +254,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
 {
     for (auto & var : arr->vars)
     {
-        if (var->range)
-        {
-            var->range = reduce(var->range);
-        }
+        var->range = reduce(var->range);
     }
 
     decl_var_stacker declared_vars(m_declared_vars);
@@ -838,10 +833,8 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
     vector<int> s;
     for (auto & var : arr->vars)
     {
-        if (var->range)
+        if (auto c = dynamic_pointer_cast<int_const>(var->range.expr))
         {
-            auto c = dynamic_pointer_cast<int_const>(var->range.expr);
-            assert(c);
             s.push_back(c->value);
         }
         else

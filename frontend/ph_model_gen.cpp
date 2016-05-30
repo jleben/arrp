@@ -155,10 +155,8 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
         {
             auto var = vars[dim];
             int extent = -1;
-            if (var->range)
+            if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
             {
-                auto c = dynamic_pointer_cast<constant<int>>(var->range.expr);
-                assert_or_throw(bool(c));
                 extent = c->value;
             }
             else

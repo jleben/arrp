@@ -20,6 +20,7 @@ enum class primitive_type
     real64,
     complex32,
     complex64,
+    infinity
 };
 
 inline vector<primitive_type> all_real_types()
@@ -41,7 +42,8 @@ inline vector<primitive_type> all_primitive_types()
         pt::real32,
         pt::real64,
         pt::complex32,
-        pt::complex64
+        pt::complex64,
+        pt::infinity
     };
     return types;
 }
@@ -187,6 +189,8 @@ inline ostream & operator<<(ostream & s, primitive_type t)
         s << "complex32"; break;
     case primitive_type::complex64:
         s << "complex64"; break;
+    case primitive_type::infinity:
+        s << "infinity"; break;
     default:
         s << "?";
     }

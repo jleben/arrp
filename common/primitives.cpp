@@ -252,7 +252,12 @@ vector<prim_op_overload> overloads(primitive_op op)
 primitive_type result_type(primitive_op op, vector<primitive_type> & args)
 {
     using type = primitive_type;
-
+#if 0
+    cout << "Computing result type for: " << op;
+    for (auto & arg : args)
+        cout << " " << arg;
+    cout << endl;
+#endif
     auto candidates = overloads(op);
     if (candidates.empty())
     {
@@ -306,9 +311,13 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
             break;
         }
         if (is_exact)
+        {
             return candidates[c].types.back();
+        }
         if (is_valid)
+        {
             promoted.push_back(c);
+        }
     }
 
     if (promoted.empty())
@@ -389,6 +398,9 @@ primitive_type common_type(primitive_type t1, primitive_type t2)
         return t2;
     if (t2 == type::undefined)
         return t1;
+
+    if (t1 == type::infinity || t2 == type::infinity)
+        throw no_type();
 
     if (t1 == type::boolean || t2 == type::boolean)
         throw no_type();
