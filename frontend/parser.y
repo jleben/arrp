@@ -22,10 +22,12 @@
 %token INVALID "invalid token"
 %token INT REAL COMPLEX ID TRUE FALSE STRING
 %token IF THEN CASE THIS
-%token LET
+%token WHERE
 %token MODULE IMPORT AS
 
 %left '='
+%right LET IN
+%right WHERE
 %right RIGHT_ARROW
 %right ELSE
 %left LOGIC_OR
@@ -41,6 +43,7 @@
 // FIXME: review precedence and association
 %left '[' '{' '('
 %right '@'
+%left '.'
 
 %start program
 
@@ -60,7 +63,7 @@ using op_type = stream::primitive_op;
 
 
 program:
-  module_decl imports statements
+  module_decl imports bindings
   {
     $$ = make_list(program, @$, { $1, $2, $3 });
     driver.m_ast = $$;
@@ -96,13 +99,6 @@ import_list:
   }
 ;
 
-statements:
-  // empty
-  { $$ = nullptr; }
-  |
-  stmt_list optional_semicolon
-;
-
 import:
   IMPORT id
   {
@@ -115,13 +111,20 @@ import:
   }
 ;
 
-stmt_list:
-  stmt
+bindings:
+  // empty
+  { $$ = nullptr; }
+  |
+  binding_list optional_semicolon
+;
+
+binding_list:
+  binding
   {
     $$ = make_list( @$, { $1 } );
   }
   |
-  stmt_list ';' stmt
+  binding_list ';' binding
   {
     $$ = $1;
     $$->as_list()->append( $3 );
@@ -129,15 +132,15 @@ stmt_list:
   }
 ;
 
-stmt:
-  id '(' param_list ')' '=' expr_block
+binding:
+  id '(' param_list ')' '=' expr
   {
-    $$ = make_list( func_def, @$, {$1, $3, $6} );
+    $$ = make_list( ast::binding, @$, {$1, $3, $6} );
   }
   |
-  id '=' expr_block
+  id '=' expr
   {
-    $$ = make_list( func_def, @$, {$1, nullptr, $3} );
+    $$ = make_list( ast::binding, @$, {$1, nullptr, $3} );
   }
 ;
 
@@ -156,47 +159,6 @@ param_list:
   }
 ;
 
-expr_block:
-  expr
-  {
-    $$ = make_list( @$, {nullptr, $1} );
-  }
-  |
-  '{' expr optional_semicolon '}'
-  {
-    $$ = make_list( @$, {nullptr, $2} );
-  }
-  |
-  '{' let_block_list ';' expr optional_semicolon '}'
-  {
-    $$ = make_list( @$, {$2, $4} );
-  }
-;
-
-let_block_list:
-  let_block
-  |
-  let_block_list ';' let_block
-  {
-    $$ = $1;
-    $$->as_list()->append( $3->as_list()->elements );
-    $$->location = @$;
-  }
-;
-
-let_block:
-  LET stmt
-  {
-    $$ = make_list( @$, {$2} );
-  }
-  |
-  LET '{' stmt_list optional_semicolon '}'
-  {
-    $$ = $3;
-    $$->location = @$;
-  }
-;
-
 expr:
   id
   |
@@ -208,6 +170,8 @@ expr:
   boolean
   |
   if_expr
+  |
+  lambda
   |
   func_apply
   |
@@ -277,6 +241,46 @@ expr:
   |
   '(' expr ')'
   { $$ = $2; }
+  |
+  let_expr
+  |
+  where_expr
+  |
+  id '=' expr
+;
+
+
+let_expr:
+  LET binding IN expr
+  {
+    auto bnd_list = make_list(@2, {$2});
+    $$ = make_list(ast::local_binding, @$, { bnd_list, $4 } );
+  }
+  |
+  LET '{' binding_list optional_semicolon '}' IN expr
+  {
+    $$ = make_list(ast::local_binding, @$, { $3, $7 } );
+  }
+;
+
+where_expr:
+  expr WHERE binding
+  {
+    auto bnd_list = make_list(@3, {$3});
+    $$ = make_list(ast::local_binding, @$, { bnd_list, $1 } );
+  }
+  |
+  expr WHERE '{' binding_list optional_semicolon '}'
+  {
+    $$ = make_list(ast::local_binding, @$, { $4, $1 } );
+  }
+;
+
+lambda:
+  '\\'  param_list RIGHT_ARROW expr
+  {
+    $$ = make_list(ast::lambda, @$, {$2, $4} );
+  }
 ;
 
 array_apply:

@@ -51,9 +51,12 @@ private:
     context_type m_context;
 
 private:
-    id_ptr do_stmt(ast::node_ptr);
-    expr_ptr do_block(ast::node_ptr);
+    id_ptr do_binding(ast::node_ptr);
     expr_ptr do_expr(ast::node_ptr);
+    expr_ptr do_local_binding(ast::node_ptr);
+    expr_ptr do_lambda(ast::node_ptr);
+    expr_ptr make_func(ast::node_ptr params, ast::node_ptr expr,
+                       const parsing::location &);
     expr_ptr do_primitive(ast::node_ptr);
     //expr_ptr do_case_expr(ast::node_ptr);
     expr_ptr do_array_def(ast::node_ptr);

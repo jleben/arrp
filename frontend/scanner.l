@@ -67,6 +67,8 @@ blank [ \t]
 "else" { return parser::token::ELSE; }
 "case" { return parser::token::CASE; }
 "let" { return parser::token::LET; }
+"in" { return parser::token::IN; }
+"where" { return parser::token::WHERE; }
 ".." { return parser::token::DOTDOT; }
 "++" { return parser::token::PLUSPLUS; }
 "true" {

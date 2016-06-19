@@ -83,13 +83,13 @@ generator::generate(module * mod)
     {
         context_type::scope_holder scope(m_context);
 
-        auto stmts = ast->as_list()->elements[2];
+        auto bindings = ast->as_list()->elements[2];
 
-        if (stmts)
+        if (bindings)
         {
-            for (auto & stmt : stmts->as_list()->elements)
+            for (auto & binding : bindings->as_list()->elements)
             {
-                do_stmt(stmt);
+                do_binding(binding);
             }
         }
     }
@@ -101,59 +101,26 @@ generator::generate(module * mod)
     return ids;
 }
 
-id_ptr generator::do_stmt(ast::node_ptr root)
+id_ptr generator::do_binding(ast::node_ptr root)
 {
     auto name_node = root->as_list()->elements[0]->as_leaf<string>();
     auto name = name_node->value;
     auto params_node = root->as_list()->elements[1];
-    auto block = root->as_list()->elements[2];
-
-    vector<func_var_ptr> params;
-    if (params_node)
-    {
-        stacker<string, name_stack_t> name_stacker(name, m_name_stack);
-
-        for(auto & param : params_node->as_list()->elements)
-        {
-            auto name = param->as_leaf<string>()->value;
-            auto var = make_shared<func_var>(name, location_in_module(param->location));
-            var->qualified_name = qualified_name(name);
-            params.push_back(var);
-        }
-    }
-
-    shared_ptr<function> func;
-
-    if (!params.empty())
-    {
-        func = make_shared<function>(params, nullptr, location_in_module(root->location));
-        m_func_scope_stack.push(&func->scope);
-    }
+    auto expr_node = root->as_list()->elements[2];
 
     expr_ptr expr;
 
     {
-        context_type::scope_holder scope(m_context);
-
-        for (auto & param : params)
-        {
-            try {
-                m_context.bind(param->name, param);
-            } catch (context_error & e) {
-                throw source_error(e.what(), param->location);
-            }
-        }
-
         stacker<string, name_stack_t> name_stacker(name, m_name_stack);
 
-        expr = do_block(block);
-    }
-
-    if (func)
-    {
-        m_func_scope_stack.pop();
-        func->expr = expr_slot(expr);
-        expr = func;
+        if (params_node)
+        {
+            expr = make_func(params_node, expr_node, root->location);
+        }
+        else
+        {
+            expr = do_expr(expr_node);
+        }
     }
 
     auto id = make_shared<identifier>(qualified_name(name), expr,
@@ -174,26 +141,18 @@ id_ptr generator::do_stmt(ast::node_ptr root)
     return id;
 }
 
-expr_ptr generator::do_block(ast::node_ptr root)
-{
-    auto stmts_node = root->as_list()->elements[0];
-    auto expr_node = root->as_list()->elements[1];
-
-    if (stmts_node)
-    {
-        for (auto & stmt : stmts_node->as_list()->elements)
-        {
-            do_stmt(stmt);
-        }
-    }
-
-    return do_expr(expr_node);
-}
-
 expr_ptr generator::do_expr(ast::node_ptr root)
 {
     switch(root->type)
     {
+    case ast::local_binding:
+    {
+        return do_local_binding(root);
+    }
+    case ast::lambda:
+    {
+        return do_lambda(root);
+    }
     case ast::constant:
     {
         if (auto b = dynamic_pointer_cast<ast::leaf_node<bool>>(root))
@@ -295,6 +254,71 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     default:
         throw module_error("Unsupported expression.", root->location);
     }
+}
+
+expr_ptr generator::do_local_binding(ast::node_ptr root)
+{
+    auto bnds_node = root->as_list()->elements[0];
+    auto expr_node = root->as_list()->elements[1];
+
+    context_type::scope_holder scope(m_context);
+
+    for (auto & binding : bnds_node->as_list()->elements)
+    {
+        do_binding(binding);
+    }
+
+    return do_expr(expr_node);
+}
+
+expr_ptr generator::do_lambda(ast::node_ptr root)
+{
+    auto params_node = root->as_list()->elements[0];
+    auto expr_node = root->as_list()->elements[1];
+
+    return make_func(params_node, expr_node, root->location);
+}
+
+expr_ptr generator::make_func(ast::node_ptr params_node, ast::node_ptr expr_node,
+                               const parsing::location & loc)
+{
+    assert(params_node);
+
+    vector<func_var_ptr> params;
+
+    {
+        for(auto & param : params_node->as_list()->elements)
+        {
+            auto name = param->as_leaf<string>()->value;
+            auto var = make_shared<func_var>(name, location_in_module(param->location));
+            var->qualified_name = qualified_name(name);
+            params.push_back(var);
+        }
+    }
+
+    assert(!params.empty());
+
+    auto func = make_shared<function>(params, nullptr, location_in_module(loc));
+    m_func_scope_stack.push(&func->scope);
+
+    {
+        context_type::scope_holder scope(m_context);
+
+        for (auto & param : params)
+        {
+            try {
+                m_context.bind(param->name, param);
+            } catch (context_error & e) {
+                throw source_error(e.what(), param->location);
+            }
+        }
+
+        func->expr = expr_slot(do_expr(expr_node));
+    }
+
+    m_func_scope_stack.pop();
+
+    return func;
 }
 
 expr_ptr generator::do_primitive(ast::node_ptr root)

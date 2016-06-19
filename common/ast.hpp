@@ -60,6 +60,9 @@ enum node_type
 
     program,
 
+    binding,
+    local_binding,
+    lambda,
     constant,
     identifier,
     qualified_id,
@@ -76,7 +79,6 @@ enum node_type
     array_size,
     array_concat,
 
-    func_def,
     func_apply,
 
     node_type_count

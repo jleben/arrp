@@ -86,8 +86,12 @@ public:
                 cout << "array-param"; break;
             case array_apply:
                 cout << "array-apply"; break;
-            case func_def:
-                cout << "func-def"; break;
+            case lambda:
+                cout << "lambda"; break;
+            case binding:
+                cout << "bind"; break;
+            case local_binding:
+                cout << "scope"; break;
             case func_apply:
                 cout << "func-apply"; break;
             case primitive:
