@@ -541,9 +541,21 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 
         if (may_wrap)
         {
+            bool size_is_power_of_two =
+                    buffer_size == (int)std::pow(2, (int)std::log2(buffer_size));
+
             // FIXME: use modulo instead of remainder
-            auto size = literal(buffer_size);
-            i = make_shared<bin_op_expression>(op::rem, i, size);
+            if (size_is_power_of_two)
+            {
+                assert(buffer_size > 0);
+                auto mask = literal(buffer_size-1);
+                i = binop(op::bit_and, i, mask);
+            }
+            else
+            {
+                auto size = literal(buffer_size);
+                i = make_shared<bin_op_expression>(op::rem, i, size);
+            }
         }
     }
 

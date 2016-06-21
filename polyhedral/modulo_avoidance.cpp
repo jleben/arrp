@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <unordered_set>
+#include <cmath>
 
 using namespace std;
 
@@ -73,7 +74,12 @@ access_info is_candidate_array(array_ptr array, stmt_ptr stmt, const schedule & 
 
     if ( access.max_offset + access.max_a0 >= buf_size )
     {
+        // Needs modulo.
         access.needs_modulo = true;
+
+        // Extend buffer to next power of two.
+        int buf_size_power_of_two = std::pow(2, std::ceil(std::log2(buf_size)));
+        array->buffer_size[0] = buf_size_power_of_two;
     }
 
     return access;
