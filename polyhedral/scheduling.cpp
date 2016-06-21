@@ -328,7 +328,7 @@ isl::schedule scheduler::make_schedule
     // FIXME: statements with no dependencies
     // seem to always end up with an empty schedule.
 
-    isl_options_set_schedule_whole_component(domains.ctx().get(), 0);
+    isl_options_set_schedule_whole_component(domains.ctx().get(), m_schedule_whole);
 
     isl_schedule_constraints *constr =
             isl_schedule_constraints_on_domain(domains.copy());

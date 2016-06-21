@@ -87,6 +87,11 @@ public:
 
     scheduler( model & m );
 
+    void set_schedule_whole_program(bool flag)
+    {
+        m_schedule_whole = flag;
+    }
+
     polyhedral::schedule schedule
     (bool optimize, const vector<reversal> & reversals);
 
@@ -153,6 +158,8 @@ private:
 
     model & m_model;
     model_summary m_model_summary;
+
+    bool m_schedule_whole = false;
 };
 
 }

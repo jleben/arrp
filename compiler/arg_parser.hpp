@@ -121,6 +121,7 @@ public:
     target_info target;
     vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
+    bool schedule_whole = false;
     bool split_statements = false;
     bool separate_loops = false;
 
@@ -214,6 +215,10 @@ private:
         else if (opt == "--no-opt-schedule")
         {
             optimize_schedule = false;
+        }
+        else if (opt == "--sched-whole")
+        {
+            schedule_whole = true;
         }
         else if (opt == "--reverse")
         {

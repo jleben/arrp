@@ -213,6 +213,7 @@ result::code compile_module
             // Compute polyhedral schedule
 
             polyhedral::scheduler poly_scheduler( ph_model );
+            poly_scheduler.set_schedule_whole_program(args.schedule_whole);
 
             auto schedule = poly_scheduler.schedule(args.optimize_schedule,
                                                     args.sched_reverse);
