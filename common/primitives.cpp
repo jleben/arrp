@@ -251,6 +251,9 @@ vector<prim_op_overload> overloads(primitive_op op)
 
 primitive_type result_type(primitive_op op, vector<primitive_type> & args)
 {
+    // FIXME: we should promote (int/int) to (f64/f64), not (f32/f32),
+    // but still (int/f32) to (f32/f32).
+
     using type = primitive_type;
 #if 0
     cout << "Computing result type for: " << op;
