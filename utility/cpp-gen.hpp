@@ -408,7 +408,7 @@ void print_literal(ostream & stream, const X & v)
 inline void print_literal(ostream & stream, double v)
 {
     using namespace std;
-    cout << "printing double literal" << endl;
+    //cout << "printing double literal" << endl;
 #if 1
     char buf[128];
     snprintf(buf, 128, "%a", v);
@@ -424,7 +424,7 @@ inline void print_literal(ostream & stream, double v)
 inline void print_literal(ostream & stream, float v)
 {
     using namespace std;
-    cout << "printing float literal" << endl;
+    //cout << "printing float literal" << endl;
     char buf[128];
     snprintf(buf, 128, "%af", v);
     stream << buf;
