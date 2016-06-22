@@ -27,6 +27,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <unordered_map>
 #include <algorithm>
 #include <iostream>
+#include <cmath>
 
 using namespace std;
 
@@ -286,12 +287,25 @@ static void advance_buffers(const polyhedral::model & model,
                     array->period_offset : array->period;
         int buffer_size = array->buffer_size[0];
 
+        assert(buffer_size > 0);
+        bool size_is_power_of_two =
+                buffer_size == (int)std::pow(2, (int)std::log2(buffer_size));
+
         auto phase = make_shared<id_expression>(namer(array->name + "_ph"));
 
-        auto next_phase = make_shared<bin_op_expression>(op::add, phase, literal(offset));
-        next_phase = make_shared<bin_op_expression>(op::rem, next_phase, literal(buffer_size));
+        auto next_phase = binop(op::add, phase, literal(offset));
 
-        auto phase_change = make_shared<bin_op_expression>(op::assign, phase, next_phase);
+        if (size_is_power_of_two)
+        {
+            auto mask = literal(buffer_size-1);
+            next_phase = binop(op::bit_and, next_phase, mask);
+        }
+        else
+        {
+            next_phase = binop(op::rem, next_phase, literal(buffer_size));
+        }
+
+        auto phase_change = binop(op::assign, phase, next_phase);
 
         ctx->add(phase_change);
     }
