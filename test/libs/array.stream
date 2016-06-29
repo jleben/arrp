@@ -20,3 +20,5 @@ iterate(f,init) = {
     i -> f(this[i-1]);
   ];
 };
+
+map(f,a) = [#a: i -> f(a[i])]

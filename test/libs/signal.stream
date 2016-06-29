@@ -16,3 +16,15 @@ sine(freq, init_ph) = {
   let ph = phase(freq, init_ph);
   sin(ph * 2 * math.pi);
 };
+
+triangle(freq, delay) = {
+  let ph = phase(freq, delay);
+  1 - abs(ph*2 - 1)
+}
+
+biquad(as,bs,x) = {
+  let y = [*: n  | n < 2 -> 0
+      |   x[n]      * bs[0] + x[n-1]    * bs[1] + x[n-2] * bs[2]
+        - this[n-1] * as[0] - this[n-2] * as[1]];
+  [*: n -> y[n+2]]
+};
