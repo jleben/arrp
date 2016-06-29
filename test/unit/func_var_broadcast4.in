@@ -1,9 +1,5 @@
 
-f(b) = {
-  let x = b * b;
-  x;
-}
-;
+f(b) = let x = b * b in x;
 
 g(a) = f(a);
 

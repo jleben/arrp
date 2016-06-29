@@ -1,8 +1,4 @@
 
-f(g,a) = {
-  let r = g(a);
-  r;
-};
-
+f(g,a) = r where r = g(a);
 h(b) = b + 1;
 main = f(h,999);

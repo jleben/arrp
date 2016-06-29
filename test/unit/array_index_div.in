@@ -1,0 +1,6 @@
+
+x = [100: t-> sin(t)];
+
+upsample(n,x) = [#x*n: t -> x[t//n]];
+
+main = upsample(5,x);

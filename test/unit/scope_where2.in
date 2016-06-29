@@ -1,0 +1,2 @@
+
+main = x + y where { x = 1; y = x + 1; };

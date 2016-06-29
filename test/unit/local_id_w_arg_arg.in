@@ -1,5 +1,5 @@
 
-f(a) = { let x = a; x + 1 };
+f(a) = let x = a in x + 1;
 
 g(b) = f(b);
 
