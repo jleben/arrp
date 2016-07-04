@@ -78,7 +78,7 @@ generator::generate(module * mod)
     }
 
     functional::scope func_scope;
-    m_func_scope_stack.push(&func_scope);
+    m_scope_stack.push(&func_scope);
 
     {
         context_type::scope_holder scope(m_context);
@@ -94,7 +94,7 @@ generator::generate(module * mod)
         }
     }
 
-    m_func_scope_stack.pop();
+    m_scope_stack.pop();
 
     vector<id_ptr> ids(func_scope.ids.begin(), func_scope.ids.end());
 
@@ -108,10 +108,20 @@ id_ptr generator::do_binding(ast::node_ptr root)
     auto params_node = root->as_list()->elements[1];
     auto expr_node = root->as_list()->elements[2];
 
+    auto id = make_shared<identifier>(qualified_name(name),
+                                      location_in_module(name_node->location));
+
+    try  {
+        m_context.bind(name, id);
+    } catch (context_error & e) {
+        throw module_error(e.what(), name_node->location);
+    }
+
     expr_ptr expr;
 
     {
         stacker<string, name_stack_t> name_stacker(name, m_name_stack);
+        stacker<id_ptr, id_stack_t> id_stacker(id, m_binding_stack);
 
         if (params_node)
         {
@@ -123,20 +133,13 @@ id_ptr generator::do_binding(ast::node_ptr root)
         }
     }
 
-    auto id = make_shared<identifier>(qualified_name(name), expr,
-                                      location_in_module(name_node->location));
-
-    try  {
-        m_context.bind(name, id);
-    } catch (context_error & e) {
-        throw module_error(e.what(), name_node->location);
-    }
+    id->expr = expr_slot(expr);
 
     if (verbose<generator>::enabled())
         cout << "Storing id " << id->name << endl;
 
-    assert(!m_func_scope_stack.empty());
-    m_func_scope_stack.top()->ids.push_back(id);
+    assert(!m_scope_stack.empty());
+    m_scope_stack.top()->ids.push_back(id);
 
     return id;
 }
@@ -145,9 +148,13 @@ expr_ptr generator::do_expr(ast::node_ptr root)
 {
     switch(root->type)
     {
-    case ast::local_binding:
+    case ast::binding:
     {
-        return do_local_binding(root);
+        return do_binding_expr(root);
+    }
+    case ast::local_scope:
+    {
+        return do_local_scope(root);
     }
     case ast::lambda:
     {
@@ -171,12 +178,26 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         auto name = root->as_leaf<string>()->value;
         if (verbose<generator>::enabled())
             cout << "Looking up name: " << name << endl;
+
         auto item = m_context.find(name);
         if (!item)
             throw module_error("Undefined name.", root->location);
+
         auto var = item.value();
         ++var->ref_count;
-        return make_shared<reference>(var, location_in_module(root->location));
+
+        auto ref = make_shared<reference>(var, location_in_module(root->location));
+
+        auto self =
+                std::find(m_binding_stack.begin(), m_binding_stack.end(), var);
+        if (self != m_binding_stack.end())
+        {
+            auto id = *self;
+            id->is_recursive = true;
+            ref->is_recursion = true;
+        }
+
+        return ref;
     }
     case ast::qualified_id:
     {
@@ -256,7 +277,18 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     }
 }
 
-expr_ptr generator::do_local_binding(ast::node_ptr root)
+expr_ptr generator::do_binding_expr(ast::node_ptr root)
+{
+    context_type::scope_holder scope(m_context);
+
+    auto id = do_binding(root);
+
+    auto ref = make_shared<reference>(id, location_in_module(root->location));
+
+    return ref;
+}
+
+expr_ptr generator::do_local_scope(ast::node_ptr root)
 {
     auto bnds_node = root->as_list()->elements[0];
     auto expr_node = root->as_list()->elements[1];
@@ -299,7 +331,7 @@ expr_ptr generator::make_func(ast::node_ptr params_node, ast::node_ptr expr_node
     assert(!params.empty());
 
     auto func = make_shared<function>(params, nullptr, location_in_module(loc));
-    m_func_scope_stack.push(&func->scope);
+    m_scope_stack.push(&func->scope);
 
     {
         context_type::scope_holder scope(m_context);
@@ -316,7 +348,7 @@ expr_ptr generator::make_func(ast::node_ptr params_node, ast::node_ptr expr_node
         func->expr = expr_slot(do_expr(expr_node));
     }
 
-    m_func_scope_stack.pop();
+    m_scope_stack.pop();
 
     return func;
 }
@@ -403,6 +435,8 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
 
         ar->vars.push_back(var);
     }
+
+    stacker<scope*> scope_stacker(&ar->scope, m_scope_stack);
 
     ar->expr = do_array_patterns(patterns_node);
 

@@ -105,7 +105,7 @@ id_ptr array_reducer::process(id_ptr id)
 
     if (!unbound_vars.empty())
     {
-        // Upgrade this id's expression to array
+        // Expand this id's expression to array
 
         vector<array_var_ptr> ordered_unbound_vars;
 
@@ -126,7 +126,10 @@ id_ptr array_reducer::process(id_ptr id)
 
         m_sub.vars.enter_scope();
 
+        // Make new vars and args for self reference
+
         vector<array_var_ptr> new_vars;
+        vector<expr_ptr> new_args;
 
         for (auto & var : ordered_unbound_vars)
         {
@@ -137,26 +140,45 @@ id_ptr array_reducer::process(id_ptr id)
 
             auto ref = make_shared<reference>(new_var, location_type(), make_int_type());
             m_sub.vars.bind(var, ref);
+
+            new_args.push_back(make_ref(new_var));
         }
+
+        // Make the array
 
         auto ar = make_shared<array>();
         ar->vars = new_vars;
-        ar->expr = m_sub(id->expr);
+        ar->expr = id->expr;
 
         auto ar_size = array_size(ar);
         ar->type = make_shared<array_type>(ar_size, ar->expr->type);
 
-        m_sub.vars.exit_scope();
-
-        // Reduce expression to get rid of nested arrays
-
-        auto expr = reduce(ar);
-
         // Make new id
 
         auto new_id_name = m_name_provider.new_name(id->name);
-        auto new_id = make_shared<identifier>(new_id_name, expr, id->location);
-        m_processed_ids.insert(new_id);
+        auto new_id = make_shared<identifier>(new_id_name, ar, id->location);
+
+        // Make new self ref
+
+        {
+            expr_ptr self_ref = make_shared<reference>(new_id, location_type(), ar->type);
+            self_ref = apply(self_ref, new_args);
+            m_sub.vars.bind(id, self_ref);
+        }
+
+        // Substitute vars and self references in new id
+
+        new_id->expr = m_sub(new_id->expr);
+
+        m_sub.vars.exit_scope();
+
+        // Reduce new id to get rid of nested arrays
+
+        m_processed_ids.insert(new_id); // Mark before reducing to avoid recursion
+
+        new_id->expr = reduce(new_id->expr);
+
+        // Expansion done
 
         if (verbose<array_reducer>::enabled())
         {
@@ -165,12 +187,12 @@ id_ptr array_reducer::process(id_ptr id)
             cout << " : " << *new_id->expr->type << endl;
         }
 
-        // Substite for references to this id
+        // Make substite for references to this id
 
         if (verbose<array_reducer>::enabled())
             cout << "Creating substitute for id: " << id << endl;
 
-        expr_ptr sub = make_shared<reference>(new_id, location_type(), expr->type);
+        expr_ptr sub = make_shared<reference>(new_id, location_type(), new_id->expr->type);
 
         vector<expr_ptr> args;
         for (auto & var : ordered_unbound_vars)
@@ -315,6 +337,9 @@ expr_ptr array_reducer::reduce
 
     for (auto & pattern : ap->patterns)
     {
+        if (verbose<array_reducer>::enabled())
+            cout << "Processing an array pattern..." << endl;
+
         // Substitute array variables
 
         {
@@ -380,10 +405,16 @@ expr_ptr array_reducer::reduce
 
     // Subtitute vars in local ids
 
+    if (verbose<array_reducer>::enabled())
+        cout << "Substituting vars in local ids..." << endl;
     for (auto & id : ar->scope.ids)
     {
+        if (verbose<array_reducer>::enabled())
+            cout << ".. Local id: " << id << endl;
         id->expr = m_sub(id->expr);
     }
+    if (verbose<array_reducer>::enabled())
+        cout << ".. Done substituting vars in local ids." << endl;
 
     // If only one subdomain, and it has not constraints,
     // return its expression.
@@ -759,6 +790,9 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
 {
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
+        if (ref->is_recursion)
+            return ref;
+
         process(id);
 
         // Is there a substitution for references to this id?
@@ -981,25 +1015,23 @@ string array_reducer::new_var_name()
 
 expr_ptr array_ref_sub::visit_ref(const shared_ptr<reference> & ref)
 {
-    if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
+    auto binding = vars.find(ref->var);
+    if (binding)
     {
-        auto binding = vars.find(avar);
-        if (binding)
+        if (verbose<array_reducer>::enabled())
         {
-            if (verbose<array_reducer>::enabled())
-            {
-                cout << "Substituting array var " << avar << " with ";
-                m_printer.print(binding.value(), cout);
-                cout << endl;
-            }
+            cout << "Substituting var " << ref->var << " with ";
+            m_printer.print(binding.value(), cout);
+            cout << endl;
+        }
 
-            return m_copier.copy(binding.value());
-        }
-        else if (verbose<array_reducer>::enabled())
-        {
-            cout << "No substitution for array var " << avar << endl;
-        }
+        return m_copier.copy(binding.value());
     }
+    else if (verbose<array_reducer>::enabled())
+    {
+        cout << "No substitution for var " << ref->var << endl;
+    }
+
     return ref;
 }
 

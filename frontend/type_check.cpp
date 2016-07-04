@@ -50,12 +50,36 @@ type_ptr type_checker::process(const id_ptr & id)
 
     if (verbose<type_checker>::enabled())
     {
-        cout << "Type checker: processing id:" << endl;
+        cout << "Type checker: processing id:" << endl << "  ";
         m_printer.print(id, cout);
         cout << endl;
     }
 
     auto t = visit(id->expr);
+
+    if (id->is_recursive)
+    {
+        if (verbose<type_checker>::enabled())
+            cout << "Type checker: revisiting recursive id:" << id << endl;
+
+        revertable<bool> revisit(m_force_revisit, true);
+
+        t = visit(id->expr);
+        if (verbose<type_checker>::enabled())
+            cout << "1 -> " << *t << endl;
+
+        auto t2 = visit(id->expr);
+        if (verbose<type_checker>::enabled())
+            cout << "2 -> " << *t2 << endl;
+
+        bool is_undefined =
+                (!(*t2 == *t))
+                || (t->is_scalar() && t->scalar()->primitive == primitive_type::undefined)
+                || (t->is_array() && t->array()->element == primitive_type::undefined);
+        if (is_undefined)
+            throw type_error("Type of recursive expression undefined.",
+                             id->expr.location);
+    }
 
     if (t->is_scalar())
     {
@@ -135,7 +159,17 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
-        return process(id);
+        if (ref->is_recursion)
+        {
+            if (id->expr->type)
+                return id->expr->type;
+            else
+                return type::undefined();
+        }
+        else
+        {
+            return process(id);
+        }
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
@@ -354,6 +388,7 @@ type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
              << "Visiting array." << endl;
 
     auto type = process_array(arr);
+
     if (arr->is_recursive)
     {
         if (verbose<type_checker>::enabled())
@@ -364,6 +399,13 @@ type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
         arr->type = type;
         revertable<bool> revisit(m_force_revisit, true);
         type = process_array(arr);
+
+        assert(type->is_array());
+        if (type->array()->element == primitive_type::undefined)
+        {
+            throw type_error("Array type can not be inferred.",
+                             arr->location);
+        }
     }
     return type;
 }
@@ -468,12 +510,6 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
         result_elem_type = common_type(elem_types);
     } catch (no_type &) {
         throw type_error("Incompatible types.", arr->location);
-    }
-
-    if (result_elem_type == primitive_type::undefined)
-    {
-        throw type_error("Array element type can not be inferred.",
-                           arr->expr.location);
     }
 
     patterns->type = make_shared<array_type>(common_subdom_size, result_elem_type);

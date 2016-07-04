@@ -61,7 +61,7 @@ enum node_type
     program,
 
     binding,
-    local_binding,
+    local_scope,
     lambda,
     constant,
     identifier,

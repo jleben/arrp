@@ -90,7 +90,7 @@ public:
                 cout << "lambda"; break;
             case binding:
                 cout << "bind"; break;
-            case local_binding:
+            case local_scope:
                 cout << "scope"; break;
             case func_apply:
                 cout << "func-apply"; break;

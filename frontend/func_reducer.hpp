@@ -73,11 +73,7 @@ private:
         return source_error(msg, loc, m_trace);
     }
 
-
-    using copy_context_type = context<var_ptr, var_ptr>;
     using reduce_context_type = context<var_ptr, expr_ptr>;
-
-    copy_context_type m_copy_context;
 
     stack<scope*> m_scope_stack;
 

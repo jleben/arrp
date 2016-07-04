@@ -15,6 +15,7 @@ typedef vector<int> array_size_vec;
 
 class scalar_type;
 class array_type;
+class function_type;
 
 class type;
 typedef shared_ptr<type> type_ptr;
@@ -30,9 +31,12 @@ public:
     virtual bool is_constant() const { return false; }
     virtual bool is_affine() const { return false; }
     virtual bool is_data() const { return false; }
+    virtual bool operator==(const type & other) const = 0;
     scalar_type * scalar();
     array_type * array();
+    function_type * func();
 
+    static type_ptr undefined();
     static type_ptr infinity();
 };
 
@@ -40,15 +44,27 @@ class scalar_type : public type
 {
 public:
     scalar_type(primitive_type p): primitive(p) {}
-    primitive_type primitive;
 
     bool is_scalar() const override { return true; }
     bool is_constant() const override { return constant_flag; }
     bool is_affine() const override { return affine_flag; }
     bool is_data() const override { return data_flag; }
 
+    virtual bool operator==(const type & t) const override
+    {
+        if (!t.is_scalar())
+            return false;
+
+        const auto & s = static_cast<const scalar_type &>(t);
+        return primitive == s.primitive &&
+                affine_flag == s.affine_flag &&
+                constant_flag == s.constant_flag &&
+                data_flag == s.data_flag;
+    }
+
     void print(ostream &) const override;
 
+    primitive_type primitive;
     bool affine_flag = false;
     bool constant_flag = false;
     bool data_flag = true;
@@ -63,6 +79,15 @@ inline scalar_type * type::scalar()
 
 inline shared_ptr<scalar_type> make_int_type()
 { return std::make_shared<scalar_type>(primitive_type::integer); }
+
+inline type_ptr type::undefined()
+{
+    auto t = std::make_shared<scalar_type>(primitive_type::undefined);
+    t->data_flag = true;
+    t->affine_flag = true;
+    t->constant_flag = true;
+    return t;
+}
 
 inline type_ptr type::infinity()
 {
@@ -82,6 +107,14 @@ public:
     void print(ostream &) const override;
     bool is_array() const override { return true; }
     bool is_data() const override { return true; }
+    virtual bool operator==(const type & t) const override
+    {
+        if (!t.is_array())
+            return false;
+        const auto & a = static_cast<const array_type &>(t);
+        return size == a.size &&
+                element == a.element;
+    }
     array_size_vec size;
     primitive_type element;
 };
@@ -99,8 +132,22 @@ public:
     function_type(int a): arg_count(a) {}
     void print(ostream &) const override;
     bool is_function() const override { return true; }
+    virtual bool operator==(const type & t) const override
+    {
+        if (!t.is_function())
+            return false;
+        const auto & f = static_cast<const function_type &>(t);
+        return arg_count == f.arg_count;
+    }
     int arg_count;
 };
+
+inline function_type * type::func()
+{
+    if (!is_function())
+        return nullptr;
+    return static_cast<function_type*>(this);
+}
 
 array_size_vec common_array_size(const array_size_vec &, const array_size_vec &);
 

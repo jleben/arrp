@@ -263,6 +263,16 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
 
 expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
 {
+    if (ref->is_recursion)
+    {
+        if (verbose<func_reducer>::enabled())
+        {
+            cout << ref->location << ": "
+                 << "Recursion by ref to " << ref->var->name << endl;
+        }
+        return ref;
+    }
+
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
         if (auto func = dynamic_pointer_cast<function>(id->expr.expr))

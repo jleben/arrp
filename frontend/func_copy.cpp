@@ -157,11 +157,13 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
 
     for(auto & id : arr->scope.ids)
     {
-        auto new_expr = copy(id->expr);
         auto new_name = m_name_provider.new_name(id->name);
-        auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
-        new_arr->scope.ids.push_back(new_id);
+        auto new_id = make_shared<identifier>(new_name, id->location);
         m_copy_context.bind(id, new_id);
+
+        new_id->expr = copy(id->expr);
+
+        new_arr->scope.ids.push_back(new_id);
     }
 
     new_arr->expr = copy(arr->expr);
@@ -248,11 +250,13 @@ expr_ptr copier::visit_func(const shared_ptr<function> & func)
 
     for(auto & id : func->scope.ids)
     {
-        auto new_expr = copy(id->expr);
         auto new_name = m_name_provider.new_name(id->name);
-        auto new_id = make_shared<identifier>(new_name, new_expr, id->location);
-        new_func->scope.ids.push_back(new_id);
+        auto new_id = make_shared<identifier>(new_name, id->location);
         m_copy_context.bind(id, new_id);
+
+        new_id->expr = copy(id->expr);
+
+        new_func->scope.ids.push_back(new_id);
     }
 
     new_func->expr = copy(func->expr);

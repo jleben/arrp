@@ -110,6 +110,7 @@ public:
     identifier(const string & name, expr_ptr e, const location_type & loc):
         var(name,loc), expr(e) {}
     expr_slot expr;
+    bool is_recursive = false;
 };
 typedef std::shared_ptr<identifier> id_ptr;
 
@@ -312,6 +313,7 @@ public:
     reference(var_ptr v, const location_type & loc = location_type(), type_ptr type = nullptr):
         expression(loc, type), var(v) {}
     var_ptr var;
+    bool is_recursion = false;
 };
 
 class array_self_ref : public expression

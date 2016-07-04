@@ -247,6 +247,9 @@ expr:
   where_expr
   |
   id '=' expr
+  {
+    $$ = make_list( ast::binding, @$, {$1, nullptr, $3} );
+  }
 ;
 
 
@@ -254,12 +257,12 @@ let_expr:
   LET binding IN expr
   {
     auto bnd_list = make_list(@2, {$2});
-    $$ = make_list(ast::local_binding, @$, { bnd_list, $4 } );
+    $$ = make_list(ast::local_scope, @$, { bnd_list, $4 } );
   }
   |
   LET '{' binding_list optional_semicolon '}' IN expr
   {
-    $$ = make_list(ast::local_binding, @$, { $3, $7 } );
+    $$ = make_list(ast::local_scope, @$, { $3, $7 } );
   }
 ;
 
@@ -267,12 +270,12 @@ where_expr:
   expr WHERE binding
   {
     auto bnd_list = make_list(@3, {$3});
-    $$ = make_list(ast::local_binding, @$, { bnd_list, $1 } );
+    $$ = make_list(ast::local_scope, @$, { bnd_list, $1 } );
   }
   |
   expr WHERE '{' binding_list optional_semicolon '}'
   {
-    $$ = make_list(ast::local_binding, @$, { $4, $1 } );
+    $$ = make_list(ast::local_scope, @$, { $4, $1 } );
   }
 ;
 

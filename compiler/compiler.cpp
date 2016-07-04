@@ -114,6 +114,7 @@ result::code compile_module
         if (verbose<functional::model>::enabled())
         {
             functional::printer printer;
+            printer.set_print_scopes(true);
             for (const auto & id : ids)
             {
                 printer.print(id, cout);

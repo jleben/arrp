@@ -413,7 +413,6 @@ expr_ptr polyhedral_gen::visit_array_app
     else if (auto sref = dynamic_pointer_cast<array_self_ref>(app->object.expr))
     {
         arr = m_arrays.at(m_current_id);
-
     }
     else
     {

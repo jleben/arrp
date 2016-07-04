@@ -270,8 +270,8 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
     }
 
     // If any arg is undefined,
-    // and all overloads return the same type,
-    // then skip type checking and return that type.
+    // then if all overloads return the same type, return that type,
+    // else return undefined.
     for (auto & arg : args)
     {
         if (arg == type::undefined)
