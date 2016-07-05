@@ -798,23 +798,15 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
 
 expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 {
-    auto result_arr_type = dynamic_pointer_cast<array_type>(cexpr->type);
-    if (!result_arr_type)
-        return cexpr;
-
-    bool is_recursive_array = false;
-
     for (auto & a_case : cexpr->cases)
     {
         auto & expr = a_case.second;
-
         expr = reduce(expr);
-
-        if (auto arr = dynamic_pointer_cast<array>(expr.expr))
-        {
-            is_recursive_array |= arr->is_recursive;
-        }
     }
+
+    auto result_arr_type = dynamic_pointer_cast<array_type>(cexpr->type);
+    if (!result_arr_type)
+        return cexpr;
 
     auto arr = make_shared<array>();
 
@@ -830,11 +822,34 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         decl_vars.push(v);
     }
 
-    for (auto & a_case : cexpr->cases)
+    auto new_case_expr = make_shared<case_expr>();
+
+    for (auto & c : cexpr->cases)
     {
-        auto & expr = a_case.second;
+        auto & domain = c.first;
+        auto & expr = c.second;
         if (!expr->type->is_array())
+        {
+            new_case_expr->cases.push_back(c);
             continue;
+        }
+
+        // Update array recursions
+
+        if (auto nested_ar = dynamic_pointer_cast<array>(expr.expr))
+        {
+            arr->is_recursive |= nested_ar->is_recursive;
+
+            auto self = make_shared<array_self_ref>(arr, location_type(), result_arr_type);
+
+            m_sub.array_recursions[nested_ar] = self;
+            expr = m_sub(expr);
+            m_sub.array_recursions.erase(nested_ar);
+
+            //expr = reduce(expr);
+        }
+
+        // Replace array variables
 
         int expr_dims = expr->type->array()->size.size();
         assert(expr_dims <= arr->vars.size());
@@ -846,27 +861,28 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
             args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
         }
 
-        // FIXME: Update array recursions?
-        // Although a recursion would usually appear inside a case,
-        // which would be rejected just below.
-
         expr = apply(expr, args);
-    }
 
-    for (auto & a_case : cexpr->cases)
-    {
-        auto & expr = a_case.second;
-        if (dynamic_pointer_cast<case_expr>(expr.expr))
+        // Merge nested cases
+
+        if (auto nested_case_expr = dynamic_pointer_cast<case_expr>(expr.expr))
         {
-            throw source_error("Nested cases not supported.", expr.location);
+            for (auto & c2 : nested_case_expr->cases)
+            {
+                auto merged_domain = intersect(domain, c2.first);
+                new_case_expr->cases.emplace_back(expr_slot(merged_domain), c2.second);
+            }
+        }
+        else
+        {
+            new_case_expr->cases.push_back(c);
         }
     }
 
-    arr->expr = cexpr;
+    new_case_expr->type = make_shared<scalar_type>(result_arr_type->element);
 
-    arr->expr->type = make_shared<scalar_type>(result_arr_type->element);
+    arr->expr = new_case_expr;
     arr->type = result_arr_type;
-    arr->is_recursive = is_recursive_array;
 
     return arr;
 }
@@ -1130,25 +1146,22 @@ expr_ptr array_ref_sub::visit_array_self_ref(const shared_ptr<array_self_ref> & 
     {
         array_ptr sub = sub_it->second;
 
-        if (verbose<array_reducer>::enabled())
-        {
-            cout << "Substituting array self reference: "
-                 << self->arr << " : " << *self->type
-                 << " -> "
-                 << sub << " : " << *sub->type
-                 << endl;
-        }
-
-        auto original_type = self->type;
-
-        self->arr = sub;
-        self->type = sub->type;
+        auto new_self = make_shared<array_self_ref>(sub, location_type(), sub->type);
 
         auto app = make_shared<array_app>();
-        app->object = self;
-        app->type = original_type;
+        app->object = new_self;
+        app->type = self->type;
         for (auto & var : sub->vars)
             app->args.emplace_back(make_shared<reference>(var, location_type(), make_int_type()));
+
+        if (verbose<array_reducer>::enabled())
+        {
+            cout << "Substituting array self reference: ";
+            cout << self->arr;
+            cout << " : " << *self->type << " -> ";
+            m_printer.print(app, cout);
+            cout << endl;
+        }
 
         return app;
     }
@@ -1160,10 +1173,9 @@ expr_ptr array_ref_sub::visit_array_self_ref(const shared_ptr<array_self_ref> & 
         if (verbose<array_reducer>::enabled())
         {
             cout << "Substituting array self reference: "
-                 << self->arr << " : " << *self->type
-                 << " -> "
-                 << sub << " : " << *sub->type
-                 << endl;
+                 << self->arr << " : " << *self->type << " -> ";
+            m_printer.print(sub, cout);
+            cout << endl;
         }
 
         return m_copier.copy(sub);
