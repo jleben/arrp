@@ -1,0 +1,4 @@
+
+## FIXME: Improve error message: "Not a function."
+f(i) = i + f(i+1);
+main = f(0);
