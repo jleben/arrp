@@ -609,6 +609,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
         decl_vars.push(v);
     }
 
+    assert(arr->vars.size());
+
     auto domains = make_shared<case_expr>();
     domains->type = make_shared<scalar_type>(result_arr_type->element);
     arr->expr = domains;
@@ -671,6 +673,60 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                          make_shared<int_const>(current_index + current_size - 1));
                 bounds = make_shared<primitive>
                         (primitive_op::logic_and, lb, ub);
+            }
+        }
+
+        // Expand recursive applications
+
+        auto arr_op = dynamic_pointer_cast<array>(operand.expr);
+        if (arr_op && arr_op->is_recursive)
+        {
+            switch(op->kind)
+            {
+            case operation::array_enumerate:
+            {
+                vector<expr_ptr> args = { make_ref(arr->vars[0]) };
+                expr_ptr self = make_shared<array_self_ref>(arr, location_type(), arr->type);
+                self = apply(self, args);
+
+                m_sub.array_recursions[arr_op] = self;
+                operand = m_sub(operand);
+                m_sub.array_recursions.erase(arr_op);
+
+                operand = reduce(operand);
+
+                break;
+            }
+            case operation::array_concatenate:
+            {
+                expr_ptr self = make_shared<array_self_ref>(arr, location_type(), arr->type);
+
+                auto v = make_shared<array_var>
+                        (new_var_name(), arr_op->vars[0]->range,
+                        location_type());
+
+                expr_ptr arg = make_shared<primitive>
+                        (primitive_op::add,
+                         make_ref(v), int_expr(current_index));
+                arg->type = make_int_type();
+
+                vector<expr_ptr> args = { arg };
+
+                self = apply(self, args);
+
+                auto arr = make_shared<array>();
+                arr->vars.push_back(v);
+                arr->expr = self;
+                arr->type = arr_op->type;
+
+                m_sub.array_recursions[arr_op] = arr;
+                operand = m_sub(operand);
+                m_sub.array_recursions.erase(arr_op);
+
+                break;
+            }
+            default:
+                throw error("Unexpected operation type.");
             }
         }
 
@@ -1069,32 +1125,51 @@ expr_ptr array_ref_sub::visit_ref(const shared_ptr<reference> & ref)
 expr_ptr array_ref_sub::visit_array_self_ref(const shared_ptr<array_self_ref> & self)
 {
     auto sub_it = arrays.find(self->arr);
-    if (sub_it == arrays.end())
-        return self;
 
-    array_ptr sub = sub_it->second;
-
-    if (verbose<array_reducer>::enabled())
+    if (sub_it != arrays.end())
     {
-        cout << "Substituting array self reference: "
-             << self->arr << " : " << *self->type
-             << " -> "
-             << sub << " : " << *sub->type
-             << endl;
+        array_ptr sub = sub_it->second;
+
+        if (verbose<array_reducer>::enabled())
+        {
+            cout << "Substituting array self reference: "
+                 << self->arr << " : " << *self->type
+                 << " -> "
+                 << sub << " : " << *sub->type
+                 << endl;
+        }
+
+        auto original_type = self->type;
+
+        self->arr = sub;
+        self->type = sub->type;
+
+        auto app = make_shared<array_app>();
+        app->object = self;
+        app->type = original_type;
+        for (auto & var : sub->vars)
+            app->args.emplace_back(make_shared<reference>(var, location_type(), make_int_type()));
+
+        return app;
     }
 
-    auto original_type = self->type;
+    auto self_sub_it = array_recursions.find(self->arr);
+    if (self_sub_it != array_recursions.end())
+    {
+        auto & sub = self_sub_it->second;
+        if (verbose<array_reducer>::enabled())
+        {
+            cout << "Substituting array self reference: "
+                 << self->arr << " : " << *self->type
+                 << " -> "
+                 << sub << " : " << *sub->type
+                 << endl;
+        }
 
-    self->arr = sub;
-    self->type = sub->type;
+        return m_copier.copy(sub);
+    }
 
-    auto app = make_shared<array_app>();
-    app->object = self;
-    app->type = original_type;
-    for (auto & var : sub->vars)
-        app->args.emplace_back(make_shared<reference>(var, location_type(), make_int_type()));
-
-    return app;
+    return self;
 }
 
 }

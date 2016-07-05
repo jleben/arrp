@@ -33,6 +33,7 @@ public:
     expr_ptr visit_array_self_ref(const shared_ptr<array_self_ref> &e) override;
 
     var_map vars;
+    unordered_map<array_ptr, expr_ptr> array_recursions;
     unordered_map<array_ptr, array_ptr> arrays;
 
     expr_ptr operator()(const expr_ptr & e) { return visit(e); }
