@@ -565,17 +565,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
         operand = apply(operand, args);
     }
 
-    // Check subdomains in operands:
-
-    for (auto & operand : op->operands)
-    {
-        if (dynamic_pointer_cast<case_expr>(operand.expr))
-        {
-            throw source_error("Case expression not supported as operand.",
-                               operand.location);
-        }
-    }
-
     arr->expr = reduce_primitive(op);
     arr->expr->type = make_shared<scalar_type>(result_arr_type->element);
 
