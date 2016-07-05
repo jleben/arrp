@@ -151,6 +151,14 @@ inline function_type * type::func()
 
 array_size_vec common_array_size(const array_size_vec &, const array_size_vec &);
 
+inline type_ptr type_for(const array_size_vec & size, primitive_type elem)
+{
+    if (size.empty())
+        return std::make_shared<scalar_type>(elem);
+    else
+        return std::make_shared<array_type>(size, elem);
+}
+
 inline std::ostream & operator<<(std::ostream & s, const stream::functional::type & t)
 {
     t.print(s);

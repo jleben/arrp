@@ -17,6 +17,12 @@ expr_ptr make_ref(array_var_ptr var)
     return make_shared<reference>(var, location_type(), make_int_type());
 }
 
+expr_ptr make_ref(id_ptr id)
+{
+    return make_shared<reference>(id, location_type(),
+                                  id->expr ? id->expr->type : nullptr);
+}
+
 expr_ptr unite(expr_ptr a, expr_ptr b)
 {
     if (!a)
@@ -318,7 +324,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
             arr->vars.push_back(var);
         }
 
-        arr->is_recursive = nested_arr->is_recursive;
+        arr->is_recursive |= nested_arr->is_recursive;
     }
 
     return arr;
@@ -445,12 +451,26 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 
     if (auto arr = dynamic_pointer_cast<array>(app->object.expr))
     {
-        if (arr->is_recursive)
-            throw source_error("Application of recursive arrays not supported.",
-                               app->location);
-        if (dynamic_pointer_cast<case_expr>(arr->expr.expr))
-            throw source_error("Application of arrays with subdomains not supported.",
-                               app->location);
+        // TODO: Are name recursions in array OK?
+        // I think so.
+        // Any problem will show up as scheduling problem due to circular deps.
+
+        bool is_irreducible =
+                arr->is_recursive ||
+                dynamic_pointer_cast<case_expr>(arr->expr.expr);
+
+        if (is_irreducible)
+        {
+            auto name = m_name_provider.new_name("tmp");
+            auto id = make_shared<identifier>(name, arr, location_type());
+
+            auto ref = make_ref(id);
+            // Process id and detect free vars in substitution,
+            // by reducing the reference:
+            ref = reduce(ref);
+
+            app->object = ref;
+        }
 
         requires_reduction = true;
     }
@@ -487,11 +507,27 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     for (auto & operand : op->operands)
     {
+        // NOTE:
+        // Pointwise operation is valid for an array with name recursion,
+        // since the recursion refers to the resulting array.
         if (auto arr = dynamic_pointer_cast<array>(operand.expr))
         {
-            if (arr->is_recursive)
-                throw source_error("Recursive arrays not supported as operands.",
-                                   arr->location);
+            bool is_irreducible =
+                    arr->is_recursive ||
+                    dynamic_pointer_cast<case_expr>(arr->expr.expr);
+
+            if (is_irreducible)
+            {
+                auto name = m_name_provider.new_name("tmp");
+                auto id = make_shared<identifier>(name, arr, location_type());
+
+                auto ref = make_ref(id);
+                // Process id and detect free vars in substitution,
+                // by reducing the reference:
+                ref = reduce(ref);
+
+                operand = ref;
+            }
         }
     }
 
@@ -551,13 +587,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
     for (auto & operand : op->operands)
     {
         operand = reduce(operand);
-
-        if (auto arr = dynamic_pointer_cast<array>(operand.expr))
-        {
-            if (arr->is_recursive)
-                throw source_error("Recursive arrays not supported as operands.",
-                                   operand.location);
-        }
     }
 
     auto result_arr_type = dynamic_pointer_cast<array_type>(op->type);
@@ -713,6 +742,10 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
 
 expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 {
+    auto result_arr_type = dynamic_pointer_cast<array_type>(cexpr->type);
+    if (!result_arr_type)
+        return cexpr;
+
     bool is_recursive_array = false;
 
     for (auto & a_case : cexpr->cases)
@@ -726,10 +759,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
             is_recursive_array |= arr->is_recursive;
         }
     }
-
-    auto result_arr_type = dynamic_pointer_cast<array_type>(cexpr->type);
-    if (!result_arr_type)
-        return cexpr;
 
     auto arr = make_shared<array>();
 

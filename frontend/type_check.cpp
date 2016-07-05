@@ -513,7 +513,7 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
         throw type_error("Incompatible types.", arr->location);
     }
 
-    patterns->type = make_shared<array_type>(common_subdom_size, result_elem_type);
+    patterns->type = type_for(common_subdom_size, result_elem_type);
 
     size.insert(size.end(), common_subdom_size.begin(), common_subdom_size.end());
     auto type = make_shared<array_type>(size, result_elem_type);
