@@ -617,11 +617,13 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
 
     int current_index = 0;
 
+    bool has_nested_cases = false;
+
     for (auto & operand : op->operands)
     {
         auto ar_type = dynamic_pointer_cast<array_type>(operand->type);
 
-        // Found out size of this elem in first result dimension
+        // Find out size of this elem in first result dimension
 
         int current_size;
         switch(op->kind)
@@ -781,9 +783,9 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
             operand = apply(operand, args);
         }
 
-        if (auto nested_domains = dynamic_pointer_cast<case_expr>(operand.expr))
+        if (dynamic_pointer_cast<case_expr>(operand.expr))
         {
-            throw source_error("Nested domains not supported.", operand.location);
+            has_nested_cases = true;
         }
 
         // Store as a case
@@ -791,6 +793,11 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
         domains->cases.emplace_back(expr_slot(bounds), operand);
 
         current_index += current_size;
+    }
+
+    if (has_nested_cases)
+    {
+        arr->expr = reduce(arr->expr);
     }
 
     return arr;
@@ -804,23 +811,62 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         expr = reduce(expr);
     }
 
+    array_ptr arr;
     auto result_arr_type = dynamic_pointer_cast<array_type>(cexpr->type);
-    if (!result_arr_type)
-        return cexpr;
-
-    auto arr = make_shared<array>();
-
-    decl_var_stacker decl_vars(m_declared_vars);
-
-    for (auto dim_size : result_arr_type->size)
+    if (result_arr_type)
     {
-        expr_ptr range = nullptr;
-        if (dim_size != array_var::unconstrained)
-            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
-        auto v = make_shared<array_var>(new_var_name(), range, location_type());
-        arr->vars.push_back(v);
-        decl_vars.push(v);
+        arr = make_shared<array>();
+        arr->type = result_arr_type;
+
+        decl_var_stacker decl_vars(m_declared_vars);
+
+        for (auto dim_size : result_arr_type->size)
+        {
+            expr_ptr range = nullptr;
+            if (dim_size != array_var::unconstrained)
+                range = make_shared<int_const>(dim_size, location_type(), make_int_type());
+            auto v = make_shared<array_var>(new_var_name(), range, location_type());
+            arr->vars.push_back(v);
+            decl_vars.push(v);
+        }
+
+        for (auto & c : cexpr->cases)
+        {
+            auto & expr = c.second;
+
+            if (!expr->type->is_array())
+                continue;
+
+            // Update array recursions
+
+            if (auto nested_ar = dynamic_pointer_cast<array>(expr.expr))
+            {
+                arr->is_recursive |= nested_ar->is_recursive;
+
+                auto self = make_shared<array_self_ref>(arr, location_type(), result_arr_type);
+
+                m_sub.array_recursions[nested_ar] = self;
+                expr = m_sub(expr);
+                m_sub.array_recursions.erase(nested_ar);
+            }
+
+            // Replace array variables
+
+            int expr_dims = expr->type->array()->size.size();
+            assert(expr_dims <= arr->vars.size());
+
+            vector<expr_ptr> args;
+            for(int d = 0; d < expr_dims; ++d)
+            {
+                auto & v = arr->vars[d];
+                args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
+            }
+
+            expr = apply(expr, args);
+        }
     }
+
+    // Merge nested cases
 
     auto new_case_expr = make_shared<case_expr>();
 
@@ -828,42 +874,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
     {
         auto & domain = c.first;
         auto & expr = c.second;
-        if (!expr->type->is_array())
-        {
-            new_case_expr->cases.push_back(c);
-            continue;
-        }
-
-        // Update array recursions
-
-        if (auto nested_ar = dynamic_pointer_cast<array>(expr.expr))
-        {
-            arr->is_recursive |= nested_ar->is_recursive;
-
-            auto self = make_shared<array_self_ref>(arr, location_type(), result_arr_type);
-
-            m_sub.array_recursions[nested_ar] = self;
-            expr = m_sub(expr);
-            m_sub.array_recursions.erase(nested_ar);
-
-            //expr = reduce(expr);
-        }
-
-        // Replace array variables
-
-        int expr_dims = expr->type->array()->size.size();
-        assert(expr_dims <= arr->vars.size());
-
-        vector<expr_ptr> args;
-        for(int d = 0; d < expr_dims; ++d)
-        {
-            auto & v = arr->vars[d];
-            args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
-        }
-
-        expr = apply(expr, args);
-
-        // Merge nested cases
 
         if (auto nested_case_expr = dynamic_pointer_cast<case_expr>(expr.expr))
         {
@@ -879,12 +889,17 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         }
     }
 
-    new_case_expr->type = make_shared<scalar_type>(result_arr_type->element);
-
-    arr->expr = new_case_expr;
-    arr->type = result_arr_type;
-
-    return arr;
+    if (arr)
+    {
+        new_case_expr->type = make_shared<scalar_type>(result_arr_type->element);
+        arr->expr = new_case_expr;
+        return arr;
+    }
+    else
+    {
+        new_case_expr->type = cexpr->type;
+        return new_case_expr;
+    }
 }
 
 expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
