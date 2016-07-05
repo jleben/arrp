@@ -316,7 +316,7 @@ array_range_list:
 array_range:
   expr
   |
-  '*'
+  '~'
   { $$ = make_node(star, @$); }
 ;
 

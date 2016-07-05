@@ -477,7 +477,7 @@ namespace stream { namespace parsing {
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 57  ///< Number of tokens.
+      yyntokens_ = 58  ///< Number of tokens.
     };
 
 
