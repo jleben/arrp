@@ -42,36 +42,37 @@ expr_ptr copier::visit_ref(const shared_ptr<reference> & ref)
 {
     if (auto a_var = dynamic_pointer_cast<array_var>(ref->var))
     {
+        auto new_ref = make_shared<reference>(*ref);
         auto binding = m_copy_context.find(a_var);
         if (binding)
-            return make_shared<reference>(binding.value(), ref->location, ref->type);
-        else
-        {
-            return make_shared<reference>(*ref);
-        }
+            new_ref->var = binding.value();
+        return new_ref;
     }
     else if (auto f_var = dynamic_pointer_cast<func_var>(ref->var))
     {
+        auto new_ref = make_shared<reference>(*ref);
         auto binding = m_copy_context.find(f_var);
         if (binding)
-            return make_shared<reference>(binding.value(), ref->location, ref->type);
-        else
-            return make_shared<reference>(*ref);
+            new_ref->var = binding.value();
+        return new_ref;
     }
     else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
         // FIXME: Go reduce the expression of id to replace
         // array vars with copied ones.
+
+        auto new_ref = make_shared<reference>(*ref);
+
         auto binding = m_copy_context.find(id);
         if (binding)
         {
             auto bound_id = dynamic_pointer_cast<identifier>(binding.value());
             assert(bound_id);
             m_ids.insert(bound_id);
-            return make_shared<reference>(bound_id, ref->location, ref->type);
+            new_ref->var = bound_id;
         }
-        else
-            return make_shared<reference>(*ref);
+
+        return new_ref;
     }
     else
     {
@@ -162,6 +163,7 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
         m_copy_context.bind(id, new_id);
 
         new_id->expr = copy(id->expr);
+        new_id->is_recursive = id->is_recursive;
 
         new_arr->scope.ids.push_back(new_id);
     }
@@ -255,6 +257,7 @@ expr_ptr copier::visit_func(const shared_ptr<function> & func)
         m_copy_context.bind(id, new_id);
 
         new_id->expr = copy(id->expr);
+        new_id->is_recursive = id->is_recursive;
 
         new_func->scope.ids.push_back(new_id);
     }

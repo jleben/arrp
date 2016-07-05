@@ -42,6 +42,7 @@ type_checker::type_checker(stack<location_type> & trace):
     m_trace(trace)
 {
     m_printer.set_print_var_address(true);
+    m_printer.set_print_scopes(false);
 }
 
 type_ptr type_checker::process(const id_ptr & id)

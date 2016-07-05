@@ -881,8 +881,10 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
 
 expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args)
 {
+    assert(expr->type);
+
     if (verbose<array_reducer>::enabled())
-        cout << "Applying : " << *expr->type << endl;
+        cout << "Applied type: " << *expr->type << endl;
 
     auto ar_type = dynamic_pointer_cast<array_type>(expr->type);
 
@@ -911,7 +913,7 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args
     }
 
     if (verbose<array_reducer>::enabled())
-        cout << "Applying : => " << *result_type << endl;
+        cout << "=> Application result type: " << *result_type << endl;
 
     if (auto app = dynamic_pointer_cast<array_app>(expr))
     {
@@ -936,9 +938,6 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args
             result = m_sub(arr->expr);
         }
 
-        // Reduce primitive ops
-        result = reduce(result);
-
         if (arr->vars.size() > args.size())
         {
             vector<array_var_ptr> remaining_vars(arr->vars.begin() + args.size(),
@@ -950,6 +949,9 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args
             result = arr;
         }
         // FIXME: Else, update recursions of this array?
+
+        // Reduce primitive ops
+        result = reduce(result);
 
         result->type = result_type;
 

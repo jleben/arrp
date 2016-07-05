@@ -147,6 +147,8 @@ expr_ptr func_reducer::do_apply
         auto arg = args[i];
         m_type_checker.process(arg);
 
+        // FIXME: don't make ids for indexing expressions
+
         if (var->ref_count > 1 && !dynamic_pointer_cast<reference>(arg)
                 && arg->type->is_data())
         {
@@ -295,6 +297,9 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
 
             m_ids.insert(id);
         }
+
+        if (auto func = dynamic_pointer_cast<function>(id->expr.expr))
+            return m_copier.copy(func);
 
         if (is_constant(id->expr))
             return id->expr;
