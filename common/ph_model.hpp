@@ -213,6 +213,7 @@ public:
         tree(nullptr), full(ctx),
         prelude_tree(nullptr), prelude(ctx),
         period_tree(nullptr), period(ctx),
+        tiled(ctx),
         params(isl::set(isl::space(ctx, isl::parameter_tuple())))
     {}
     isl::schedule tree;
@@ -221,6 +222,7 @@ public:
     isl::union_map prelude;
     isl::schedule period_tree;
     isl::union_map period;
+    isl::union_map tiled;
     isl::set params;
 };
 

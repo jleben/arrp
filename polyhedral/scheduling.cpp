@@ -119,7 +119,7 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
 
     if (verbose<scheduler>::enabled())
     {
-        cout << "Schedule:" << endl;
+        cout << endl << "Schedule:" << endl;
         isl_printer_print_schedule(m_printer.get(), schedule.tree.get());
         cout << endl;
 
@@ -139,13 +139,14 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
 
     if (verbose<scheduler>::enabled())
     {
-        cout << "Prelude schedule:" << endl;
+        cout << endl << "Prelude schedule:" << endl;
         print_each_in(schedule.prelude);
-        cout << endl;
 
-        cout << "Periodic schedule:" << endl;
+        cout << endl << "Periodic schedule:" << endl;
         print_each_in(schedule.period);
-        cout << endl;
+
+        cout << endl << "Tiled schedule:" << endl;
+        print_each_in(schedule.tiled);
     }
 
     for (auto & reversal : reversals)
@@ -215,7 +216,7 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
 #endif
     }
 
-    if (verbose<scheduler>::enabled())
+    if (verbose<scheduler>::enabled() && !reversals.empty())
     {
         cout << "Periodic schedule with reversals:" << endl;
         print_each_in(schedule.period);
@@ -479,20 +480,27 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         isl::union_map infinite_sched =
                 isl_schedule_node_get_subtree_schedule_union_map(infinite_band);
 
-        int prelude_dur = compute_prelude_duration(infinite_sched, sched.full.domain());
+        int stream_dim, period_dur, prelude_dur;
 
-        int period_dur = compute_period_duration(infinite_sched);
+        find_stream_dim_and_period(infinite_sched, stream_dim, period_dur);
+
+        prelude_dur = find_prelude_duration(infinite_sched, stream_dim);
+
+        find_array_periods(infinite_sched, stream_dim, prelude_dur, period_dur);
 
         infinite_sched = infinite_sched.in_domain(sched.full.domain());
+
+        // Extract statement domains for prelude and period
 
         isl::union_set prelude_dom(sched.full.ctx()), period_dom(sched.full.ctx());
 
         if (prelude_dur > 0)
         {
             // Add prelude part of the infinite schedule part.
+            // = stream dim < prelude_dur
             infinite_sched.for_each([&](isl::map & m)
             {
-                m.limit_above(isl::space::output, 0, prelude_dur - 1);
+                m.limit_above(isl::space::output, stream_dim, prelude_dur - 1);
                 prelude_dom = prelude_dom | m.domain();
                 return true;
             });
@@ -501,6 +509,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         if (root_is_sequence && root_seq_elems >= 2)
         {
             // Add all finite sequence elements (all other than the last).
+            // = sequence index (zero dim of full schedule) < (#sequence - 1)
             sched.full.for_each([&](isl::map & m){
                 m.limit_above(isl::space::output, 0, root_seq_elems - 2);
                 prelude_dom = prelude_dom | m.domain();
@@ -509,14 +518,17 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         }
 
         {
+            // Extract period domains
+            // = prelude dur <= stream dim < prelude_dur + period_dur
             infinite_sched.for_each([&](isl::map & m)
             {
-                m.limit_below(isl::space::output, 0, prelude_dur);
-                m.limit_above(isl::space::output, 0, prelude_dur + period_dur - 1);
+                m.limit_below(isl::space::output, stream_dim, prelude_dur);
+                m.limit_above(isl::space::output, stream_dim, prelude_dur + period_dur - 1);
                 period_dom = period_dom | m.domain();
                 return true;
             });
         }
+
 
         sched.prelude_tree = sched.tree;
         sched.prelude_tree.intersect_domain(prelude_dom);
@@ -525,6 +537,85 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         sched.period_tree = sched.tree;
         sched.period_tree.intersect_domain(period_dom);
         sched.period = sched.period_tree.map().in_domain(period_dom);
+
+        // Create tiled schedule, used for storage allocation.
+
+        {
+            isl::union_map tiled(m_model.context);
+
+            isl::space sched_space(nullptr);
+            sched.full.for_each([&](isl::map & m)
+            {
+                sched_space = m.get_space().range();
+                return false;
+            });
+            int n_dim = sched_space.dimension(isl::space::variable);
+
+            int full_stream_dim = stream_dim;
+            if (root_is_sequence)
+                full_stream_dim += 1;
+
+            // Tile periodic part
+
+            {
+                isl::union_set periodic_dom(m_model.context);
+                infinite_sched.for_each([&](isl::map & m)
+                {
+                    m.limit_below(isl::space::output, stream_dim, prelude_dur);
+                    periodic_dom = periodic_dom | m.domain();
+                    return true;
+                });
+
+                tiled = sched.full.in_domain(periodic_dom);
+
+                auto tiling = isl::multi_expression::zero(sched_space, n_dim+1);
+                for (int i = 0; i < n_dim; ++i)
+                    tiling.set(i+1, sched_space.var(i));
+                auto tile_index_expr =
+                        isl::floor((sched_space.var(full_stream_dim) - prelude_dur)
+                                   / period_dur) + 1;
+                tiling.set(0, tile_index_expr);
+
+                isl::map tiling_map(isl_map_from_multi_aff(tiling.copy()));
+                if (false && verbose<scheduler>::enabled())
+                {
+                    cout << "Periodic tiling: " << endl;
+                    m_printer.print(tiling);  cout << endl;
+                    m_printer.print(tiling_map);  cout << endl;
+                }
+
+                tiled.map_range_through(tiling_map);
+
+                if (false && verbose<scheduler>::enabled())
+                {
+                    cout << "Periodic tiles: " << endl;
+                    m_printer.print_each_in(tiled);
+                }
+            }
+
+            // Add the prelude tile
+
+            {
+                auto tiling = isl::multi_expression::zero(sched_space, n_dim+1);
+                for (int i = 0; i < n_dim; ++i)
+                    tiling.set(i+1, sched_space.var(i));
+                tiling.set(0, sched_space.val(0));
+
+                isl::map tiling_map(isl_map_from_multi_aff(tiling.copy()));
+                auto prelude_tile = sched.prelude;
+                prelude_tile.map_range_through(tiling_map);
+
+                if (false && verbose<scheduler>::enabled())
+                {
+                    cout << "Prelude tile: " << endl;
+                    m_printer.print_each_in(prelude_tile);
+                }
+
+                tiled = tiled | prelude_tile;
+            }
+
+            sched.tiled = tiled;
+        }
     }
     else
     {
@@ -537,146 +628,163 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
     domain_node = isl_schedule_node_free(domain_node);
 }
 
-#if 1
-int scheduler::compute_period_duration
-(const isl::union_map & schedule)
+void scheduler::find_stream_dim_and_period
+(const isl::union_map & schedule,
+ int & common_dim, int & common_period)
 {
     if (verbose<scheduler>::enabled())
-        cout << endl << "Computing period duration.." << endl;
-
-    int common_period = 0;
-
-    isl::union_set unbounded_domains(m_model.context);
-
-    m_model_summary.domains.for_each([&](const isl::set & s){
-        auto id = s.id();
-        auto stmt = statement_for(id);
-        assert(stmt);
-
-        if (!stmt->is_infinite)
-            return true;
-
-        s.for_each([&](isl::basic_set & bs){
-
-            isl::basic_set unbounded =
-                    isl::basic_set::universe(bs.get_space());
-
-            bs = isl_basic_set_detect_equalities(bs.copy());
-
-            // Only add constraints that don't involve infinite dim,
-            // or that are equalities.
-
-            auto constraints =
-                    isl_basic_set_get_constraint_list(bs.get());
-            auto n = isl_constraint_list_n_constraint(constraints);
-            for (int i = 0; i < n; ++i)
-            {
-                isl::constraint c =
-                        isl_constraint_list_get_constraint(constraints, i);
-                if (!isl_constraint_involves_dims(c.get(), isl_dim_set, 0, 1))
-                    unbounded.add_constraint(c);
-                else if (c.is_equality())
-                    unbounded.add_constraint(c);
-            };
-            isl_constraint_list_free(constraints);
-
-            unbounded_domains = unbounded_domains | unbounded;
-
-            return true;
-        });
-
-        return true;
-    });
-
-    if (false && verbose<scheduler>::enabled())
-    {
-        cout << "Unbounded domains:" << endl;
-        m_printer.print_each_in(unbounded_domains);
-    }
+        cout << endl << "Finding stream dimension and period duration." << endl;
 
     auto deps =
-            m_model_summary.read_relations.in_domain(unbounded_domains).inverse()
-            (m_model_summary.write_relations.in_domain(unbounded_domains));
+            m_model_summary.dependencies;
 
     deps.map_domain_through(schedule);
     deps.map_range_through(schedule);
 
     vector<int> periods;
 
+    common_dim = -1;
+    common_period = -1;
+
     deps.for_each( [&](const isl::map & m ){
         m.for_each( [&](const isl::basic_map & bm){
 
             if (verbose<scheduler>::enabled())
             {
-                cout << "Time dep: "; m_printer.print(bm); cout << endl;
+                cout << "... Dep: "; m_printer.print(bm); cout << endl;
             }
 
             isl::matrix eq =
                     isl_basic_map_equalities_matrix
                     (bm.get(),
+                     isl_dim_cst,
                      isl_dim_in,
                      isl_dim_out,
                      isl_dim_div,
-                     isl_dim_param,
-                     isl_dim_cst);
+                     isl_dim_param);
 
             isl::matrix ineq =
                     isl_basic_map_inequalities_matrix
                     (bm.get(),
+                     isl_dim_cst,
                      isl_dim_in,
                      isl_dim_out,
                      isl_dim_div,
-                     isl_dim_param,
-                     isl_dim_cst);
+                     isl_dim_param);
 
-            assert(eq.column_count() == ineq.column_count());
+            for (int r = 0; r < eq.row_count(); ++r)
+                eq(r,0) = 0;
 
-            // Combine eq and ineq, and drop column for constants
+            for (int r = 0; r < ineq.row_count(); ++r)
+                ineq(r,0) = 0;
 
-            isl::matrix c(m_model.context,
-                          eq.row_count() + ineq.row_count(),
-                          eq.column_count() - 1);
+            auto dep_space = isl::local_space(bm.get_space());
 
-            for (auto row = 0; row < eq.row_count(); ++row)
+            int n_param = dep_space.dimension(isl::space::parameter);
+            int n_in = dep_space.dimension(isl::space::input);
+            int n_out = dep_space.dimension(isl::space::output);
+            int n_div = dep_space.dimension(isl::space::div);
+
+            // Make a set space which represents in, out and div dims
+            // simply as set dims.
+
+            isl::space space(bm.ctx(),
+                             isl::parameter_tuple(n_param),
+                             isl::set_tuple(n_in + n_out + n_div));
+
+            auto cone = isl_basic_set_from_constraint_matrices
+                    (space.copy(), eq.copy(), ineq.copy(),
+                     isl_dim_cst, isl_dim_set,
+                     isl_dim_div, isl_dim_param);
+
+            cone = isl_basic_set_detect_equalities(cone);
+
+            isl::matrix cone_eq = isl_basic_set_equalities_matrix
+                    (cone,
+                     isl_dim_set, isl_dim_param,
+                     isl_dim_div, isl_dim_cst);
+
+            isl_basic_set_free(cone);
+
+            cone_eq.drop_column(cone_eq.column_count()-1);
+
+            // If there is a single ray,
+            // it must be the nullspace of equalities.
+
+            // FIXME:
+            // We assume that the nullspace produces the direction
+            // consistent with the inqeualities
+            // (otherwise it would have to be inverted).
+
+            auto ray = cone_eq.nullspace();
+
+            if (ray.column_count() == 0)
             {
-                for (auto col = 0; col < c.column_count(); ++col)
-                {
-                    c(row,col) = eq(row,col).value();
-                }
-            }
-            for (auto row = 0; row < ineq.row_count(); ++row)
-            {
-                for (auto col = 0; col < c.column_count(); ++col)
-                {
-                    int offset_row = row + eq.row_count();
-                    c(offset_row,col) = ineq(row,col).value();
-                }
+                if (verbose<scheduler>::enabled())
+                    cout << "No ray. Skipping." << endl;
+                return true;
             }
 
-            auto n = c.nullspace();
-
-            if (false && verbose<scheduler>::enabled())
+            if (verbose<scheduler>::enabled())
             {
-                cout << "Nullspace:" << endl;
-                isl::print(n);
-                cout << endl;
+                cout << "Ray:" << endl;
+                isl::print(ray);
             }
+
+            // Assert the nullspace is a line:
+            assert_or_throw(ray.column_count() == 1);
+
+            // Find the first infinite schedule dimension,
+            // = the first non-zero value of the ray.
+
+            // The period duration is the actual value.
+            // Assert that it is the same for input as well as output,
+            // otherwise the dependence vectors are unbounded.
 
             int n_dim = bm.get_space().dimension(isl::space::input);
 
-            assert_or_throw(n.column_count() == 1);
+            int dim = 0;
+            int period = 0;
+            for (; dim < n_dim; ++dim)
+            {
+                auto k1 = ray(dim,0).value();
+                auto k2 = ray(dim + n_dim,0).value();
+                assert_or_throw(k1.is_integer());
+                assert_or_throw(k2.is_integer());
+                if (k1.integer() != 0)
+                {
+                    assert_or_throw(k1.integer() == k2.integer());
+                    period = k1.integer();
+                    break;
+                }
+            }
 
-            auto t_src = n(0,0).value();
-            auto t_dst = n(n_dim,0).value();
-
-            assert_or_throw(t_src.is_integer());
-            assert_or_throw(t_dst.is_integer());
-            assert_or_throw(t_src.integer() == t_dst.integer());
+            // If the ray is zero in all source dimensions,
+            // then this is a dependence of a stream on a constant,
+            // so skip.
+            if (period == 0)
+            {
+                if (verbose<scheduler>::enabled())
+                    cout << "Source is constant. Skipping." << endl;
+                return true;
+            }
 
             if (verbose<scheduler>::enabled())
-                cout << "Period = " << t_src.integer() << endl;
+            {
+                cout << "Dim = " << dim << endl;
+                cout << "Period = " << period << endl;
+            }
 
-            periods.push_back(t_src.integer());
+            // Assert that the dimension is the same for all basic maps.
+
+            if (common_dim == -1)
+                common_dim = dim;
+            else
+                assert_or_throw(common_dim == dim);
+
+            // Remember the period for this basic map:
+
+            periods.push_back(period);
 
             return true;
         });
@@ -690,46 +798,60 @@ int scheduler::compute_period_duration
     }
 
     if (verbose<scheduler>::enabled())
-        cout << "Common period = " << common_period << endl;
+        cout << endl << ">> Common period = " << common_period << endl;
+}
 
+void scheduler::find_array_periods
+(const isl::union_map & schedule,
+ int time_dim, int prelude, int period)
+{
+    if (verbose<scheduler>::enabled())
+    {
+        cout << endl << "Computing array periods..." << endl;
+    }
 
     auto & m = m_model_summary;
-    auto write_sched = m.write_relations.in_domain(unbounded_domains);
+    auto write_sched = m.write_relations.in_domain(m_model_summary.domains);
     write_sched.map_domain_through(schedule);
 
-    write_sched.for_each([&](isl::map ws){
+    write_sched.for_each([&](isl::map ws)
+    {
+        auto ar = array_for(ws.id(isl::space::output));
+
+        if (verbose<scheduler>::enabled())
+            cout << "Array " << ar->name << endl;
 
         int a1 = 0, a2 = 0;
 
         {
-            ws = isl_map_lower_bound_si(ws.copy(), isl_dim_in, 0, 0);
+            ws = isl_map_lower_bound_si(ws.copy(), isl_dim_in, time_dim,
+                                        prelude);
             auto a = ws.range();
+            if (a.is_empty()) // Not infinite
+                return true;
+
             a1 = a.minimum(a.get_space().var(0)).integer();
         }
         {
-            ws = isl_map_lower_bound_si(ws.copy(), isl_dim_in, 0, common_period);
+            ws = isl_map_lower_bound_si(ws.copy(), isl_dim_in, time_dim,
+                                        prelude + period);
             auto a = ws.range();
             a2 = a.minimum(a.get_space().var(0)).integer();
         }
 
         auto period = a2 - a1;
 
-        auto ar = array_for(ws.id(isl::space::output));
-
         if (verbose<scheduler>::enabled())
-            cout << "Array " << ar->name << " period = " << period << endl;
+            cout << ".. period = " << period << endl;
 
         ar->period = period;
 
         return true;
     });
-
-    return common_period;
 }
-#endif
 
-int scheduler::compute_prelude_duration(const isl::union_map & schedule,
-                                        const isl::union_set & domains)
+int scheduler::find_prelude_duration(const isl::union_map & schedule,
+                                        int time_dim)
 {
     using namespace isl;
 
@@ -749,7 +871,7 @@ int scheduler::compute_prelude_duration(const isl::union_map & schedule,
 
     int offset = std::numeric_limits<int>::min();
 
-    auto bounded_schedule = schedule.in_domain(domains);
+    auto bounded_schedule = schedule.in_domain(m_model_summary.domains);
     bounded_schedule.for_each( [&](map & stmt_sched)
     {
         auto id = stmt_sched.id(isl::space::input);
@@ -835,7 +957,7 @@ int scheduler::compute_prelude_duration(const isl::union_map & schedule,
                     m_printer.print(prelude_sched); cout << endl;
                 }
 
-                auto t = prelude_sched.get_space().var(0);
+                auto t = prelude_sched.get_space().var(time_dim);
                 auto latest_prelude = prelude_sched.maximum(t);
 
                 assert(latest_prelude.is_integer());
@@ -854,7 +976,7 @@ int scheduler::compute_prelude_duration(const isl::union_map & schedule,
         else
         {
             auto range = stmt_sched.range();
-            auto latest_time = range.maximum(range.get_space().var(0));
+            auto latest_time = range.maximum(range.get_space().var(time_dim));
             assert(latest_time.is_integer());
             offset = std::max(offset, (int) latest_time.integer() + 1);
         }
@@ -863,7 +985,7 @@ int scheduler::compute_prelude_duration(const isl::union_map & schedule,
 
     if (verbose<scheduler>::enabled())
     {
-        cout << "Prelude duration = " << offset << endl;
+        cout << endl << ">> Prelude duration = " << offset << endl;
     }
 
     return offset;

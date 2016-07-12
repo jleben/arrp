@@ -45,13 +45,6 @@ void storage_allocator::allocate(const polyhedral::schedule & schedule)
 {
     using namespace isl;
 
-    isl::space *time_space = nullptr;
-
-    schedule.full.for_each([&time_space]( const map & m )
-    {
-        time_space = new space( m.range().get_space() );
-        return false;
-    });
 
     for (auto & array : m_model.arrays)
     {
@@ -60,18 +53,15 @@ void storage_allocator::allocate(const polyhedral::schedule & schedule)
             cout << endl << "== Array " << array->name << endl;
         }
 
-        compute_buffer_size(schedule, array, *time_space);
+        compute_buffer_size(schedule, array);
 
         find_inter_period_dependency(schedule, array);
     }
-
-    delete time_space;
 }
 
 void storage_allocator::compute_buffer_size
 ( const polyhedral::schedule & schedule,
-  const array_ptr & array,
-  const isl::space & time_space )
+  const array_ptr & array )
 {
     if (verbose<storage_allocator>::enabled())
     {
@@ -81,20 +71,26 @@ void storage_allocator::compute_buffer_size
     using namespace isl;
     using isl::expression;
 
+    isl::space sched_space(nullptr);
+    schedule.tiled.for_each([&](const isl::map & m){
+        sched_space = m.get_space().range();
+        return false;
+    });
+
     auto array_space = array->domain.get_space();
 
-    auto array_sched_space = isl::space::from(array_space, time_space);
+    auto array_sched_space = isl::space::from(array_space, sched_space);
 
     // Filter and map writers and readers
 
     auto write_relations = m_model_summary.write_relations.in_domain(m_model_summary.domains);
     auto read_relations = m_model_summary.read_relations.in_domain(m_model_summary.domains);
 
-    auto all_write_sched = schedule.full;
+    auto all_write_sched = schedule.tiled;
     all_write_sched.map_domain_through(write_relations);
     auto write_sched = all_write_sched.map_for(array_sched_space);
 
-    auto all_read_sched = schedule.full;
+    auto all_read_sched = schedule.tiled;
     all_read_sched.map_domain_through(read_relations);
     auto read_sched = all_read_sched.map_for(array_sched_space);
 
@@ -130,7 +126,7 @@ void storage_allocator::compute_buffer_size
 
     auto access_sched = write_sched | read_sched;
 
-    auto before = order_less_than(time_space);
+    auto before = order_less_than(sched_space);
 
     auto accessed_before_accessed =
             access_sched.cross(access_sched).in_range(before.wrapped()).domain().unwrapped();

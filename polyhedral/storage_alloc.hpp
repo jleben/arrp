@@ -40,8 +40,7 @@ private:
 
     void compute_buffer_size
     ( const schedule &,
-      const array_ptr & array,
-      const isl::space & time_space );
+      const array_ptr & array );
 
     void find_inter_period_dependency
     ( const schedule &,

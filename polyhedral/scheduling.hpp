@@ -141,9 +141,13 @@ private:
 
     void make_periodic_schedule(polyhedral::schedule &);
 
-    int compute_period_duration(const isl::union_map & schedule);
-    int compute_prelude_duration(const isl::union_map & schedule,
-                                 const isl::union_set & domain);
+    void find_stream_dim_and_period(const isl::union_map & schedule,
+                                    int & dim, int & period);
+    int find_prelude_duration(const isl::union_map & schedule,
+                              int time_dim);
+    void find_array_periods(const isl::union_map & schedule,
+                            int time_dim, int prelude, int period);
+
     isl::union_map prelude_schedule
     (const isl::union_map & schedule, int prelude);
     isl::union_map periodic_schedule
