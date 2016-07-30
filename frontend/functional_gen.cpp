@@ -111,11 +111,23 @@ id_ptr generator::do_binding(ast::node_ptr root)
     auto id = make_shared<identifier>(qualified_name(name),
                                       location_in_module(name_node->location));
 
+    // Bind name for reference resolution
+
     try  {
         m_context.bind(name, id);
     } catch (context_error & e) {
         throw module_error(e.what(), name_node->location);
     }
+
+    // Store name in current scope
+
+    if (verbose<generator>::enabled())
+        cout << "Storing id " << id->name << endl;
+
+    assert(!m_scope_stack.empty());
+    m_scope_stack.top()->ids.push_back(id);
+
+    // Generate named expression
 
     expr_ptr expr;
 
@@ -134,12 +146,6 @@ id_ptr generator::do_binding(ast::node_ptr root)
     }
 
     id->expr = expr_slot(expr);
-
-    if (verbose<generator>::enabled())
-        cout << "Storing id " << id->name << endl;
-
-    assert(!m_scope_stack.empty());
-    m_scope_stack.top()->ids.push_back(id);
 
     return id;
 }

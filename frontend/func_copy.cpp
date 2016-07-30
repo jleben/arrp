@@ -253,13 +253,18 @@ expr_ptr copier::visit_func(const shared_ptr<function> & func)
     for(auto & id : func->scope.ids)
     {
         auto new_name = m_name_provider.new_name(id->name);
-        auto new_id = make_shared<identifier>(new_name, id->location);
-        m_copy_context.bind(id, new_id);
-
-        new_id->expr = copy(id->expr);
+        auto new_id = make_shared<identifier>(new_name, id->expr, id->location);
         new_id->is_recursive = id->is_recursive;
-
         new_func->scope.ids.push_back(new_id);
+
+        m_copy_context.bind(id, new_id);
+    }
+
+    // Do the copying after binding all new ids,
+    // to support mutual recursion
+    for(auto & id : new_func->scope.ids)
+    {
+        id->expr = copy(id->expr);
     }
 
     new_func->expr = copy(func->expr);
