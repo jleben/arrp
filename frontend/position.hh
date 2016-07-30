@@ -1,8 +1,8 @@
-// A Bison parser, made by GNU Bison 3.0.2.
+// A Bison parser, made by GNU Bison 3.0.4.
 
 // Positions for Bison parsers in C++
 
-// Copyright (C) 2002-2013 Free Software Foundation, Inc.
+// Copyright (C) 2002-2015 Free Software Foundation, Inc.
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -50,9 +50,9 @@
 #  endif
 # endif
 
-#line 13 "parser.y" // location.cc:291
+#line 13 "parser.y" // location.cc:296
 namespace stream { namespace parsing {
-#line 56 "position.hh" // location.cc:291
+#line 56 "position.hh" // location.cc:296
   /// Abstract a position.
   class position
   {
@@ -114,7 +114,7 @@ namespace stream { namespace parsing {
     }
   };
 
-  /// Add and assign a position.
+  /// Add \a width columns, in place.
   inline position&
   operator+= (position& res, int width)
   {
@@ -122,21 +122,21 @@ namespace stream { namespace parsing {
     return res;
   }
 
-  /// Add two position objects.
+  /// Add \a width columns.
   inline position
   operator+ (position res, int width)
   {
     return res += width;
   }
 
-  /// Add and assign a position.
+  /// Subtract \a width columns, in place.
   inline position&
   operator-= (position& res, int width)
   {
     return res += -width;
   }
 
-  /// Add two position objects.
+  /// Subtract \a width columns.
   inline position
   operator- (position res, int width)
   {
@@ -174,7 +174,7 @@ namespace stream { namespace parsing {
     return ostr << pos.line << '.' << pos.column;
   }
 
-#line 13 "parser.y" // location.cc:291
+#line 13 "parser.y" // location.cc:296
 } } // stream::parsing
-#line 180 "position.hh" // location.cc:291
+#line 180 "position.hh" // location.cc:296
 #endif // !YY_YY_POSITION_HH_INCLUDED
