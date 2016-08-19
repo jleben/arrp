@@ -505,6 +505,8 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
     if (!result_arr_type)
         return reduce_primitive(op);
 
+    // Lambda-lift operands if necessary
+
     for (auto & operand : op->operands)
     {
         // NOTE:
@@ -555,12 +557,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
         if (!operand->type->is_array())
             continue;
 
-        int op_dims = operand->type->array()->size.size();
-        assert(op_dims <= arr->vars.size());
-
-        vector<expr_ptr> args;
-        for (int d = 0; d < op_dims; ++d)
-            args.push_back(make_shared<reference>(arr->vars[d], location_type(), make_int_type()));
+        auto args = broadcast(arr->vars, operand->type->array()->size);
 
         operand = apply(operand, args);
     }
@@ -731,16 +728,16 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
             {
             case operation::array_enumerate:
             {
-                for (int d = 0; d < ar_type->size.size(); ++d)
-                {
-                    auto & v = arr->vars[d+1];
-                    args.push_back(make_shared<reference>
-                                   (v, location_type(), make_int_type()));
-                }
+                vector<array_var_ptr> vars(arr->vars.begin()+1, arr->vars.end());
+                args = broadcast(vars, ar_type->size);
                 break;
             }
             case operation::array_concatenate:
             {
+                args = broadcast(arr->vars, ar_type->size);
+
+                // Override first arg with special treatment
+
                 expr_ptr first_arg = make_shared<reference>
                         (arr->vars.front(), location_type(), make_int_type());
                 if (current_index > 0)
@@ -754,14 +751,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                     first_arg->type = make_int_type();
                 }
 
-                args.push_back(first_arg);
-
-                for (int d = 1; d < ar_type->size.size(); ++d)
-                {
-                    auto & v = arr->vars[d];
-                    args.push_back(make_shared<reference>
-                                   (v, location_type(), make_int_type()));
-                }
+                args[0] = first_arg;
 
                 break;
             }
@@ -841,15 +831,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 
             // Replace array variables
 
-            int expr_dims = expr->type->array()->size.size();
-            assert(expr_dims <= arr->vars.size());
-
-            vector<expr_ptr> args;
-            for(int d = 0; d < expr_dims; ++d)
-            {
-                auto & v = arr->vars[d];
-                args.push_back(make_shared<reference>(v, location_type(), make_int_type()));
-            }
+            auto args = broadcast(arr->vars, expr->type->array()->size);
 
             expr = apply(expr, args);
         }
@@ -982,6 +964,25 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
         }
     }
     return s;
+}
+
+vector<expr_ptr>
+array_reducer::broadcast(const vector<array_var_ptr> & vars, const array_size_vec & size)
+{
+    assert(size.size() <= vars.size());
+
+    vector<expr_ptr> args;
+    args.reserve(size.size());
+
+    for (int d = 0; d < size.size(); ++d)
+    {
+        if (size[d] == 1)
+            args.push_back(make_shared<int_const>(0));
+        else
+            args.push_back(make_shared<reference>(vars[d], location_type(), make_int_type()));
+    }
+
+    return args;
 }
 
 expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args)

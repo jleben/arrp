@@ -64,6 +64,7 @@ private:
     expr_ptr reduce(std::shared_ptr<reference>);
     vector<int> array_size(expr_ptr);
     vector<int> array_size(std::shared_ptr<array>);
+    vector<expr_ptr> broadcast(const vector<array_var_ptr> & vars, const array_size_vec & size);
     expr_ptr apply(expr_ptr, const vector<expr_ptr> & args);
     expr_ptr substitute(expr_ptr);
     expr_ptr eta_expand(expr_ptr);

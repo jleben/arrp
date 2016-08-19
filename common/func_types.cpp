@@ -67,17 +67,30 @@ array_size_vec common_array_size(const array_size_vec & a, const array_size_vec 
     if (b.empty())
         return a;
 
+    int max_dims = max(a.size(), b.size());
     int common_dims = min(a.size(), b.size());
+
+    array_size_vec common_size(max_dims);
+
     for (int d = 0; d < common_dims; ++d)
     {
-        if (a[d] != b[d])
+        if (a[d] != b[d] && a[d] != 1 && b[d] != 1)
             throw no_type();
+        if (a[d] == 1)
+            common_size[d] = b[d];
+        else
+            common_size[d] = a[d];
     }
 
-    if (a.size() > b.size())
-        return a;
-    else
-        return b;
+    for (int d = common_dims; d < max_dims; ++d)
+    {
+        if (d < a.size())
+            common_size[d] = a[d];
+        else
+            common_size[d] = b[d];
+    }
+
+    return common_size;
 }
 
 }
