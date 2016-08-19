@@ -39,6 +39,7 @@ using std::vector;
 using std::unordered_map;
 using std::ostringstream;
 using std::istringstream;
+using std::ostream;
 
 class arguments;
 
@@ -377,6 +378,26 @@ private:
         }
     }
 };
+
+inline ostream & operator<< (ostream & out, const arguments & args)
+{
+    using namespace std;
+
+    out << "input: " << args.input_filename << endl;
+    out << "output: " << args.output_filename << endl;
+    out << "meta output: " << args.meta_output_filename << endl;
+    out << "imports: " << endl;
+    for (auto & dir : args.import_dirs)
+        out << "- " << dir << endl;
+    out << "schedule optimization: " << args.optimize_schedule << endl;
+    out << "schedule whole program: " << args.schedule_whole << endl;
+    out << "schedule avoid modulo by splitting stmts: " << args.split_statements << endl;
+    out << "schedule statement reversals:" << endl;
+    for (auto & entry : args.sched_reverse)
+        out << "- " << entry.stmt_name << " @ dimension " << entry.dim << endl;
+    out << "ast separate loop parts: " << args.separate_loops << endl;
+    return out;
+}
 
 }
 }
