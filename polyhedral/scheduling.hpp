@@ -153,6 +153,8 @@ private:
     isl::union_map periodic_schedule
     (const isl::union_map & schedule, int prelude, int period);
 
+    bool validate_schedule(isl::union_map & schedule);
+
     int common_offset(isl::union_map & schedule, int flow_dim);
 
     void print_each_in( const isl::union_set & );

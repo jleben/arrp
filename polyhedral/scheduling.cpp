@@ -147,6 +147,18 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
 
         cout << endl << "Tiled schedule:" << endl;
         print_each_in(schedule.tiled);
+
+        cout << "Validating full schedule:" << endl;
+        validate_schedule(schedule.full);
+
+        cout << "Validating prelude schedule:" << endl;
+        validate_schedule(schedule.prelude);
+
+        cout << "Validating period schedule:" << endl;
+        validate_schedule(schedule.period);
+
+        cout << "Validating tiled schedule:" << endl;
+        validate_schedule(schedule.tiled);
     }
 
     for (auto & reversal : reversals)
@@ -1087,6 +1099,35 @@ isl::union_map scheduler::periodic_schedule
     });
 
     return sched_period;
+}
+
+bool scheduler::validate_schedule(isl::union_map & schedule)
+{
+    auto deps = m_model_summary.dependencies;
+    deps.map_domain_through(schedule);
+    deps.map_range_through(schedule);
+
+    isl::space sched_space(nullptr);
+    schedule.for_each([&](const isl::map & m){
+        sched_space = m.get_space().range();
+        return false;
+    });
+
+    auto after = order_greater_than(sched_space);
+
+    auto invalid_deps = deps & after;
+
+    if (invalid_deps.is_empty())
+    {
+        cout << "Schedule is valid." << endl;
+        return true;
+    }
+    else
+    {
+        cout << "Schedule is invalid. Invalid deps:" << endl;
+        m_printer.print_each_in(invalid_deps);
+        return false;
+    }
 }
 
 void scheduler::print_each_in( const isl::union_set & us )
