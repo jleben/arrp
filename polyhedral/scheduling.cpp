@@ -148,17 +148,23 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
         cout << endl << "Tiled schedule:" << endl;
         print_each_in(schedule.tiled);
 
+        bool ok;
+
         cout << "Validating full schedule:" << endl;
-        validate_schedule(schedule.full);
+        ok = validate_schedule(schedule.full);
+        cout << (ok ? "Valid." : "Invalid!") << endl;
 
         cout << "Validating prelude schedule:" << endl;
-        validate_schedule(schedule.prelude);
+        ok = validate_schedule(schedule.prelude);
+        cout << (ok ? "Valid." : "Invalid!") << endl;
 
         cout << "Validating period schedule:" << endl;
-        validate_schedule(schedule.period);
+        ok = validate_schedule(schedule.period);
+        cout << (ok ? "Valid." : "Invalid!") << endl;
 
         cout << "Validating tiled schedule:" << endl;
-        validate_schedule(schedule.tiled);
+        ok = validate_schedule(schedule.tiled);
+        cout << (ok ? "Valid." : "Invalid!") << endl;
     }
 
     for (auto & reversal : reversals)
@@ -1117,17 +1123,15 @@ bool scheduler::validate_schedule(isl::union_map & schedule)
 
     auto invalid_deps = deps & after;
 
-    if (invalid_deps.is_empty())
+    bool is_valid = invalid_deps.is_empty();
+
+    if (!is_valid && verbose<scheduler>::enabled())
     {
-        cout << "Schedule is valid." << endl;
-        return true;
-    }
-    else
-    {
-        cout << "Schedule is invalid. Invalid deps:" << endl;
+        cout << "Invalid deps:" << endl;
         m_printer.print_each_in(invalid_deps);
-        return false;
     }
+
+    return is_valid;
 }
 
 void scheduler::print_each_in( const isl::union_set & us )
