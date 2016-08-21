@@ -1,6 +1,6 @@
 [submodule "extra/isl-cpp"]
 	path = extra/isl-cpp
-	url = git@github.com:jleben/isl-cpp.git
+	url = https://github.com/jleben/isl-cpp.git
 [submodule "extra/isl"]
 	path = extra/isl
 	url = https://github.com/jleben/isl.git
