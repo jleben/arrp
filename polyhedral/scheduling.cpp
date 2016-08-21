@@ -837,7 +837,11 @@ void scheduler::find_array_periods
         auto ar = array_for(ws.id(isl::space::output));
 
         if (verbose<scheduler>::enabled())
+        {
             cout << "Array " << ar->name << endl;
+            cout << ".. Write schedule: " << endl;
+            m_printer.print_each_in(ws);
+        }
 
         int a1 = 0, a2 = 0;
 
@@ -860,7 +864,7 @@ void scheduler::find_array_periods
         auto period = a2 - a1;
 
         if (verbose<scheduler>::enabled())
-            cout << ".. period = " << period << endl;
+            cout << ".. period = " << a2 << " - " << a1 << " = " << period << endl;
 
         ar->period = period;
 
