@@ -255,7 +255,7 @@ isl_bool print_schedule_node_info(isl_schedule_node *node, void *user)
     return isl_bool_true;
 }
 
-
+#if 0
 isl_bool
 scheduler::add_schedule_constraints
 (struct isl_scheduler * sched)
@@ -333,7 +333,7 @@ scheduler::add_schedule_constraints
     isl_scheduler_set_user_coefs(sched, coefs.copy());
     return isl_bool_true;
 }
-
+#endif
 isl::schedule scheduler::make_schedule
 (const isl::union_set & domains, const isl::union_map & dependencies,
  bool optimize)
@@ -345,10 +345,10 @@ isl::schedule scheduler::make_schedule
 
     isl_schedule_constraints *constr =
             isl_schedule_constraints_on_domain(domains.copy());
-
+#if 0
     constr = isl_schedule_constraints_set_constraint_filter
             (constr, &add_schedule_constraints_helper, this);
-
+#endif
     constr = isl_schedule_constraints_set_validity(constr, dependencies.copy());
 
     if (optimize)
