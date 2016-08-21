@@ -207,9 +207,13 @@ result::code compile_module
         {
             // Create polyhedral model
 
-            functional::polyhedral_gen gen;
-            auto ph_model = gen.process(array_ids);
-            gen.add_output(ph_model, "output", id);
+            polyhedral::model ph_model;
+
+            {
+                functional::polyhedral_gen gen;
+                ph_model = gen.process(array_ids);
+                gen.add_output(ph_model, "output", id);
+            }
 
             // Compute polyhedral schedule
 
