@@ -10,9 +10,11 @@ if(PARSER_GENERATOR_OUTPUT_DESCRIPTION)
   list(APPEND bison_opts -r state -r solved)
 endif()
 
+file(COPY "${FLEX_INCLUDE_DIR}/FlexLexer.h" DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}")
+
 add_custom_command(
   OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/scanner.cpp"
-  COMMAND flex ARGS -o scanner.cpp scanner.l
+  COMMAND ${FLEX_PROGRAM} ARGS -o scanner.cpp scanner.l
   DEPENDS scanner.l
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   COMMENT "Generating scanner..."

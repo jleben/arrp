@@ -23,6 +23,10 @@ if(CMAKE_CXX_COMPILER_ID MATCHES MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w44267 /w44244")
 endif()
 
+if(PARSER_REGENERATE)
+  find_package(Flex REQUIRED)
+endif()
+
 # Prepare isl
 
 find_package(isl REQUIRED)

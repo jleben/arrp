@@ -8,6 +8,7 @@ endif()
 
 # For parser
 include_directories(../common)
+include_directories(../frontend)
 
 add_library(streamc-lib ${lib_mode}
   ../utility/debug.cpp
