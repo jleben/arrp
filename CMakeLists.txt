@@ -13,8 +13,10 @@ set(TEST_BUILD_TYPE Release CACHE STRING "Build type for tests (affects performa
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+set(CMAKE_CXX_STANDARD 11)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES GNU)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC -Wall -Wno-sign-compare")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wall -Wno-sign-compare")
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES MSVC)
