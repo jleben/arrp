@@ -34,12 +34,16 @@ include_directories(${ISL_INCLUDE_DIR})
 
 # Prepare LLVM
 
+if(FALSE)
+
 find_package(llvm-internal REQUIRED)
 
 find_program(llc_program llc HINTS ${LLVM_TOOLS_BINARY_DIR})
 
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
+
+endif()
 
 # Prepare isl-cpp
 

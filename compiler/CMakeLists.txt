@@ -42,12 +42,14 @@ target_link_libraries(streamc-lib parser)
 
 set_property( TARGET streamc-lib PROPERTY OUTPUT_NAME streamc )
 
+if(FALSE)
 if(DEFINED LLVM_VERSION AND LLVM_VERSION VERSION_GREATER 3.4)
   message(STATUS "Auto-configuring LLVM dependency.")
   llvm_config(streamc-lib core)
 else()
   message(STATUS "Manually configuring LLVM dependency.")
   target_link_libraries( streamc-lib ${LLVM_LINK_FLAGS} ${LLVM_LIBRARIES} )
+endif()
 endif()
 
 target_link_libraries( streamc-lib ${ISL_LIBRARY} isl-cpp json m )
