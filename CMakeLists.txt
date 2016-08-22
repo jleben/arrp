@@ -27,6 +27,9 @@ if(PARSER_REGENERATE)
   find_package(Flex REQUIRED)
 endif()
 
+# For FlexLexer.h:
+include_directories(frontend)
+
 # Prepare isl
 
 find_package(isl REQUIRED)
