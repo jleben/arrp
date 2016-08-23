@@ -55,40 +55,18 @@ isl::map to_isl_map(const stmt_ptr & stmt, const array_relation & relation)
         return isl::expression(m);
     };
 #endif
-    if (relation.size.empty())
+    assert(relation.expr.size() <= space.dimension(isl::space::output));
+
+    auto map = isl::basic_map::universe(space);
+
+    for (int d = 0; d < relation.expr.size(); ++d)
     {
-        auto map = isl::basic_map::universe(space);
-        int out_idx = 0;
-        for (int d = 0; d < relation.expr.size(); ++d)
-        {
-            auto e = relation.expr.at(d);
-            auto o = space.out(out_idx);
-            map.add_constraint(o == e);
-            ++out_idx;
-        }
-        return map;
+        auto o = space.out(d);
+        auto e = relation.expr.at(d);
+        map.add_constraint(o == e);
     }
-    else
-    {
-        auto map = isl::basic_map::universe(space);
-        int out_idx = 0;
-        for (int d = 0; d < relation.expr.size(); ++d)
-        {
-            auto e = relation.expr.at(d);
-            auto o = space(isl::space::output, out_idx);
 
-            // lower bound
-            map.add_constraint(o >= e);
-
-            // upper bound
-            assert(relation.size[out_idx] > 0);
-            e = e + relation.size[out_idx];
-            map.add_constraint(o < e);
-
-            ++out_idx;
-        }
-        return map;
-    }
+    return map;
 }
 
 }

@@ -130,9 +130,6 @@ expression_ptr cpp_from_polyhedral::generate_expression
             target_index.push_back(generate_expression(e, index, ctx));
 
         result = generate_buffer_access(read->array, target_index, ctx);
-
-        if (!read->relation->size.empty())
-            result = unop(op::address, result);
     }
     else if ( auto const_int = dynamic_cast<functional::int_const*>(expr.get()) )
     {
@@ -482,6 +479,9 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     cpp_gen::buffer & buffer_info = m_buffers[array->name];
 
     expression_ptr buffer = make_shared<id_expression>(array_name);
+
+    if (index.empty())
+        return buffer;
 
     if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
         return buffer;

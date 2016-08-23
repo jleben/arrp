@@ -82,8 +82,6 @@ void polyhedral_gen::add_output(polyhedral::model & model,
 
     vector<expr_ptr> ar_index;
     ar_index.push_back(make_shared<ph::iterator_read>(0));
-    for (int d = 1; d < array->domain.dimensions(); ++d)
-        ar_index.push_back(make_shared<int_const>(0));
 
     auto read = make_shared<ph::array_read>(array, ar_index);
 
@@ -95,26 +93,10 @@ void polyhedral_gen::add_output(polyhedral::model & model,
         auto s = isl::space::from(stmt->domain.get_space(),
                                   array->domain.get_space());
 
-        auto m = isl::multi_expression::zero(s, array->domain.dimensions());
+        auto m = isl::multi_expression::zero(s, 1);
         m.set(0, s.in(0));
-        for (int d = 1; d < array->domain.dimensions(); ++d)
-        {
-            auto e = s.val(0);
-            m.set(d, e);
-        }
 
-        vector<int> size;
-        if (array->size.empty())
-        {
-            size = {1};
-        }
-        else
-        {
-            size = array->size;
-            size[0] = 1;
-        }
-
-        stmt->read_relations.emplace_back(array, m, size);
+        stmt->read_relations.emplace_back(array, m);
 
         read->relation = &stmt->read_relations.back();
 

@@ -65,13 +65,12 @@ struct array_relation
 {
     array_relation() {}
     array_relation(array_ptr a,
-                   const isl::multi_expression & e,
-                   const vector<int> & s = vector<int>()):
-        array(a), expr(e), size(s) {}
+                   const isl::multi_expression & e):
+        array(a), expr(e) {}
 
     array_ptr array = nullptr;
+    // expr: Used to create polyhedral model summary in ISL:
     isl::multi_expression expr { nullptr };
-    vector<int> size;
 };
 
 isl::map to_isl_map(const stmt_ptr &, const array_relation &);
@@ -134,6 +133,7 @@ public:
     }
 
     array_ptr array;
+    // indexes: Used to generate C++:
     vector<functional::expr_ptr> indexes;
     array_relation * relation = nullptr;
 };
