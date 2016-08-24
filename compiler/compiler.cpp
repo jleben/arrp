@@ -45,6 +45,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <iostream>
 #include <functional>
 #include <algorithm>
+#include <numeric>
 
 using namespace std;
 
