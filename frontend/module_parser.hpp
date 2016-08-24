@@ -35,7 +35,7 @@ public:
 
 private:
     pair<string, module*> parse_import
-    (const module_source &, const ast::node_ptr & import);
+    (const module *, const ast::node_ptr & import);
 
     vector<string> m_import_dirs;
     list<module*> m_ordered_modules;

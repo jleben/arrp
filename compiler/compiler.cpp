@@ -56,13 +56,16 @@ result::code compile(const arguments & args)
 {
     if (args.input_filename.empty())
     {
-        module_source source_description;
-        return compile_module(source_description, std::cin, args);
+        module_source source;
+        source.text = string(istreambuf_iterator<char>(std::cin), {});
+
+        istringstream source_stream(source.text);
+        return compile_module(source, source_stream, args);
     }
     else
     {
-        module_source source_description;
-        source_description.path = args.input_filename;
+        module_source source;
+        source.path = args.input_filename;
 
         ifstream source_file(args.input_filename);
         if (!source_file.is_open())
@@ -79,10 +82,10 @@ result::code compile(const arguments & args)
             if (last_sep_pos == string::npos)
                 last_sep_pos = 0;
 
-            source_description.dir = args.input_filename.substr(0, last_sep_pos);
+            source.dir = args.input_filename.substr(0, last_sep_pos);
         }
 
-        return compile_module(source_description, source_file, args);
+        return compile_module(source, source_file, args);
     }
 }
 
@@ -315,7 +318,8 @@ result::code compile_module
         for (auto & location : reverse_locations)
             cout << ".. From " << location << endl;
         cerr << "** ERROR: " << e.location << ": " << e.what() << endl;
-        print_code_range(cerr, e.location.path(), e.location.range);
+        if (e.location.module)
+            print_code_range(cerr, e.location.module->source, e.location.range);
         return result::semantic_error;
     }
     /*

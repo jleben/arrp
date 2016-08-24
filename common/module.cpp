@@ -5,32 +5,44 @@ using namespace std;
 
 namespace stream {
 
-void print_code_range(ostream & out, const string & path, const code_range & range)
+void print_code_range(ostream & out, const module_source & source, const code_range & range)
 {
-    if (path.empty())
-        return;
+    if (source.path.empty())
+    {
+        if (source.text.empty())
+            return;
 
+        istringstream in(source.text);
+        print_code_range(out, in, range);
+    }
+    else
+    {
+        ifstream file(source.path);
+        if (!file.is_open())
+            return;
+        print_code_range(out, file, range);
+    }
+}
+
+void print_code_range(ostream & out, istream & in, const code_range & range)
+{
     if (range.is_empty())
         return;
 
     if (range.end.line != range.start.line)
         return;
 
-    ifstream file(path);
-    if (!file.is_open())
-        return;
-
     string line_text;
 
     for(int line = 0; line < range.start.line; ++line)
     {
-        std::getline(file, line_text);
+        std::getline(in, line_text);
     }
 
-    cout << "    " << line_text << endl;
-    cout << "    " << string(range.start.column-1,' ');
-    cout << string(range.end.column - range.start.column, '^');
-    cout << endl;
+    out << "    " << line_text << endl;
+    out << "    " << string(range.start.column-1,' ');
+    out << string(range.end.column - range.start.column, '^');
+    out << endl;
 }
 
 ostream & operator<< (ostream & s, const code_point & p)

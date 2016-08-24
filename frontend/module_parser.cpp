@@ -10,7 +10,7 @@ using namespace std;
 
 namespace stream {
 
-module * module_parser::parse(const module_source & source, istream & text)
+module * module_parser::parse(const module_source & source, istream & text_stream)
 {
     if (verbose<module_parser>::enabled())
         cout << "Parsing " << source.path << endl;
@@ -18,7 +18,7 @@ module * module_parser::parse(const module_source & source, istream & text)
     ast::node_ptr ast;
 
     {
-        stream::parsing::driver parser(text, cout, source.path);
+        stream::parsing::driver parser(text_stream, cout, source);
 
         int error = parser.parse();
 
@@ -69,7 +69,7 @@ module * module_parser::parse(const module_source & source, istream & text)
     {
         for (auto & import_node : imports_node->as_list()->elements)
         {
-            auto import_decl = parse_import(source, import_node);
+            auto import_decl = parse_import(mod, import_node);
             imported_mods.insert(import_decl);
         }
     }
@@ -85,8 +85,10 @@ module * module_parser::parse(const module_source & source, istream & text)
 }
 
 pair<string, module*> module_parser::parse_import
-(const module_source & source, const ast::node_ptr & import_node)
+(const module * importer, const ast::node_ptr & import_node)
 {
+    code_location import_location(importer, import_node->location);
+
     auto & elems = import_node->as_list()->elements;
     auto import_name = elems[0]->as_leaf<string>()->value;
 
@@ -106,10 +108,15 @@ pair<string, module*> module_parser::parse_import
         module_source import_source;
         ifstream text;
 
-        import_source.dir = source.dir;
-        import_source.path = source.dir + "/" + import_filename;
+        import_source.dir = importer->source.dir;
+
+        if (!import_source.dir.empty())
+            import_source.path += import_source.dir + '/';
+        import_source.path += import_filename;
+
         if (verbose<module_parser>::enabled())
             cout << "Trying " << import_source.path << endl;
+
         text.open(import_source.path);
         if (!text.is_open())
         {
@@ -128,9 +135,8 @@ pair<string, module*> module_parser::parse_import
         if (!text.is_open())
         {
             ostringstream msg;
-            msg << "** ERROR in " << source.path << ": "
-                << "Can not find imported module " << import_name << "."
-                << endl;
+            msg << "** ERROR: " << import_location << ": "
+                << "Can not find imported module " << import_name << ".";
             throw io_error(msg.str());
         }
 
@@ -146,9 +152,8 @@ pair<string, module*> module_parser::parse_import
     if (imported_mod_it == m_named_modules.end())
     {
         ostringstream msg;
-        msg << "** ERROR in " << source.path << ": "
-            << "Failed to import module " << import_name << "."
-            << endl;
+        msg << "** ERROR: " << import_location << ": "
+            << "Failed to import module " << import_name << ".";
         throw io_error(msg.str());
     }
 

@@ -6,7 +6,7 @@ using namespace std;
 namespace stream {
 namespace parsing {
 
-void driver::error(const parser::location_type& loc, const std::string& m)
+void driver::error(const parser::location_type& loc, const std::string& msg)
 {
     code_range range;
     range.start.line = loc.begin.line;
@@ -14,9 +14,14 @@ void driver::error(const parser::location_type& loc, const std::string& m)
     range.end.line = loc.end.line;
     range.end.column = loc.end.column;
 
-    cerr << "** ERROR at " << m_path << ":" << range.start << ": "
-         << m << endl;
-    print_code_range(cerr, m_path, range);
+    cerr << "** ERROR: ";
+    if (!m_source.path.empty())
+        cerr << m_source.path << ":";
+    cerr << range << ": "
+         << msg
+         << endl;
+
+    print_code_range(cerr, m_source, range);
 }
 
 }

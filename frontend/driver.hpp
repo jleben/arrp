@@ -3,6 +3,7 @@
 
 #include "scanner.hpp"
 #include "parser.hpp"
+#include "../common/module.hpp"
 #include "../common/ast.hpp"
 
 #include <iostream>
@@ -18,16 +19,16 @@ class driver
     class scanner scanner;
     class parser parser;
     std::istream m_input;
-    string m_path;
+    const module_source & m_source;
 
     ast::node_ptr m_ast;
 
 public:
-    driver(std::istream & in, std::ostream & out, const string & path):
+    driver(std::istream & in, std::ostream & out, const module_source & source):
         scanner(*this, in, out),
         parser(*this),
         m_input(in.rdbuf()),
-        m_path(path)
+        m_source(source)
     {
     }
 
