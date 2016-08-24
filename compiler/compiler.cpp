@@ -56,34 +56,34 @@ result::code compile(const arguments & args)
 {
     if (args.input_filename.empty())
     {
-        cerr << "streamc: error: Missing argument: input filename." << endl;
-        return result::command_line_error;
+        module_source source_description;
+        return compile_module(source_description, std::cin, args);
     }
-
-    ifstream source_file(args.input_filename);
-    if (!source_file.is_open())
+    else
     {
-        cerr << "streamc: error: Failed to open input file: '"
-             << args.input_filename << "'." << endl;
-        return result::io_error;
+        module_source source_description;
+        source_description.path = args.input_filename;
+
+        ifstream source_file(args.input_filename);
+        if (!source_file.is_open())
+        {
+            cerr << "streamc: error: Failed to open input file: '"
+                 << args.input_filename << "'." << endl;
+            return result::io_error;
+        }
+
+        {
+            string::size_type last_sep_pos = args.input_filename.rfind('/');
+            if(last_sep_pos == string::npos)
+                last_sep_pos = args.input_filename.rfind('\\');
+            if (last_sep_pos == string::npos)
+                last_sep_pos = 0;
+
+            source_description.dir = args.input_filename.substr(0, last_sep_pos);
+        }
+
+        return compile_module(source_description, source_file, args);
     }
-
-    string input_dir;
-    {
-        string::size_type last_sep_pos = args.input_filename.rfind('/');
-        if(last_sep_pos == string::npos)
-            last_sep_pos = args.input_filename.rfind('\\');
-        if (last_sep_pos == string::npos)
-            last_sep_pos = 0;
-
-        input_dir = args.input_filename.substr(0, last_sep_pos);
-    }
-
-    module_source source;
-    source.dir = input_dir;
-    source.path = args.input_filename;
-
-    return compile_module(source, source_file, args);
 }
 
 result::code compile_module
