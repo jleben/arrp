@@ -38,12 +38,20 @@ struct code_range
 {
     code_point start;
     code_point end;
+    bool is_empty() const
+    {
+        return start.line == end.line && start.column == end.column;
+    }
 };
 
 struct code_location
 {
     stream::module * module = nullptr;
     code_range range;
+
+    code_location() {}
+    code_location(stream::module *m, const code_range & r = code_range()):
+        module(m), range(r) {}
 
     string path()
     {

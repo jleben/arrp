@@ -130,8 +130,9 @@ result::code compile_module
         auto id_it = std::find_if(ids.begin(), ids.end(), criteria);
         if (id_it == ids.end())
         {
-            throw error("No function named \"main\" in module \""
-                        + main_module->name + "\".");
+            auto msg = "No function named \"main\" in module \""
+                    + main_module->name + "\".";
+            throw source_error(msg, code_location(main_module));
         }
         auto id = *id_it;
 
