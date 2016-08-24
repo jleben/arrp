@@ -473,6 +473,8 @@ expression_ptr cpp_from_polyhedral::generate_primitive
 expression_ptr cpp_from_polyhedral::generate_buffer_access
 (polyhedral::array_ptr array, const index_type & index, builder * ctx)
 {
+    assert(!array->buffer_size.empty());
+
     index_type buffer_index = index;
     string array_name = m_name_mapper(array->name);
 

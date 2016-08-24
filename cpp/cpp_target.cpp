@@ -137,6 +137,7 @@ func_sig_ptr signature_for(const string & name)
 variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
                               name_mapper & namer)
 {
+    assert(!array->buffer_size.empty());
     auto elem_type = type_for(array->type);
     if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
         return decl(elem_type, namer(array->name));

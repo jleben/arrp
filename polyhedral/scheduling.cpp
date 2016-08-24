@@ -638,7 +638,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
     else
     {
         sched.prelude_tree = sched.tree;
-        sched.prelude = sched.full;
+        sched.prelude = sched.tiled = sched.full;
     }
 
     infinite_band = isl_schedule_node_free(infinite_band);

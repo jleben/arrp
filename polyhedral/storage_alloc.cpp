@@ -104,11 +104,13 @@ void storage_allocator::compute_buffer_size
         cout << endl;
     }
 
+#if 0 // FIXME: The rest of the code assumes the array is always stored
     if (read_sched.is_empty())
     {
         // No readers - no storage needed.
         return;
     }
+#endif
 
     if (write_sched.is_empty())
     {
