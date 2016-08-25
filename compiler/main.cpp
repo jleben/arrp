@@ -18,6 +18,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
+#include "options.hpp"
 #include "arg_parser.hpp"
 #include "compiler.hpp"
 #include "../common/ast.hpp"
@@ -41,67 +42,97 @@ using namespace stream::compiler;
 namespace stream {
 namespace compiler {
 
-void print_help(const arguments & args)
+struct verbose_out_options : public option_parser
 {
-    using namespace std;
+    template <typename T>
+    void add_topic(const string & name)
+    {
+        m_topics.emplace(name, &verbose<T>::enabled());
+    }
 
-    cout << "Usage:" << endl
-         << "  streamc <input file> [<option>...]" << endl;
+    void process(arguments & args) override
+    {
+        string topic;
+        while(args.try_parse_argument(topic))
+        {
+            try { *m_topics.at(topic) = true; }
+            catch ( std::out_of_range & e )
+            {
+                throw arguments::error("Unknown verbose topic: " + topic);
+            }
+        }
+    }
 
-    cout << "Options:" << endl;
+    string description() const override
+    {
+        ostringstream text;
+        text << "  \tAvailable topics:" << endl;
+        for (const auto & topic : m_topics)
+            text << "  \t- " << topic.first << endl;
+        return text.str();
+    }
 
-    cout << "  --generate or --gen or -g <symbol> [<type>...] :" << endl
-         << "  \tGenerate output for top-level function or expression <symbol>" << endl
-         << "  \twith given argument types." << endl
-         << "  \tEach following argument <type> is used as the type of" << endl
-         << "  \ta function parameter in generic function instantiation." << endl
-         << "  \tA <type> can be one of the following:" << endl
-         << "  \t- \"int\" - integer number," << endl
-         << "  \t- \"real\" - real number," << endl
-         << "  \t- a stream, e.g. \"[10,4,5]\""
-         << " - each number represents size in one dimension." << endl
-            ;
-
-    cout << "  --output or -o <name>: Generate LLVM IR output file with <name>"
-            " (default: 'out.ll')." << endl;
-
-    cout << "  --cpp <name> : Generate C++ header file with <name>." << endl;
-
-    cout << "  --meta or -m <name> : Generate JSON description file with <name>." << endl;
-
-    auto verbose_topics = args.verbose_topics();
-    cout << " --verbose or -v <topic> : Enable verbose output for <topic>." << endl
-         << "  \tAvailable topics:" << endl;
-    for (const auto & topic : verbose_topics)
-        cout << "  \t- " << topic << endl;
-
-    cout << "  --no-debug or -D <topic> : Disable debugging output for <topic>." << endl;
-}
+private:
+    unordered_map<string,bool*> m_topics;
+};
 
 }
 }
 
 int main(int argc, char *argv[])
 {
+    options opt;
+
     arguments args(argc-1, argv+1);
 
-    args.add_verbose_topic<module_parser>("parsing");
-    args.add_verbose_topic<ast::output>("ast");
-    args.add_verbose_topic<functional::model>("func-model");
-    args.add_verbose_topic<functional::generator>("func-model-gen");
-    args.add_verbose_topic<functional::type_checker>("type-check");
-    args.add_verbose_topic<functional::func_reducer>("func-reduction");
-    args.add_verbose_topic<functional::array_reducer>("array-reduction");
-    args.add_verbose_topic<functional::array_transposer>("array-transpose");
-    args.add_verbose_topic<functional::polyhedral_gen>("ph-model-gen");
-    args.add_verbose_topic<polyhedral::model>("ph-model");
-    args.add_verbose_topic<polyhedral::modulo_avoidance>("mod-avoid");
-    args.add_verbose_topic<polyhedral::scheduler>("ph-scheduling");
-    args.add_verbose_topic<polyhedral::ast_isl>("ph-ast");
-    args.add_verbose_topic<polyhedral::ast_gen>("ph-ast-gen");
-    args.add_verbose_topic<polyhedral::storage_allocator>("storage-alloc");
-    args.add_verbose_topic<polyhedral::storage_output>("storage");
-    args.add_verbose_topic<cpp_gen::renaming>("renaming");
+    args.set_default_option({"", "", "<input filename>", ""}, [&opt](arguments& args){
+        args.try_parse_argument(opt.input_filename);
+    });
+
+    args.add_option({"help", "h", "Print help."}, [](arguments& args){
+        args.print_help();
+        throw arguments::abortion();
+    });
+
+    args.add_option({"import", "i", "<dir>", "Import directory <dir>."},
+                    new string_list_option(&opt.import_dirs));
+
+    args.add_option({"cpp", "", "<name>", "Generate C++ output file named <name>.cpp"},
+                    [&opt](arguments& args){
+        opt.cpp.enabled = true;
+        args.try_parse_argument(opt.cpp.filename);
+    });
+
+    args.add_option({"cpp-namespace", "", "<name>", "Generate C++ output in namespace <name>."},
+                    new string_option(&opt.cpp.nmspace));
+
+    args.add_option({"sched-no-opt", "", "", "Disable schedule optimization."},
+                    new switch_option(&opt.optimize_schedule, false));
+    args.add_option({"sched-whole", "", "", "Schedule whole program at once."},
+                    new switch_option(&opt.schedule_whole));
+    args.add_option({"ast-avoid-branch-in-loop", "", "", "Split loops to avoid branching inside."},
+                    new switch_option(&opt.separate_loops));
+
+    auto verbose_out = new verbose_out_options;
+    verbose_out->add_topic<module_parser>("parsing");
+    verbose_out->add_topic<ast::output>("ast");
+    verbose_out->add_topic<functional::model>("func-model");
+    verbose_out->add_topic<functional::generator>("func-model-gen");
+    verbose_out->add_topic<functional::type_checker>("type-check");
+    verbose_out->add_topic<functional::func_reducer>("func-reduction");
+    verbose_out->add_topic<functional::array_reducer>("array-reduction");
+    verbose_out->add_topic<functional::array_transposer>("array-transpose");
+    verbose_out->add_topic<functional::polyhedral_gen>("ph-model-gen");
+    verbose_out->add_topic<polyhedral::model>("ph-model");
+    verbose_out->add_topic<polyhedral::modulo_avoidance>("mod-avoid");
+    verbose_out->add_topic<polyhedral::scheduler>("ph-scheduling");
+    verbose_out->add_topic<polyhedral::ast_isl>("ph-ast");
+    verbose_out->add_topic<polyhedral::ast_gen>("ph-ast-gen");
+    verbose_out->add_topic<polyhedral::storage_allocator>("storage-alloc");
+    verbose_out->add_topic<polyhedral::storage_output>("storage");
+    verbose_out->add_topic<cpp_gen::renaming>("renaming");
+
+    args.add_option({"verbose", "v", "<topic>", "Enable verbose output for <topic>."}, verbose_out);
 
     try {
         args.parse();
@@ -116,5 +147,5 @@ int main(int argc, char *argv[])
         return result::command_line_error;
     }
 
-    return compile(args);
+    return compile(opt);
 }

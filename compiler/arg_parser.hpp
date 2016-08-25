@@ -1,7 +1,7 @@
 /*
-Compiler for language for stream processing
+Compiler for language for language Arrp
 
-Copyright (C) 2014  Jakob Leben <jakob.leben@gmail.com>
+Copyright (C) 2014-2016  Jakob Leben <jakob.leben@gmail.com>
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -30,25 +30,51 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <memory>
 #include <array>
 #include <unordered_map>
+#include <functional>
+#include <utility>
 
 namespace stream {
 namespace compiler {
 
+using std::pair;
 using std::string;
 using std::vector;
 using std::unordered_map;
 using std::ostringstream;
 using std::istringstream;
 using std::ostream;
+using std::function;
 
 class arguments;
-
-void print_help(const arguments &);
 
 struct target_info
 {
     string name;
 };
+
+struct option_description
+{
+    string long_name;
+    string short_name;
+    string arg_names;
+    string description;
+};
+
+struct option_parser
+{
+    virtual ~option_parser() {}
+    virtual void process(arguments &) = 0;
+    virtual string description() const { return string(); }
+};
+
+struct adhoc_option_parser : option_parser
+{
+    typedef function<void(arguments&)> handler_t;
+    handler_t handler;
+    adhoc_option_parser(handler_t h): handler(h) {}
+    void process(arguments & args) { handler(args); }
+};
+
 
 class arguments
 {
@@ -101,47 +127,43 @@ public:
     struct abortion {};
 
 private:
+
     int m_arg_count;
     char **m_args;
     string m_current_opt;
-    unordered_map<string,bool*> m_verbose_topics;
+    option_description m_default_option_desc;
+    option_parser * m_default_option;
+    vector<pair<option_description,option_parser*>> m_options;
 
 public:
+    arguments(int argc, char *argv[]);
 
-    string input_filename;
-    string output_filename;
-    string meta_output_filename;
-
-    struct {
-        bool enabled;
-        string nmspace;
-        string filename;
-    } cpp;
-
-    vector<string> import_dirs;
-    target_info target;
-    vector<polyhedral::scheduler::reversal> sched_reverse;
-    bool optimize_schedule = true;
-    bool schedule_whole = false;
-    bool split_statements = false;
-    bool separate_loops = false;
-
-public:
-    arguments(int argc, char *argv[]):
-        m_arg_count(argc),
-        m_args(argv),
-        output_filename("out.ll")
-    {}
-
-    template <typename T>
-    void add_verbose_topic(const string & name)
+    void set_default_option(const option_description & desc, option_parser * parser)
     {
-        m_verbose_topics.emplace(name, &verbose<T>::enabled());
+        m_default_option_desc = desc;
+        m_default_option = parser;
+    }
+
+    void set_default_option(const option_description & desc, adhoc_option_parser::handler_t handler)
+    {
+        m_default_option_desc = desc;
+        m_default_option = new adhoc_option_parser(handler);
+    }
+
+    void add_option(const option_description & desc, adhoc_option_parser::handler_t handler)
+    {
+        m_options.emplace_back(desc, new adhoc_option_parser(handler));
+    }
+
+    void add_option(const option_description & desc, option_parser * parser)
+    {
+        m_options.emplace_back(desc, parser);
     }
 
     void parse()
     {
-        try_parse_argument(input_filename);
+        if (m_default_option)
+            m_default_option->process(*this);
 
         while(arg_count())
         {
@@ -149,172 +171,34 @@ public:
         }
     }
 
-    vector<string> verbose_topics() const
-    {
-        vector<string> names;
-        for (auto & pair : m_verbose_topics)
-            names.push_back(pair.first);
-        return names;
-    }
+    void print_help() const;
 
 private:
 
     void parse_next_option()
     {
-        string opt;
+        string opt_name;
 
-        parse_option(opt);
+        parse_option(opt_name);
 
-        if (opt == "--help" || opt == "-h")
+        for(auto & opt : m_options)
         {
-            print_help(*this);
-            throw abortion();
-        }
-#if 0
-        else if (opt == "--generate" || opt == "--gen" || opt == "-g")
-        {
-            target.name.clear();
-            target.args.clear();
-            parse_target(target, opt);
-        }
-#endif
-        else if (opt == "--import" || opt == "-i")
-        {
-            string dir;
-            parse_argument(dir, "import directory");
-            import_dirs.push_back(dir);
-        }
-        else if (opt == "--output" || opt == "-o")
-        {
-            parse_argument(output_filename, "output LLVM IR file");
-        }
-        else if (opt == "--meta" || opt == "-m")
-        {
-            parse_argument(meta_output_filename, "output meta-data file (JSON)");
-        }
-        else if (opt == "--cpp")
-        {
-            cpp.enabled = true;
-            try_parse_argument(cpp.filename);
-        }
-        else if (opt == "--cpp-namespace")
-        {
-            parse_argument(cpp.nmspace, "C++ output namespace.");
-        }
-        else if (opt == "--verbose" || opt == "-v")
-        {
-            string topic;
-            while(try_parse_argument(topic))
+            using namespace std;
+            auto & desc = opt.first;
+            auto handler = opt.second;
+            if ( opt_name == "--" + desc.long_name ||
+                 opt_name == "-" + desc.short_name )
             {
-                try { *m_verbose_topics.at(topic) = true; }
-                catch ( std::out_of_range & e )
-                {
-                    throw error("Unknown verbose topic: " + topic);
-                }
+                handler->process(*this);
+                return;
             }
         }
-        else if (opt == "--no-opt-schedule")
-        {
-            optimize_schedule = false;
-        }
-        else if (opt == "--sched-whole")
-        {
-            schedule_whole = true;
-        }
-        else if (opt == "--reverse")
-        {
-            string stmt_name;
-            string dim_str;
-            parse_argument(stmt_name, "statement name");
-            parse_argument(dim_str, "schedule dimension");
-            int dim;
-            try {
-                dim = stoi(dim_str);
-            } catch (std::invalid_argument &) {
-                throw error("Invalid schedule dimension: " + dim_str);
-            }
-            sched_reverse.push_back({stmt_name, dim});
-        }
-        else if (opt == "--split-stmts")
-        {
-            split_statements = true;
-        }
-        else if (opt == "--separate-loops")
-        {
-            separate_loops = true;
-        }
-        else
         {
             ostringstream msg;
-            msg << "Invalid option: " << opt;
+            msg << "Invalid option: " << opt_name;
             throw error(msg.str());
         }
     }
-
-    void parse_target(target_info &tgt, const string & parameter)
-    {
-        parse_argument(tgt.name, "target name");
-    }
-#if 0
-    semantic::type_ptr parse_target_stream_arg(const string & arg)
-    {
-        if (arg.size() < 3)
-            throw error("Invalid stream argument: " + arg);
-
-        if (arg.front() != '[' || arg.back() != ']')
-            throw error("Invalid stream argument: " + arg);
-
-        string size_list = arg.substr(1, arg.size()-2);
-
-        vector<int> sizes;
-        istringstream size_stream(size_list);
-        string elem;
-        while(std::getline(size_stream, elem, ','))
-        {
-            if (elem == "inf")
-            {
-                sizes.push_back(semantic::stream::infinite);
-                continue;
-            }
-            else
-            {
-                try {
-                    size_t pos = 0;
-                    int size = stoi(elem, &pos);
-                    if (pos == elem.size())
-                    {
-                        sizes.push_back(size);
-                        continue;
-                    }
-                } catch (...) {}
-            }
-
-            throw error("Invalid stream argument.");
-        }
-
-        // FIXME: support all element types
-        return semantic::type_ptr( new semantic::stream(sizes, primitive_type::real) );
-    }
-
-    semantic::type_ptr parse_target_scalar_arg(const string & arg)
-    {
-        if (arg == "bool")
-            return std::make_shared<semantic::boolean>();
-        else if (arg == "int")
-            return std::make_shared<semantic::integer_num>();
-        else if (arg == "real")
-            return std::make_shared<semantic::real_num>();
-        else
-            throw error("Invalid scalar argument: " + arg);
-    }
-
-    semantic::type_ptr parse_eval_range_arg(const string & arg)
-    {
-        throw error("Unsupported range argument: " + arg);
-    }
-#endif
-
-    // General
 
     void advance()
     {
@@ -329,6 +213,7 @@ private:
         return m_args[0];
     }
 
+public:
     void parse_argument(string & arg, const string & what)
     {
         if (arg_count() && current_arg()[0] != '-')
@@ -379,25 +264,40 @@ private:
     }
 };
 
-inline ostream & operator<< (ostream & out, const arguments & args)
-{
-    using namespace std;
 
-    out << "input: " << args.input_filename << endl;
-    out << "output: " << args.output_filename << endl;
-    out << "meta output: " << args.meta_output_filename << endl;
-    out << "imports: " << endl;
-    for (auto & dir : args.import_dirs)
-        out << "- " << dir << endl;
-    out << "schedule optimization: " << args.optimize_schedule << endl;
-    out << "schedule whole program: " << args.schedule_whole << endl;
-    out << "schedule avoid modulo by splitting stmts: " << args.split_statements << endl;
-    out << "schedule statement reversals:" << endl;
-    for (auto & entry : args.sched_reverse)
-        out << "- " << entry.stmt_name << " @ dimension " << entry.dim << endl;
-    out << "ast separate loop parts: " << args.separate_loops << endl;
-    return out;
-}
+struct switch_option : public option_parser
+{
+    bool * value;
+    bool enable;
+    switch_option(bool * v, bool e = true): value(v), enable(e) {}
+    void process(arguments &) { *value = enable; }
+};
+
+struct string_option : public option_parser
+{
+    string * value;
+    string description;
+
+    string_option(string * v, const string & d = string()):
+        value(v), description(d) {}
+    void process(arguments & args) { args.parse_argument(*value, description); }
+};
+
+struct string_list_option : public option_parser
+{
+    vector<string> * values;
+    string description;
+
+    string_list_option(vector<string>*v, const string & d = string()):
+        values(v), description(d) {}
+
+    void process(arguments & args)
+    {
+        string value;
+        args.parse_argument(value, description);
+        values->push_back(value);
+    }
+};
 
 }
 }

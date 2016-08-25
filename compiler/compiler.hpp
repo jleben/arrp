@@ -1,7 +1,7 @@
 #ifndef STREAM_LANG_COMPILER_INCLUDED
 #define STREAM_LANG_COMPILER_INCLUDED
 
-#include "arg_parser.hpp"
+#include "options.hpp"
 #include "../common/module.hpp"
 #include "../common/ph_model.hpp"
 
@@ -25,9 +25,9 @@ enum code
 };
 }
 
-result::code compile(const arguments &);
+result::code compile(const options &);
 
-result::code compile_module(const module_source &, istream & text, const arguments &);
+result::code compile_module(const module_source &, istream & text, const options &);
 
 void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> &);
 

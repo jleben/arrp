@@ -52,48 +52,48 @@ using namespace std;
 namespace stream {
 namespace compiler {
 
-result::code compile(const arguments & args)
+result::code compile(const options & opts)
 {
-    if (args.input_filename.empty())
+    if (opts.input_filename.empty())
     {
         module_source source;
         source.text = string(istreambuf_iterator<char>(std::cin), {});
 
         istringstream source_stream(source.text);
-        return compile_module(source, source_stream, args);
+        return compile_module(source, source_stream, opts);
     }
     else
     {
         module_source source;
-        source.path = args.input_filename;
+        source.path = opts.input_filename;
 
-        ifstream source_file(args.input_filename);
+        ifstream source_file(opts.input_filename);
         if (!source_file.is_open())
         {
             cerr << "streamc: error: Failed to open input file: '"
-                 << args.input_filename << "'." << endl;
+                 << opts.input_filename << "'." << endl;
             return result::io_error;
         }
 
         {
-            string::size_type last_sep_pos = args.input_filename.rfind('/');
+            string::size_type last_sep_pos = opts.input_filename.rfind('/');
             if(last_sep_pos == string::npos)
-                last_sep_pos = args.input_filename.rfind('\\');
+                last_sep_pos = opts.input_filename.rfind('\\');
             if (last_sep_pos == string::npos)
                 last_sep_pos = 0;
 
-            source.dir = args.input_filename.substr(0, last_sep_pos);
+            source.dir = opts.input_filename.substr(0, last_sep_pos);
         }
 
-        return compile_module(source, source_file, args);
+        return compile_module(source, source_file, opts);
     }
 }
 
 result::code compile_module
-(const module_source & source, istream & text, const arguments & args)
+(const module_source & source, istream & text, const options & opts)
 {
     module_parser parser;
-    parser.set_import_dirs(args.import_dirs);
+    parser.set_import_dirs(opts.import_dirs);
 
     module * main_module;
 
@@ -223,10 +223,10 @@ result::code compile_module
             // Compute polyhedral schedule
 
             polyhedral::scheduler poly_scheduler( ph_model );
-            poly_scheduler.set_schedule_whole_program(args.schedule_whole);
+            poly_scheduler.set_schedule_whole_program(opts.schedule_whole);
 
-            auto schedule = poly_scheduler.schedule(args.optimize_schedule,
-                                                    args.sched_reverse);
+            auto schedule = poly_scheduler.schedule(opts.optimize_schedule,
+                                                    opts.sched_reverse);
 
             // Allocate storage (buffers)
 
@@ -243,12 +243,12 @@ result::code compile_module
             // Modulo avoidance
 
             {
-                avoid_modulo(schedule, ph_model, args.split_statements);
+                avoid_modulo(schedule, ph_model, opts.split_statements);
             }
 
             // Generate AST for schedule
 
-            auto ast = polyhedral::make_isl_ast(schedule, args.separate_loops);
+            auto ast = polyhedral::make_isl_ast(schedule, opts.separate_loops);
 
             if (verbose<polyhedral::ast_isl>::enabled())
             {
@@ -268,9 +268,9 @@ result::code compile_module
 
             // Generate C++ output
 
-            if (args.cpp.enabled)
+            if (opts.cpp.enabled)
             {
-                string file_base = args.cpp.filename;
+                string file_base = opts.cpp.filename;
                 if (file_base.empty())
                     file_base = main_module->name;
 
@@ -283,7 +283,7 @@ result::code compile_module
                     return result::io_error;
                 }
 
-                string nmspace = args.cpp.nmspace;
+                string nmspace = opts.cpp.nmspace;
                 if (nmspace.empty())
                     nmspace = main_module->name;
 #if 0
