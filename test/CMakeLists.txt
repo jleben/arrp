@@ -4,9 +4,9 @@ function(stream_to_cpp name source)
   set(options ${ARGN})
 
   add_custom_command(OUTPUT ${name}.cpp
-    COMMAND $<TARGET_FILE:streamc>
+    COMMAND $<TARGET_FILE:arrp>
       ${source_path} --cpp ${name} -i "${CMAKE_SOURCE_DIR}/test/libs" ${options}
-    DEPENDS ${source_path} streamc
+    DEPENDS ${source_path} arrp
     VERBATIM
   )
 

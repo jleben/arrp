@@ -9,7 +9,7 @@ endif()
 # For parser
 include_directories(../common)
 
-add_library(streamc-lib ${lib_mode}
+add_library(arrp-lib ${lib_mode}
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../common/primitives.cpp
@@ -39,23 +39,23 @@ add_library(streamc-lib ${lib_mode}
   compiler.cpp
 )
 
-target_link_libraries(streamc-lib parser)
+target_link_libraries(arrp-lib parser)
 
-set_property( TARGET streamc-lib PROPERTY OUTPUT_NAME streamc )
+set_property( TARGET arrp-lib PROPERTY OUTPUT_NAME arrp )
 
 if(FALSE)
 if(DEFINED LLVM_VERSION AND LLVM_VERSION VERSION_GREATER 3.4)
   message(STATUS "Auto-configuring LLVM dependency.")
-  llvm_config(streamc-lib core)
+  llvm_config(arrp-lib core)
 else()
   message(STATUS "Manually configuring LLVM dependency.")
-  target_link_libraries( streamc-lib ${LLVM_LINK_FLAGS} ${LLVM_LIBRARIES} )
+  target_link_libraries( arrp-lib ${LLVM_LINK_FLAGS} ${LLVM_LIBRARIES} )
 endif()
 endif()
 
-target_link_libraries( streamc-lib ${ISL_LIBRARY} isl-cpp json m )
+target_link_libraries( arrp-lib ${ISL_LIBRARY} isl-cpp json m )
 
 # Executable
 
-add_executable(streamc main.cpp)
-target_link_libraries(streamc streamc-lib)
+add_executable(arrp main.cpp)
+target_link_libraries(arrp arrp-lib)

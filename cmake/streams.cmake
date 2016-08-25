@@ -23,9 +23,9 @@ function(compile_stream_func target_name source_file sym_name args options)
   set(llvm_file ${target_name}.ll)
 
   add_custom_command(OUTPUT ${llvm_file}
-    COMMAND $<TARGET_FILE:streamc>
+    COMMAND $<TARGET_FILE:arrp>
     ARGS ${source_file} -g ${sym_name} ${args} -o ${llvm_file} ${options}
-    DEPENDS ${source_file} streamc
+    DEPENDS ${source_file} arrp
   )
 
   set(llvm_opt_file ${target_name}-opt.ll)
