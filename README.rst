@@ -1,8 +1,8 @@
 Introduction
 ############
 
-This project implements a compiler for a new programming language
-for stream processing.
+Arrp is a functional programming language for digital signal processing.
+This project provides a compiler for Arrp.
 
 Table of Contents:
 ##################
@@ -23,18 +23,10 @@ Prerequisits
 Submodules
 ----------
 
-This project uses git submodules; make sure to get/update all of them:
+This project uses git submodules; make sure to get/update all of them::
 
     git submodule init
     git submodule update
-
-isl (Integer Set Library)
--------------------------
-
-1. Get git repository: https://github.com/jleben/isl.git.
-3. Build and install to `extra/isl` within this project's source.
-
-Project website: [http://isl.gforge.inria.fr](http://isl.gforge.inria.fr/)
 
 (Optional) Bison and Flex
 -------------------------
@@ -45,24 +37,37 @@ This requires the *flex* lexer generator and the *bison* parser generator.
 Building
 ========
 
-This project has a CMake build system.
+isl (Integer Set Library)
+-------------------------
+
+The isl library must be built manually, because it is not integrated with the CMake build system of this project.
+
+Execute the following commands, starting in the root of this project::
+
+    cd extra/isl
+    mkdir build
+    ./autogen.sh
+    ./configure --prefix=$(pwd)/build
+    make install
+
+This will build isl in the directory ``extra/isl/build``.
+
+Arrp compiler
+-------------
 
 After all the prerequisits are in place as described above, you can
-build this project using the standard building procedure
-on Linux and Mac OS X:
+build the Arrp compiler using the CMake build system.
+
+On Linux and Mac OS X, execute the following commands, starting in the root of this project::
 
     mkdir build
     cd build
     cmake ..
     make
 
-This will produce the compiler executable:
+This will produce the Arrp compiler executable::
 
-    build/compiler/streamc
-
-**NOTE:** You may need to adjust compiler and linker flags to enable C++11
-support for your compiler. Please refer to the documentation of CMake and your
-compiler for instructions.
+    build/compiler/arrp
 
 Options
 =======
@@ -77,29 +82,27 @@ The CMake build system provides the following options:
 Usage
 #####
 
-When the project is built, the following compiler executable is generated:
-``build/compiler/streamc``.
-
-The compiler takes a file with code in The Language as input and generates
-C++ code for the expression named "main".
+The Arrp compiler executable is built in this location:
+``build/compiler/arrp``.
 
 Invoking the compiler with the `-h` option will print information about
 its usage and available options::
 
-    streamc -h
+    arrp -h
 
-Invoking the compiler with an input file will perform
+To compile Arrp code from a file, invoke the compiler with the file name
+as argument::
+
+    arrp <input file>
+
+This will perform
 syntactical and semantical analysis of the program, output any errors,
 and perform all the following stages of compilation, except for generating
-an output file::
+an output file.
 
-    streamc <input file>
+To generate C++ code, add the option ``--cpp``::
 
-To generate C++ code, add the ``--cpp <namespace>`` option, which
-will generate a file ``<namespace>.cpp``, containing C++ code in the
-desired namespace::
-
-    streamc <input file> --cpp <namespace>
+    arrp <input file> --cpp
 
 Read the `C++ target`_ document for details on how to use the generated
 C++ code.
@@ -120,6 +123,6 @@ Targets
 The only currently available target is C++. Please refer to the
 `C++ target`_ document for details.
 
-.. _Language Syntax: doc/syntax.rst
+.. _Language Syntax: http://webhome.csc.uvic.ca/~jleben/farm2016/syntax.html
 .. _Language Semantics: doc/semantics.rst
 .. _C++ Target: doc/target-cpp.rst
