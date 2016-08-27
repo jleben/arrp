@@ -31,7 +31,11 @@ void printer::print(id_ptr id, ostream & out)
 
 void printer::print(expr_ptr expr, ostream & out)
 {
-    if (auto const_int = dynamic_pointer_cast<int_const>(expr))
+    if (!expr)
+    {
+        out << "{}";
+    }
+    else if (auto const_int = dynamic_pointer_cast<int_const>(expr))
     {
         out << const_int->value;
     }

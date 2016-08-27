@@ -120,6 +120,9 @@ public:
     {
         using namespace std;
 
+        if (!expr)
+            return;
+
         if (auto const_int = dynamic_pointer_cast<int_const>(expr))
         {
             visit_int(const_int);

@@ -374,9 +374,9 @@ expr_ptr array_reducer::reduce
                 if (!index.var)
                 {
                     auto v = make_ref(ar->vars[dim_idx]);
+                    auto constraint = equal(v, int_expr(index.value));
                     pattern_constraint =
-                            intersect(pattern_constraint,
-                                      equal(v, int_expr(index.value)));
+                            intersect(pattern_constraint, constraint);
                 }
                 ++dim_idx;
             }
@@ -422,7 +422,7 @@ expr_ptr array_reducer::reduce
     if (verbose<array_reducer>::enabled())
         cout << ".. Done substituting vars in local ids." << endl;
 
-    // If only one subdomain, and it has not constraints,
+    // If only one subdomain, and it has no constraints,
     // return its expression.
 
     if (subdomains->cases.size() == 1)

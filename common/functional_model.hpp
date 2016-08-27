@@ -230,6 +230,8 @@ public:
 class case_expr : public expression
 {
 public:
+    // A case is <domain constraints, expr>.
+    // Constraints can be null.
     vector<pair<expr_slot,expr_slot>> cases;
 };
 
