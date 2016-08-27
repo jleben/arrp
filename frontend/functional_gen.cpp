@@ -179,6 +179,10 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         else
             throw module_error("Invalid constant type.", root->location);
     }
+    case ast::infinity:
+    {
+        return make_shared<infinity>(location_in_module(root->location));
+    }
     case ast::identifier:
     {
         auto name = root->as_leaf<string>()->value;
@@ -426,20 +430,19 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
     ar->location = location_in_module(root->location);
     stacker<array_ptr> ar_stacker(ar, m_array_stack);
 
-    for (auto & range_node : ranges_node->as_list()->elements)
+    if (ranges_node)
     {
-        string name = string("i") + to_string(ar->vars.size());
+        for (auto & range_node : ranges_node->as_list()->elements)
+        {
+            string name = string("i") + to_string(ar->vars.size());
 
-        expr_ptr range;
-        if (range_node->type == ast::star)
-            range = make_shared<infinity>(location_in_module(range_node->location));
-        else
-            range = do_expr(range_node);
+            expr_ptr range = do_expr(range_node);
 
-        auto var = make_shared<array_var>
-                (name, range, location_in_module(range_node->location));
+            auto var = make_shared<array_var>
+                    (name, range, location_in_module(range_node->location));
 
-        ar->vars.push_back(var);
+            ar->vars.push_back(var);
+        }
     }
 
     stacker<scope*> scope_stacker(&ar->scope, m_scope_stack);
@@ -473,12 +476,30 @@ generator::do_array_pattern(ast::node_ptr root)
 
     array_patterns::pattern pattern;
 
-    if (index_nodes->as_list()->elements.size() != ar->vars.size())
+    // If array range has not been declared, create variables on the fly,
+    // give them infinite range.
+    if (ar->vars.empty())
+    {
+        for (int i = 0; i < (int)index_nodes->as_list()->elements.size(); ++i)
+        {
+            string name = string("i") + to_string(i);
+            auto range = make_shared<infinity>();
+            auto var = make_shared<array_var>
+                    (name, range, location_type());
+            ar->vars.push_back(var);
+        }
+    }
+    // Otherwise make sure the number of index dimensions match
+    // the number of array dimensions.
+    else if (index_nodes->as_list()->elements.size() != ar->vars.size())
     {
         throw source_error("Number of indexes does not match number "
                            "of array dimensions.",
                            location_in_module(index_nodes->location));
     }
+
+    // Create index descriptions
+
     int dim_idx = 0;
     for (auto & index_node : index_nodes->as_list()->elements)
     {
@@ -491,13 +512,20 @@ generator::do_array_pattern(ast::node_ptr root)
                     (name, ar->vars[dim_idx]->range,
                      location_in_module(index_node->location));
         }
+        else if(auto literal_int = dynamic_pointer_cast<ast::leaf_node<int>>(index_node))
+        {
+            e.value = literal_int->value;
+        }
         else
         {
-            e.value = index_node->as_leaf<int>()->value;
+            throw source_error("Invalid array index pattern.",
+                               location_in_module(index_node->location));
         }
         pattern.indexes.push_back(e);
         ++dim_idx;
     }
+
+    // Bind variable index names
 
     context_type::scope_holder scope(m_context);
 
@@ -512,6 +540,8 @@ generator::do_array_pattern(ast::node_ptr root)
             throw source_error(e.what(), index.var->location);
         }
     }
+
+    // Process the pattern expression
 
     if (domains_node)
         pattern.domains = expr_slot(do_array_domains(domains_node));

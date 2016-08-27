@@ -167,6 +167,8 @@ expr:
   |
   number
   |
+  inf
+  |
   boolean
   |
   if_expr
@@ -297,28 +299,17 @@ array_self_apply:
 ;
 
 array_func:
-  '[' array_range_list ':' array_pattern_list optional_semicolon ']'
+  '[' array_ranges ':' array_pattern_list optional_semicolon ']'
   { $$ = make_list( ast::array_def, @$, {$2, $4} ); }
+  |
+  '[' array_pattern_list optional_semicolon ']'
+  { $$ = make_list( ast::array_def, @$, {nullptr, $2} ); }
 ;
 
-array_range_list:
-  array_range
-  { $$ = make_list( @$, {$1} ); }
-  |
-  array_range_list ',' array_range
-  {
-    $$ = $1;
-    $$->as_list()->append( $3 );
-    $$->location = @$;
-  }
+array_ranges:
+  expr_list
 ;
 
-array_range:
-  expr
-  |
-  '~'
-  { $$ = make_node(star, @$); }
-;
 
 array_pattern_list:
   array_pattern
@@ -333,26 +324,13 @@ array_pattern_list:
 ;
 
 array_pattern:
-  array_pattern_vars RIGHT_ARROW expr
+  expr_list RIGHT_ARROW expr
   { $$ = make_list( @$, { $1, nullptr, $3 } ); }
   |
-  array_pattern_vars array_domain_list '|' expr
+  expr_list array_domain_list '|' expr
   { $$ = make_list( @$, { $1, $2, $4 } ); }
 ;
 
-array_pattern_vars:
-  array_pattern_var
-  { $$ = make_list( @$, {$1} ); }
-  |
-  array_pattern_vars ',' array_pattern_var
-  {
-    $$ = $1;
-    $$->as_list()->append( $3 );
-    $$->location = @$;
-  }
-;
-
-array_pattern_var: id | int;
 
 array_domain_list:
   array_domain
@@ -446,6 +424,10 @@ boolean:
 ;
 
 id: ID
+;
+
+inf: '~'
+  { $$ = make_node(infinity, @$); }
 ;
 
 optional_semicolon: ';' | // empty
