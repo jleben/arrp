@@ -238,7 +238,8 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
                 domain.clear_id();
                 if (!domain.is_disjoint(combined_domain))
                 {
-                    throw source_error("Cases are not disjoint.",
+                    throw source_error("'" + id->name + "': " +
+                                       "Array subdomains are not disjoint.",
                                        case_expr->location);
                 }
                 combined_domain = combined_domain | domain;
@@ -256,7 +257,8 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
 
             if (!(combined_domain == array_domain))
             {
-                throw source_error("Cases do not cover entire array.",
+                throw source_error("'" + id->name + "': " +
+                                   "Array subdomains do not cover entire array.",
                                    case_expr->location);
             }
         }
