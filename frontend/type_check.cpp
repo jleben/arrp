@@ -180,7 +180,7 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
         auto s = make_shared<scalar_type>(primitive_type::integer);
         s->constant_flag = false;
         s->affine_flag = true;
-        s->data_flag = is_bounded;
+        s->data_flag = true;
         return s;
     }
     else

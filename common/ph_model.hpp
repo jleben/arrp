@@ -80,9 +80,14 @@ class array
 public:
     array(): domain(nullptr) {}
     array(const string & name,
-          const isl::set & domain,
+          const isl::set & d,
           primitive_type type):
-        name(name), domain(domain), type(type) {}
+        name(name), domain(d), type(type)
+    {
+        auto id = domain.id();
+        id.data = this;
+        domain.set_id(id);
+    }
 
     string name;
     isl::set domain;

@@ -1,5 +1,6 @@
 #include "ph_model_gen.hpp"
 #include "error.hpp"
+#include "../utility/stacker.hpp"
 
 #include <isl-cpp/set.hpp>
 #include <isl-cpp/map.hpp>
@@ -23,6 +24,82 @@ polyhedral_gen::polyhedral_gen():
     m_isl_printer(m_isl_ctx)
 {
     m_isl_ctx.set_error_action(isl::context::abort_on_error);
+
+    make_time_array();
+}
+
+void polyhedral_gen::make_time_array()
+{
+    string array_name(".time");
+
+    auto array_space = isl::space(m_isl_ctx, isl::set_tuple(isl::identifier(array_name), 1));
+    auto array_domain = isl::set::universe(array_space);
+    array_domain.add_constraint(array_space.var(0) >= 0);
+
+    auto ar = make_shared<ph::array>(array_name,  array_domain, primitive_type::integer);
+    ar->is_infinite = true;
+    ar->size = { ph::infinite };
+
+    m_time_array = ar;
+
+    {
+        auto s0_space = isl::space(m_isl_ctx, isl::set_tuple(isl::identifier(".time.s0"), 1));
+        auto s0_dom = isl::set::universe(s0_space);
+        s0_dom.add_constraint(s0_space.var(0) == 0);
+
+        auto s0 = make_shared<ph::statement>(s0_dom);
+        s0->expr = make_shared<int_const>(0);
+
+        auto wrel_space = isl::space::from(s0->domain.get_space(), ar->domain.get_space());
+        auto wrel_expr = isl::multi_expression(wrel_space.in(0));
+
+        s0->write_relation.array = ar;
+        s0->write_relation.expr = wrel_expr;
+
+        m_time_stmts.push_back(s0);
+    }
+    {
+        auto s1_space = isl::space(m_isl_ctx, isl::set_tuple(isl::identifier(".time.s1"), 1));
+        auto s1_dom = isl::set::universe(s1_space);
+        s1_dom.add_constraint(s1_space.var(0) > 0);
+
+        auto s1 = make_shared<ph::statement>(s1_dom);
+
+        {
+            auto i = make_shared<ph::iterator_read>(0);
+            auto j = make_shared<primitive>(primitive_op::subtract, i, make_shared<int_const>(1));
+            j->type = make_int_type();
+            auto t0 = make_shared<ph::array_read>(ar, vector<expr_ptr>({j}));
+            auto t1 = make_shared<primitive>(primitive_op::add, t0, make_shared<int_const>(1));
+            t1->type = make_int_type();
+
+            s1->expr = t1;
+
+            {
+                auto rel_sp = isl::space::from(s1->domain.get_space(), ar->domain.get_space());
+                auto rel_expr = isl::multi_expression(rel_sp.in(0) - 1);
+
+                s1->read_relations.emplace_back(ar, rel_expr);
+                t0->relation = &s1->read_relations.back();
+            }
+        }
+
+        auto wrel_space = isl::space::from(s1->domain.get_space(), ar->domain.get_space());
+        auto wrel_expr = isl::multi_expression(wrel_space.in(0));
+
+        s1->write_relation.array = ar;
+        s1->write_relation.expr = wrel_expr;
+        s1->is_infinite = true;
+
+        m_time_stmts.push_back(s1);
+    }
+}
+
+void polyhedral_gen::add_time_array(polyhedral::model & output)
+{
+    output.arrays.push_back(m_time_array);
+    for (auto & s : m_time_stmts)
+        output.statements.push_back(s);
 }
 
 polyhedral::model
@@ -30,6 +107,8 @@ polyhedral_gen::process(const unordered_set<id_ptr> & input)
 {
     polyhedral::model output;
     output.context = m_isl_ctx;
+
+    m_time_array_needed = false;
 
     for (const auto & id : input)
     {
@@ -43,6 +122,9 @@ polyhedral_gen::process(const unordered_set<id_ptr> & input)
         m_current_id = id;
         make_statements(id, output);
     }
+
+    if (m_time_array_needed)
+        add_time_array(output);
 
     return output;
 }
@@ -353,8 +435,29 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
 {
     if (auto av = dynamic_pointer_cast<array_var>(ref->var))
     {
-        int i = m_space_map->index_of(av);
-        return make_shared<ph::iterator_read>(i, ref->location);
+        int dim = m_space_map->index_of(av);
+        auto iter_value = make_shared<ph::iterator_read>(dim, ref->location);
+
+        if (!m_in_array_application && dynamic_pointer_cast<infinity>(av->range.expr))
+        {
+            m_time_array_needed = true;
+
+            auto time_value = make_shared<ph::array_read>
+                    (m_time_array, vector<expr_ptr>({iter_value}));
+
+            auto rel_space = isl::space::from
+                    (m_current_stmt->domain.get_space(),
+                     m_time_array->domain.get_space());
+            ph::array_relation rel(m_time_array, rel_space.in(0));
+            m_current_stmt->read_relations.push_back(rel);
+            time_value->relation = &m_current_stmt->read_relations.back();
+
+            return time_value;
+        }
+        else
+        {
+            return iter_value;
+        }
     }
     else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
@@ -424,6 +527,8 @@ expr_ptr polyhedral_gen::visit_array_app
 
         read_expr->relation = &m_current_stmt->read_relations.back();
     }
+
+    revertable<bool> guard(m_in_array_application, true);
 
     for (auto & arg : app->args)
     {

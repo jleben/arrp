@@ -51,6 +51,9 @@ private:
         }
     };
 
+    void make_time_array();
+    void add_time_array(polyhedral::model &);
+
     polyhedral::array_ptr make_array(id_ptr id);
 
     void make_statements(id_ptr id, polyhedral::model &);
@@ -72,6 +75,12 @@ private:
     id_ptr m_current_id;
     polyhedral::stmt_ptr m_current_stmt;
     space_map * m_space_map = nullptr;
+
+    bool m_in_array_application = false;
+
+    polyhedral::array_ptr m_time_array;
+    vector<polyhedral::stmt_ptr> m_time_stmts;
+    bool m_time_array_needed = false;
 };
 
 }
