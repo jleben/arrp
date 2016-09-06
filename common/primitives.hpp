@@ -167,6 +167,8 @@ primitive_type common_type(primitive_type, primitive_type);
 
 primitive_type common_type(const vector<primitive_type> & types);
 
+bool operator<=(primitive_type a, primitive_type b);
+
 inline ostream & operator<<(ostream & s, primitive_op op)
 {
     s << name_of_primitive(op);

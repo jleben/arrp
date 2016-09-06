@@ -302,16 +302,9 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
             if (pt == at)
                 continue;
             is_exact = false;
-            primitive_type ct;
-            try {
-                ct = common_type(pt,at);
-            } catch (no_type &) {
-                ct = type::undefined;
-            }
-            if (ct == pt)
-                continue;
-            is_valid = false;
-            break;
+            is_valid = at <= pt;
+            if (!is_valid)
+                break;
         }
         if (is_exact)
         {
@@ -367,8 +360,7 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
             {
                 auto a = candidates[i].types[k];
                 auto b = candidates[j].types[k];
-                auto c = common_type(a,b);
-                ok = (c == b);
+                ok = a <= b;
             }
 
             if (!ok)
@@ -393,40 +385,12 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
 
 primitive_type common_type(primitive_type t1, primitive_type t2)
 {
-    using type = primitive_type;
-
-    if (t1 == t2)
-        return t1;
-    if (t1 == type::undefined)
+    if (t1 <= t2)
         return t2;
-    if (t2 == type::undefined)
+
+    if (t2 <= t1)
         return t1;
 
-    if (t1 == type::infinity || t2 == type::infinity)
-        throw no_type();
-
-    if (t1 == type::boolean || t2 == type::boolean)
-        throw no_type();
-
-    if (t1 == type::complex64 || t2 == type::complex64)
-        return type::complex64;
-
-    if (t1 == type::complex32 || t2 == type::complex32)
-    {
-        if (t1 == type::real64 || t2 == type::real64)
-            return type::complex64;
-        else
-            return type::complex32;
-    }
-
-    if (t1 == type::real64 || t2 == type::real64)
-        return type::real64;
-
-    if (t1 == type::real32 || t2 == type::real32)
-        return type::real32;
-
-    // Else both must be integers (caught by first case),
-    // or an unexpected type:
     throw no_type();
 }
 
@@ -444,6 +408,33 @@ primitive_type common_type(const vector<primitive_type> & types)
                             accum_func);
 
     return type;
+}
+
+bool operator<=(primitive_type a, primitive_type b)
+{
+    using t = primitive_type;
+
+    if (a == b)
+        return true;
+
+    if (a == t::undefined)
+        return true;
+
+    switch(b)
+    {
+    case t::infinity:
+        return false;
+    case t::boolean:
+        return false;
+    case t::complex64:
+        return a == t::real64 || a == t::integer;
+    case t::complex32:
+        return a == t::real32;
+    case t::real64:
+        return a == t::integer;
+    default:
+        return false;
+    }
 }
 
 }
