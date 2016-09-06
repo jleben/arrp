@@ -125,6 +125,7 @@ enum class primitive_op
     real,
     imag,
 
+    to_integer,
     to_real32,
     to_real64,
     to_complex32,

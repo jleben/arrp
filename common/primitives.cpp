@@ -68,6 +68,8 @@ string name_of_primitive( primitive_op op )
         return "imag";
     case primitive_op::to_real32:
         return "real32";
+    case primitive_op::to_integer:
+        return "int";
     case primitive_op::to_real64:
         return "real64";
     case primitive_op::to_complex32:
@@ -200,6 +202,10 @@ vector<prim_op_overload> overloads(primitive_op op)
             { pt::complex32, pt::complex32, pt::real32 },
             { pt::complex64, pt::complex64, pt::real64 },
         };
+    case primitive_op::to_integer:
+        for (auto t : all_simple_numeric_types())
+            overloads.push_back({ t, pt::integer });
+        break;
     case primitive_op::to_real32:
         for (auto t : all_simple_numeric_types())
             overloads.push_back({ t, pt::real32 });

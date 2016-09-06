@@ -28,6 +28,7 @@ unordered_map<string, primitive_op> generator::m_prim_ops =
     { "min", primitive_op::min },
     { "real", primitive_op::real },
     { "imag", primitive_op::imag },
+    { "int", primitive_op::to_integer },
     { "real32", primitive_op::to_real32 },
     { "real64", primitive_op::to_real64 },
     { "complex32", primitive_op::to_complex32 },

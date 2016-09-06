@@ -72,6 +72,14 @@ static expression_ptr to_real32(expression_ptr e, primitive_type t)
         return cast(float_type(), e);
 }
 
+static expression_ptr to_int32(expression_ptr e, primitive_type t)
+{
+    if (t == primitive_type::integer)
+        return e;
+    else
+        return cast(int_type(), e);
+}
+
 void cpp_from_polyhedral::generate_statement
 (const string & name, const index_type & index, builder* ctx)
 {
@@ -416,6 +424,10 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         auto method_id = make_shared<id_expression>("imag");
         auto method = binop(op::member_of_reference, operands[0], method_id);
         return call(method, {});
+    }
+    case primitive_op::to_integer:
+    {
+        return to_int32(operands[0], expr->operands[0]->type->scalar()->primitive);
     }
     case primitive_op::to_real32:
     {
