@@ -180,8 +180,8 @@ vector<prim_op_overload> overloads(primitive_op op)
     case primitive_op::floor:
         return {
             { pt::integer, pt::integer },
-            { pt::real32, pt::integer },
-            { pt::real64, pt::integer }
+            { pt::real32, pt::real32 },
+            { pt::real64, pt::real64 }
         };
     case primitive_op::abs:
         return {
