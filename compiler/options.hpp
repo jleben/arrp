@@ -39,6 +39,8 @@ struct options
     } cpp;
 
     vector<string> import_dirs;
+    vector<string> import_extensions { "arrp" };
+
     vector<polyhedral::scheduler::reversal> sched_reverse;
     bool optimize_schedule = true;
     bool schedule_whole = false;

@@ -94,6 +94,7 @@ result::code compile_module
 {
     module_parser parser;
     parser.set_import_dirs(opts.import_dirs);
+    parser.set_import_extensions(opts.import_extensions);
 
     module * main_module;
 

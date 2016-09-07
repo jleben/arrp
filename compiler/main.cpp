@@ -97,6 +97,9 @@ int main(int argc, char *argv[])
     args.add_option({"import", "i", "<dir>", "Import directory <dir>."},
                     new string_list_option(&opt.import_dirs));
 
+    args.add_option({"import-extension", "ie", "<ext>", "Import files with extension \".<ext>\"."},
+                    new string_list_option(&opt.import_extensions));
+
     args.add_option({"cpp", "", "<name>", "Generate C++ output file named <name>.cpp"},
                     [&opt](arguments& args){
         opt.cpp.enabled = true;

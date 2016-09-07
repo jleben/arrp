@@ -25,6 +25,7 @@ class module_parser
 {
 public:
     void set_import_dirs(const vector<string> & dirs) { m_import_dirs = dirs; }
+    void set_import_extensions(const vector<string> & exts) { m_import_extensions = exts; }
 
     module * parse(const module_source &, istream & text);
 
@@ -38,6 +39,7 @@ private:
     (const module *, const ast::node_ptr & import);
 
     vector<string> m_import_dirs;
+    vector<string> m_import_extensions;
     list<module*> m_ordered_modules;
     unordered_map<string, module*> m_named_modules;
 };

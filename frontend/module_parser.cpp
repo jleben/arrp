@@ -101,63 +101,69 @@ pair<string, module*> module_parser::parse_import
     if (verbose<module_parser>::enabled())
         cout << "Importing: " << import_name << " as " << import_alias << endl;
 
+    module * imported_module = nullptr;
+
     auto imported_mod_it = m_named_modules.find(import_name);
     if (imported_mod_it == m_named_modules.end())
     {
-        string import_filename = import_name + ".stream";
-        module_source import_source;
-        ifstream text;
+        vector<string> import_dirs = { importer->source.dir };
+        import_dirs.insert(import_dirs.end(), m_import_dirs.begin(), m_import_dirs.end());
 
-        import_source.dir = importer->source.dir;
-
-        if (!import_source.dir.empty())
-            import_source.path += import_source.dir + '/';
-        import_source.path += import_filename;
-
-        if (verbose<module_parser>::enabled())
-            cout << "Trying " << import_source.path << endl;
-
-        text.open(import_source.path);
-        if (!text.is_open())
+        for (auto & idir : import_dirs)
         {
-            for (auto & idir : m_import_dirs)
+            for (auto & ext : m_import_extensions)
             {
+                module_source import_source;
                 import_source.dir = idir;
-                import_source.path = idir + "/" + import_filename;
+
+                import_source.path = idir;
+                if (!import_source.path.empty())
+                    import_source.path += '/';
+                import_source.path += import_name + '.' + ext;
+
                 if (verbose<module_parser>::enabled())
                     cout << "Trying " << import_source.path << endl;
+
+                ifstream text;
                 text.open(import_source.path);
+
                 if (text.is_open())
+                {
+                    auto mod = parse(import_source, text);
+                    if (mod->name == import_name)
+                        imported_module = mod;
+                    else if (verbose<module_parser>::enabled())
+                        cout << "** Module name does not match import declaration." << endl;
+                }
+                else if (verbose<module_parser>::enabled())
+                {
+                    cout << "** Can not open file." << endl;
+                }
+
+                if (imported_module)
                     break;
             }
+            if (imported_module)
+                break;
         }
 
-        if (!text.is_open())
+        if (!imported_module)
         {
             ostringstream msg;
             msg << "** ERROR: " << import_location << ": "
                 << "Can not find imported module " << import_name << ".";
             throw io_error(msg.str());
         }
-
-        parse(import_source, text);
     }
     else
     {
+        imported_module = imported_mod_it->second;
+
         if (verbose<module_parser>::enabled())
-            cout << "Already parsed." << endl;
+            cout << "Already imported." << endl;
     }
 
-    imported_mod_it = m_named_modules.find(import_name);
-    if (imported_mod_it == m_named_modules.end())
-    {
-        ostringstream msg;
-        msg << "** ERROR: " << import_location << ": "
-            << "Failed to import module " << import_name << ".";
-        throw io_error(msg.str());
-    }
-
-    return make_pair(import_alias, imported_mod_it->second);
+    return make_pair(import_alias, imported_module);
 }
 
 }
