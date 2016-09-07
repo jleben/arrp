@@ -1,10 +1,9 @@
 
 import importee1;
 import importee2 as i2;
-import test;
 
-a = 111;
+a = 1000;
 
-main = a + importee1.a / i2.a + i2.b + test.a;
+main = a + importee1.a + i2.a + i2.b;
 
 
