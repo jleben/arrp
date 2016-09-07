@@ -2,23 +2,18 @@ module array;
 
 slice(pos,len,a) = [len:i -> a[pos + i]];
 
-scan(f,a) = {
-  [#a:
+scan(f,a) = [#a:
     0 -> a[0];
     i -> f(a[i], this[i-1]);
-  ]
-};
+];
 
-fold(f,a) = {
-  let s = scan(f,a);
-  s[#a-1];
-};
+fold(f,a) =
+    let s = scan(f,a) in
+        s[#a-1];
 
-iterate(f,init) = {
-  [*:
+iterate(f,init) = [
     0 -> init;
     i -> f(this[i-1]);
-  ];
-};
+];
 
 map(f,a) = [#a: i -> f(a[i])]

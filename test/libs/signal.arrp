@@ -1,0 +1,27 @@
+module signal;
+import array;
+import math;
+
+phase(freq, init) = [
+    0 -> init;
+    t ->
+      if this[t-1] + freq[t] >= 1
+      then this[t-1] + freq[t] - 1
+      else this[t-1] + freq[t]
+];
+
+sine(freq, init_ph) =
+  let ph = phase(freq, init_ph) in
+    sin(ph * 2 * math.pi);
+
+triangle(freq, delay) =
+  let ph = phase(freq, delay) in
+    1 - abs(ph*2 - 1);
+
+biquad(as,bs,x) = [n -> y[n+2]]
+  where
+    y = [n
+      | n < 2 -> 0
+      |   x[n] * bs[0] + x[n-1] * bs[1] + x[n-2] * bs[2]
+                       - y[n-1] * as[0] - y[n-2] * as[1]
+    ];
