@@ -153,35 +153,36 @@ namespace stream { namespace parsing {
         INT = 259,
         REAL = 260,
         COMPLEX = 261,
-        ID = 262,
-        TRUE = 263,
-        FALSE = 264,
-        STRING = 265,
-        IF = 266,
-        THEN = 267,
-        CASE = 268,
-        THIS = 269,
-        WHERE = 270,
-        MODULE = 271,
-        IMPORT = 272,
-        AS = 273,
-        LET = 274,
-        IN = 275,
-        RIGHT_ARROW = 276,
-        ELSE = 277,
-        LOGIC_OR = 278,
-        LOGIC_AND = 279,
-        EQ = 280,
-        NEQ = 281,
-        LESS = 282,
-        MORE = 283,
-        LESS_EQ = 284,
-        MORE_EQ = 285,
-        PLUSPLUS = 286,
-        INT_DIV = 287,
-        DOTDOT = 288,
-        LOGIC_NOT = 289,
-        UMINUS = 290
+        TRUE = 262,
+        FALSE = 263,
+        STRING = 264,
+        ID = 265,
+        QUALIFIED_ID = 266,
+        IF = 267,
+        THEN = 268,
+        CASE = 269,
+        THIS = 270,
+        WHERE = 271,
+        MODULE = 272,
+        IMPORT = 273,
+        AS = 274,
+        LET = 275,
+        IN = 276,
+        RIGHT_ARROW = 277,
+        ELSE = 278,
+        LOGIC_OR = 279,
+        LOGIC_AND = 280,
+        EQ = 281,
+        NEQ = 282,
+        LESS = 283,
+        MORE = 284,
+        LESS_EQ = 285,
+        MORE_EQ = 286,
+        PLUSPLUS = 287,
+        INT_DIV = 288,
+        DOTDOT = 289,
+        LOGIC_NOT = 290,
+        UMINUS = 291
       };
     };
 
@@ -489,12 +490,12 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 415,     ///< Last index in yytable_.
-      yynnts_ = 36,  ///< Number of nonterminal symbols.
+      yylast_ = 432,     ///< Last index in yytable_.
+      yynnts_ = 37,  ///< Number of nonterminal symbols.
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 58  ///< Number of tokens.
+      yyntokens_ = 59  ///< Number of tokens.
     };
 
 
@@ -505,7 +506,7 @@ namespace stream { namespace parsing {
 
 #line 13 "parser.y" // lalr1.cc:377
 } } // stream::parsing
-#line 509 "parser.hpp" // lalr1.cc:377
+#line 510 "parser.hpp" // lalr1.cc:377
 
 
 

@@ -9,7 +9,7 @@
 %option batch
 %option yywrap nounput
 
-id    [a-zA-Z][a-zA-Z_0-9]*
+id    [[:alpha:]]+[[:alpha:][:digit:]_]*
 int   [0-9]+
 blank [ \t]
 
@@ -101,7 +101,11 @@ blank [ \t]
   *yylval = ast::make_const( *yylloc, std::stoi(yytext) );
   return parser::token::INT;
 }
-[[:alpha:]_]+[[:alpha:][:digit:]_]* {
+{id}\.{id} {
+  *yylval = ast::make_qualified_id( *yylloc, yytext );
+  return parser::token::QUALIFIED_ID;
+}
+{id} {
   *yylval = ast::make_id( *yylloc, yytext );
   return parser::token::ID;
 }

@@ -222,6 +222,13 @@ node_ptr make_list(const location_type & loc,
     return std::make_shared<list_node>(anonymous, loc, elements);
 }
 
+template <typename T> inline
+node_ptr make_const(const location_type & loc,
+                    const T & value)
+{
+    return std::make_shared<leaf_node<T>>(constant, loc, value);
+}
+
 inline
 node_ptr make_id(const location_type & loc,
                  const string & name)
@@ -229,11 +236,24 @@ node_ptr make_id(const location_type & loc,
     return std::make_shared<leaf_node<string>>(identifier, loc, name);
 }
 
-template <typename T> inline
-node_ptr make_const(const location_type & loc,
-                    const T & value)
+inline
+node_ptr make_qualified_id(const location_type & loc,
+                           const string & text)
 {
-    return std::make_shared<leaf_node<T>>(constant, loc, value);
+    auto separator_pos = text.find('.');
+
+    auto qual = text.substr(0,separator_pos);
+    auto qual_loc = loc;
+    qual_loc.end.column = loc.begin.column + separator_pos;
+
+    auto name = text.substr(separator_pos+1);
+    auto name_loc = loc;
+    name_loc.begin.column = loc.begin.column + separator_pos + 1;
+
+    return make_list(qualified_id, loc, {
+                         make_const(qual_loc, qual),
+                         make_const(name_loc, name)
+                     });
 }
 
 }

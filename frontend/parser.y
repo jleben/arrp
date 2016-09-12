@@ -20,7 +20,8 @@
 
 %token END 0  "end of file"
 %token INVALID "invalid token"
-%token INT REAL COMPLEX ID TRUE FALSE STRING
+%token INT REAL COMPLEX TRUE FALSE STRING
+%token ID QUALIFIED_ID
 %token IF THEN CASE THIS
 %token WHERE
 %token MODULE IMPORT AS
@@ -162,8 +163,7 @@ param_list:
 expr:
   id
   |
-  id '.' id
-  { $$ = make_list( qualified_id, @$, {$1, $3} ); }
+  qualified_id
   |
   number
   |
@@ -424,6 +424,9 @@ boolean:
 ;
 
 id: ID
+;
+
+qualified_id: QUALIFIED_ID
 ;
 
 inf: '~'
