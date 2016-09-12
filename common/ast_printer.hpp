@@ -94,6 +94,8 @@ public:
                 cout << "scope"; break;
             case func_apply:
                 cout << "func-apply"; break;
+            case func_compose:
+                cout << "func-compose"; break;
             case primitive:
                 cout << "primitive"; break;
             default:

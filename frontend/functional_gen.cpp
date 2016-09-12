@@ -283,6 +283,10 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     {
         return do_func_apply(root);
     }
+    case ast::func_compose:
+    {
+        return do_func_comp(root);
+    }
     default:
         throw module_error("Unsupported expression.", root->location);
     }
@@ -651,6 +655,40 @@ expr_ptr generator::do_func_apply(ast::node_ptr root)
     result->location = location_in_module(root->location);
 
     return result;
+}
+
+expr_ptr generator::do_func_comp(ast::node_ptr root)
+{
+    auto left_node = root->as_list()->elements[0];
+    auto right_node = root->as_list()->elements[1];
+
+    string var_name("_x");
+    auto var = make_shared<func_var>(var_name, location_type());
+    var->qualified_name = qualified_name(var_name);
+
+    vector<func_var_ptr> params = { var };
+
+    expr_ptr left, right;
+
+    auto func = make_shared<function>(params, nullptr, location_type());
+    {
+        auto stacker = stack_scoped(&func->scope, m_scope_stack);
+
+        left = do_expr(left_node);
+        right = do_expr(right_node);
+    }
+
+    auto app1 = make_shared<func_app>();
+    app1->object = right;
+    app1->args = { expr_slot(make_shared<reference>(var)) };
+
+    auto app2 = make_shared<func_app>();
+    app2->object = left;
+    app2->args = { expr_slot(app1) };
+
+    func->expr = app2;
+
+    return func;
 }
 
 string generator::qualified_name(const string & name)

@@ -41,6 +41,12 @@ private:
     int m_start_count;
 };
 
+template <typename T, typename S>
+stacker<T,S> stack_scoped(const T & val, S & stack)
+{
+    return stacker<T,S>(val, stack);
+}
+
 template <typename T, typename S = std::stack<T> >
 class tracing_stack : public S
 {

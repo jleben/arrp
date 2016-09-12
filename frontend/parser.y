@@ -41,10 +41,10 @@
 %left DOTDOT
 %right LOGIC_NOT
 %right UMINUS '#'
+%right '.'
 // FIXME: review precedence and association
 %left '[' '{' '('
 %right '@'
-%left '.'
 
 %start program
 
@@ -176,6 +176,8 @@ expr:
   lambda
   |
   func_apply
+  |
+  func_composition
   |
   array_func
   |
@@ -381,6 +383,13 @@ func_apply:
   expr '(' expr_list ')'
   {
     $$ = make_list( ast::func_apply, @$, {$1, $3} );
+  }
+;
+
+func_composition:
+  expr '.' expr
+  {
+    $$ = make_list( ast::func_compose, @$, {$1, $3} );
   }
 ;
 

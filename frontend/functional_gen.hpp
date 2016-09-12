@@ -68,6 +68,7 @@ private:
     expr_ptr do_array_enum(ast::node_ptr);
     expr_ptr do_array_concat(ast::node_ptr);
     expr_ptr do_func_apply(ast::node_ptr);
+    expr_ptr do_func_comp(ast::node_ptr);
 
     string qualified_name(const string & name);
 

@@ -80,6 +80,7 @@ enum node_type
     array_concat,
 
     func_apply,
+    func_compose,
 
     node_type_count
 };
