@@ -670,7 +670,7 @@ expr_ptr generator::do_func_comp(ast::node_ptr root)
 
     expr_ptr left, right;
 
-    auto func = make_shared<function>(params, nullptr, location_type());
+    auto func = make_shared<function>(params, nullptr, location_in_module(root->location));
     {
         auto stacker = stack_scoped(&func->scope, m_scope_stack);
 
@@ -679,11 +679,11 @@ expr_ptr generator::do_func_comp(ast::node_ptr root)
     }
 
     auto app1 = make_shared<func_app>();
-    app1->object = right;
+    app1->object = expr_slot(right, location_in_module(right_node->location));
     app1->args = { expr_slot(make_shared<reference>(var)) };
 
     auto app2 = make_shared<func_app>();
-    app2->object = left;
+    app2->object = expr_slot(left, location_in_module(left_node->location));
     app2->args = { expr_slot(app1) };
 
     func->expr = app2;
