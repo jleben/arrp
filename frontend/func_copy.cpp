@@ -185,21 +185,7 @@ expr_ptr copier::visit_array_patterns(const shared_ptr<array_patterns> & ap)
 
         context_type::scope_holder scope(m_copy_context);
 
-        for (auto & index : pattern.indexes)
-        {
-            array_patterns::index new_i;
-            if (index.var)
-            {
-                new_i.var = make_shared<array_var>
-                        (index.var->name, copy(index.var->range), index.var->location);
-                m_copy_context.bind(index.var, new_i.var);
-            }
-            else
-            {
-                new_i.value = index.value;
-            }
-            new_p.indexes.push_back(new_i);
-        }
+        new_p.indexes = pattern.indexes;
 
         if (pattern.domains)
             new_p.domains = copy(pattern.domains);

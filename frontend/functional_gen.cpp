@@ -504,46 +504,45 @@ generator::do_array_pattern(ast::node_ptr root)
     }
 
     // Create index descriptions
+    // and bind variable index names
+
+    context_type::scope_holder scope(m_context);
 
     int dim_idx = 0;
     for (auto & index_node : index_nodes->as_list()->elements)
     {
-        struct array_patterns::index e;
+        struct array_patterns::index i;
         if (index_node->type == ast::identifier)
         {
-            string name = index_node->as_leaf<string>()->value;
+            i.is_fixed = false;
+
             assert(dim_idx < ar->vars.size());
-            e.var = make_shared<array_var>
-                    (name, ar->vars[dim_idx]->range,
-                     location_in_module(index_node->location));
+
+            auto name = index_node->as_leaf<string>()->value;
+            auto & var = ar->vars[dim_idx];
+
+            try
+            {
+                m_context.bind(name, var);
+            }
+            catch (context_error & e)
+            {
+                throw source_error
+                        (e.what(), location_in_module(index_node->location));
+            }
         }
         else if(auto literal_int = dynamic_pointer_cast<ast::leaf_node<int>>(index_node))
         {
-            e.value = literal_int->value;
+            i.is_fixed = true;
+            i.value = literal_int->value;
         }
         else
         {
             throw source_error("Invalid array index pattern.",
                                location_in_module(index_node->location));
         }
-        pattern.indexes.push_back(e);
+        pattern.indexes.push_back(i);
         ++dim_idx;
-    }
-
-    // Bind variable index names
-
-    context_type::scope_holder scope(m_context);
-
-    for (auto & index : pattern.indexes)
-    {
-        if (!index.var)
-            continue;
-
-        try {
-            m_context.bind(index.var->name, index.var);
-        } catch (context_error & e) {
-            throw source_error(e.what(), index.var->location);
-        }
     }
 
     // Process the pattern expression

@@ -346,23 +346,6 @@ expr_ptr array_reducer::reduce
         if (verbose<array_reducer>::enabled())
             cout << "Processing an array pattern..." << endl;
 
-        // Substitute array variables
-
-        {
-            int dim_idx = 0;
-            for (auto & index : pattern.indexes)
-            {
-                if (index.var)
-                    m_sub.vars.bind(index.var, make_ref(ar->vars[dim_idx]));
-                ++dim_idx;
-            }
-        }
-
-        if (pattern.domains)
-            pattern.domains = m_sub(pattern.domains);
-
-        pattern.expr = m_sub(pattern.expr);
-
         // Create pattern constraint expressions
 
         expr_ptr pattern_constraint;
@@ -371,13 +354,14 @@ expr_ptr array_reducer::reduce
             int dim_idx = 0;
             for (auto & index : pattern.indexes)
             {
-                if (!index.var)
-                {
-                    auto v = make_ref(ar->vars[dim_idx]);
-                    auto constraint = equal(v, int_expr(index.value));
-                    pattern_constraint =
-                            intersect(pattern_constraint, constraint);
-                }
+                if (!index.is_fixed)
+                    continue;
+
+                auto v = make_ref(ar->vars[dim_idx]);
+                auto constraint = equal(v, int_expr(index.value));
+                pattern_constraint =
+                        intersect(pattern_constraint, constraint);
+
                 ++dim_idx;
             }
         }

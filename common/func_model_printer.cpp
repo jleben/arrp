@@ -166,17 +166,11 @@ void printer::print(expr_ptr expr, ostream & out)
             {
                 if (dim++ > 0)
                     out << ',';
-                if (index.var)
-                {
-                    out << index.var->name;
-                    if (index.var->range)
-                    {
-                        out << ":";
-                        print(index.var->range, out);
-                    }
-                }
-                else
+
+                if (index.is_fixed)
                     out << index.value;
+                else
+                    out << '_';
             }
             if (pattern.domains)
             {

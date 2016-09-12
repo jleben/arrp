@@ -265,7 +265,7 @@ class array_patterns : public expression
 public:
     struct index
     {
-        array_var_ptr var;
+        bool is_fixed;
         int value;
     };
 

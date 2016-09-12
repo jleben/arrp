@@ -248,11 +248,6 @@ public:
     {
         for (auto & pattern : ap->patterns)
         {
-            for (auto & index : pattern.indexes)
-            {
-                if (index.var && index.var->range)
-                    visit(index.var->range);
-            }
             if (pattern.domains)
                 visit(pattern.domains);
             visit(pattern.expr);
@@ -365,11 +360,6 @@ public:
     {
         for (auto & pattern : ap->patterns)
         {
-            for (auto & index : pattern.indexes)
-            {
-                if (index.var && index.var->range)
-                    index.var->range = visit(index.var->range);
-            }
             if (pattern.domains)
                 pattern.domains = visit(pattern.domains);
             pattern.expr = visit(pattern.expr);
