@@ -1,10 +1,11 @@
 #ifndef STREAM_LANG_FUNCTIONAL_TYPE_CHECK_INCLUDED
 #define STREAM_LANG_FUNCTIONAL_TYPE_CHECK_INCLUDED
 
+#include "error.hpp"
+#include "array_bounding.hpp"
 #include "../common/functional_model.hpp"
 #include "../common/func_model_visitor.hpp"
 #include "../common/func_model_printer.hpp"
-#include "error.hpp"
 
 #include <unordered_set>
 
@@ -54,6 +55,7 @@ private:
     bool m_force_revisit = false;
 
     printer m_printer;
+    array_bounding m_array_bounding;
 
     stack<location_type> & m_trace;
 };

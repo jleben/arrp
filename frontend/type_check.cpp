@@ -413,8 +413,6 @@ type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
 
 type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 {
-    array_size_vec size;
-
     for (auto & var : arr->vars)
     {
         visit(var->range);
@@ -427,13 +425,8 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
                 msg << "Array size not positive (" <<  c->value << ")";
                 throw type_error(msg.str(), var->range.location);
             }
-            size.push_back(c->value);
         }
-        else if (dynamic_pointer_cast<infinity>(var->range.expr))
-        {
-            size.push_back(-1);
-        }
-        else
+        else if (!dynamic_pointer_cast<infinity>(var->range.expr))
         {
             ostringstream msg;
             msg << "Array size is not a constant integer or infinity: "
@@ -515,7 +508,26 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 
     patterns->type = type_for(common_subdom_size, result_elem_type);
 
+    // Limit array size
+
+    m_array_bounding.bound(arr);
+
+    // Extract array size from range of array variables
+
+    array_size_vec size;
+
+    for (auto & var : arr->vars)
+    {
+        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
+            size.push_back(c->value);
+        else
+            size.push_back(-1);
+    }
+
+    // Expand array space with common space of subdomains
+
     size.insert(size.end(), common_subdom_size.begin(), common_subdom_size.end());
+
     auto type = make_shared<array_type>(size, result_elem_type);
     return type;
 }

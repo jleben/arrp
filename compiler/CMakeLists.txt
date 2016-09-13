@@ -23,6 +23,8 @@ add_library(arrp-lib ${lib_mode}
   ../frontend/func_copy.cpp
   ../frontend/func_reducer.cpp
   ../frontend/linear_expr_gen.cpp
+  ../frontend/array_to_isl.cpp
+  ../frontend/array_bounding.cpp
   ../frontend/array_reduction.cpp
   ../frontend/array_transpose.cpp
   ../frontend/type_check.cpp
