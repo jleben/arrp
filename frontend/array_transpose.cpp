@@ -102,6 +102,13 @@ void array_transposer::transpose_access(const id_ptr & id)
     visit(id->expr);
 }
 
+void array_transposer::visit_array(const shared_ptr<array> & arr)
+{
+    // Don't visit array scope.
+
+    visit(arr->expr);
+}
+
 void array_transposer::visit_array_app(const shared_ptr<array_app> & app)
 {
     id_ptr id;

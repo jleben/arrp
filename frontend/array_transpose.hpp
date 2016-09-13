@@ -28,6 +28,7 @@ private:
     void transpose_accesses(unordered_set<id_ptr> & ids);
     void transpose_access(const id_ptr & id);
 
+    void visit_array(const shared_ptr<array> & arr) override;
     void visit_array_app(const shared_ptr<array_app> & app) override;
 
     unordered_map<id_ptr, vector<int>> m_transpositions;

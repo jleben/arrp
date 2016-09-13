@@ -242,6 +242,10 @@ public:
             if (var->range)
                 visit(var->range);
         }
+
+        for(auto & id : arr->scope.ids)
+            visit(id->expr);
+
         visit(arr->expr);
     }
     virtual void visit_array_patterns(const shared_ptr<array_patterns> & ap)
