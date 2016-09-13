@@ -114,7 +114,9 @@ void storage_allocator::compute_buffer_size
 
     if (write_sched.is_empty())
     {
-        throw std::runtime_error("Storage alloc: Array has readers but no writers.");
+        ostringstream msg;
+        msg << "Storage alloc: Array " << array->name << " has readers but no writers." << endl;
+        throw error(msg.str());
     }
 
     /*
