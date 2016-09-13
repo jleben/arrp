@@ -197,7 +197,11 @@ void array_bounding::visit_cases(const shared_ptr<case_expr> & e)
 
 void array_bounding::visit_array_app(const shared_ptr<array_app> & a)
 {
+    if (!a->object->type || !a->object->type->array())
+        return;
+
     auto ar_size = a->object->type->array()->size;
+
     for (int dim = 0; dim < a->args.size(); ++dim)
     {
         if (ar_size[dim] < 0)
