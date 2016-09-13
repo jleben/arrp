@@ -129,6 +129,10 @@ array_bounding::bound(array_ptr a)
 
 void array_bounding::visit_array(const shared_ptr<array> & a)
 {
+    // FIXME: visit local IDs in the context of patterns from which they come
+    for(auto & id : a->scope.ids)
+        visit(id->expr);
+
     auto domain = current_domain();
 
     auto patterns_expr = dynamic_pointer_cast<array_patterns>(a->expr.expr);
