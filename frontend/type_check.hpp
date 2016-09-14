@@ -46,6 +46,7 @@ private:
     type_ptr visit_array_size(const shared_ptr<array_size> & as) override;
     type_ptr visit_func_app(const shared_ptr<func_app> & app) override;
     type_ptr visit_func(const shared_ptr<function> & func) override;
+    type_ptr visit_input(const shared_ptr<input> & in) override;
 
     source_error type_error(const string & msg, const location_type & loc)
     {

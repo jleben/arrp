@@ -24,6 +24,7 @@ public:
 private:
     void transpose_arrays(unordered_set<id_ptr> & ids);
     void transpose_array(const id_ptr & id);
+    bool transpose_order(id_ptr id, const array_size_vec & s, list<int> & order);
 
     void transpose_accesses(unordered_set<id_ptr> & ids);
     void transpose_access(const id_ptr & id);

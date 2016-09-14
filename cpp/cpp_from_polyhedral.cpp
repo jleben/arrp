@@ -100,7 +100,8 @@ void cpp_from_polyhedral::generate_statement
     {
         expr = generate_expression(stmt->expr, index, ctx);
 
-        if (stmt->write_relation.array)
+        // NOTE: Input statements have a write relation, but no type.
+        if (stmt->write_relation.array && stmt->expr->type != nullptr)
         {
             // FIXME: map write relation (although it's currently identity)
             auto array_index = index;

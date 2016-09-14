@@ -60,6 +60,9 @@ enum node_type
 
     program,
 
+    scalar_type,
+    array_type,
+
     binding,
     local_scope,
     lambda,

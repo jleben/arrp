@@ -24,7 +24,7 @@
 %token ID QUALIFIED_ID
 %token IF THEN CASE THIS
 %token WHERE
-%token MODULE IMPORT AS
+%token MODULE IMPORT AS INPUT
 
 %left '='
 %right LET IN
@@ -64,9 +64,9 @@ using op_type = stream::primitive_op;
 
 
 program:
-  module_decl imports bindings
+  module_decl imports inputs bindings
   {
-    $$ = make_list(program, @$, { $1, $2, $3 });
+    $$ = make_list(program, @$, { $1, $2, $3, $4 });
     driver.m_ast = $$;
   }
 ;
@@ -110,6 +110,32 @@ import:
   {
   $$ = make_list( @$, { $2, $4 } );
   }
+;
+
+inputs:
+  // empty
+  { $$ = nullptr; }
+  |
+  INPUT input_list ';' { $$ = $2; }
+;
+
+input_list:
+  input
+  {
+    $$ = make_list( @$, { $1 } );
+  }
+  |
+  input_list ',' input
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
+;
+
+input:
+  id ':' type
+  { $$ = make_list(@$, {$1, $3}); }
 ;
 
 bindings:
@@ -159,6 +185,25 @@ param_list:
     $$->location = @$;
   }
 ;
+
+type:
+  data_type
+;
+
+data_type:
+  array_type | primitive_type
+;
+
+array_type:
+  '[' expr_list ']' primitive_type
+  { $$ = make_list(ast::array_type, @$, {$2, $4}); }
+;
+
+primitive_type:
+  id
+  { $$ = $1; $$->type = ast::scalar_type; }
+;
+
 
 expr:
   id

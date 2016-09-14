@@ -35,8 +35,11 @@ void array_transposer::transpose_arrays(unordered_set<id_ptr> & ids)
 
 void array_transposer::transpose_array(const id_ptr & id)
 {
-    auto ar = dynamic_pointer_cast<array>(id->expr.expr);
-    if (!ar)
+    array_type * ar_type = nullptr;
+
+    ar_type = id->expr->type->array();
+
+    if (!ar_type)
     {
         if (verbose<array_transposer>::enabled())
             cout << "== Not an array: " << id << endl;
@@ -47,13 +50,45 @@ void array_transposer::transpose_array(const id_ptr & id)
         cout << "== Transposing array: " << id << endl;
 
     list<int> order;
+
+    bool transposed =
+            transpose_order(id, ar_type->size, order);
+
+    if (transposed)
+    {
+        if (auto ar = dynamic_pointer_cast<array>(id->expr.expr))
+        {
+            vector<array_var_ptr> ordered_vars;
+            for (int i : order)
+                ordered_vars.push_back(ar->vars[i]);
+            ar->vars = ordered_vars;
+        }
+        else if (!(dynamic_pointer_cast<input>(id->expr.expr)))
+        {
+            ostringstream msg;
+            msg << "Array transposition: Unexpected expression type for id " << id->name;
+            throw error(msg.str());
+        }
+
+        array_size_vec ordered_size;
+        for (int i : order)
+            ordered_size.push_back(ar_type->size[i]);
+        ar_type->size = ordered_size;
+
+        vector<int> order_vector(order.begin(), order.end());
+        m_transpositions[id] = order_vector;
+    }
+}
+
+bool array_transposer::transpose_order
+(id_ptr id, const array_size_vec & size, list<int> & order)
+{
     bool has_streaming_dimension = false;
 
-    for (int i = 0; i < (int)ar->vars.size(); ++i)
+    for (int i = 0; i < (int) size.size(); ++i)
     {
         // The range is either a constant integer, or none.
-        auto & var = ar->vars[i];
-        if (dynamic_cast<int_const*>(var->range.expr.get()))
+        if (size[i] >= 0)
         {
             order.push_back(i);
         }
@@ -73,16 +108,7 @@ void array_transposer::transpose_array(const id_ptr & id)
         }
     }
 
-    if (has_streaming_dimension)
-    {
-        vector<array_var_ptr> ordered_vars;
-        for (int i : order)
-            ordered_vars.push_back(ar->vars[i]);
-        ar->vars = ordered_vars;
-
-        vector<int> order_vector(order.begin(), order.end());
-        m_transpositions[id] = order_vector;
-    }
+    return has_streaming_dimension;
 }
 
 void array_transposer::transpose_accesses(unordered_set<id_ptr> & ids)

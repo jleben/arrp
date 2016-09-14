@@ -103,30 +103,160 @@ void polyhedral_gen::add_time_array(polyhedral::model & output)
 }
 
 polyhedral::model
-polyhedral_gen::process(const unordered_set<id_ptr> & input)
+polyhedral_gen::process(const unordered_set<id_ptr> & ids)
 {
-    polyhedral::model output;
-    output.context = m_isl_ctx;
+    polyhedral::model model;
+    model.context = m_isl_ctx;
 
     m_time_array_needed = false;
 
-    for (const auto & id : input)
+    for (const auto & id : ids)
     {
-        auto a = make_array(id);
-        output.arrays.push_back(a);
+        if (auto input = dynamic_pointer_cast<functional::input>(id->expr.expr))
+        {
+            make_input(id, model);
+        }
+        else
+        {
+            auto a = make_array(id);
+            model.arrays.push_back(a);
+        }
     }
 
-    for (const auto & id : input)
+    for (const auto & id : ids)
     {
+        if (dynamic_pointer_cast<functional::input>(id->expr.expr))
+            continue;
+
         // FIXME: Hack for recursive arrays
         m_current_id = id;
-        make_statements(id, output);
+        make_statements(id, model);
     }
 
     if (m_time_array_needed)
-        add_time_array(output);
+        add_time_array(model);
 
-    return output;
+    return model;
+}
+
+void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
+{
+    auto input = dynamic_pointer_cast<functional::input>(id->expr.expr);
+    auto type = input->type;
+
+    primitive_type pt;
+    if (type->is_array())
+        pt = type->array()->element;
+    else if (type->is_scalar())
+        pt = type->scalar()->primitive;
+    else
+        throw error("Unexpected type.");
+
+    string array_name = id->name;
+    array_size_vec size;
+    if (type->is_array())
+        size = type->array()->size;
+
+    ph::array_ptr ar = nullptr;
+
+    {
+        auto tuple = isl::set_tuple( isl::identifier(array_name),
+                                     std::max((int)size.size(), 1) );
+        auto space = isl::space(model.context, tuple);
+        auto domain = isl::set::universe(space);
+
+        bool is_infinite = false;
+
+        if (size.empty())
+        {
+            domain.add_constraint(space.var(0) == 0);
+        }
+        else
+        {
+            for (int dim = 0; dim < size.size(); ++dim)
+            {
+                int ub = size[dim];
+                auto v = space.var(dim);
+
+                domain.add_constraint(v >= 0);
+                if (ub >= 0)
+                    domain.add_constraint(v < ub);
+                else if (dim == 0)
+                    is_infinite = true;
+                else
+                    throw error("A dimension other dimension than 0 is infinite.");
+            }
+        }
+
+        ar = make_shared<ph::array>(array_name, domain, pt);
+        ar->is_infinite = is_infinite;
+        ar->size = size;
+
+        model.arrays.push_back(ar);
+
+        auto result = m_arrays.emplace(id, ar);
+        assert(result.second);
+    }
+
+    {
+        string stmt_name = id->name + ".s";
+
+        auto tuple = isl::set_tuple( isl::identifier(stmt_name), 1 );
+        auto space = isl::space(model.context, tuple);
+        auto domain = isl::set::universe(space);
+
+        auto i = space.var(0);
+        if (size.empty())
+        {
+            domain.add_constraint(i == 0);
+        }
+        else
+        {
+            domain.add_constraint( i >= 0 );
+            if (!ar->is_infinite)
+                domain.add_constraint( i < ar->size[0] );
+        }
+
+        auto stmt = make_shared<polyhedral::statement>(domain);
+
+        stmt->is_infinite = ar->is_infinite;
+
+        // functional call expression
+
+        auto call = make_shared<polyhedral::external_call>();
+        call->name = id->name;
+
+        vector<expr_ptr> ar_index;
+        ar_index.push_back(make_shared<ph::iterator_read>(0));
+
+        auto read = make_shared<ph::array_read>(ar, ar_index);
+
+        call->args.push_back(read);
+
+        // isl relations
+
+        {
+            auto s = isl::space::from(stmt->domain.get_space(),
+                                      ar->domain.get_space());
+
+            auto m = isl::multi_expression(s.in(0));
+
+            stmt->write_relation = { ar, m };
+            stmt->read_relations.emplace_back(ar, m);
+
+            read->relation = &stmt->read_relations.back();
+
+            if (verbose<polyhedral_gen>::enabled())
+            {
+                cout << "Input read and write relation:" << endl;
+                m_isl_printer.print(m); cout << endl;
+            }
+        }
+
+        stmt->expr = call;
+
+        model.statements.push_back(stmt);
+    }
 }
 
 void polyhedral_gen::add_output(polyhedral::model & model,

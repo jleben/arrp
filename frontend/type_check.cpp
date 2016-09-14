@@ -915,5 +915,10 @@ type_ptr type_checker::visit_affine(const shared_ptr<affine_expr> &)
     throw error("Not supported.");
 }
 
+type_ptr type_checker::visit_input(const shared_ptr<input> & in)
+{
+    return in->type;
+}
+
 }
 }

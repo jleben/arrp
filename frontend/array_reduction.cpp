@@ -95,6 +95,10 @@ id_ptr array_reducer::process(id_ptr id)
 
     m_processed_ids.insert(id);
 
+    // Prevent eta expansion of input arrays:
+    if (dynamic_pointer_cast<input>(id->expr.expr))
+        return id;
+
     m_declared_vars.push(nullptr);
     m_unbound_vars.emplace();
 

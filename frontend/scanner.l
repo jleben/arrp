@@ -87,6 +87,8 @@ blank [ \t]
 "module" { return parser::token::MODULE; }
 "import" { return parser::token::IMPORT; }
 "as" { return parser::token::AS; }
+"input" { return parser::token::INPUT; }
+
 [0-9]+(\.[0-9]+)?i {
   double im = std::stod(std::string(yytext,strlen(yytext)-1));
   std::complex<double> v(0, im);

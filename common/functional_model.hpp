@@ -332,6 +332,7 @@ public:
     func_var() {}
     func_var(const string & name, const location_type & loc): var(name,loc) {}
     string qualified_name;
+    type_ptr type;
 };
 typedef std::shared_ptr<func_var> func_var_ptr;
 
@@ -370,6 +371,12 @@ public:
     affine_set() {}
     affine_set(const linear_set & s): set(s) {}
     linear_set set;
+};
+
+class input : public expression
+{
+public:
+    input(type_ptr t): expression(location_type(), t) {}
 };
 
 }

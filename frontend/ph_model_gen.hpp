@@ -54,6 +54,8 @@ private:
     void make_time_array();
     void add_time_array(polyhedral::model &);
 
+    void make_input(id_ptr id, polyhedral::model &);
+
     polyhedral::array_ptr make_array(id_ptr id);
 
     void make_statements(id_ptr id, polyhedral::model &);

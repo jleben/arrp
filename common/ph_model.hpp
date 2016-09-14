@@ -115,6 +115,12 @@ public:
         domain.set_id(id);
     }
 
+    // FIXME:
+    // Instead of just a write relation:
+    // - Implement "array access" expr that can both read & write
+    //   (representing a pointer).
+    // - Implement special "assignment" expr.
+
     string name;
     isl::set domain;
     functional::expr_ptr expr = nullptr;
@@ -134,6 +140,7 @@ public:
                const location_type & l = location_type()):
         expression(l), array(a), indexes(i)
     {
+        // FIXME: this may be array type (for example in external call)
         type = std::make_shared<functional::scalar_type>(a->type);
     }
 

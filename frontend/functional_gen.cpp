@@ -84,7 +84,17 @@ generator::generate(module * mod)
     {
         context_type::scope_holder scope(m_context);
 
-        auto bindings = ast->as_list()->elements[2];
+        auto inputs = ast->as_list()->elements[2];
+
+        if (inputs)
+        {
+            for (auto & input : inputs->as_list()->elements)
+            {
+                do_input(input);
+            }
+        }
+
+        auto bindings = ast->as_list()->elements[3];
 
         if (bindings)
         {
@@ -100,6 +110,36 @@ generator::generate(module * mod)
     vector<id_ptr> ids(func_scope.ids.begin(), func_scope.ids.end());
 
     return ids;
+}
+
+void generator::do_input(ast::node_ptr root)
+{
+    auto name_node = root->as_list()->elements[0];
+    auto type_node = root->as_list()->elements[1];
+
+    auto name = name_node->as_leaf<string>()->value;
+    auto type = do_type(type_node);
+
+    auto id = make_shared<identifier>
+            (qualified_name(name),
+             make_shared<input>(type),
+             location_in_module(name_node->location));
+
+    // Bind name for reference resolution
+
+    try  {
+        m_context.bind(name, id);
+    } catch (context_error & e) {
+        throw module_error(e.what(), name_node->location);
+    }
+
+    // Store name in current scope
+
+    if (verbose<generator>::enabled())
+        cout << "Storing id " << id->name << endl;
+
+    assert(!m_scope_stack.empty());
+    m_scope_stack.top()->ids.push_back(id);
 }
 
 id_ptr generator::do_binding(ast::node_ptr root)
@@ -688,6 +728,92 @@ expr_ptr generator::do_func_comp(ast::node_ptr root)
     func->expr = app2;
 
     return func;
+}
+
+type_ptr generator::do_type(ast::node_ptr root)
+{
+    switch(root->type)
+    {
+    case ast::scalar_type:
+    {
+        auto name = root->as_leaf<string>()->value;
+        auto ptype = primitive_type_for_name(name);
+        if (ptype == primitive_type::undefined)
+            throw source_error("Invalid type name.",
+                               location_in_module(root->location));
+        return make_shared<scalar_type>(ptype);
+    }
+    case ast::array_type:
+    {
+        return do_array_type(root);
+    }
+    default:
+        throw source_error("Unexpected type.",
+                           location_in_module(root->location));
+    }
+}
+
+type_ptr generator::do_array_type(ast::node_ptr root)
+{
+    auto size_nodes = root->as_list()->elements[0];
+    auto elem_node = root->as_list()->elements[1];
+
+    array_size_vec size;
+
+    for(const auto & size_node : size_nodes->as_list()->elements)
+    {
+        if (size_node->type == ast::constant)
+        {
+            if(auto i = dynamic_pointer_cast<ast::leaf_node<int>>(size_node))
+            {
+                auto v = i->value;
+                if (v >= 0)
+                    size.push_back(v);
+                else
+                    throw source_error("Array size less than 1.",
+                                       location_in_module(size_node));
+            }
+            else
+                throw source_error("Array size not integer.",
+                                   location_in_module(size_node));
+        }
+        else if (size_node->type == ast::infinity)
+        {
+            size.push_back(-1);
+        }
+        else
+        {
+            throw source_error("Invalid array size.",
+                               location_in_module(size_node));
+        }
+    }
+
+    auto elem_name = elem_node->as_leaf<string>()->value;
+    auto elem_type = primitive_type_for_name(elem_name);
+    if (elem_type == primitive_type::undefined)
+        throw source_error("Invalid type name.",
+                           location_in_module(elem_node));
+
+    return make_shared<array_type>(size, elem_type);
+}
+
+primitive_type generator::primitive_type_for_name(const string & name)
+{
+    static unordered_map<string, primitive_type> map =
+    {
+        { "bool", primitive_type::boolean },
+        { "int", primitive_type::integer },
+        { "real32", primitive_type::real32 },
+        { "real64", primitive_type::real64 },
+        { "complex32", primitive_type::complex32 },
+        { "complex64", primitive_type::complex64 },
+    };
+
+    auto m = map.find(name);
+    if (m == map.end())
+        return primitive_type::undefined;
+    else
+        return m->second;
 }
 
 string generator::qualified_name(const string & name)

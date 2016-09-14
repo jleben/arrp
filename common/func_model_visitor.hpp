@@ -87,6 +87,10 @@ public:
         {
             return visit_func(func);
         }
+        else if (auto in = dynamic_pointer_cast<input>(expr))
+        {
+            return visit_input(in);
+        }
         else
         {
             throw error("Unexpected expression type");
@@ -110,6 +114,7 @@ public:
     virtual R visit_array_size(const shared_ptr<array_size> & as) = 0;
     virtual R visit_func_app(const shared_ptr<func_app> & app) = 0;
     virtual R visit_func(const shared_ptr<function> & func) = 0;
+    virtual R visit_input(const shared_ptr<input> &) = 0;
 };
 
 template<>
@@ -190,6 +195,10 @@ public:
         else if (auto func = dynamic_pointer_cast<function>(expr))
         {
             visit_func(func);
+        }
+        else if (auto in = dynamic_pointer_cast<input>(expr))
+        {
+            return;
         }
         else
         {
@@ -398,6 +407,10 @@ public:
 
         func->expr = visit(func->expr);
         return func;
+    }
+    virtual expr_ptr visit_input(const shared_ptr<input> & in) override
+    {
+        return in;
     }
 };
 
