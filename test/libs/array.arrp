@@ -2,9 +2,9 @@ module array;
 
 slice(pos,len,a) = [len:i -> a[pos + i]];
 
-scan(f,a) = [#a:
+scan(f,a) = [
     0 -> a[0];
-    i -> f(a[i], this[i-1]);
+    i -> f(this[i-1], a[i]);
 ];
 
 fold(f,a) =
@@ -16,4 +16,4 @@ iterate(f,init) = [
     i -> f(this[i-1]);
 ];
 
-map(f,a) = [#a: i -> f(a[i])]
+map(f,a) = [i -> f(a[i])]
