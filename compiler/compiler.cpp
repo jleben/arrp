@@ -70,7 +70,7 @@ result::code compile(const options & opts)
         ifstream source_file(opts.input_filename);
         if (!source_file.is_open())
         {
-            cerr << "streamc: error: Failed to open input file: '"
+            cerr << "arrp: error: Failed to open input file: '"
                  << opts.input_filename << "'." << endl;
             return result::io_error;
         }
