@@ -93,15 +93,20 @@ public:
     isl::set domain;
     primitive_type type;
     bool is_infinite = false;
+    // "size": empty for scalars
     vector<int> size;
 
-#if 1
+    // buffer_size:
+    // - only dimensions > 1 kept
+    // - empty for scalars
     vector<int> buffer_size;
+    // buffer_map:
+    // - maps buffer_dimesions to array dimensions
+    vector<int> buffer_map;
     //int flow_dim = -1;
     int period = 0;
     int period_offset = 0;
     bool inter_period_dependency = true;
-#endif
 };
 
 class statement

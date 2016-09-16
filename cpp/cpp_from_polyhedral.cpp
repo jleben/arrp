@@ -486,8 +486,6 @@ expression_ptr cpp_from_polyhedral::generate_primitive
 expression_ptr cpp_from_polyhedral::generate_buffer_access
 (polyhedral::array_ptr array, const index_type & index, builder * ctx)
 {
-    assert(!array->buffer_size.empty());
-
     index_type buffer_index = index;
     string array_name = m_name_mapper(array->name);
 
@@ -498,7 +496,7 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     if (index.empty())
         return buffer;
 
-    if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
+    if (array->buffer_size.empty())
         return buffer;
 
     // Add buffer phase
@@ -530,14 +528,19 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
         }
     }
 
-    for (int dim = 0; dim < buffer_index.size(); ++dim)
-    {
-        // FIXME: is using stmt->buffer_period for domain size OK?
-        bool dim_is_streaming = array->is_infinite && dim == 0;
-        int buffer_size = array->buffer_size[dim];
-        expression_ptr & i = buffer_index[dim];
+    index_type mapped_buffer_index;
 
-        if (buffer_size == 1)
+    for (int buf_dim = 0; buf_dim < array->buffer_map.size(); ++buf_dim)
+    {
+        int array_dim = array->buffer_map[buf_dim];
+        int buf_dim_size = array->buffer_size[buf_dim];
+        bool dim_is_streaming = array->is_infinite && array_dim == 0;
+
+        mapped_buffer_index.push_back(buffer_index[array_dim]);
+
+        expression_ptr & i = mapped_buffer_index[buf_dim];
+
+        if (buf_dim_size == 1)
         {
             i = literal((int)0);
             continue;
@@ -550,31 +553,31 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
         }
         else
         {
-            int array_size = array->size[dim];
-            may_wrap = buffer_size < array_size;
+            int array_dim_size = array->size[array_dim];
+            may_wrap = buf_dim_size < array_dim_size;
         }
 
         if (may_wrap)
         {
             bool size_is_power_of_two =
-                    buffer_size == (int)std::pow(2, (int)std::log2(buffer_size));
+                    buf_dim_size == (int)std::pow(2, (int)std::log2(buf_dim_size));
 
             // FIXME: use modulo instead of remainder
             if (size_is_power_of_two)
             {
-                assert(buffer_size > 0);
-                auto mask = literal(buffer_size-1);
+                assert(buf_dim_size > 0);
+                auto mask = literal(buf_dim_size-1);
                 i = binop(op::bit_and, i, mask);
             }
             else
             {
-                auto size = literal(buffer_size);
+                auto size = literal(buf_dim_size);
                 i = make_shared<bin_op_expression>(op::rem, i, size);
             }
         }
     }
 
-    auto buffer_elem = make_shared<array_access_expression>(buffer, buffer_index);
+    auto buffer_elem = make_shared<array_access_expression>(buffer, mapped_buffer_index);
 
     return buffer_elem;
 }
