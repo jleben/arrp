@@ -18,13 +18,10 @@ public:
       kernel->io = this;
   }
 
-  void coefs(double &k)
+  void coefs(double k[3])
   {
-    static int i = 0;
-    ++i;
-    k = i;
-    //for (int i = 0; i < 10; ++i)
-      //k[i] = (i+1)/10.0;
+    for (int i = 0; i < 3; ++i)
+      k[i] = i+1;
   }
 
   void in1(double &v)
