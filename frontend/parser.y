@@ -116,7 +116,7 @@ inputs:
   // empty
   { $$ = nullptr; }
   |
-  INPUT input_list ';' { $$ = $2; }
+  input_list
 ;
 
 input_list:
@@ -125,17 +125,17 @@ input_list:
     $$ = make_list( @$, { $1 } );
   }
   |
-  input_list ',' input
+  input_list input
   {
     $$ = $1;
-    $$->as_list()->append( $3 );
+    $$->as_list()->append( $2 );
     $$->location = @$;
   }
 ;
 
 input:
-  id ':' type
-  { $$ = make_list(@$, {$1, $3}); }
+  INPUT id ':' type ';'
+  { $$ = make_list(@$, {$2, $4}); }
 ;
 
 bindings:
