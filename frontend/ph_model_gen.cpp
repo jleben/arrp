@@ -199,6 +199,11 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
     }
 
     {
+        // Make statement domain.
+
+        // If the array is not infinite, the statement has
+        // a single iteration that writes the entire array.
+
         string stmt_name = id->name + ".s";
 
         auto tuple = isl::set_tuple( isl::identifier(stmt_name), 1 );
@@ -206,15 +211,13 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
         auto domain = isl::set::universe(space);
 
         auto i = space.var(0);
-        if (size.empty())
+        if (size.empty() || !ar->is_infinite)
         {
             domain.add_constraint(i == 0);
         }
         else
         {
             domain.add_constraint( i >= 0 );
-            if (!ar->is_infinite)
-                domain.add_constraint( i < ar->size[0] );
         }
 
         auto stmt = make_shared<polyhedral::statement>(domain);
@@ -227,7 +230,9 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
         call->name = id->name;
 
         vector<expr_ptr> ar_index;
-        ar_index.push_back(make_shared<ph::iterator_read>(0));
+        if (ar->is_infinite)
+            // Iterate first dimension
+            ar_index.push_back(make_shared<ph::iterator_read>(0));
 
         auto read = make_shared<ph::array_read>(ar, ar_index);
 
@@ -239,7 +244,13 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
             auto s = isl::space::from(stmt->domain.get_space(),
                                       ar->domain.get_space());
 
-            auto m = isl::multi_expression(s.in(0));
+            isl::multi_expression m(nullptr);
+            if (ar->is_infinite)
+                // Iterate first dimension
+                m = isl::multi_expression(s.in(0));
+            else
+                // Don't iterate at all
+                m = isl::multi_expression::zero(s, 0);
 
             stmt->write_relation = { ar, m };
             stmt->read_relations.emplace_back(ar, m);
