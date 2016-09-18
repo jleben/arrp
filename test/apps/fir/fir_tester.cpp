@@ -1,4 +1,4 @@
-#include "fir_kernel.cpp"
+#include "fir.cpp"
 
 #include <iostream>
 
@@ -6,25 +6,25 @@ using namespace std;
 
 class fir_tester
 {
-  typedef fir::state<fir_tester> kernel_t;
+  typedef fir::program<fir_tester> program_t;
 
-  kernel_t * kernel;
+  program_t * program;
 
 public:
 
   fir_tester()
   {
-      kernel = new kernel_t;
-      kernel->io = this;
+      program = new program_t;
+      program->io = this;
   }
 
-  void coefs(double k[3])
+  void input_coefs(double k[3])
   {
     for (int i = 0; i < 3; ++i)
       k[i] = i+1;
   }
 
-  void in1(double &v)
+  void input_in1(double &v)
   {
     static int t = 0;
     v = t;
@@ -38,9 +38,9 @@ public:
 
   void run(int n)
   {
-    kernel->initialize();
+    program->prelude();
     while(n--)
-      kernel->process();
+      program->period();
   }
 
   vector<double> out;
