@@ -148,7 +148,7 @@ class_node * state_type_def(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers,
                             name_mapper & namer)
 {
-    auto def = new class_node(class_class, "state");
+    auto def = new class_node(class_class, "program");
     def->template_parameters.push_back("IO");
     def->alignment = 16; // for vectorization;
 
@@ -163,10 +163,10 @@ class_node * state_type_def(const polyhedral::model & model,
         sec.members.push_back(make_shared<data_field>(decl(pointer(io_type), "io")));
 
         auto init_func =
-                make_shared<func_decl>(make_shared<func_signature>("initialize"));
+                make_shared<func_decl>(make_shared<func_signature>("prelude"));
         sec.members.push_back(init_func);
         auto proc_func =
-                make_shared<func_decl>(make_shared<func_signature>("process"));
+                make_shared<func_decl>(make_shared<func_signature>("period"));
         sec.members.push_back(proc_func);
     }
 
@@ -458,7 +458,7 @@ void generate(const string & name,
     isl.set_id_func(id_func);
 
     {
-        auto sig = make_shared<func_signature>("state<IO>::initialize", explicit_inline);
+        auto sig = make_shared<func_signature>("program<IO>::prelude", explicit_inline);
         sig->template_parameters.push_back("IO");
 
         auto func = make_shared<func_def>(sig);
@@ -486,7 +486,7 @@ void generate(const string & name,
     }
 
     {
-        auto sig = make_shared<func_signature>("state<IO>::process", explicit_inline);
+        auto sig = make_shared<func_signature>("program<IO>::period", explicit_inline);
         sig->template_parameters.push_back("IO");
 
         auto func = make_shared<func_def>(sig);
@@ -530,11 +530,11 @@ void generate(const string & name,
         nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers)));
 
         {
-            auto sig = signature_for("initialize");
+            auto sig = signature_for("prelude");
             nmspc->members.push_back(make_shared<func_decl>(sig));
         }
         {
-            auto sig = signature_for("process");
+            auto sig = signature_for("period");
             nmspc->members.push_back(make_shared<func_decl>(sig));
         }
         {
