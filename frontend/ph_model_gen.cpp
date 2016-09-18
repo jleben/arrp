@@ -227,7 +227,7 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
         // functional call expression
 
         auto call = make_shared<polyhedral::external_call>();
-        call->name = id->name;
+        call->name = "input_" + id->name;
 
         vector<expr_ptr> ar_index;
         if (ar->is_infinite)
