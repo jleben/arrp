@@ -4,13 +4,13 @@ Introduction
 Arrp is a functional programming language for digital signal processing.
 This project provides a compiler for Arrp.
 
+For more information on the language Arrp, visit the `Arrp website`_.
+
 Table of Contents:
 ##################
 
 - `Building <#building>`_
 - `Usage <#usage>`_
-- `Language <#language>`_
-- `Targets <#targets>`_
 
 Building
 ########
@@ -90,39 +90,12 @@ its usage and available options::
 
     arrp -h
 
-To compile Arrp code from a file, invoke the compiler with the file name
-as argument::
-
-    arrp <input file>
-
-This will perform
-syntactical and semantical analysis of the program, output any errors,
-and perform all the following stages of compilation, except for generating
-an output file.
-
-To generate C++ code, add the option ``--cpp``::
+To compile Arrp code from a file and generate C++, invoke the compiler with the
+file name and the "--cpp" option::
 
     arrp <input file> --cpp
 
-Read the `C++ target`_ document for details on how to use the generated
-C++ code.
+Further information about the usage of the generated C++ code is available
+in the `Arrp documentation <http://mess.cs.uvic.ca/arrp/doc/target-cpp>`_.
 
-
-Language
-########
-
-For details about the programming language,
-please refer to the following documents:
-
-- `Language Syntax`_
-- `Language Semantics`_
-
-Targets
-#######
-
-The only currently available target is C++. Please refer to the
-`C++ target`_ document for details.
-
-.. _Language Syntax: http://webhome.csc.uvic.ca/~jleben/farm2016/syntax.html
-.. _Language Semantics: doc/semantics.rst
-.. _C++ Target: doc/target-cpp.rst
+.. _Arrp website: http://mess.cs.uvic.ca/arrp
