@@ -26,6 +26,7 @@ unordered_map<string, primitive_op> generator::m_prim_ops =
     { "floor", primitive_op::floor },
     { "abs", primitive_op::abs },
     { "min", primitive_op::min },
+    { "max", primitive_op::max },
     { "real", primitive_op::real },
     { "imag", primitive_op::imag },
     { "int", primitive_op::to_integer },
