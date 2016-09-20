@@ -498,9 +498,6 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     if (index.empty())
         return buffer;
 
-    if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
-        return buffer;
-
     // Add buffer phase
 
     if (m_in_period && buffer_info.has_phase)
@@ -530,17 +527,17 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
         }
     }
 
+    index_type compressed_index;
+
     for (int dim = 0; dim < buffer_index.size(); ++dim)
     {
         bool dim_is_streaming = array->is_infinite && dim == 0;
         int buffer_size = array->buffer_size[dim];
-        expression_ptr & i = buffer_index[dim];
 
         if (buffer_size == 1)
-        {
-            i = literal((int)0);
             continue;
-        }
+
+        expression_ptr i = buffer_index[dim];
 
         bool may_wrap = false;
         if (dim_is_streaming)
@@ -571,9 +568,14 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
                 i = make_shared<bin_op_expression>(op::rem, i, size);
             }
         }
+
+        compressed_index.push_back(i);
     }
 
-    auto buffer_elem = make_shared<array_access_expression>(buffer, buffer_index);
+    if (compressed_index.empty())
+        return buffer;
+
+    auto buffer_elem = make_shared<array_access_expression>(buffer, compressed_index);
 
     return buffer_elem;
 }

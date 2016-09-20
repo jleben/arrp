@@ -138,11 +138,18 @@ variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
                               name_mapper & namer)
 {
     assert(!array->buffer_size.empty());
+
     auto elem_type = type_for(array->type);
-    if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
+
+    vector<int> compressed_size;
+    for (auto & s : array->buffer_size)
+        if (s != 1)
+            compressed_size.push_back(s);
+
+    if (compressed_size.empty())
         return decl(elem_type, namer(array->name));
     else
-        return make_shared<array_decl>(elem_type, namer(array->name), array->buffer_size);
+        return make_shared<array_decl>(elem_type, namer(array->name), compressed_size);
 }
 
 class_node * state_type_def(const polyhedral::model & model,
