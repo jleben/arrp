@@ -28,9 +28,6 @@ access_info is_candidate_array(array_ptr array, stmt_ptr stmt, const schedule & 
     if (!array->is_infinite)
         return access;
 
-    if (array->buffer_size.empty())
-        return access;
-
     int buf_size = array->buffer_size[0];
 
     if (buf_size < 2)
@@ -111,9 +108,7 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
 
         auto a0 = accessed.get_space().var(0);
         int min_a0 = accessed.minimum(a0).integer();
-        int buf_size =
-                array->buffer_size.empty() ?
-                    1 : array->buffer_size[0];
+        int buf_size = array->buffer_size[0];
         array->period_offset = (min_a0 / buf_size) * buf_size;
     }
 
@@ -251,7 +246,6 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
         string offset_name = array->name + "_offset";
         m.phase_ids.emplace(offset_name, array);
 
-        assert(!array->buffer_size.empty());
         int buf_size = array->buffer_size[0];
         assert(buf_size >= 2);
 

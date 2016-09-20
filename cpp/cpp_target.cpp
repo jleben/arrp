@@ -37,7 +37,7 @@ namespace cpp_gen {
 static int volume( const vector<int> & extent )
 {
     if (extent.empty())
-        return 1;
+        return 0;
     int v = 1;
     for(int e : extent)
         v *= e;
@@ -137,8 +137,9 @@ func_sig_ptr signature_for(const string & name)
 variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
                               name_mapper & namer)
 {
+    assert(!array->buffer_size.empty());
     auto elem_type = type_for(array->type);
-    if (array->buffer_size.empty())
+    if (array->buffer_size.size() == 1 && array->buffer_size[0] == 1)
         return decl(elem_type, namer(array->name));
     else
         return make_shared<array_decl>(elem_type, namer(array->name), array->buffer_size);
@@ -207,7 +208,7 @@ buffer_analysis(const polyhedral::model & model)
         buffer buf;
         buf.size = volume(array->buffer_size);
 
-        if(array->is_infinite && !array->buffer_size.empty())
+        if(array->is_infinite)
         {
             int flow_size = array->buffer_size[0];
             buf.has_phase =
@@ -282,8 +283,6 @@ static void advance_buffers(const polyhedral::model & model,
 
         if (!buf.has_phase)
             continue;
-
-        assert(!array->buffer_size.empty());
 
         int offset = init ?
                     array->period_offset : array->period;

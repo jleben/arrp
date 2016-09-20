@@ -149,14 +149,16 @@ void storage_allocator::compute_buffer_size
     }
 #endif
     vector<int> buffer_size;
-    vector<int> buffer_map;
 
     int buf_dim_count = array_space.dimension(isl::space::variable);
+    buffer_size.reserve(buf_dim_count);
 
     if (live_together.is_empty())
     {
         if (verbose<storage_allocator>::enabled())
             cout << "  No elements live together" << endl;
+
+        buffer_size.resize(buf_dim_count, 1);
     }
     else
     {
@@ -180,14 +182,7 @@ void storage_allocator::compute_buffer_size
                 }
                 if (verbose<storage_allocator>::enabled())
                     cout << max_distance.integer() << " ";
-
-                int dim_size = max_distance.integer() + 1;
-
-                if (dim_size > 1)
-                {
-                    buffer_map.push_back(dim);
-                    buffer_size.push_back(dim_size);
-                }
+                buffer_size.push_back((int) max_distance.integer() + 1);
             }
             {
                 isl::local_space space(live_together.get_space());
@@ -201,7 +196,6 @@ void storage_allocator::compute_buffer_size
             cout << endl;
     }
 
-    array->buffer_map = buffer_map;
     array->buffer_size = buffer_size;
 }
 
