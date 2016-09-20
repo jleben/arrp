@@ -533,6 +533,14 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     for (int buf_dim = 0; buf_dim < array->buffer_map.size(); ++buf_dim)
     {
         int array_dim = array->buffer_map[buf_dim];
+        // If buffer_map[buf_dim] refers to a dimension beyond those
+        // used in indexing, then truncate the buffer index at buf_dim.
+        // This happens in case of partial indexing.
+        // This makes sense on the assumption that buffer_map is in
+        // ascending order.
+        if (array_dim >= buffer_index.size())
+            break;
+
         int buf_dim_size = array->buffer_size[buf_dim];
         bool dim_is_streaming = array->is_infinite && array_dim == 0;
 
