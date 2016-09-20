@@ -1,0 +1,13 @@
+module osc;
+
+phase(freq) = p = [
+    0 -> 0;
+    t -> let x = this[t-1] + freq[t-1] in
+      if x < 1 then x else x - 1
+];
+
+pi = atan(1) * 4;
+
+osc(freq) = sin(phase(freq) * 2 * pi);
+
+main = osc(0.1);

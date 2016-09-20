@@ -2,3 +2,4 @@
 #add_subdirectory(autocorrelation)
 #add_subdirectory(fft)
 add_subdirectory(fir)
+add_subdirectory(osc)
