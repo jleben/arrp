@@ -78,7 +78,7 @@ private:
     polyhedral::stmt_ptr m_current_stmt;
     space_map * m_space_map = nullptr;
 
-    bool m_in_array_application = false;
+    bool m_in_affine_array_application = false;
 
     polyhedral::array_ptr m_time_array;
     vector<polyhedral::stmt_ptr> m_time_stmts;

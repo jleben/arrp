@@ -577,7 +577,7 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
         int dim = m_space_map->index_of(av);
         auto iter_value = make_shared<ph::iterator_read>(dim, ref->location);
 
-        if (!m_in_array_application && dynamic_pointer_cast<infinity>(av->range.expr))
+        if (!m_in_affine_array_application && dynamic_pointer_cast<infinity>(av->range.expr))
         {
             m_time_array_needed = true;
 
@@ -663,26 +663,24 @@ expr_ptr polyhedral_gen::visit_array_app
         assert(app->args.size() == space.dimension(isl::space::output));
         for (int a = 0; a < app->args.size(); ++a)
         {
-            isl::expression e { nullptr };
+            bool is_affine;
+
             try {
-                e = to_affine_expr(app->args[a], sm_rel);
+                auto e = to_affine_expr(app->args[a], sm_rel);
+                m.add_constraint(space.out(a) == e);
+                is_affine = true;
             } catch (...) {
-                continue;
+                is_affine = false;
             }
 
-            m.add_constraint(space.out(a) == e);
+            revertable<bool> guard(m_in_affine_array_application, is_affine);
+
+            read_expr->indexes.push_back(visit(app->args[a]));
         }
 
         m_current_stmt->read_relations.emplace_back(arr, m);
 
         read_expr->relation = &m_current_stmt->read_relations.back();
-    }
-
-    revertable<bool> guard(m_in_array_application, true);
-
-    for (auto & arg : app->args)
-    {
-        read_expr->indexes.push_back(visit(arg));
     }
 
     return read_expr;
