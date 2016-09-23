@@ -1,0 +1,23 @@
+module wavetable_osc;
+
+import signal as sig;
+import math;
+
+pi = math.pi;
+
+table = [10: i -> sin(i/10*2*pi)];
+
+interpolate(a,i) =
+  let d = i - floor(i) in
+  a[int(i)] * (1-d) + a[(int(i)+1) % #a] * d;
+
+osc(table, freq) = let
+  ph = sig.phase(freq,0)
+  in [~: t -> interpolate(table, ph[t] * #table)];
+
+precise_osc(freq) =
+    sin(sig.phase(freq,0)*2*pi);
+
+freq = 1/12;
+
+main = [osc(table, freq); precise_osc(freq)];
