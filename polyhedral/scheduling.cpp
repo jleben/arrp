@@ -548,13 +548,16 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         }
 
 
+        // NOTE: Derive maps from sched.full instead of
+        // from trees, to ensure common space.
+
         sched.prelude_tree = sched.tree;
         sched.prelude_tree.intersect_domain(prelude_dom);
-        sched.prelude = sched.prelude_tree.map().in_domain(prelude_dom);
+        sched.prelude = sched.full.in_domain(prelude_dom);
 
         sched.period_tree = sched.tree;
         sched.period_tree.intersect_domain(period_dom);
-        sched.period = sched.period_tree.map().in_domain(period_dom);
+        sched.period = sched.full.in_domain(period_dom);
 
         // Create tiled schedule, used for storage allocation.
 
