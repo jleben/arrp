@@ -41,7 +41,7 @@ access_info is_candidate_array(array_ptr array, stmt_ptr stmt, const schedule & 
     auto write = model.write_relations.map_for(access_space);
     auto read = model.read_relations.map_for(access_space);
     access.relation = write | read;
-    access.domain = access.relation(stmt_sched_domain);
+    access.domain = access.relation(stmt_sched_domain) & array->domain;
 
     if (verbose<modulo_avoidance>::enabled())
     {
@@ -104,7 +104,7 @@ void avoid_modulo(schedule & sched, model & m, bool split_statements)
         auto read = ms.read_relations
                 .in_range(array->domain)(sched_stmt_domains);
 
-        auto accessed = (written | read).set_for(array->domain.get_space());
+        auto accessed = (written | read).set_for(array->domain.get_space()) & array->domain;
 
         auto a0 = accessed.get_space().var(0);
         int min_a0 = accessed.minimum(a0).integer();

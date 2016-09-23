@@ -65,15 +65,13 @@ struct array_relation
 {
     array_relation() {}
     array_relation(array_ptr a,
-                   const isl::multi_expression & e):
-        array(a), expr(e) {}
+                   const isl::map & m):
+        array(a), map(m) {}
 
-    array_ptr array = nullptr;
-    // expr: Used to create polyhedral model summary in ISL:
-    isl::multi_expression expr { nullptr };
+    array_ptr array { nullptr };
+    // map: Used to create polyhedral model summary in ISL:
+    isl::map map { nullptr };
 };
-
-isl::map to_isl_map(const stmt_ptr &, const array_relation &);
 
 class array
 {
@@ -145,7 +143,10 @@ public:
     }
 
     array_ptr array;
-    // indexes: Used to generate C++:
+    // indexes:
+    // Used to generate C++.
+    // There can be fewer indexes than array dimensions,
+    // which means partial indexing.
     vector<functional::expr_ptr> indexes;
     array_relation * relation = nullptr;
 };
@@ -192,18 +193,12 @@ public:
 
             if (stmt->write_relation.array)
             {
-                auto space = isl::space::from(stmt->domain.get_space(),
-                                              stmt->write_relation.array->domain.get_space());
-                auto map = to_isl_map(stmt, stmt->write_relation);
-                write_relations = write_relations | map;
+                write_relations = write_relations | stmt->write_relation.map;
             }
 
             for(const auto & rel : stmt->read_relations)
             {
-                auto space = isl::space::from(stmt->domain.get_space(),
-                                              rel.array->domain.get_space());
-                auto map = to_isl_map(stmt, rel);
-                read_relations = read_relations | map;
+                read_relations = read_relations | rel.map;
             }
         }
 

@@ -298,6 +298,14 @@ public:
 class rewriter_base : public visitor<expr_ptr>
 {
 public:
+    virtual expr_ptr visit(const expr_ptr & expr)
+    {
+        if (expr)
+            return visitor::visit(expr);
+        else
+            return expr;
+    }
+
     virtual expr_ptr visit_int(const shared_ptr<int_const> & e) override
     {
         return e;

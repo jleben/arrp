@@ -246,6 +246,7 @@ public:
     array_var(const string & name, expr_slot range,
               const location_type & loc):
         var(name, loc), range(range) {}
+    // Range can be null, meaning it has to be inferred.
     expr_slot range;
 };
 typedef std::shared_ptr<array_var> array_var_ptr;

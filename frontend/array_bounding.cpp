@@ -78,7 +78,7 @@ array_bounding::bound(array_ptr a)
 
     for (int i = 0; i < a->vars.size(); ++i)
     {
-        bool is_unbound = (bool) dynamic_pointer_cast<infinity>(a->vars[i]->range.expr);
+        bool is_unbound = a->vars[i]->range.expr == nullptr;
         if (!is_unbound)
             continue;
 
@@ -105,6 +105,7 @@ array_bounding::bound(array_ptr a)
         {
             if (verbose<array_bounding>::enabled())
                 cout << "Dimension " << inferred.index << " unbounded." << endl;
+            avar->range = make_shared<infinity>();
             continue;
         }
 
@@ -209,7 +210,35 @@ void array_bounding::visit_array_app(const shared_ptr<array_app> & a)
 
         auto & arg = a->args[dim];
 
-        auto expr = to_affine_expr(arg, m_space_map);
+        isl::expression expr(nullptr);
+
+        try
+        {
+            expr = to_affine_expr(arg, m_space_map);
+        }
+        catch (...)
+        {
+            auto refs = m_var_ref_finder.find_in(arg);
+            for (auto & ref : refs)
+            {
+                auto var = dynamic_pointer_cast<array_var>(ref->var);
+                assert(var);
+                int dim = m_space_map.index_of(var);
+                if (dim < 0)
+                    continue;
+                for (auto & inferred : m_inferred)
+                {
+                    if (inferred.index == dim)
+                    {
+                        ostringstream msg;
+                        msg << "Bound on variable can not be inferred in this indexing expression."
+                            << " You must specify the bound explicitly.";
+                        throw source_error(msg.str(), ref->location);
+                    }
+                }
+            }
+            continue;
+        }
 
         if (verbose<array_bounding>::enabled())
         {
@@ -279,6 +308,23 @@ stacker<isl::set, std::stack<isl::set>>
 array_bounding::push_domain(const isl::set & d)
 {
     return stack_scoped(d, m_domain);
+}
+
+unordered_set<ref_ptr> array_var_refs::find_in(expr_ptr e)
+{
+    m_refs.clear();
+
+    visit(e);
+
+    return m_refs;
+}
+
+void array_var_refs::visit_ref(const shared_ptr<reference> & ref)
+{
+    if (auto v = dynamic_pointer_cast<array_var>(ref->var))
+    {
+        m_refs.insert(ref);
+    }
 }
 
 }

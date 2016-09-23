@@ -174,9 +174,6 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
-        bool is_bounded =
-                dynamic_cast<int_const*>(avar->range.expr.get()) != nullptr;
-
         auto s = make_shared<scalar_type>(primitive_type::integer);
         s->constant_flag = false;
         s->affine_flag = true;
@@ -415,7 +412,10 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 {
     for (auto & var : arr->vars)
     {
-        visit(var->range);
+        if (!var->range)
+            continue;
+
+        auto type = visit(var->range);
 
         if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
         {
@@ -426,12 +426,16 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
                 throw type_error(msg.str(), var->range.location);
             }
         }
-        else if (!dynamic_pointer_cast<infinity>(var->range.expr))
+        else
         {
-            ostringstream msg;
-            msg << "Array size is not a constant integer or infinity: "
-                << var->range->type;
-            throw type_error(msg.str(), var->range.location);
+            bool ok = (bool) dynamic_pointer_cast<infinity>(var->range.expr);
+            if (!ok)
+            {
+                ostringstream msg;
+                msg << "Array size is not a constant integer or infinity: "
+                    << var->range->type;
+                throw type_error(msg.str(), var->range.location);
+            }
         }
     }
 
@@ -760,11 +764,6 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
         if (arg_type->primitive != primitive_type::integer)
         {
             throw type_error("Array argument is not an integer.",
-                               arg.location);
-        }
-        if (!arg_type->is_affine())
-        {
-            throw type_error("Array argument is not an affine expression.",
                                arg.location);
         }
 

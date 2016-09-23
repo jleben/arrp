@@ -88,11 +88,11 @@ void storage_allocator::compute_buffer_size
 
     auto all_write_sched = schedule.tiled;
     all_write_sched.map_domain_through(write_relations);
-    auto write_sched = all_write_sched.map_for(array_sched_space);
+    auto write_sched = all_write_sched.map_for(array_sched_space).in_domain(array->domain);
 
     auto all_read_sched = schedule.tiled;
     all_read_sched.map_domain_through(read_relations);
-    auto read_sched = all_read_sched.map_for(array_sched_space);
+    auto read_sched = all_read_sched.map_for(array_sched_space).in_domain(array->domain);
 
     if (verbose<storage_allocator>::enabled())
     {
@@ -203,14 +203,15 @@ void storage_allocator::find_inter_period_dependency
 ( const polyhedral::schedule & schedule,
   const array_ptr & array )
 {
-
     auto written_in_period =
             m_model_summary.write_relations( schedule.period.domain() )
-            .set_for(array->domain.get_space());
+            .set_for(array->domain.get_space())
+            & array->domain;
 
     auto read_in_period =
             m_model_summary.read_relations( schedule.period.domain() )
-            .set_for(array->domain.get_space());
+            .set_for(array->domain.get_space())
+            & array->domain;
 
     auto remaining = read_in_period - written_in_period;
 

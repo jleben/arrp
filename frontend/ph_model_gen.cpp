@@ -42,6 +42,8 @@ void polyhedral_gen::make_time_array()
 
     m_time_array = ar;
 
+    // s0(0): a[0] = 0
+    // s1(t): a[t] = a[t-1] + 1
     {
         auto s0_space = isl::space(m_isl_ctx, isl::set_tuple(isl::identifier(".time.s0"), 1));
         auto s0_dom = isl::set::universe(s0_space);
@@ -51,10 +53,11 @@ void polyhedral_gen::make_time_array()
         s0->expr = make_shared<int_const>(0);
 
         auto wrel_space = isl::space::from(s0->domain.get_space(), ar->domain.get_space());
-        auto wrel_expr = isl::multi_expression(wrel_space.in(0));
+        auto wrel_map = isl::basic_map::universe(wrel_space);
+        wrel_map.add_constraint(wrel_space.out(0) == 0);
 
         s0->write_relation.array = ar;
-        s0->write_relation.expr = wrel_expr;
+        s0->write_relation.map = wrel_map;
 
         m_time_stmts.push_back(s0);
     }
@@ -76,19 +79,21 @@ void polyhedral_gen::make_time_array()
             s1->expr = t1;
 
             {
-                auto rel_sp = isl::space::from(s1->domain.get_space(), ar->domain.get_space());
-                auto rel_expr = isl::multi_expression(rel_sp.in(0) - 1);
+                auto s = isl::space::from(s1->domain.get_space(), ar->domain.get_space());
+                auto m = isl:: basic_map::universe(s);
+                m.add_constraint(s.out(0) == s.in(0) - 1);
 
-                s1->read_relations.emplace_back(ar, rel_expr);
+                s1->read_relations.emplace_back(ar, m);
                 t0->relation = &s1->read_relations.back();
             }
         }
+        {
+            auto s = isl::space::from(s1->domain.get_space(), ar->domain.get_space());
+            auto m = isl::basic_map::universe(s);
+            m.add_constraint(s.out(0) == s.in(0));
 
-        auto wrel_space = isl::space::from(s1->domain.get_space(), ar->domain.get_space());
-        auto wrel_expr = isl::multi_expression(wrel_space.in(0));
-
-        s1->write_relation.array = ar;
-        s1->write_relation.expr = wrel_expr;
+            s1->write_relation = {ar, m};
+        }
         s1->is_infinite = true;
 
         m_time_stmts.push_back(s1);
@@ -244,13 +249,9 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
             auto s = isl::space::from(stmt->domain.get_space(),
                                       ar->domain.get_space());
 
-            isl::multi_expression m(nullptr);
+            auto m = isl::basic_map::universe(s);
             if (ar->is_infinite)
-                // Iterate first dimension
-                m = isl::multi_expression(s.in(0));
-            else
-                // Don't iterate at all
-                m = isl::multi_expression::zero(s, 0);
+                m.add_constraint(s.out(0) == s.in(0));
 
             stmt->write_relation = { ar, m };
             stmt->read_relations.emplace_back(ar, m);
@@ -316,8 +317,8 @@ void polyhedral_gen::add_output(polyhedral::model & model,
         auto s = isl::space::from(stmt->domain.get_space(),
                                   array->domain.get_space());
 
-        auto m = isl::multi_expression::zero(s, 1);
-        m.set(0, s.in(0));
+        auto m = isl::basic_map::universe(s);
+        m.add_constraint(s.out(0) == s.in(0));
 
         stmt->read_relations.emplace_back(array, m);
 
@@ -541,12 +542,9 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
         int n_dim = array->domain.dimensions();
         stmt->write_relation.array = array;
         assert(stmt->domain.dimensions() == n_dim);
-        auto s = isl::space::from(stmt->domain.get_space(),
-                                  array->domain.get_space());
-        auto m = isl::multi_expression::zero(s, n_dim);
-        for (int d = 0; d < n_dim; ++d)
-            m.set(d, s.in(d));
-        stmt->write_relation.expr = m;
+        auto m = isl::basic_map::identity
+                (stmt->domain.get_space(), array->domain.get_space());
+        stmt->write_relation.map = m;
     }
 
     m_current_stmt = stmt;
@@ -560,12 +558,12 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
         m_isl_printer.print(stmt->domain); cout << endl;
 
         cout << "Write relation: " << stmt->write_relation.array->name << endl;
-        m_isl_printer.print(stmt->write_relation.expr); cout << endl;
+        m_isl_printer.print(stmt->write_relation.map); cout << endl;
 
         for (const auto & rel : stmt->read_relations)
         {
             cout << "Read relation:" << rel.array->name << endl;
-            m_isl_printer.print(rel.expr); cout << endl;
+            m_isl_printer.print(rel.map); cout << endl;
         }
     }
 
@@ -589,7 +587,11 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
             auto rel_space = isl::space::from
                     (m_current_stmt->domain.get_space(),
                      m_time_array->domain.get_space());
-            ph::array_relation rel(m_time_array, rel_space.in(0));
+            auto rel_map = isl::basic_map::universe(rel_space);
+            // FIXME: is the input dimension right?
+            rel_map.add_constraint(rel_space.out(0) == rel_space.in(dim));
+            ph::array_relation rel(m_time_array, rel_map);
+
             m_current_stmt->read_relations.push_back(rel);
             time_value->relation = &m_current_stmt->read_relations.back();
 
@@ -610,9 +612,10 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
         auto read_expr = make_shared<ph::array_read>(arr, index, ref->location);
 
         {
-            auto ls = isl::local_space
-                    (isl::space::from(m_space_map->space, arr->domain.get_space()));
-            ph::array_relation rel(arr, isl::expression::value(ls, 0));
+            auto space = isl::space::from(m_space_map->space, arr->domain.get_space());
+            auto map = isl::basic_map::universe(space);
+            map.add_constraint(space.out(0) == 0);
+            ph::array_relation rel(arr, map);
             m_current_stmt->read_relations.push_back(rel);
             read_expr->relation = &m_current_stmt->read_relations.back();
         }
@@ -655,13 +658,19 @@ expr_ptr polyhedral_gen::visit_array_app
         auto local_space = isl::local_space(space);
         space_map sm_rel(space, local_space, m_space_map->vars);
 
-        auto m = isl::multi_expression::zero(space, app->args.size());
+        auto m = isl::basic_map::universe(space);
 
         assert(app->args.size() == space.dimension(isl::space::output));
         for (int a = 0; a < app->args.size(); ++a)
         {
-            auto e = to_affine_expr(app->args[a], sm_rel);
-            m.set(a, e);
+            isl::expression e { nullptr };
+            try {
+                e = to_affine_expr(app->args[a], sm_rel);
+            } catch (...) {
+                continue;
+            }
+
+            m.add_constraint(space.out(a) == e);
         }
 
         m_current_stmt->read_relations.emplace_back(arr, m);

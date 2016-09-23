@@ -522,16 +522,15 @@ generator::do_array_pattern(ast::node_ptr root)
 
     array_patterns::pattern pattern;
 
-    // If array range has not been declared, create variables on the fly,
-    // give them infinite range.
+    // If array range has not been declared, create variables on the fly
+    // with no range, meaning that range must be inferred.
     if (ar->vars.empty())
     {
         for (int i = 0; i < (int)index_nodes->as_list()->elements.size(); ++i)
         {
             string name = string("i") + to_string(i);
-            auto range = make_shared<infinity>();
             auto var = make_shared<array_var>
-                    (name, range, location_type());
+                    (name, nullptr, location_type());
             ar->vars.push_back(var);
         }
     }

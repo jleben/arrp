@@ -15,6 +15,7 @@ namespace functional {
 
 using std::pair;
 using std::vector;
+using ref_ptr = std::shared_ptr<reference>;
 
 struct isl_domain_map
 {
@@ -36,6 +37,15 @@ private:
     void add_variable(array_var_ptr);
 
     isl_domain_map m_map;
+};
+
+class array_var_refs : private visitor<void>
+{
+public:
+    unordered_set<ref_ptr> find_in(expr_ptr);
+private:
+    unordered_set<ref_ptr> m_refs;
+    void visit_ref(const shared_ptr<reference> &) override;
 };
 
 class array_bounding : private visitor<void>
@@ -60,6 +70,7 @@ private:
 
     isl::context m_ctx;
     isl::printer m_printer;
+    array_var_refs m_var_ref_finder;
     space_map m_space_map;
     vector<inferred_dim> m_inferred;
     std::stack<isl::set> m_domain;
