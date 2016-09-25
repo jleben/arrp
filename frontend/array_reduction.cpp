@@ -528,15 +528,10 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     decl_var_stacker decl_vars(m_declared_vars);
 
-    for (auto dim_size : result_arr_type->size)
-    {
-        expr_ptr range = nullptr;
-        if (dim_size != array_var::unconstrained)
-            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
-        auto v = make_shared<array_var>(new_var_name(), range, location_type());
-        arr->vars.push_back(v);
-        decl_vars.push(v);
-    }
+    arr->vars = make_array_vars(result_arr_type->size);
+
+    for (auto & var : arr->vars)
+        decl_vars.push(var);
 
     // Reduce arrays in operands:
 
@@ -573,15 +568,10 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
 
     decl_var_stacker decl_vars(m_declared_vars);
 
-    for (auto dim_size : result_arr_type->size)
-    {
-        expr_ptr range = nullptr;
-        if (dim_size != array_var::unconstrained)
-            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
-        auto v = make_shared<array_var>(new_var_name(), range, location_type());
-        arr->vars.push_back(v);
-        decl_vars.push(v);
-    }
+    arr->vars = make_array_vars(result_arr_type->size);
+
+    for (auto & var : arr->vars)
+        decl_vars.push(var);
 
     assert(arr->vars.size());
 
@@ -787,15 +777,10 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 
         decl_var_stacker decl_vars(m_declared_vars);
 
-        for (auto dim_size : result_arr_type->size)
-        {
-            expr_ptr range = nullptr;
-            if (dim_size != array_var::unconstrained)
-                range = make_shared<int_const>(dim_size, location_type(), make_int_type());
-            auto v = make_shared<array_var>(new_var_name(), range, location_type());
-            arr->vars.push_back(v);
-            decl_vars.push(v);
-        }
+        arr->vars = make_array_vars(result_arr_type->size);
+
+        for (auto & var : arr->vars)
+            decl_vars.push(var);
 
         for (auto & c : cexpr->cases)
         {
@@ -954,6 +939,25 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
     return s;
 }
 
+vector<array_var_ptr> array_reducer::make_array_vars(const array_size_vec & size)
+{
+    vector<array_var_ptr> vars;
+    vars.reserve(size.size());
+
+    for (auto dim_size : size)
+    {
+        expr_ptr range = nullptr;
+        if (dim_size == array_var::unconstrained)
+            range = make_shared<infinity>();
+        else
+            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
+        auto v = make_shared<array_var>(new_var_name(), range, location_type());
+        vars.push_back(v);
+    }
+
+    return vars;
+}
+
 vector<expr_ptr>
 array_reducer::broadcast(const vector<array_var_ptr> & vars, const array_size_vec & size)
 {
@@ -1083,16 +1087,12 @@ expr_ptr array_reducer::eta_expand(expr_ptr expr)
     }
 
     auto new_ar = make_shared<array>();
+
+    new_ar->vars = make_array_vars(ar_type->size);
+
     vector<expr_ptr> args;
-    for (int dim_size : ar_type->size)
-    {
-        expr_ptr range;
-        if (dim_size != array_var::unconstrained)
-            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
-        auto var = make_shared<array_var>(new_var_name(), range, location_type());
-        new_ar->vars.push_back(var);
+    for (auto & var : new_ar->vars)
         args.push_back(make_shared<reference>(var, location_type(), make_int_type()));
-    }
 
     new_ar->expr = apply(expr, args);
     new_ar->type = ar_type;

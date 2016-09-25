@@ -577,8 +577,16 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
         int dim = m_space_map->index_of(av);
         auto iter_value = make_shared<ph::iterator_read>(dim, ref->location);
 
+        assert(av->range);
+
         if (!m_in_affine_array_application && dynamic_pointer_cast<infinity>(av->range.expr))
         {
+            if (my_verbose_out::enabled())
+            {
+                cout << "Statement " << m_current_stmt->name << " uses time as data"
+                     << " (variable " << av->name << ")" << endl;
+            }
+
             m_time_array_needed = true;
 
             auto time_value = make_shared<ph::array_read>
