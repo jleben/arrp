@@ -70,6 +70,7 @@ private:
 
     expr_ptr visit_ref(const shared_ptr<reference> & e) override;
     expr_ptr visit_array_app(const shared_ptr<array_app> & app) override;
+    expr_ptr visit_func_app(const shared_ptr<func_app> &app) override;
 
     isl::context m_isl_ctx;
     isl::printer m_isl_printer;

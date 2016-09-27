@@ -24,7 +24,7 @@
 %token ID QUALIFIED_ID
 %token IF THEN CASE THIS
 %token WHERE
-%token MODULE IMPORT AS INPUT
+%token MODULE IMPORT AS INPUT EXTERNAL
 
 %left '='
 %right LET IN
@@ -64,7 +64,7 @@ using op_type = stream::primitive_op;
 
 
 program:
-  module_decl imports inputs bindings
+  module_decl imports external_decls bindings
   {
     $$ = make_list(program, @$, { $1, $2, $3, $4 });
     driver.m_ast = $$;
@@ -112,20 +112,20 @@ import:
   }
 ;
 
-inputs:
+external_decls:
   // empty
   { $$ = nullptr; }
   |
-  input_list
+  external_decl_list
 ;
 
-input_list:
-  input
+external_decl_list:
+  external_decl
   {
     $$ = make_list( @$, { $1 } );
   }
   |
-  input_list input
+  external_decl_list external_decl
   {
     $$ = $1;
     $$->as_list()->append( $2 );
@@ -133,9 +133,12 @@ input_list:
   }
 ;
 
-input:
+external_decl:
   INPUT id ':' type ';'
-  { $$ = make_list(@$, {$2, $4}); }
+  { $$ = make_list(ast::input, @$, {$2, $4}); }
+  |
+  EXTERNAL id ':' type ';'
+  { $$ = make_list(ast::external, @$, {$2, $4}); }
 ;
 
 bindings:
@@ -187,7 +190,24 @@ param_list:
 ;
 
 type:
+  data_type | function_type
+;
+
+function_type:
+  data_type_list RIGHT_ARROW data_type
+  { $$ = make_list(ast::function_type, @$, {$1, $3}); }
+;
+
+data_type_list:
   data_type
+  { $$ = make_list( @$, {$1} ); }
+  |
+  data_type_list ',' data_type
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
 ;
 
 data_type:

@@ -52,6 +52,7 @@ private:
 
 private:
     void do_input(ast::node_ptr);
+    void do_external(ast::node_ptr);
     id_ptr do_binding(ast::node_ptr);
     expr_ptr do_expr(ast::node_ptr);
     expr_ptr do_binding_expr(ast::node_ptr);
@@ -72,6 +73,7 @@ private:
     expr_ptr do_func_comp(ast::node_ptr);
     type_ptr do_type(ast::node_ptr);
     type_ptr do_array_type(ast::node_ptr);
+    type_ptr do_function_type(ast::node_ptr);
     primitive_type primitive_type_for_name(const string &);
 
     string qualified_name(const string & name);

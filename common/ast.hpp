@@ -62,6 +62,10 @@ enum node_type
 
     scalar_type,
     array_type,
+    function_type,
+
+    input,
+    external,
 
     binding,
     local_scope,

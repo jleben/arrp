@@ -880,28 +880,41 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
 
 type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
 {
-    throw error("Unexpected.");
-#if 0
+    // Application of external functions
+
     auto func_type = dynamic_pointer_cast<function_type>(visit(app->object));
     if (!func_type)
         throw type_error("Not a function.", app->object.location);
 
-    if (app->args.size() > func_type->arg_count)
+    if (app->args.size() != func_type->param_count())
     {
         ostringstream msg;
-        msg << "Too many arguments in function application: "
-            << func_type->arg_count << " expected, "
+        msg << "Wrong number of arguments in function application: "
+            << func_type->param_count() << " expected, "
             << app->args.size() << " given.";
         throw type_error(msg.str(), app->location);
     }
 
-    int remaining_arg_count = func_type->arg_count - app->args.size();
+    for (auto & arg : app->args)
+        visit(arg);
 
-    if (remaining_arg_count)
-        return make_shared<function_type>(remaining_arg_count);
-    else
-        throw error("Unexpected.");
-#endif
+    for (int p = 0; p < func_type->param_count(); ++p)
+    {
+        assert(func_type->params[p]);
+        const auto & pt = *func_type->params[p];
+        const auto & at = *app->args[p]->type;
+        if (at != pt)
+        {
+            ostringstream msg;
+            msg << "Argument type mismatch: "
+                << "expected " << pt
+                << "but given " << at;
+            throw type_error(msg.str(), app->args[p].location);
+        }
+    }
+
+    assert(func_type->value);
+    return func_type->value;
 }
 
 type_ptr type_checker::visit_func(const shared_ptr<function> & func)
@@ -914,9 +927,9 @@ type_ptr type_checker::visit_affine(const shared_ptr<affine_expr> &)
     throw error("Not supported.");
 }
 
-type_ptr type_checker::visit_input(const shared_ptr<input> & in)
+type_ptr type_checker::visit_external(const shared_ptr<external> & ext)
 {
-    return in->type;
+    return ext->type;
 }
 
 }

@@ -281,6 +281,11 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
         {
             return m_copier.copy(func);
         }
+        else if (auto ext = dynamic_pointer_cast<external>(id->expr.expr))
+        {
+            if (ext->type->is_function())
+                return m_copier.copy(ext);
+        }
 
         if (m_ids.find(id) == m_ids.end())
         {
@@ -426,19 +431,37 @@ expr_ptr func_reducer::visit_func_app(const shared_ptr<func_app> & app)
         arg = reduce(arg);
     }
 
-    auto func = dynamic_pointer_cast<function>(app->object.expr);
-    if (!func)
-    {
-        throw source_error("Not a function.", app->object.location);
-    }
-
     // convert vector of slots to vector of expressions
     vector<expr_ptr> reduced_args;
     for (auto & arg : app->args)
         reduced_args.push_back(arg);
 
-    auto reduced_func = apply(func, reduced_args, app->location);
-    return reduced_func;
+
+    expr_ptr result;
+
+    if (auto func = dynamic_pointer_cast<function>(app->object.expr))
+    {
+        result = apply(func, reduced_args, app->location);
+    }
+    else if (auto ext = dynamic_pointer_cast<external>(app->object.expr))
+    {
+        m_type_checker.process(app);
+
+        auto id_name = m_name_provider.new_name(ext->name);
+        auto id = make_shared<identifier>(id_name, app, location_type());
+
+        m_ids.insert(id);
+        if (m_scope_stack.size())
+            m_scope_stack.top()->ids.push_back(id);
+
+        result = make_shared<reference>(id, location_type(), app->type);
+    }
+    else
+    {
+        throw source_error("Not a function.", app->object.location);
+    }
+
+    return result;
 }
 
 void func_reducer::reduce(scope & s)

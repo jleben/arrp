@@ -87,9 +87,9 @@ public:
         {
             return visit_func(func);
         }
-        else if (auto in = dynamic_pointer_cast<input>(expr))
+        else if (auto ext = dynamic_pointer_cast<external>(expr))
         {
-            return visit_input(in);
+            return visit_external(ext);
         }
         else
         {
@@ -114,7 +114,7 @@ public:
     virtual R visit_array_size(const shared_ptr<array_size> & as) = 0;
     virtual R visit_func_app(const shared_ptr<func_app> & app) = 0;
     virtual R visit_func(const shared_ptr<function> & func) = 0;
-    virtual R visit_input(const shared_ptr<input> &) = 0;
+    virtual R visit_external(const shared_ptr<external> &) = 0;
 };
 
 template<>
@@ -196,7 +196,7 @@ public:
         {
             visit_func(func);
         }
-        else if (auto in = dynamic_pointer_cast<input>(expr))
+        else if (auto in = dynamic_pointer_cast<external>(expr))
         {
             return;
         }
@@ -416,9 +416,9 @@ public:
         func->expr = visit(func->expr);
         return func;
     }
-    virtual expr_ptr visit_input(const shared_ptr<input> & in) override
+    virtual expr_ptr visit_external(const shared_ptr<external> & ext) override
     {
-        return in;
+        return ext;
     }
 };
 

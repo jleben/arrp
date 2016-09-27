@@ -63,7 +63,7 @@ void array_transposer::transpose_array(const id_ptr & id)
                 ordered_vars.push_back(ar->vars[i]);
             ar->vars = ordered_vars;
         }
-        else if (!(dynamic_pointer_cast<input>(id->expr.expr)))
+        else if (!(dynamic_pointer_cast<external>(id->expr.expr)))
         {
             ostringstream msg;
             msg << "Array transposition: Unexpected expression type for id " << id->name;

@@ -95,10 +95,6 @@ id_ptr array_reducer::process(id_ptr id)
 
     m_processed_ids.insert(id);
 
-    // Prevent eta expansion of input arrays:
-    if (dynamic_pointer_cast<input>(id->expr.expr))
-        return id;
-
     m_declared_vars.push(nullptr);
     m_unbound_vars.emplace();
 
@@ -251,6 +247,10 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
         auto r = reduce(app);
         //cout << "-- app: "; p.print(r, cout); cout << endl;
         return r;
+    }
+    else if (auto app = dynamic_pointer_cast<func_app>(expr))
+    {
+        return reduce(app);
     }
     else if (auto as = dynamic_pointer_cast<functional::array_size>(expr))
     {
@@ -482,6 +482,16 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 
     vector<expr_ptr> args(app->args.begin(), app->args.end());
     return apply(app->object, args);
+}
+
+expr_ptr array_reducer::reduce(std::shared_ptr<func_app> app)
+{
+    app->object = reduce(app->object);
+
+    for(auto & arg : app->args)
+        arg = reduce(arg);
+
+    return app;
 }
 
 expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
@@ -1084,6 +1094,12 @@ expr_ptr array_reducer::eta_expand(expr_ptr expr)
         }
 
         is_recursive_array = ar->is_recursive;
+    }
+    // Prevent eta expansion of inputs and external calls:
+    else if (dynamic_pointer_cast<external>(expr) ||
+             dynamic_pointer_cast<func_app>(expr))
+    {
+        return expr;
     }
 
     auto new_ar = make_shared<array>();

@@ -167,23 +167,24 @@ namespace stream { namespace parsing {
         IMPORT = 273,
         AS = 274,
         INPUT = 275,
-        LET = 276,
-        IN = 277,
-        RIGHT_ARROW = 278,
-        ELSE = 279,
-        LOGIC_OR = 280,
-        LOGIC_AND = 281,
-        EQ = 282,
-        NEQ = 283,
-        LESS = 284,
-        MORE = 285,
-        LESS_EQ = 286,
-        MORE_EQ = 287,
-        PLUSPLUS = 288,
-        INT_DIV = 289,
-        DOTDOT = 290,
-        LOGIC_NOT = 291,
-        UMINUS = 292
+        EXTERNAL = 276,
+        LET = 277,
+        IN = 278,
+        RIGHT_ARROW = 279,
+        ELSE = 280,
+        LOGIC_OR = 281,
+        LOGIC_AND = 282,
+        EQ = 283,
+        NEQ = 284,
+        LESS = 285,
+        MORE = 286,
+        LESS_EQ = 287,
+        MORE_EQ = 288,
+        PLUSPLUS = 289,
+        INT_DIV = 290,
+        DOTDOT = 291,
+        LOGIC_NOT = 292,
+        UMINUS = 293
       };
     };
 
@@ -491,12 +492,12 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 457,     ///< Last index in yytable_.
-      yynnts_ = 45,  ///< Number of nonterminal symbols.
+      yylast_ = 462,     ///< Last index in yytable_.
+      yynnts_ = 47,  ///< Number of nonterminal symbols.
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 60  ///< Number of tokens.
+      yyntokens_ = 61  ///< Number of tokens.
     };
 
 
@@ -507,7 +508,7 @@ namespace stream { namespace parsing {
 
 #line 13 "parser.y" // lalr1.cc:377
 } } // stream::parsing
-#line 511 "parser.hpp" // lalr1.cc:377
+#line 512 "parser.hpp" // lalr1.cc:377
 
 
 

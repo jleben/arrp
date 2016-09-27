@@ -117,7 +117,7 @@ polyhedral_gen::process(const unordered_set<id_ptr> & ids)
 
     for (const auto & id : ids)
     {
-        if (auto input = dynamic_pointer_cast<functional::input>(id->expr.expr))
+        if (auto input = dynamic_pointer_cast<functional::external>(id->expr.expr))
         {
             make_input(id, model);
         }
@@ -130,7 +130,7 @@ polyhedral_gen::process(const unordered_set<id_ptr> & ids)
 
     for (const auto & id : ids)
     {
-        if (dynamic_pointer_cast<functional::input>(id->expr.expr))
+        if (dynamic_pointer_cast<functional::external>(id->expr.expr))
             continue;
 
         // FIXME: Hack for recursive arrays
@@ -146,7 +146,7 @@ polyhedral_gen::process(const unordered_set<id_ptr> & ids)
 
 void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
 {
-    auto input = dynamic_pointer_cast<functional::input>(id->expr.expr);
+    auto input = dynamic_pointer_cast<functional::external>(id->expr.expr);
     auto type = input->type;
 
     primitive_type pt;
@@ -340,40 +340,34 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
 {
     string array_name = id->name;
 
-    vector<array_var_ptr> vars;
-    if (auto arr = dynamic_pointer_cast<functional::array>(id->expr.expr))
-        vars = arr->vars;
+    array_size_vec size;
+
+    if (id->expr->type->is_array())
+    {
+        size = id->expr->type->array()->size;
+    }
 
     auto arr = make_shared<ph::array>();
 
     auto tuple = isl::set_tuple( isl::identifier(array_name, arr.get()),
-                                 std::max((int)vars.size(), 1) );
+                                 std::max((int)size.size(), 1) );
 
     auto space = isl::space( m_isl_ctx, tuple );
     auto domain = isl::set::universe(space);
     auto constraint_space = isl::local_space(space);
     bool is_infinite = false;
-    vector<int> size;
 
-    if (!vars.empty())
+    if (!size.empty())
     {
-        for (int dim = 0; dim < (int)vars.size(); ++dim)
+        for (int dim = 0; dim < (int)size.size(); ++dim)
         {
-            auto var = vars[dim];
-            int extent = -1;
-            if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
+            int s = size[dim];
+            if (s < 0 && dim != 0)
             {
-                extent = c->value;
-            }
-            else
-            {
-                if (dim != 0)
-                {
-                    ostringstream text;
-                    text << "Dimension " << (dim+1) << " of array " << id->name
-                         << " is infinite.";
-                    throw source_error(text.str(), id->location);
-                }
+                ostringstream text;
+                text << "Dimension " << (dim+1) << " of array " << id->name
+                     << " is infinite.";
+                throw source_error(text.str(), id->location);
             }
 
             auto dim_var =
@@ -382,17 +376,15 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
             auto lower_bound = dim_var >= 0;
             domain.add_constraint(lower_bound);
 
-            if (extent >= 0)
+            if (s >= 0)
             {
-                auto upper_bound = dim_var < extent;
+                auto upper_bound = dim_var < s;
                 domain.add_constraint(upper_bound);
             }
             else
             {
                 is_infinite = true;
             }
-
-            size.push_back(extent);
         }
     }
     else
@@ -455,31 +447,31 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
             auto array_domain = ph_arr->domain;
             array_domain.clear_id();
 
-            auto combined_domain = isl::set(array_domain.get_space());
+            auto combined_write_domain = isl::set(array_domain.get_space());
             for (auto & stmt : case_stmts)
             {
-                auto domain = stmt->domain;
-                domain.clear_id();
-                if (!domain.is_disjoint(combined_domain))
+                auto write_domain = stmt->write_relation.map(stmt->domain);
+                write_domain.clear_id();
+                if (!write_domain.is_disjoint(combined_write_domain))
                 {
                     throw source_error("'" + id->name + "': " +
                                        "Array subdomains are not disjoint.",
                                        case_expr->location);
                 }
-                combined_domain = combined_domain | domain;
+                combined_write_domain = combined_write_domain | write_domain;
             }
 
             if (false)
             {
-                combined_domain.coalesce();
+                combined_write_domain.coalesce();
                 if (my_verbose_out::enabled())
                 {
                     cout << "Combined domains:" << endl;
-                    m_isl_printer.print(combined_domain); cout << endl;
+                    m_isl_printer.print(combined_write_domain); cout << endl;
                 }
             }
 
-            if (!(combined_domain == array_domain))
+            if (!(combined_write_domain == array_domain))
             {
                 throw source_error("'" + id->name + "': " +
                                    "Array subdomains do not cover entire array.",
@@ -509,7 +501,27 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
     ph::stmt_ptr stmt;
 
     {
+        // Create domain
+
         auto domain = array->domain;
+
+        int n_dim = domain.dimensions();
+        int n_var = vars.size();
+
+        // Statement has only as many dimensions as actual array vars
+
+        if (n_var > 0 && n_var < n_dim)
+        {
+            domain.project_out_dimensions(isl::space::variable, n_var, n_dim - n_var);
+        }
+        else if (n_var == 0)
+        {
+            // But make the domain {0} if there is no vars
+            auto space = isl::space(m_isl_ctx, isl::set_tuple(1));
+            domain = isl::set::universe(space);
+            domain.add_constraint(space.var(0) == 0);
+        }
+
         domain.set_name(name);
 
         stmt = make_shared<ph::statement>(domain);
@@ -539,12 +551,19 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
     }
 
     {
-        int n_dim = array->domain.dimensions();
+        // Create write relation
+
+        auto space = isl::space::from(stmt->domain.get_space(), array->domain.get_space());
+        auto map = isl::basic_map::universe(space);
+
+        assert(stmt->domain.dimensions() <= array->domain.dimensions());
+        for (int dim = 0; dim < stmt->domain.dimensions(); ++dim)
+        {
+            map.add_constraint(space.out(dim) == space.in(dim));
+        }
+
         stmt->write_relation.array = array;
-        assert(stmt->domain.dimensions() == n_dim);
-        auto m = isl::basic_map::identity
-                (stmt->domain.get_space(), array->domain.get_space());
-        stmt->write_relation.map = m;
+        stmt->write_relation.map = map;
     }
 
     m_current_stmt = stmt;
@@ -668,7 +687,7 @@ expr_ptr polyhedral_gen::visit_array_app
 
         auto m = isl::basic_map::universe(space);
 
-        assert(app->args.size() == space.dimension(isl::space::output));
+        assert(app->args.size() <= space.dimension(isl::space::output));
         for (int a = 0; a < app->args.size(); ++a)
         {
             bool is_affine;
@@ -692,6 +711,41 @@ expr_ptr polyhedral_gen::visit_array_app
     }
 
     return read_expr;
+}
+
+expr_ptr polyhedral_gen::visit_func_app(const shared_ptr<func_app> &app)
+{
+    auto ext = dynamic_pointer_cast<external>(app->object.expr);
+    if (!ext)
+        throw error("Unexpected object of function application.");
+
+    for (auto & arg : app->args)
+        arg = visit(arg);
+
+    auto call = make_shared<ph::external_call>();
+    call->name = ext->name;
+
+    for (auto & arg : app->args)
+        call->args.push_back(arg);
+
+    // Add pointer to write destination as arg
+
+    auto ar = m_arrays.at(m_current_id);
+    assert(ar);
+
+    vector<expr_ptr> index;
+    for (int dim = 0; dim < m_current_stmt->domain.dimensions(); ++dim)
+        index.push_back(make_shared<ph::iterator_read>(dim));
+
+    auto dest = make_shared<ph::array_read>(ar, index);
+
+    // Read relation is same as write relation
+    m_current_stmt->read_relations.push_back(m_current_stmt->write_relation);
+    dest->relation = &m_current_stmt->read_relations.back();
+
+    call->args.push_back(dest);
+
+    return call;
 }
 
 isl::set polyhedral_gen::to_affine_set(expr_ptr e, const space_map & s)

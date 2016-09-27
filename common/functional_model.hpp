@@ -374,10 +374,11 @@ public:
     linear_set set;
 };
 
-class input : public expression
+class external : public expression
 {
 public:
-    input(type_ptr t): expression(location_type(), t) {}
+    external(string n, type_ptr t): expression(location_type(), t), name(n) {}
+    string name;
 };
 
 }

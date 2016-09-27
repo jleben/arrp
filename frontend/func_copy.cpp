@@ -269,9 +269,9 @@ expr_ptr copier::visit_func_app(const shared_ptr<func_app> & app)
     return new_app;
 }
 
-expr_ptr copier::visit_input(const shared_ptr<input> & in)
+expr_ptr copier::visit_external(const shared_ptr<external> & ext)
 {
-    return make_shared<input>(*in);
+    return make_shared<external>(*ext);
 }
 
 }

@@ -58,10 +58,12 @@ private:
     expr_ptr reduce(std::shared_ptr<array>);
     expr_ptr reduce(std::shared_ptr<array>, std::shared_ptr<array_patterns>);
     expr_ptr reduce(std::shared_ptr<array_app>);
+    expr_ptr reduce(std::shared_ptr<func_app>);
     expr_ptr reduce(std::shared_ptr<primitive>);
     expr_ptr reduce(std::shared_ptr<operation>);
     expr_ptr reduce(std::shared_ptr<case_expr>);
     expr_ptr reduce(std::shared_ptr<reference>);
+
     vector<int> array_size(expr_ptr);
     vector<int> array_size(std::shared_ptr<array>);
     vector<array_var_ptr> make_array_vars(const array_size_vec & size);

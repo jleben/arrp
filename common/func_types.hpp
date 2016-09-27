@@ -32,6 +32,7 @@ public:
     virtual bool is_affine() const { return false; }
     virtual bool is_data() const { return false; }
     virtual bool operator==(const type & other) const = 0;
+    bool operator!=(const type & other) const { return !(*this == other); }
     scalar_type * scalar();
     array_type * array();
     function_type * func();
@@ -129,17 +130,35 @@ inline array_type * type::array()
 class function_type : public type
 {
 public:
-    function_type(int a): arg_count(a) {}
+    function_type() {}
+
+    function_type(int param_count):
+        params(param_count)
+    {}
+
     void print(ostream &) const override;
+
     bool is_function() const override { return true; }
+
+    int param_count() const { return (int) params.size(); }
+
     virtual bool operator==(const type & t) const override
     {
         if (!t.is_function())
             return false;
-        const auto & f = static_cast<const function_type &>(t);
-        return arg_count == f.arg_count;
+        const auto & other = static_cast<const function_type &>(t);
+        if (params.size() != other.params.size())
+            return false;
+        for (int p = 0; p < (int)params.size(); ++p)
+            if (*params[p] != *other.params[p])
+                return false;
+        if (*value != *other.value)
+            return false;
+        return true;
     }
-    int arg_count;
+
+    vector<type_ptr> params;
+    type_ptr value;
 };
 
 inline function_type * type::func()

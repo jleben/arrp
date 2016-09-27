@@ -18,7 +18,22 @@ void array_type::print(ostream & s) const
 
 void function_type::print(ostream & s) const
 {
-    s << 'f' << '(' << arg_count << ')';
+    s << 'f' << '(';
+    for (int p = 0; p < (int)params.size(); ++p)
+    {
+        if (p > 0)
+            s << ", ";
+        if (params[p])
+            s << *params[p];
+        else
+            s << "?";
+    }
+    s << ')';
+    s << " -> ";
+    if (value)
+        s << *value;
+    else
+        s << "?";
 }
 
 std::ostream & operator<<(std::ostream & s, const array_size_vec & v)

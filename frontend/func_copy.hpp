@@ -50,7 +50,7 @@ protected:
     virtual expr_ptr visit_array_size(const shared_ptr<array_size> & as) override;
     virtual expr_ptr visit_func_app(const shared_ptr<func_app> & app) override;
     virtual expr_ptr visit_func(const shared_ptr<function> & func) override;
-    virtual expr_ptr visit_input(const shared_ptr<input> & in) override;
+    virtual expr_ptr visit_external(const shared_ptr<external> &) override;
 private:
     using context_type = context<var_ptr, var_ptr>;
     context_type m_copy_context;

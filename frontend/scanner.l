@@ -88,6 +88,7 @@ blank [ \t]
 "import" { return parser::token::IMPORT; }
 "as" { return parser::token::AS; }
 "input" { return parser::token::INPUT; }
+"external" { return parser::token::EXTERNAL; }
 
 [0-9]+(\.[0-9]+)?i {
   double im = std::stod(std::string(yytext,strlen(yytext)-1));
