@@ -32,6 +32,11 @@ public:
     virtual bool is_affine() const { return false; }
     virtual bool is_data() const { return false; }
     virtual bool operator==(const type & other) const = 0;
+    virtual bool operator<=(const type & other) const
+    {
+        // FIXME: Implement for all types
+        return *this == other;
+    }
     bool operator!=(const type & other) const { return !(*this == other); }
     scalar_type * scalar();
     array_type * array();
@@ -57,11 +62,14 @@ public:
             return false;
 
         const auto & s = static_cast<const scalar_type &>(t);
+
         return primitive == s.primitive &&
                 affine_flag == s.affine_flag &&
                 constant_flag == s.constant_flag &&
                 data_flag == s.data_flag;
     }
+
+    virtual bool operator<=(const type & rhs) const override;
 
     void print(ostream &) const override;
 

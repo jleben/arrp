@@ -903,12 +903,13 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
         assert(func_type->params[p]);
         const auto & pt = *func_type->params[p];
         const auto & at = *app->args[p]->type;
-        if (at != pt)
+        bool ok = at <= pt;
+        if (!ok)
         {
             ostringstream msg;
-            msg << "Argument type mismatch: "
-                << "expected " << pt
-                << "but given " << at;
+            msg << "Argument type mismatch:"
+                << " expected " << pt
+                << " but given " << at;
             throw type_error(msg.str(), app->args[p].location);
         }
     }
