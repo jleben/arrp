@@ -48,7 +48,7 @@ public:
         {
             const auto & e = expected[i];
             const auto & v = m_records[i];
-            if (v != e)
+            if (!compare(v,e))
             {
                 ok = false;
                 cout << "Output " << i << ":"
@@ -64,6 +64,17 @@ public:
           cout << "FAILED." << endl;
 
         return ok;
+    }
+
+    template <typename V>
+    static bool compare(const V & lhs, const V & rhs)
+    {
+      return lhs == rhs;
+    }
+
+    static bool compare(const double & lhs, const double & rhs)
+    {
+      return std::abs(lhs - rhs) < 0.001;
     }
 
 private:

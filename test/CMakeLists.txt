@@ -33,6 +33,8 @@ function(icc_compile_test name sources deps)
       ${source_paths}
       -lm -lpapi
     DEPENDS ${sources} ${deps}
+      ${CMAKE_SOURCE_DIR}/test/common/generic_tester.hpp
+      ${CMAKE_SOURCE_DIR}/test/common/generic_printer.hpp
   )
   add_custom_target(${name} DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${name})
 endfunction()
