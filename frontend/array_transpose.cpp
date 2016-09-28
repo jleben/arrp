@@ -59,8 +59,23 @@ void array_transposer::transpose_array(const id_ptr & id)
         if (auto ar = dynamic_pointer_cast<array>(id->expr.expr))
         {
             vector<array_var_ptr> ordered_vars;
+            assert(ar->vars.size() <= order.size());
+
             for (int i : order)
+            {
+                if (ordered_vars.size() == ar->vars.size())
+                    break;
+
+                // FIXME:
+                // Make sure implicit array variables are not referenced
+                // in the array expression.
+                // Ideally, these array dimensions would be removed.
+                if (i >= ar->vars.size())
+                    throw error("Can not reorder implicit array dimension.");
+
                 ordered_vars.push_back(ar->vars[i]);
+            }
+
             ar->vars = ordered_vars;
         }
         else if (!(dynamic_pointer_cast<external>(id->expr.expr)))
@@ -162,8 +177,6 @@ void array_transposer::visit_array_app(const shared_ptr<array_app> & app)
 
     auto & order = transposition->second;
 
-    assert(order.size() == app->args.size());
-
     if (verbose<array_transposer>::enabled())
     {
         cout << ".. Transposition for access to id " << id << " = ";
@@ -174,10 +187,16 @@ void array_transposer::visit_array_app(const shared_ptr<array_app> & app)
 
     vector<expr_slot> transposed_args;
 
-    for (int i = 0; i < (int)order.size(); ++i)
+    assert(app->args.size() <= order.size());
+
+    while(transposed_args.size() < app->args.size())
     {
-        int dim = order[i];
-        transposed_args.emplace_back(app->args[dim]);
+        int dst = transposed_args.size();
+        int src = order[dst];
+        // FIXME:
+        if (src >= app->args.size())
+            throw error("Can not reorder implicit array arguments.");
+        transposed_args.emplace_back(app->args[src]);
     }
 
     app->args = transposed_args;
