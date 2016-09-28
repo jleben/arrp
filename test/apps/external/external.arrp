@@ -1,0 +1,8 @@
+module test;
+
+external f : [5]int -> [6]int;
+external g : int -> int;
+
+a = [~,5: i,j -> i+j];
+
+main = [i -> f(a[i]) + g(i)];
