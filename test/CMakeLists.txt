@@ -51,7 +51,9 @@ function(add_stream_test name source options cpp_extra)
 endfunction()
 
 function(add_output_test name source)
-  stream_to_cpp(${name} ${source} "--cpp;program;--cpp-namespace;test")
+  stream_to_cpp(${name} ${source} "--cpp;${name}_program;--cpp-namespace;test")
+
+  set(program_file "<${name}_program.cpp>")
 
   set(src
       ${CMAKE_SOURCE_DIR}/test/common/testing.cpp
@@ -60,9 +62,11 @@ function(add_output_test name source)
   )
   add_executable(test_${name} ${src})
   target_include_directories(test_${name} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_compile_definitions(test_${name} PRIVATE "-DPROGRAM_FILE=${program_file}")
   add_dependencies(test_${name} ${name})
 
   add_test(NAME ${name} COMMAND $<TARGET_FILE:test_${name}> "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
 endfunction()
 
+add_subdirectory(unit)
 add_subdirectory(apps)

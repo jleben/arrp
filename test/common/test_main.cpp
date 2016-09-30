@@ -1,5 +1,5 @@
 #include "test_parser.hpp"
-#include <program.cpp>
+#include PROGRAM_FILE
 
 #include <iostream>
 #include <fstream>
