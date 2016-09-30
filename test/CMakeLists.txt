@@ -63,7 +63,9 @@ function(add_output_test name source)
     VERBATIM
   )
 
-  add_custom_target(${tester_name} ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${tester_name}")
+  add_custom_target(${tester_name} DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${tester_name}")
+
+  add_dependencies(tests ${tester_name})
 
   add_test(NAME ${name} COMMAND
     "${CMAKE_CURRENT_BINARY_DIR}/${tester_name}"
