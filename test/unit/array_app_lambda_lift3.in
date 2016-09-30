@@ -1,3 +1,13 @@
 
-x = 1 ++ [4: i-> [5: i -> x[i]+1][i+1] ];
+## FIXME: The following should fail at scheduling, but it doesn't:
+## x = 1 ++ [4: i-> [5: i -> x[i]+1][i+1] ];
+
+x = 1 ++ [4: i-> [5: i -> x[i]+1][i] ];
 main = x;
+
+##? [5]int
+##? 1
+##? 2
+##? 3
+##? 4
+##? 5

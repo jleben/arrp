@@ -3,4 +3,7 @@ f(b) = let x = b * b in x;
 
 g(a) = f(a);
 
-main = g(5);
+main = g(2.5);
+
+##? [1]real64
+##? 6.25
