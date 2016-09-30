@@ -50,9 +50,19 @@ function(add_stream_test name source options cpp_extra)
 
 endfunction()
 
-function(add_test name)
-  icc_compile_test(test_${name} "${ARGN}" "")
-  add_dependencies(tests test_${name})
+function(add_output_test name source)
+  stream_to_cpp(${name} ${source} "--cpp;program;--cpp-namespace;test")
+
+  set(src
+      ${CMAKE_SOURCE_DIR}/test/common/testing.cpp
+      ${CMAKE_SOURCE_DIR}/test/common/test_parser.cpp
+      ${CMAKE_SOURCE_DIR}/test/common/test_main.cpp
+  )
+  add_executable(test_${name} ${src})
+  target_include_directories(test_${name} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  add_dependencies(test_${name} ${name})
+
+  add_test(NAME ${name} COMMAND $<TARGET_FILE:test_${name}> "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
 endfunction()
 
 add_subdirectory(apps)
