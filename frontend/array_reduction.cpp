@@ -358,13 +358,16 @@ expr_ptr array_reducer::reduce
             int dim_idx = 0;
             for (auto & index : pattern.indexes)
             {
-                if (!index.is_fixed)
-                    continue;
+                if (verbose<array_reducer>::enabled())
+                    cout << ".. Index: " << dim_idx << " fixed: " << index.is_fixed << endl;
 
-                auto v = make_ref(ar->vars[dim_idx]);
-                auto constraint = equal(v, int_expr(index.value));
-                pattern_constraint =
-                        intersect(pattern_constraint, constraint);
+                if (index.is_fixed)
+                {
+                    auto v = make_ref(ar->vars[dim_idx]);
+                    auto constraint = equal(v, int_expr(index.value));
+                    pattern_constraint =
+                            intersect(pattern_constraint, constraint);
+                }
 
                 ++dim_idx;
             }
