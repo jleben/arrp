@@ -10,7 +10,7 @@ function(stream_to_cpp name source)
     VERBATIM
   )
 
-  add_custom_target(${name} DEPENDS ${name}.cpp)
+  add_custom_target(${name} DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${name}.cpp")
 
 endfunction()
 
@@ -51,22 +51,26 @@ function(add_stream_test name source options cpp_extra)
 endfunction()
 
 function(add_output_test name source)
-  stream_to_cpp(${name} ${source} "--cpp;${name}_program;--cpp-namespace;test")
+  stream_to_cpp(${name} ${source} "--cpp-namespace;test")
 
-  set(program_file "<${name}_program.cpp>")
+  set(tester_name test_${name})
+  set(program_file "${CMAKE_CURRENT_BINARY_DIR}/${name}.cpp")
+  set(main_file "${CMAKE_SOURCE_DIR}/test/common/test_main.cpp")
 
-  set(src
-      ${CMAKE_SOURCE_DIR}/test/common/testing.cpp
-      ${CMAKE_SOURCE_DIR}/test/common/test_parser.cpp
-      ${CMAKE_SOURCE_DIR}/test/common/test_main.cpp
+  add_custom_command(OUTPUT ${tester_name}
+    COMMAND c++ -std=c++11 ${main_file} "-DPROGRAM_FILE=<${program_file}>" -o ${tester_name} $<TARGET_FILE:test_lib>
+    DEPENDS ${program_file} ${main_file} test_lib
+    VERBATIM
   )
-  add_executable(test_${name} ${src})
-  target_include_directories(test_${name} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-  target_compile_definitions(test_${name} PRIVATE "-DPROGRAM_FILE=${program_file}")
-  add_dependencies(test_${name} ${name})
 
-  add_test(NAME ${name} COMMAND $<TARGET_FILE:test_${name}> "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
+  add_custom_target(${tester_name} ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${tester_name}")
+
+  add_test(NAME ${name} COMMAND
+    "${CMAKE_CURRENT_BINARY_DIR}/${tester_name}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
+  )
 endfunction()
 
+add_subdirectory(common)
 add_subdirectory(unit)
 add_subdirectory(apps)
