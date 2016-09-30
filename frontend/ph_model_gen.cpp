@@ -243,24 +243,38 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
 
         call->args.push_back(read);
 
-        // isl relations
-
+        // Add data read & write relations
         {
             auto s = isl::space::from(stmt->domain.get_space(),
                                       ar->domain.get_space());
-
             auto m = isl::basic_map::universe(s);
             if (ar->is_infinite)
                 m.add_constraint(s.out(0) == s.in(0));
 
             stmt->write_relation = { ar, m };
             stmt->read_relations.emplace_back(ar, m);
-
             read->relation = &stmt->read_relations.back();
 
             if (verbose<polyhedral_gen>::enabled())
             {
                 cout << "Input read and write relation:" << endl;
+                m_isl_printer.print(m); cout << endl;
+            }
+        }
+
+        // Add self-relation to impose order
+        if (ar->is_infinite)
+        {
+            auto s = isl::space::from(stmt->domain.get_space(),
+                                      stmt->domain.get_space());
+            auto m = isl::basic_map::universe(s);
+            m.add_constraint(s.out(0) == s.in(0) + 1);
+
+            stmt->self_relations = m;
+
+            if (verbose<polyhedral_gen>::enabled())
+            {
+                cout << "Input self relation:" << endl;
                 m_isl_printer.print(m); cout << endl;
             }
         }
@@ -281,19 +295,15 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     auto tuple = isl::set_tuple( isl::identifier(stmt_name, nullptr), 1 );
     auto space = isl::space(model.context, tuple);
     auto domain = isl::set::universe(space);
-    auto lspace = isl::local_space(space);
+
+    auto i = space.var(0);
+    if (array->size.empty() || !array->is_infinite)
     {
-        auto index = lspace(isl::space::variable, 0);
-        if (array->size.empty())
-        {
-            domain.add_constraint(index == 0);
-        }
-        else
-        {
-            domain.add_constraint( index >= 0 );
-            if (!array->is_infinite)
-                domain.add_constraint( index < array->size[0] );
-        }
+        domain.add_constraint(i == 0);
+    }
+    else
+    {
+        domain.add_constraint( i >= 0 );
     }
 
     auto stmt = make_shared<polyhedral::statement>(domain);
@@ -305,7 +315,9 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     call->name = name;
 
     vector<expr_ptr> ar_index;
-    ar_index.push_back(make_shared<ph::iterator_read>(0));
+    if (array->is_infinite)
+        // Iterate first dimension
+        ar_index.push_back(make_shared<ph::iterator_read>(0));
 
     auto read = make_shared<ph::array_read>(array, ar_index);
 
@@ -314,20 +326,39 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     // isl index expression
 
     {
-        auto s = isl::space::from(stmt->domain.get_space(),
-                                  array->domain.get_space());
-
-        auto m = isl::basic_map::universe(s);
-        m.add_constraint(s.out(0) == s.in(0));
-
-        stmt->read_relations.emplace_back(array, m);
-
-        read->relation = &stmt->read_relations.back();
-
-        if (verbose<polyhedral_gen>::enabled())
+        // Add array read relation
         {
-            cout << "Output read relation:" << endl;
-            m_isl_printer.print(m); cout << endl;
+            auto s = isl::space::from(stmt->domain.get_space(),
+                                      array->domain.get_space());
+            auto m = isl::basic_map::universe(s);
+            if (array->is_infinite)
+                m.add_constraint(s.out(0) == s.in(0));
+
+            stmt->read_relations.emplace_back(array, m);
+            read->relation = &stmt->read_relations.back();
+
+            if (verbose<polyhedral_gen>::enabled())
+            {
+                cout << "Output read relation:" << endl;
+                m_isl_printer.print(m); cout << endl;
+            }
+        }
+
+        // Add self-relation to impose order
+        if (array->is_infinite)
+        {
+            auto s = isl::space::from(stmt->domain.get_space(),
+                                      stmt->domain.get_space());
+            auto m = isl::basic_map::universe(s);
+            m.add_constraint(s.out(0) == s.in(0) + 1);
+
+            stmt->self_relations = m;
+
+            if (verbose<polyhedral_gen>::enabled())
+            {
+                cout << "Output self relation:" << endl;
+                m_isl_printer.print(m); cout << endl;
+            }
         }
     }
 

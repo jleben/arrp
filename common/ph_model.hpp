@@ -124,6 +124,7 @@ public:
     functional::expr_ptr expr = nullptr;
     array_relation write_relation;
     list<array_relation> read_relations;
+    isl::map self_relations { nullptr };
     unordered_map<array*, int> array_access_offset;
     bool streaming_needs_modulo = false;
     bool is_infinite = false;
@@ -205,6 +206,12 @@ public:
         dependencies =
                 read_relations.in_domain(domains).inverse()
                 (write_relations.in_domain(domains));
+
+        for (const auto & stmt : m.statements)
+        {
+            if (stmt->self_relations.is_valid())
+                dependencies |= stmt->self_relations.in_domain(stmt->domain).in_range(stmt->domain);
+        }
     }
 
     isl::union_set domains;
