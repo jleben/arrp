@@ -1,2 +1,2 @@
 
-add_stream_test(osc osc.arrp "" osc_tester.cpp)
+add_output_test(osc osc.arrp)
