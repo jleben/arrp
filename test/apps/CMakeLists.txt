@@ -4,4 +4,3 @@
 add_subdirectory(fir)
 add_subdirectory(osc)
 add_subdirectory(wavetable_osc)
-add_subdirectory(external)
