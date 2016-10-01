@@ -1,5 +1,12 @@
+
 #include "test_parser.hpp"
-#include PROGRAM_FILE
+#include "io.hpp"
+
+#include PROGRAM_SOURCE
+
+#ifdef TEST_HEADER
+#include TEST_HEADER
+#endif
 
 #include <iostream>
 #include <fstream>
@@ -7,29 +14,10 @@
 using namespace arrp::testing;
 using namespace std;
 
-class IO
-{
-public:
-    template <typename T, size_t S>
-    void output(T (&a)[S])
-    {
-        for (int i = 0; i < S; ++i)
-        {
-            output(a[i]);
-        }
-    }
+class program_id;
 
-    template <typename T>
-    void output(T value)
-    {
-        m_data.push_back(value);
-    }
-
-    const vector<element> & data() const { return m_data; }
-
-private:
-    vector<element> m_data;
-};
+typedef arrp::testing::io<program_id> io_type;
+typedef test::program<io_type> program_type;
 
 bool compare(const vector<element> & actual, const vector<element> & expected)
 {
@@ -62,10 +50,11 @@ bool compare(const vector<element> & actual, const vector<element> & expected)
     return ok;
 }
 
-template<typename P>
-bool run(P * program, IO *io, const vector<element> & expected)
+bool run(program_type * program, const vector<element> & expected)
 {
     using namespace std;
+
+    auto io = program->io;
 
     int max_periods = 100;
     int period = 0;
@@ -143,10 +132,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    auto program = new test::program<IO>;
-    program->io = new IO;
+    auto program = new program_type;
+    program->io = new io_type;
 
-    bool success = run(program, program->io, parser.data());
+    bool success = run(program, parser.data());
     if (success)
       cout << "OK." << endl;
     else

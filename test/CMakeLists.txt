@@ -51,14 +51,27 @@ function(add_stream_test name source options cpp_extra)
 endfunction()
 
 function(add_output_test name source)
+
+  if(ARGN)
+    list(GET ARGN 0 header)
+    set(define_test_header "-DTEST_HEADER=<${header}>")
+  endif()
+
   stream_to_cpp(${name} ${source} "--cpp-namespace;test")
 
   set(tester_name test_${name})
-  set(program_file "${CMAKE_CURRENT_BINARY_DIR}/${name}.cpp")
+  set(program_file "${name}.cpp")
   set(main_file "${CMAKE_SOURCE_DIR}/test/common/test_main.cpp")
 
   add_custom_command(OUTPUT ${tester_name}
-    COMMAND c++ -std=c++11 ${main_file} "-DPROGRAM_FILE=<${program_file}>" -o ${tester_name} $<TARGET_FILE:test_lib>
+    COMMAND c++ -std=c++11 ${main_file}
+      "-DPROGRAM_SOURCE=<${program_file}>"
+      ${define_test_header}
+      "-I${CMAKE_SOURCE_DIR}/test/common"
+      "-I${CMAKE_CURRENT_BINARY_DIR}"
+      "-I${CMAKE_CURRENT_SOURCE_DIR}"
+      -o ${tester_name}
+      $<TARGET_FILE:test_lib>
     DEPENDS ${program_file} ${main_file} test_lib
     VERBATIM
   )
