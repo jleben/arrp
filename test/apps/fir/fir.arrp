@@ -11,3 +11,15 @@ fir(k) =
   array.map(\w -> math.sum(w*k)) . signal.win(#k,1);
 
 main = fir(coefs,in1);
+
+##? [~]real64
+##? 8
+##? 14
+##? 20
+##? 26
+##? 32
+##? 38
+##? 44
+##? 50
+##? 56
+##? 62

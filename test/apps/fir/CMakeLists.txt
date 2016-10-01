@@ -1,2 +1,2 @@
 
-add_stream_test(fir fir.arrp "--ast-avoid-branch-in-loop" fir_tester.cpp)
+add_output_test(fir fir.arrp fir_io.hpp)
