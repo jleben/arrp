@@ -117,10 +117,8 @@ void test_parser::parse_element()
     char c = next_char();
     if (c == '(')
         parse_list();
-    else if (isdigit(c))
-        parse_value();
     else
-        throw error(string("Unexpected character: '") + c + "'.");
+        parse_value();
     skip_space();
 }
 
@@ -175,6 +173,14 @@ void test_parser::parse_value()
     bool has_dot = false;
 
     c = next_char();
+
+    if (c == '-' || c == '+')
+    {
+        text += c;
+        pop_char();
+        c = next_char();
+    }
+
     if (!isdigit(c))
         throw error("Could not parse value.");
 
