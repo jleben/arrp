@@ -88,7 +88,7 @@ function(add_output_test name source)
 
   add_test(NAME ${name} COMMAND
     "${CMAKE_CURRENT_BINARY_DIR}/${tester_name}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
+    "--compare=${CMAKE_CURRENT_SOURCE_DIR}/${source}"
   )
 endfunction()
 

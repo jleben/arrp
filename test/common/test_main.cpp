@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <unordered_map>
 
 using namespace arrp::testing;
 using namespace std;
@@ -29,15 +30,24 @@ public:
         {
             char * a = argv[i];
             if (a[0] == '-')
-                m_opts.push_back(a);
+                parse_option(a);
             else
                 m_data.push_back(a);
         }
     }
 
-    bool has_option(const string & option) const
+    bool has_option(const string & name) const
     {
-        return std::find(m_opts.begin(), m_opts.end(), option) != m_opts.end();
+        return m_opts.find(name) != m_opts.end();
+    }
+
+    string option(const string & name) const
+    {
+        auto val = m_opts.find(name);
+        if (val == m_opts.end())
+            return string();
+        else
+            return val->second;
     }
 
     const vector<string> & data() const
@@ -46,8 +56,24 @@ public:
     }
 
 private:
+    void parse_option(const string & text)
+    {
+        string name, value;
+        auto eq_pos = text.find('=');
+        if (eq_pos != string::npos)
+        {
+            name = text.substr(0,eq_pos);
+            value = text.substr(eq_pos+1);
+        }
+        else
+        {
+            name = text;
+        }
+        m_opts[name] = value;
+    }
+
     vector<string> m_data;
-    vector<string> m_opts;
+    unordered_map<string,string> m_opts;
 };
 
 bool compare(const arrp::testing::array & actual, const arrp::testing::array & expected)
@@ -161,26 +187,46 @@ int main(int argc, char *argv[])
 {
     arguments args(argc-1, argv+1);
 
-    if (args.data().size() < 1)
+    arrp::testing::array expected_data;
+
+    if (args.has_option("--compare"))
     {
-        cout << "Required arguments: <input file>" << endl;
-        return 1;
+        string filename = args.option("--compare");
+
+        ifstream input(filename);
+        if (!input.is_open())
+        {
+            cout << "Failed to open input file: " << filename << endl;
+            return 1;
+        }
+
+        test_parser parser;
+        parser.parse(input);
+
+        expected_data = parser.data();
     }
 
-    ifstream input(args.data()[0]);
-    if (!input.is_open())
-    {
-        cout << "Failed to open input file." << endl;
-        return 1;
-    }
-
-    test_parser parser;
-    parser.parse(input);
-
-    if (args.has_option("--print-expected"))
+    if (!expected_data.is_empty() && args.has_option("--print-expected"))
     {
         cout << "Expected:" << endl;
-        print(parser.data());
+        print(expected_data);
+    }
+
+    int out_count = 10;
+
+    if (args.has_option("--count"))
+    {
+        auto value = args.option("--count");
+        try {
+            out_count = stoi(value);
+        } catch (...) {
+            cerr << "Invalid argument for --count: " << value << endl;
+            return 1;
+        }
+    }
+    else if (!expected_data.is_empty())
+    {
+        out_count = expected_data.count();
     }
 
     auto program = new program_type;
@@ -188,7 +234,7 @@ int main(int argc, char *argv[])
 
     bool ok;
 
-    ok = run(program, parser.data().count(), 100);
+    ok = run(program, out_count, 100);
 
     if (args.has_option("--print-produced"))
     {
@@ -196,8 +242,8 @@ int main(int argc, char *argv[])
         print(program->io->data());
     }
 
-    if (ok)
-        ok = compare(program->io->data(), parser.data());
+    if (ok && !expected_data.is_empty())
+        ok = compare(program->io->data(), expected_data);
 
     if (ok)
       cout << "OK." << endl;
