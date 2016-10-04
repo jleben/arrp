@@ -199,8 +199,8 @@ vector<prim_op_overload> overloads(primitive_op op)
     case primitive_op::real:
     case primitive_op::imag:
         return {
-            { pt::complex32, pt::complex32, pt::real32 },
-            { pt::complex64, pt::complex64, pt::real64 },
+            { pt::complex32, pt::real32 },
+            { pt::complex64, pt::real64 },
         };
     case primitive_op::to_integer:
         for (auto t : all_simple_numeric_types())
