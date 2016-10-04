@@ -1,13 +1,13 @@
 
 #include <io.hpp>
 
-class program_id;
+namespace test { struct traits; }
 
 namespace arrp {
 namespace testing {
 
 template<>
-class io<program_id> : public io_base
+class io<test::traits> : public io_base<test::traits>
 {
 public:
     void f(int in[4], int out[2])

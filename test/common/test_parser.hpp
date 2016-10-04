@@ -28,9 +28,7 @@ public:
 
     void parse(istream & src);
 
-    elem_type type() { return m_type; }
-    const vector<int> & size() { return m_size; }
-    const vector<element> & data() { return m_data; }
+    const array & data() const { return m_data; }
 
 private:
     void skip_space();
@@ -47,7 +45,7 @@ private:
 
     elem_type m_type;
     vector<int> m_size;
-    vector<element> m_data;
+    array m_data;
 
     istream * m_src;
     char m_c = 0;

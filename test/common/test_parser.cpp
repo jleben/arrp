@@ -24,6 +24,8 @@ void test_parser::parse(istream & src)
     if (pos == string::npos)
         throw error();
 
+    pos += 3;
+
     // Parse output size
 
     m_size.clear();
@@ -45,9 +47,10 @@ void test_parser::parse(istream & src)
     };
 
     {
-        pos = line.find('[', pos);
-        if (pos != string::npos)
+        auto size_decl_pos = line.find('[', pos);
+        if (size_decl_pos != string::npos)
         {
+            pos = size_decl_pos;
             auto start = pos + 1;
             auto end = start;
             while ((end = line.find(',', start)) != string::npos)
@@ -90,19 +93,52 @@ void test_parser::parse(istream & src)
 
     // Parse expected data
 
+    {
+        auto data_size = m_size;
+
+        if (data_size.size())
+        {
+            data_size[0] = 0;
+            m_index.push_back(0);
+        }
+
+        m_data.resize(data_size);
+    }
+
+    bool has_data = false;
+
     while(std::getline(src, line))
     {
         pos = line.find("##?");
         if (pos == string::npos)
             continue;
-
         pos += 3;
+
+        if (has_data && m_size.empty())
+            throw error("Multiple elements given, but data is scalar.");
 
         istringstream stream(line.substr(pos));
         m_src = &stream;
 
+        if (m_size.size())
+            m_data.extend(1);
+
         parse_element();
+
+        if (m_size.size())
+            increment_index();
+
+        has_data = true;
     }
+#if 0
+    if (m_size[0] > 0)
+    {
+        // Prepend 1 to size of bounded array
+        vector<int> data_size = {1};
+        data_size.insert(data_size.end(), m_data.size().begin(), m_data.size().end());
+        m_data.resize(data_size);
+    }
+#endif
 }
 
 void test_parser::skip_space()
@@ -133,9 +169,9 @@ void test_parser::parse_list()
 
     expand_index();
 
-    int dim = m_index.size();
+    int dim = m_index.size() - 1;
 
-    if (dim + 1 > m_size.size())
+    if (m_index.size() > m_size.size())
         throw error("Too many dimensions.");
 
     while(true)
@@ -165,7 +201,7 @@ void test_parser::parse_list()
 
 void test_parser::parse_value()
 {
-    if (m_index.size() + 1 != m_size.size())
+    if (m_index.size() != m_size.size())
         throw error("Value at wrong nesting level.");
 
     string text;
@@ -234,7 +270,7 @@ void test_parser::store_value(const string & text, bool real)
         throw error("Unsupported value type.");
     }
 
-    m_data.push_back(e);
+    m_data(m_index) = e;
 }
 
 void test_parser::increment_index()

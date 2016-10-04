@@ -68,6 +68,7 @@ function(add_output_test name source)
       "-DPROGRAM_SOURCE=<${program_file}>"
       ${define_test_header}
       "-I${CMAKE_SOURCE_DIR}/test/common"
+      "-I${CMAKE_SOURCE_DIR}/cpp"
       "-I${CMAKE_CURRENT_BINARY_DIR}"
       "-I${CMAKE_CURRENT_SOURCE_DIR}"
       -o ${tester_name}

@@ -3,11 +3,13 @@
 
 class program_id;
 
+namespace test { struct traits; }
+
 namespace arrp {
 namespace testing {
 
 template<>
-class io<program_id> : public io_base
+class io<test::traits> : public io_base<test::traits>
 {
 public:
     void input_coefs(double k[3])
