@@ -59,11 +59,13 @@ public:
         array_size<output_type>::get_size(size);
         m_data.resize(size);
 
+#if 0
         cout << "Allocating size: ";
         cout << "[";
         for (auto & s : size)
                 cout << s << " ";
         cout << "]";
+#endif
     }
 
     void output(output_unit_type & a)
@@ -88,18 +90,6 @@ public:
     const array & data() const { return m_data; }
 
 private:
-#if 0
-    template <typename T, size_t S>
-    void get_size (T (&a)[S], vector<int> & s)
-    {
-        s.push_back(S);
-        get_size(a[0], s);
-    }
-
-    template <typename T>
-    void get_size (T v, vector<int> &s)
-    {}
-#endif
     template <typename T, size_t S>
     void store(T (&a)[S], int & offset)
     {
@@ -111,7 +101,7 @@ private:
     void store(T value, int & offset)
     {
         using namespace std;
-        cout << "Storing value at " << offset << endl;
+        //cout << "Storing value at " << offset << endl;
         m_data(offset) = value;
         ++offset;
     }
