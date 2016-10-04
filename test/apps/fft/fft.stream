@@ -1,24 +1,24 @@
 module fft;
 import math;
 
-twiddles(N) = [k:N//2 -> exp(-2*math.pi*1i*k/N)];
+twiddles(N) = [N//2: k -> exp(-2*math.pi*1i*k/N)];
 
-## local_twiddles(level) = [k:N/pow(2,level) -> twiddles[k*pow(2,level)]];
+## local_twiddles(level) = [N/pow(2,level): k -> twiddles[k*pow(2,level)]];
 
 w = twiddles(8);
 
 ## 0,4,2,6,1,5,3,7
 
-x = [t:8 -> sin(2*t/8*2*math.pi)];
+x = [8: t -> sin(2*t/8*2*math.pi)];
 
 r01 = (x[0] + x[4])      ++ (x[0] - x[4]);
 r02 = (x[2] + x[6])*w[0] ++ (x[2] - x[6])*w[2];
 r03 = (x[1] + x[5])      ++ (x[1] - x[5]);
 r04 = (x[3] + x[7])*w[0] ++ (x[3] - x[7])*w[2];
 
-r11 = [i:2 ->  r01[i] + r02[i]]       ++ [i:2 ->  r01[i] - r02[i]];
-r12 = [i:2 -> (r03[i] + r04[i])*w[i]] ++ [i:2 -> (r03[i] - r04[i])*w[2+i]];
+r11 = [2: i ->  r01[i] + r02[i]]       ++ [2: i ->  r01[i] - r02[i]];
+r12 = [2: i -> (r03[i] + r04[i])*w[i]] ++ [2: i -> (r03[i] - r04[i])*w[2+i]];
 
-r = [i:4 -> r11[i] + r12[i]] ++ [i:4 -> r11[i] - r12[i]];
+r = [4: i -> r11[i] + r12[i]] ++ [4: i -> r11[i] - r12[i]];
 
 main = r;
