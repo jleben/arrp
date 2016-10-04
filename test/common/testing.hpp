@@ -2,18 +2,22 @@
 
 #include <vector>
 #include <iostream>
+#include <complex>
 
 namespace arrp {
 namespace testing {
 
 using std::vector;
 using std::ostream;
+using std::complex;
 
 enum elem_type {
     bool_type,
     int_type,
     float_type,
-    double_type
+    double_type,
+    complex_float_type,
+    complex_double_type
 };
 
 
@@ -24,6 +28,8 @@ struct element
         int i;
         float f;
         double d;
+        complex<float> cf;
+        complex<double> cd;
     };
 
     elem_type type;
@@ -33,6 +39,10 @@ struct element
     element(int v): i(v), type(int_type) {}
     element(float v): f(v), type(float_type) {}
     element(double v): d(v), type(double_type) {}
+    element(const complex<float> & v):
+        cf(v), type(complex_float_type) {}
+    element(const complex<double> & v):
+        cd(v), type(complex_double_type) {}
 };
 
 ostream & operator<< (ostream &, const element & e);
