@@ -1,0 +1,68 @@
+
+import signal;
+import array;
+import math;
+
+external fft : [64]real64 -> [33]complex64;
+external dct : [10]real64 -> [10]real64;
+
+sr = 20000;
+freq_hz = 500;
+freq = freq_hz/sr;
+win_size = 64;
+n_mels = 10;
+lo_freq = 300;
+hi_freq = 10000;
+
+pi = atan(1) * 4;
+
+## Complex
+
+mag(X) = sqrt(real(X)*real(X) + imag(X)*imag(X));
+pow(X) = real(X)*real(X) + imag(X)*imag(X);
+
+## Mel scale
+
+freq_to_mel(f) = 2595 * log10(1 + f/700);
+
+mel_to_freq(m) = 700 * (10 ^ (m/2595) - 1);
+
+mel_freqs(lf, hf, n) = let {
+    lm = freq_to_mel(lf);
+    hm = freq_to_mel(hf);
+  } in [n:i -> mel_to_freq(i/(n-1) * (hm - lm) + lm)];
+
+freq_to_bin(sr,n,f) = floor(n*f/sr);
+
+coef(l, h, x) =
+    if x < l or x > h
+    then 0
+    else 1 - abs(0.5 - (x - l)/(h - l)) * 2;
+
+mel_coefs(sr, fl, fh, n, wn) =
+  let {
+    mfreqs = mel_freqs(fl, fh, n+2);
+    mbins = freq_to_bin(sr,wn,mfreqs);
+  }
+  in [n, wn//2+1: m, b -> coef(mbins[m-1],mbins[m+1], b)];
+
+## Program
+
+x = [t -> sin(freq*t*2*pi)];
+
+w = signal.win(win_size, win_size, x);
+
+
+##main = mel_freqs(20,10000,7);
+##main = fft_freqs(20000,10);
+##main = freq_to_bin(sr,200,mel_freqs(lo_freq, hi_freq, n_mels+2));
+##main = mel_coefs(sr, lo_freq, hi_freq, n_mels, 200);
+
+melc = mel_coefs(sr, lo_freq, hi_freq, n_mels, win_size);
+
+pow_spectrum = pow(array.map(fft,w))/win_size;
+
+mel_spectrum = array.map(\X -> array.map(\c -> math.sum(X*c), melc), pow_spectrum);
+##main = mel_spectrum;
+
+main = array.map(dct, log(mel_spectrum + 0.0001));
