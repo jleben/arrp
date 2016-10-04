@@ -178,6 +178,8 @@ void reference_type_node::generate(cpp_gen::state & state, ostream & stream)
 
 void variable_decl::generate(cpp_gen::state & state, ostream & stream)
 {
+    if (alignment)
+        stream << "alignas(" << alignment << ") ";
     type->generate(state, stream);
     if (!name.empty())
         stream << ' ' << name;

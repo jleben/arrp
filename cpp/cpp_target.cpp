@@ -147,9 +147,15 @@ variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
             compressed_size.push_back(s);
 
     if (compressed_size.empty())
+    {
         return decl(elem_type, namer(array->name));
+    }
     else
-        return make_shared<array_decl>(elem_type, namer(array->name), compressed_size);
+    {
+        auto decl = make_shared<array_decl>(elem_type, namer(array->name), compressed_size);
+        decl->alignment = 16;
+        return decl;
+    }
 }
 
 shared_ptr<custom_decl> io_decl(const polyhedral::io_channel & io)
@@ -223,7 +229,8 @@ class_node * state_type_def(const polyhedral::model & model,
     {
         if (buffers[array->name].on_stack)
             continue;
-        private_sec.members.push_back(make_shared<data_field>(buffer_decl(array,namer)));
+        auto field = make_shared<data_field>(buffer_decl(array,namer));
+        private_sec.members.push_back(field);
     }
 
     for (auto array : model.arrays)

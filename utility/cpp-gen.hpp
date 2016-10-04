@@ -304,6 +304,8 @@ public:
 class variable_decl
 {
 public:
+    // FIXME: alignment shouldn't apply to function params
+    int alignment=0;
     type_ptr type;
     string name;
     expression_ptr value;
