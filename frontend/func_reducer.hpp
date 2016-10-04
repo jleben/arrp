@@ -65,7 +65,7 @@ private:
     expr_ptr visit_array_size(const shared_ptr<array_size> & as) override;
     expr_ptr visit_func(const shared_ptr<function> & func) override;
     expr_ptr visit_func_app(const shared_ptr<func_app> & app) override;
-
+    expr_ptr lambda_lift(expr_ptr, const string & name);
 
     source_error
     reduction_error(const string & msg, const location_type & loc)

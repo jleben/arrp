@@ -445,16 +445,16 @@ expr_ptr func_reducer::visit_func_app(const shared_ptr<func_app> & app)
     }
     else if (auto ext = dynamic_pointer_cast<external>(app->object.expr))
     {
+        for (auto & arg : app->args)
+        {
+            m_type_checker.process(arg);
+            if (arg->type->is_array())
+                arg = lambda_lift(arg, "_tmp");
+        }
+
         m_type_checker.process(app);
 
-        auto id_name = m_name_provider.new_name(ext->name);
-        auto id = make_shared<identifier>(id_name, app, location_type());
-
-        m_ids.insert(id);
-        if (m_scope_stack.size())
-            m_scope_stack.top()->ids.push_back(id);
-
-        result = make_shared<reference>(id, location_type(), app->type);
+        result = lambda_lift(app, ext->name);
     }
     else
     {
@@ -477,6 +477,18 @@ void func_reducer::reduce(scope & s)
 
         id->expr = reduce(id->expr);
     }
+}
+
+expr_ptr func_reducer::lambda_lift(expr_ptr e, const string & name)
+{
+    auto id_name = m_name_provider.new_name(name);
+    auto id = make_shared<identifier>(id_name, e, location_type());
+    m_ids.insert(id);
+    if (m_scope_stack.size())
+        m_scope_stack.top()->ids.push_back(id);
+
+    e = make_shared<reference>(id, e->location);
+    return e;
 }
 
 expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
