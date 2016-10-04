@@ -152,6 +152,44 @@ variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
         return make_shared<array_decl>(elem_type, namer(array->name), compressed_size);
 }
 
+shared_ptr<custom_decl> io_decl(const polyhedral::io_channel & io)
+{
+    auto decl = make_shared<custom_decl>();
+    ostringstream text;
+    text << "typedef";
+    if (io.type->is_scalar())
+    {
+        auto t = type_for(io.type->scalar()->primitive);
+        text << " " << t->name;
+        text << " " << (io.name + "_type");
+    }
+    else if (io.type->is_array())
+    {
+        auto at = io.type->array();
+        auto et = type_for(at->element);
+        if (at->size[0] > 0)
+        {
+            text << " " << et->name;
+            text << " " << (io.name + "_type");
+            for (auto & s : at->size)
+                text << '[' << s << ']';
+        }
+        else
+        {
+            text << " arrp::stream_type<";
+            text << et->name;
+            for (int i = 1; i < at->size.size(); ++i)
+                text << '[' << at->size[i] << ']';
+            text << '>';
+            text << " " << (io.name + "_type");
+        }
+    }
+
+    decl->text = text.str();
+
+    return decl;
+}
+
 class_node * state_type_def(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers,
                             name_mapper & namer)
@@ -165,26 +203,27 @@ class_node * state_type_def(const polyhedral::model & model,
     def->sections[1].access = private_access;
 
     auto io_type = make_shared<basic_type>("IO");
-    {
-        auto & sec = def->sections[0];
 
-        sec.members.push_back(make_shared<data_field>(decl(pointer(io_type), "io")));
+    auto & public_sec = def->sections[0];
+
+    {
+        public_sec.members.push_back(make_shared<data_field>(decl(pointer(io_type), "io")));
 
         auto init_func =
                 make_shared<func_decl>(make_shared<func_signature>("prelude"));
-        sec.members.push_back(init_func);
+        public_sec.members.push_back(init_func);
         auto proc_func =
                 make_shared<func_decl>(make_shared<func_signature>("period"));
-        sec.members.push_back(proc_func);
+        public_sec.members.push_back(proc_func);
     }
 
-    auto & sec = def->sections[1];
+    auto & private_sec = def->sections[1];
 
     for (auto array : model.arrays)
     {
         if (buffers[array->name].on_stack)
             continue;
-        sec.members.push_back(make_shared<data_field>(buffer_decl(array,namer)));
+        private_sec.members.push_back(make_shared<data_field>(buffer_decl(array,namer)));
     }
 
     for (auto array : model.arrays)
@@ -194,7 +233,7 @@ class_node * state_type_def(const polyhedral::model & model,
         auto int_t = make_shared<basic_type>("int");
         auto field = decl(int_t, namer(array->name + "_ph"));
         field->value = literal((int)0);
-        sec.members.push_back(make_shared<data_field>(field));
+        private_sec.members.push_back(make_shared<data_field>(field));
     }
 
     return def;
@@ -433,6 +472,8 @@ void generate(const string & name,
     m.members.push_back(make_shared<include_dir>("cmath"));
     m.members.push_back(make_shared<include_dir>("algorithm"));
     m.members.push_back(make_shared<include_dir>("complex"));
+    m.members.push_back(make_shared<include_dir>("arrp.hpp"));
+
     m.members.push_back(make_shared<using_decl>("namespace std"));
 
     auto nmspc = make_shared<namespace_node>();
@@ -440,6 +481,22 @@ void generate(const string & name,
     m.members.push_back(nmspc);
 
     //add_remainder_function(m,*nmspc);
+
+    auto traits = make_shared<class_node>(struct_class, "traits");
+    traits->sections.resize(1);
+
+    for (auto & io : model.inputs)
+    {
+        auto decl = io_decl(io);
+        traits->sections[0].members.push_back(decl);
+    }
+    for (auto & io : model.outputs)
+    {
+        auto decl = io_decl(io);
+        traits->sections[0].members.push_back(decl);
+    }
+
+    nmspc->members.push_back(traits);
 
     // FIXME: rather include header:
     nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers,name_mapper)));

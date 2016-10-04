@@ -276,6 +276,19 @@ public:
     void generate(state &, ostream &);
 };
 
+class array_type : public base_type
+{
+public:
+    base_type_ptr base;
+    int size;
+
+    array_type(base_type_ptr base):
+        base(base)
+    {}
+
+    void generate(state &, ostream &);
+};
+
 class reference_type_node : public type
 {
 public:
@@ -314,6 +327,13 @@ public:
         variable_decl(t, name),
         size(size)
     {}
+    virtual void generate(state &, ostream &);
+};
+
+class custom_decl : public namespace_member, public class_member
+{
+public:
+    string text;
     virtual void generate(state &, ostream &);
 };
 

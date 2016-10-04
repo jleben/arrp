@@ -203,6 +203,8 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
         assert(result.second);
     }
 
+    string call_name = "input_" + id->name;
+
     {
         // Make statement domain.
 
@@ -232,7 +234,7 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
         // functional call expression
 
         auto call = make_shared<polyhedral::external_call>();
-        call->name = "input_" + id->name;
+        call->name = call_name;
 
         vector<expr_ptr> ar_index;
         if (ar->is_infinite)
@@ -283,6 +285,12 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
 
         model.statements.push_back(stmt);
     }
+
+    ph::io_channel ch;
+    ch.name = call_name;
+    ch.type = type;
+
+    model.inputs.push_back(ch);
 }
 
 void polyhedral_gen::add_output(polyhedral::model & model,
@@ -365,6 +373,12 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     stmt->expr = call;
 
     model.statements.push_back(stmt);
+
+    ph::io_channel ch;
+    ch.name = name;
+    ch.type = id->expr->type;
+
+    model.outputs.push_back(ch);
 }
 
 ph::array_ptr polyhedral_gen::make_array(id_ptr id)

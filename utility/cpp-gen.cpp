@@ -105,18 +105,21 @@ void class_node::generate(cpp_gen::state & state, ostream & stream)
 
     if (!name.empty())
         stream << ' ' << name;
-    state.new_line(stream);
+
+    if (!sections.empty())
+        state.new_line(stream);
+
     stream << "{";
 
     for(auto & section : sections)
     {
-        state.new_line(stream);
         section.generate(state, stream);
     }
 
-    state.new_line(stream);
-    stream << "};";
+    if (!sections.empty())
+        state.new_line(stream);
 
+    stream << "};";
 }
 
 void class_section::generate(cpp_gen::state & state, ostream & stream)
@@ -124,9 +127,11 @@ void class_section::generate(cpp_gen::state & state, ostream & stream)
     switch(access)
     {
     case public_access:
+        state.new_line(stream);
         stream << "public:";
         break;
     case private_access:
+        state.new_line(stream);
         stream << "private:";
         break;
     default:
@@ -159,6 +164,12 @@ void pointer_type::generate(cpp_gen::state & state, ostream & stream)
     stream << " *";
 }
 
+void array_type::generate(cpp_gen::state & state, ostream & stream)
+{
+    base->generate(state, stream);
+    stream << '[' << size << ']';
+}
+
 void reference_type_node::generate(cpp_gen::state & state, ostream & stream)
 {
     base->generate(state, stream);
@@ -184,6 +195,11 @@ void array_decl::generate(cpp_gen::state & state, ostream & stream)
     {
         stream << "[" << dim << "]";
     }
+}
+
+void custom_decl::generate(state &, ostream & stream)
+{
+    stream << text << ';';
 }
 
 void func_signature::generate(cpp_gen::state & state, ostream & stream)

@@ -170,12 +170,21 @@ public:
     vector<functional::expr_ptr> args;
 };
 
+class io_channel
+{
+public:
+    string name;
+    functional::type_ptr type;
+};
+
 class model
 {
 public:
     isl::context context;
     vector<array_ptr> arrays;
     vector<stmt_ptr> statements;
+    vector<io_channel> inputs;
+    vector<io_channel> outputs;
     unordered_map<string, array_ptr> phase_ids;
 };
 
