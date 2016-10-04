@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 
 using namespace arrp::testing;
 using namespace std;
@@ -49,7 +50,7 @@ private:
     vector<string> m_opts;
 };
 
-bool compare(const array & actual, const array & expected)
+bool compare(const arrp::testing::array & actual, const arrp::testing::array & expected)
 {
     using namespace std;
 
@@ -119,6 +120,43 @@ bool run(program_type * program, int out_count, int max_periods = 100)
     return true;
 }
 
+void print(const arrp::testing::array & data, int dim, int & index)
+{
+    for (int i = 0; i < data.size()[dim]; ++i)
+    {
+        if (dim > 0 && i > 0)
+            cout << ",";
+        if (dim == data.size().size() - 1)
+        {
+            cout << data(index);
+            ++index;
+        }
+        else
+        {
+            cout << '(';
+            print(data, dim+1, index);
+            cout << ')';
+        }
+        if (dim == 0)
+            cout << endl;
+    }
+}
+
+void print(const arrp::testing::array & data)
+{
+    cout << std::fixed << std::setprecision(3);
+
+    if (data.size().empty())
+    {
+        cout << data(0) << endl;
+    }
+    else
+    {
+        int index = 0;
+        print(data, 0, index);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     arguments args(argc-1, argv+1);
@@ -139,22 +177,24 @@ int main(int argc, char *argv[])
     test_parser parser;
     parser.parse(input);
 
-#if 0
     if (args.has_option("--print-expected"))
     {
         cout << "Expected:" << endl;
-        for (auto & d : parser.data())
-        {
-            cout << d << endl;
-        }
+        print(parser.data());
     }
-#endif
+
     auto program = new program_type;
     program->io = new io_type;
 
     bool ok;
 
     ok = run(program, parser.data().count(), 100);
+
+    if (args.has_option("--print-produced"))
+    {
+        cout << "Produced:" << endl;
+        print(program->io->data());
+    }
 
     if (ok)
         ok = compare(program->io->data(), parser.data());
