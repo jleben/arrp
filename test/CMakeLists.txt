@@ -52,9 +52,13 @@ endfunction()
 
 function(add_output_test name source)
 
-  if(ARGN)
+  if(NOT ARGC LESS 3)
     list(GET ARGN 0 test_header)
     set(define_test_header "-DTEST_HEADER=<${test_header}>")
+  endif()
+
+  if (NOT ARGC LESS 4)
+    list(GET ARGN 1 test_libs)
   endif()
 
   stream_to_cpp(${name} ${source} "--cpp-namespace;test")
@@ -69,13 +73,14 @@ function(add_output_test name source)
   )
 
   add_custom_command(OUTPUT ${tester_name}
-    COMMAND c++ -std=c++11 ${main_file}
+    COMMAND c++ -std=c++11 -O0 -g ${main_file}
       "-DPROGRAM_SOURCE=<${program_file}>"
       ${define_test_header}
       "-I${CMAKE_SOURCE_DIR}/test/common"
       "-I${CMAKE_SOURCE_DIR}/cpp"
       "-I${CMAKE_CURRENT_BINARY_DIR}"
       "-I${CMAKE_CURRENT_SOURCE_DIR}"
+      ${test_libs}
       -o ${tester_name}
       $<TARGET_FILE:test_lib>
     DEPENDS ${program_file} ${main_file} ${headers} test_lib
