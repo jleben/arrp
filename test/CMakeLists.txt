@@ -53,8 +53,8 @@ endfunction()
 function(add_output_test name source)
 
   if(ARGN)
-    list(GET ARGN 0 header)
-    set(define_test_header "-DTEST_HEADER=<${header}>")
+    list(GET ARGN 0 test_header)
+    set(define_test_header "-DTEST_HEADER=<${test_header}>")
   endif()
 
   stream_to_cpp(${name} ${source} "--cpp-namespace;test")
@@ -62,6 +62,11 @@ function(add_output_test name source)
   set(tester_name test_${name})
   set(program_file "${name}.cpp")
   set(main_file "${CMAKE_SOURCE_DIR}/test/common/test_main.cpp")
+  set(headers
+    "${CMAKE_SOURCE_DIR}/test/common/io.hpp"
+    "${CMAKE_SOURCE_DIR}/test/common/test_parser.hpp"
+    ${test_header}
+  )
 
   add_custom_command(OUTPUT ${tester_name}
     COMMAND c++ -std=c++11 ${main_file}
@@ -73,7 +78,7 @@ function(add_output_test name source)
       "-I${CMAKE_CURRENT_SOURCE_DIR}"
       -o ${tester_name}
       $<TARGET_FILE:test_lib>
-    DEPENDS ${program_file} ${main_file} test_lib
+    DEPENDS ${program_file} ${main_file} ${headers} test_lib
     VERBATIM
   )
 
