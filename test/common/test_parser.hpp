@@ -28,6 +28,8 @@ public:
 
     void parse(istream & src);
 
+    elem_type type() const { return m_type; }
+    const vector<int> & size() const { return m_size; }
     const array & data() const { return m_data; }
 
 private:

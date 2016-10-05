@@ -4,4 +4,5 @@ set(test_lib_src
   testing.cpp
 )
 
+include_directories(${CMAKE_SOURCE_DIR}/cpp)
 add_library(test_lib STATIC ${test_lib_src})

@@ -22,7 +22,7 @@ void test_parser::parse(istream & src)
     }
 
     if (pos == string::npos)
-        throw error();
+        return;
 
     pos += 3;
 
@@ -41,7 +41,7 @@ void test_parser::parse(istream & src)
             string::size_type consumed;
             int s = stoi(str, &consumed);
             if (consumed != str.size())
-                throw error();
+                throw error("Invalid array size value.");
             m_size.push_back(s);
         }
     };
@@ -130,15 +130,14 @@ void test_parser::parse(istream & src)
 
         has_data = true;
     }
-#if 0
-    if (m_size[0] > 0)
+
+    if (m_size.size())
     {
-        // Prepend 1 to size of bounded array
-        vector<int> data_size = {1};
-        data_size.insert(data_size.end(), m_data.size().begin(), m_data.size().end());
-        m_data.resize(data_size);
+        if (m_size[0] >= 0 && m_data.count() != m_size[0])
+        {
+            throw error("Wrong number of elements in dimension 0.");
+        }
     }
-#endif
 }
 
 void test_parser::skip_space()

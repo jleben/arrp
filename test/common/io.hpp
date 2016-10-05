@@ -1,55 +1,17 @@
 #pragma once
 #include "testing.hpp"
-#include <arrp.hpp>
 #include <iostream>
+#include <cassert>
 
 namespace arrp {
 namespace testing {
-
-template<typename T> struct io_traits
-{
-    typedef T unit_type;
-    static const bool is_stream = false;
-};
-
-template<typename E> struct io_traits<stream_type<E>>
-{
-    typedef E unit_type;
-    static const bool is_stream = true;
-};
-
-template<typename T>
-struct array_size
-{
-    static void get_size(vector<int> & s) {}
-};
-
-template<typename E, size_t S>
-struct array_size<E[S]>
-{
-    static void get_size(vector<int> & s)
-    {
-        s.push_back(S);
-        array_size<E>::get_size(s);
-    }
-};
-
-template<typename E>
-struct array_size<stream_type<E>>
-{
-    static void get_size(vector<int> & s)
-    {
-        s.push_back(0);
-        array_size<E>::get_size(s);
-    }
-};
 
 template<typename program_traits>
 class io_base
 {
 public:
     using output_type = typename program_traits::output_type;
-    using output_unit_type = typename io_traits<output_type>::unit_type;
+    using output_unit_type = typename array_traits<output_type>::unit_type;
 
     io_base()
     {
@@ -57,6 +19,13 @@ public:
 
         vector<int> size;
         array_size<output_type>::get_size(size);
+
+        if (array_traits<output_type>::is_stream)
+        {
+            assert(!size.empty());
+            size[0] = 0;
+        }
+
         m_data.resize(size);
 
 #if 0
@@ -74,7 +43,7 @@ public:
 
         int offset;
 
-        if (io_traits<output_type>::is_stream)
+        if (array_traits<output_type>::is_stream)
         {
             offset = m_data.total_count();
             m_data.extend(1);

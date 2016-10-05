@@ -124,8 +124,6 @@ bool compare(const arrp::testing::array & actual, const arrp::testing::array & e
 
 bool run(program_type * program, int out_count, int max_periods = 100)
 {
-    cout << "Running until " << out_count << " outputs." << endl;
-
     using namespace std;
 
     auto io = program->io;
@@ -183,14 +181,38 @@ void print(const arrp::testing::array & data)
     }
 }
 
+struct print_size
+{
+    const vector<int> & v;
+    print_size(const vector<int> & v): v(v) {}
+    friend ostream & operator<< (ostream & s, const print_size & p)
+    {
+        const auto & v = p.v;
+        s << '[';
+        for (int i = 0; i < (int)v.size(); ++i)
+        {
+            if (i > 0)
+                s << ",";
+            s << v[i];
+        }
+        s << ']';
+        return s;
+    }
+};
+
 int main(int argc, char *argv[])
 {
     arguments args(argc-1, argv+1);
 
+    bool do_compare = false;
+    elem_type expected_type;
+    vector<int> expected_size;
     arrp::testing::array expected_data;
 
     if (args.has_option("--compare"))
     {
+        do_compare = true;
+
         string filename = args.option("--compare");
 
         ifstream input(filename);
@@ -204,12 +226,32 @@ int main(int argc, char *argv[])
         parser.parse(input);
 
         expected_data = parser.data();
+        expected_size = parser.size();
+        expected_type = parser.type();
+
+        do_compare = !expected_data.is_empty();
     }
 
     if (!expected_data.is_empty() && args.has_option("--print-expected"))
     {
         cout << "Expected:" << endl;
         print(expected_data);
+    }
+
+    vector<int> actual_size;
+    array_size<test::traits::output_type>::get_size(actual_size);
+
+    int actual_count = actual_size.empty() ? 1 : actual_size[0];
+
+    if (do_compare)
+    {
+        if (actual_size != expected_size)
+        {
+            cout << "Actual and expected output size differ: "
+                 << print_size(actual_size) << " != " << print_size(expected_size)
+                 << endl;
+            return 1;
+        }
     }
 
     int out_count = 10;
@@ -223,10 +265,31 @@ int main(int argc, char *argv[])
             cerr << "Invalid argument for --count: " << value << endl;
             return 1;
         }
+
+        if (actual_count >= 0 && out_count > actual_count)
+        {
+            cerr << "Requested output count is larger than available." << endl;
+            return 1;
+        }
+
+        cout << "Producing requested output count: "
+             << out_count << endl;
     }
     else if (!expected_data.is_empty())
     {
         out_count = expected_data.count();
+        cout << "Producing output count equal to test data count: "
+             << out_count << endl;
+        assert(actual_count < 0 || out_count <= actual_count);
+    }
+    else if (actual_count >= 0)
+    {
+        out_count = actual_count;
+        cout << "Producing entire output count: " << out_count << endl;
+    }
+    else
+    {
+        cout << "Producing default output count: " << out_count << endl;
     }
 
     auto program = new program_type;

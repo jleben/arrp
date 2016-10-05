@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arrp.hpp>
 #include <vector>
 #include <iostream>
 #include <complex>
@@ -10,6 +11,44 @@ namespace testing {
 using std::vector;
 using std::ostream;
 using std::complex;
+
+template<typename T> struct array_traits
+{
+    typedef T unit_type;
+    static const bool is_stream = false;
+};
+
+template<typename E> struct array_traits<stream_type<E>>
+{
+    typedef E unit_type;
+    static const bool is_stream = true;
+};
+
+template<typename T>
+struct array_size
+{
+    static void get_size(vector<int> & s) {}
+};
+
+template<typename E, size_t S>
+struct array_size<E[S]>
+{
+    static void get_size(vector<int> & s)
+    {
+        s.push_back(S);
+        array_size<E>::get_size(s);
+    }
+};
+
+template<typename E>
+struct array_size<stream_type<E>>
+{
+    static void get_size(vector<int> & s)
+    {
+        s.push_back(-1);
+        array_size<E>::get_size(s);
+    }
+};
 
 enum elem_type {
     bool_type,
