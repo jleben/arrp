@@ -11,7 +11,7 @@ freq_hz = 500;
 freq = freq_hz/sr;
 win_size = 64;
 n_mels = 10;
-lo_freq = 300;
+lo_freq = 100;
 hi_freq = 10000;
 
 pi = atan(1) * 4;
@@ -33,18 +33,20 @@ mel_freqs(lf, hf, n) = let {
   } in [n:i -> mel_to_freq(i/(n-1) * (hm - lm) + lm)];
 
 freq_to_bin(sr,n,f) = floor(n*f/sr);
+bin_to_freq(sr,n,b) = b*sr/n;
 
-coef(l, h, x) =
+coef(l, c, h, x) =
     if x < l or x > h
     then 0
-    else 1 - abs(0.5 - (x - l)/(h - l)) * 2;
+    else if x <= c
+      then (x-l)/(c-l)
+      else (h-x)/(h-c);
 
 mel_coefs(sr, fl, fh, n, wn) =
   let {
     mfreqs = mel_freqs(fl, fh, n+2);
-    mbins = freq_to_bin(sr,wn,mfreqs);
   }
-  in [n, wn//2+1: m, b -> coef(mbins[m-1],mbins[m+1], b)];
+  in [n, wn//2+1: m, b -> coef(mfreqs[m], mfreqs[m+1], mfreqs[m+2], bin_to_freq(sr,wn,b))];
 
 ## Program
 
@@ -53,10 +55,10 @@ x = [t -> sin(freq*t*2*pi)];
 w = signal.win(win_size, win_size, x);
 
 
-##main = mel_freqs(20,10000,7);
+##main = mel_freqs(lo_freq,hi_freq,n_mels+2);
 ##main = fft_freqs(20000,10);
 ##main = freq_to_bin(sr,200,mel_freqs(lo_freq, hi_freq, n_mels+2));
-##main = mel_coefs(sr, lo_freq, hi_freq, n_mels, 200);
+##main = mel_coefs(sr, lo_freq, hi_freq, n_mels, win_size);
 
 melc = mel_coefs(sr, lo_freq, hi_freq, n_mels, win_size);
 
