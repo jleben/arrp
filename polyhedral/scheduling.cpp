@@ -498,9 +498,22 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         isl::union_map infinite_sched =
                 isl_schedule_node_get_subtree_schedule_union_map(infinite_band);
 
+        if (verbose<scheduler>::enabled())
+        {
+          cout << "Infinite part of schedule:" << endl;
+          m_printer.print_each_in(infinite_sched);
+          cout << endl;
+        }
+
         int stream_dim, period_dur, prelude_dur;
 
-        find_stream_dim_and_period(infinite_sched, stream_dim, period_dur);
+        find_stream_dim_and_period(sched.tree.map(), stream_dim, period_dur);
+
+        if (root_is_sequence)
+        {
+          assert(stream_dim > 0);
+          stream_dim -= 1;
+        }
 
         prelude_dur = find_prelude_duration(infinite_sched, stream_dim);
 
@@ -768,26 +781,29 @@ void scheduler::find_stream_dim_and_period
             int period = 0;
             for (; dim < n_dim; ++dim)
             {
-                auto k1 = ray(dim,0).value();
-                auto k2 = ray(dim + n_dim,0).value();
-                assert_or_throw(k1.is_integer());
-                assert_or_throw(k2.is_integer());
-                if (k1.integer() != 0)
-                {
-                    assert_or_throw(k1.integer() == k2.integer());
-                    period = k1.integer();
-                    break;
-                }
-            }
+                auto k1_val = ray(dim,0).value();
+                auto k2_val = ray(dim + n_dim,0).value();
+                assert_or_throw(k1_val.is_integer());
+                assert_or_throw(k2_val.is_integer());
 
-            // If the ray is zero in all source dimensions,
-            // then this is a dependence of a stream on a constant,
-            // so skip.
-            if (period == 0)
-            {
-                if (verbose<scheduler>::enabled())
-                    cout << "Source is constant. Skipping." << endl;
-                return true;
+                auto k1 = k1_val.integer();
+                auto k2 = k2_val.integer();
+
+                if (k1 == 0 && k2 == 0)
+                  continue;
+
+                if (k1 == 0)
+                {
+                  // Source is finite, use destination coefficient
+                  period = k2;
+                }
+                else
+                {
+                  assert_or_throw(k1 == k2);
+                  period = k1;
+                }
+
+                break;
             }
 
             if (verbose<scheduler>::enabled())
@@ -819,7 +835,10 @@ void scheduler::find_stream_dim_and_period
     }
 
     if (verbose<scheduler>::enabled())
+    {
+        cout << ">> Common dimension = " << common_dim << endl;
         cout << endl << ">> Common period = " << common_period << endl;
+    }
 }
 
 void scheduler::find_array_periods
@@ -903,10 +922,18 @@ int scheduler::find_prelude_duration(const isl::union_map & schedule,
         auto stmt = statement_for(id);
         auto stmt_unbounded_sched = schedule.map_for(stmt_sched.get_space());
 
+        if (verbose<scheduler>::enabled())
+        {
+          cout << ".. Statement schedule: ";
+          m_printer.print(stmt_unbounded_sched);
+          cout << endl;
+        }
+
         if (stmt->is_infinite)
         {
             stmt_sched.for_each([&](basic_map & s)
             {
+
                 // NOTE: Assuming each basic map is infinite too.
 
                 auto domain = s.domain();
