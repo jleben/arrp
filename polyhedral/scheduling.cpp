@@ -507,6 +507,8 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
 
         int stream_dim, period_dur, prelude_dur;
 
+        // NOTE: We need to look at all dependencies (entire schedule),
+        // to correctly determine period.
         find_stream_dim_and_period(sched.tree.map(), stream_dim, period_dur);
 
         if (root_is_sequence)
