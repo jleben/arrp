@@ -85,6 +85,11 @@ public:
         int dim;
     };
 
+    struct options
+    {
+        bool optimize = true; // Minimize dependence distances in polyhedral scheduling
+    };
+
     scheduler( model & m );
 
     void set_schedule_whole_program(bool flag)
@@ -93,7 +98,7 @@ public:
     }
 
     polyhedral::schedule schedule
-    (bool optimize, const vector<reversal> & reversals);
+    (const options &, const vector<reversal> & reversals);
 
 private:
 
@@ -166,6 +171,62 @@ private:
     model_summary m_model_summary;
 
     bool m_schedule_whole = false;
+};
+
+class dataflow_scheduler
+{
+public:
+    dataflow_scheduler(model & m);
+
+    void run();
+
+private:
+
+    struct actor
+    {
+        struct statement
+        {
+            stmt_ptr stmt;
+            int iteration_count = 0;
+        };
+
+        struct port
+        {
+            array_ptr array;
+            int rate = 0;
+        };
+
+        vector<statement> stmts;
+        port output;
+        vector<port> inputs;
+        int rep_count = 0;
+    };
+
+    struct array_access
+    {
+        array_ptr array;
+        int iteration_count = 0;
+        int data_count = 0;
+    };
+
+    struct stmt_info
+    {
+        vector<array_access> writes;
+        vector<array_access> reads;
+    };
+
+    unordered_map<stmt_ptr, stmt_info>
+    get_stmt_info();
+
+    list<actor> make_actors();
+
+    void find_actor_rates(list<actor> &, const unordered_map<stmt_ptr, stmt_info> &);
+
+    void find_actor_repetitions(list<actor> &);
+
+    model & m_model;
+    model_summary m_model_summary;
+    isl::printer m_printer;
 };
 
 }

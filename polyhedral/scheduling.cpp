@@ -74,6 +74,8 @@ array * array_for( const isl::identifier & id)
     return reinterpret_cast<array*>(id.data);
 }
 
+static vector<int> find_singular_ray( const isl::basic_set & );
+
 scheduler::scheduler( model & m ):
     m_printer(m.context),
     m_model(m),
@@ -81,7 +83,8 @@ scheduler::scheduler( model & m ):
 {}
 
 polyhedral::schedule
-scheduler::schedule(bool optimize, const vector<reversal> & reversals)
+scheduler::schedule
+(const scheduler::options & options, const vector<reversal> & reversals)
 {
     if (verbose<scheduler>::enabled())
         cout << endl << "### Scheduling ###" << endl;
@@ -109,11 +112,13 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
         cout << endl;
     }
 
-    polyhedral::schedule schedule(m_model.context);
+    polyhedral::schedule schedule;
+
+    schedule.params = isl::set(isl::space(m_model.context, isl::parameter_tuple()));
 
     schedule.tree = make_schedule(m_model_summary.domains,
                                    m_model_summary.dependencies,
-                                   optimize);
+                                   options.optimize);
 
     schedule.full = schedule.tree.map().in_domain(m_model_summary.domains);
 
@@ -690,85 +695,14 @@ void scheduler::find_stream_dim_and_period
                 cout << "... Dep: "; m_printer.print(bm); cout << endl;
             }
 
-            isl::matrix eq =
-                    isl_basic_map_equalities_matrix
-                    (bm.get(),
-                     isl_dim_cst,
-                     isl_dim_in,
-                     isl_dim_out,
-                     isl_dim_div,
-                     isl_dim_param);
+            auto ray = find_singular_ray(bm.wrapped());
 
-            isl::matrix ineq =
-                    isl_basic_map_inequalities_matrix
-                    (bm.get(),
-                     isl_dim_cst,
-                     isl_dim_in,
-                     isl_dim_out,
-                     isl_dim_div,
-                     isl_dim_param);
-
-            for (int r = 0; r < eq.row_count(); ++r)
-                eq(r,0) = 0;
-
-            for (int r = 0; r < ineq.row_count(); ++r)
-                ineq(r,0) = 0;
-
-            auto dep_space = isl::local_space(bm.get_space());
-
-            int n_param = dep_space.dimension(isl::space::parameter);
-            int n_in = dep_space.dimension(isl::space::input);
-            int n_out = dep_space.dimension(isl::space::output);
-            int n_div = dep_space.dimension(isl::space::div);
-
-            // Make a set space which represents in, out and div dims
-            // simply as set dims.
-
-            isl::space space(bm.ctx(),
-                             isl::parameter_tuple(n_param),
-                             isl::set_tuple(n_in + n_out + n_div));
-
-            auto cone = isl_basic_set_from_constraint_matrices
-                    (space.copy(), eq.copy(), ineq.copy(),
-                     isl_dim_cst, isl_dim_set,
-                     isl_dim_div, isl_dim_param);
-
-            cone = isl_basic_set_detect_equalities(cone);
-
-            isl::matrix cone_eq = isl_basic_set_equalities_matrix
-                    (cone,
-                     isl_dim_set, isl_dim_param,
-                     isl_dim_div, isl_dim_cst);
-
-            isl_basic_set_free(cone);
-
-            cone_eq.drop_column(cone_eq.column_count()-1);
-
-            // If there is a single ray,
-            // it must be the nullspace of equalities.
-
-            // FIXME:
-            // We assume that the nullspace produces the direction
-            // consistent with the inqeualities
-            // (otherwise it would have to be inverted).
-
-            auto ray = cone_eq.nullspace();
-
-            if (ray.column_count() == 0)
+            if (ray.empty())
             {
                 if (verbose<scheduler>::enabled())
                     cout << "No ray. Skipping." << endl;
                 return true;
             }
-
-            if (verbose<scheduler>::enabled())
-            {
-                cout << "Ray:" << endl;
-                isl::print(ray);
-            }
-
-            // Assert the nullspace is a line:
-            assert_or_throw(ray.column_count() == 1);
 
             // Find the first infinite schedule dimension,
             // = the first non-zero value of the ray.
@@ -783,13 +717,8 @@ void scheduler::find_stream_dim_and_period
             int period = 0;
             for (; dim < n_dim; ++dim)
             {
-                auto k1_val = ray(dim,0).value();
-                auto k2_val = ray(dim + n_dim,0).value();
-                assert_or_throw(k1_val.is_integer());
-                assert_or_throw(k2_val.is_integer());
-
-                auto k1 = k1_val.integer();
-                auto k2 = k2_val.integer();
+                int k1 = ray[dim];
+                int k2 = ray[dim + n_dim];
 
                 if (k1 == 0 && k2 == 0)
                   continue;
@@ -1170,6 +1099,99 @@ bool scheduler::validate_schedule(isl::union_map & schedule)
     return is_valid;
 }
 
+static vector<int> find_singular_ray( const isl::basic_set & set )
+{
+    isl::matrix eq =
+            isl_basic_set_equalities_matrix
+            (set.get(),
+             isl_dim_cst,
+             isl_dim_set,
+             isl_dim_div,
+             isl_dim_param);
+
+    isl::matrix ineq =
+            isl_basic_set_inequalities_matrix
+            (set.get(),
+             isl_dim_cst,
+             isl_dim_set,
+             isl_dim_div,
+             isl_dim_param);
+
+    // Form a cone.
+    // = Translate all constraints to intersect with origin (set constants to 0)
+    for (int r = 0; r < eq.row_count(); ++r)
+        eq(r,0) = 0;
+
+    for (int r = 0; r < ineq.row_count(); ++r)
+        ineq(r,0) = 0;
+
+    // Form a set describing the cone.
+    // Represent both var and div dims as var dims.
+
+    auto set_space = isl::local_space(set.get_space());
+
+    int n_param = set_space.dimension(isl::space::parameter);
+    int n_var = set_space.dimension(isl::space::variable);
+    int n_div = set_space.dimension(isl::space::div);
+
+    isl::space cone_space(set.ctx(),
+                     isl::parameter_tuple(n_param),
+                     isl::set_tuple(n_var + n_div));
+
+    auto cone = isl_basic_set_from_constraint_matrices
+            (cone_space.copy(), eq.copy(), ineq.copy(),
+             isl_dim_cst, isl_dim_set,
+             isl_dim_div, isl_dim_param);
+
+    // Remove redundant constraints and join inequalities into equalities
+
+    cone = isl_basic_set_detect_equalities(cone);
+
+    // If there is a single ray,
+    // it must be the nullspace of equalities.
+
+    isl::matrix cone_eq = isl_basic_set_equalities_matrix
+            (cone,
+             isl_dim_set, isl_dim_param,
+             isl_dim_div, isl_dim_cst);
+
+    isl_basic_set_free(cone);
+
+    // Drop constants
+    cone_eq.drop_column(cone_eq.column_count()-1);
+
+    // FIXME:
+    // We assume that the nullspace produces the direction
+    // consistent with the inqeualities
+    // (otherwise it would have to be inverted).
+
+    auto ray = cone_eq.nullspace();
+
+    if (ray.column_count() == 0)
+    {
+        return vector<int>();
+    }
+
+    if (verbose<scheduler>::enabled())
+    {
+        cout << "Ray:" << endl;
+        isl::print(ray);
+    }
+
+    if (ray.column_count() != 1)
+        throw error("Multiple rays.");
+
+    vector<int> result(n_var);
+    for (int i = 0; i < n_var; ++i)
+    {
+        auto val = ray(i,0).value();
+        assert_or_throw(val.is_integer());
+        result[i] = val.integer();
+    }
+
+    return result;
+}
+
 void scheduler::print_each_in( const isl::union_set & us )
 {
     us.for_each ( [&](const isl::set & s){
@@ -1186,6 +1208,316 @@ void scheduler::print_each_in( const isl::union_map & um )
        cout << endl;
        return true;
     });
+}
+
+dataflow_scheduler::dataflow_scheduler(model & m):
+    m_model(m),
+    m_model_summary(m),
+    m_printer(m.context)
+{}
+
+void dataflow_scheduler::run()
+{
+    auto stmts = get_stmt_info();
+
+    auto actors = make_actors();
+
+    find_actor_rates(actors, stmts);
+
+    find_actor_repetitions(actors);
+}
+
+unordered_map<stmt_ptr, dataflow_scheduler::stmt_info>
+dataflow_scheduler::get_stmt_info()
+{
+    unordered_map<stmt_ptr, stmt_info> stmts;
+
+    for (auto & stmt : m_model.statements)
+    {
+        if (!stmt->is_infinite)
+            continue;
+
+        stmt_info info;
+
+        auto get_access_info = [](const isl::basic_map & bm, array_access & access)
+        {
+            auto ray = find_singular_ray(bm.wrapped());
+            assert_or_throw(!ray.empty());
+            int num_in = bm.get_space().dimension(isl::space::input);
+            int num_out = bm.get_space().dimension(isl::space::output);
+            assert(ray.size() == num_in + num_out);
+
+            int iter_count = ray[0];
+            int data_count = ray[num_in];
+            assert_or_throw(iter_count > 0);
+            if (access.array->is_infinite)
+                assert_or_throw(data_count > 0);
+
+            access.iteration_count = iter_count;
+            access.data_count = data_count;
+        };
+
+        if (stmt->write_relation.array)
+        {
+            stmt->write_relation.map
+                    .in_domain(stmt->domain)
+                    .in_range(stmt->write_relation.array->domain)
+                    .for_each([&](const isl::basic_map & bm)
+            {
+                cout << "-- Analyzing write: "; m_printer.print(bm); cout << endl;
+                array_access write;
+                write.array = stmt->write_relation.array;
+                get_access_info(bm, write);
+                info.writes.push_back(write);
+                return true;
+            });
+        }
+
+        for (auto & read_rel : stmt->read_relations)
+        {
+            read_rel.map
+                    .in_domain(stmt->domain)
+                    .in_range(read_rel.array->domain)
+                    .for_each([&](const isl::basic_map & bm)
+            {
+                cout << "-- Analyzing read: "; m_printer.print(bm); cout << endl;
+                array_access read;
+                read.array = read_rel.array;
+                get_access_info(bm, read);
+                info.reads.push_back(read);
+                return true;
+            });
+        }
+
+        stmts.emplace(stmt, info);
+    }
+
+    return std::move(stmts);
+}
+
+list<dataflow_scheduler::actor>
+dataflow_scheduler::make_actors()
+{
+    unordered_map<array_ptr, actor*> writing_actors;
+    list<actor> actors;
+
+    for (auto stmt : m_model.statements)
+    {
+        if (!stmt->is_infinite)
+            continue;
+
+        auto array = stmt->write_relation.array;
+
+        actor * act;
+        if (array)
+        {
+            act = writing_actors[array];
+            if (!act)
+            {
+                actors.emplace_back();
+                act = &actors.back();
+                act->output.array = array;
+                writing_actors[array] = act;
+            }
+        }
+        else {
+            actors.emplace_back();
+            act = &actors.back();
+        }
+
+        {
+            actor::statement s;
+            s.stmt = stmt;
+            act->stmts.push_back(s);
+        }
+    }
+
+    return std::move(actors);
+}
+
+void
+dataflow_scheduler::find_actor_rates
+(list<actor> & actors, const unordered_map<stmt_ptr, stmt_info> & stmts)
+{
+    for (auto & actor : actors)
+    {
+        cout << "-- Solving an actor: " << endl;
+        vector<array_ptr> arrays;
+
+        isl::space space(m_model.context, isl::set_tuple(actor.stmts.size()));
+        auto domain = isl::basic_set::universe(space);
+
+        auto get_or_add_array = [&](array_ptr a)
+        {
+            for(int i=0; i<arrays.size(); ++i)
+                if (arrays[i] == a)
+                    return (int)actor.stmts.size() + i;
+            int i = actor.stmts.size() + arrays.size();
+            domain.insert_dimensions(isl::space::variable, i, 1);
+            arrays.push_back(a);
+            return i;
+        };
+
+        auto add_ratio = [&]()
+        {
+            domain.add_dimensions(isl::space::variable, 1);
+            return domain.get_space().dimension(isl::space::variable) - 1;
+        };
+
+        int stmt_idx = 0;
+        for (auto & writer : actor.stmts)
+        {
+            auto & info = stmts.at(writer.stmt);
+            for (auto & write : info.writes)
+            {
+                int array_idx = get_or_add_array(write.array);
+                int ratio_idx = add_ratio();
+
+                auto space = domain.get_space();
+                domain.add_constraint
+                        (space.var(stmt_idx) == space.var(ratio_idx) * write.iteration_count);
+                domain.add_constraint
+                        (space.var(array_idx) == space.var(ratio_idx) * write.data_count);
+            }
+            for (auto & read : info.reads)
+            {
+                int array_idx = get_or_add_array(read.array);
+                int ratio_idx = add_ratio();
+
+                auto space = domain.get_space();
+                domain.add_constraint
+                        (space.var(stmt_idx) == space.var(ratio_idx) * read.iteration_count);
+                domain.add_constraint
+                        (space.var(array_idx) == space.var(ratio_idx) * read.data_count);
+            }
+            ++stmt_idx;
+        }
+
+        isl::matrix eq = isl_basic_set_equalities_matrix
+                (domain.get(),
+                 isl_dim_cst, isl_dim_set, isl_dim_div, isl_dim_param);
+        eq.drop_column(0);
+
+        auto solution = eq.nullspace();
+
+        cout << "Solution:" << endl;
+        isl::print(solution);
+
+        assert_or_throw(solution.column_count() == 1);
+
+        for (int i = 0; i < actor.stmts.size(); ++i)
+        {
+            assert_or_throw(solution(i,0).value().is_integer());
+            int iter_count = solution(i,0).value().integer();
+            actor.stmts[i].iteration_count = iter_count;
+            cout << "Stmt: " << actor.stmts[i].stmt->name
+                 << " * " << iter_count
+                 << endl;
+        }
+
+        int array_idx = 0;
+        if (actor.output.array)
+        {
+            assert(actor.output.array == arrays[0]);
+
+            auto rate_val = solution(actor.stmts.size() + array_idx, 0).value();
+            assert_or_throw(rate_val.is_integer());
+
+            actor.output.rate = rate_val.integer();
+
+            cout << "Output: " << actor.output.array->name
+                 << " * " << actor.output.rate
+                 << endl;
+
+            ++array_idx;
+        }
+        for (; array_idx < arrays.size(); ++array_idx)
+        {
+            auto rate_val = solution(actor.stmts.size() + array_idx, 0).value();
+            assert_or_throw(rate_val.is_integer());
+
+            actor::port p;
+            p.array = arrays[array_idx];
+            p.rate = rate_val.integer();
+
+            actor.inputs.push_back(p);
+
+            cout << "Input: " << p.array->name
+                 << " * " << p.rate
+                 << endl;
+        }
+    }
+}
+
+void dataflow_scheduler::find_actor_repetitions(list<actor> & actors)
+{
+    cout << "-- Computing actor repetitions:" << endl;
+
+#if  0
+    unorderd_map<array_ptr, actor*> actor_for_array;
+    for (auto & actor : actors)
+    {
+        if (actor.output.array)
+            actor_for_array[actor.output.array] = &actor;
+    }
+#endif
+    auto actor_for_array = [&](array_ptr array) -> pair<actor*,int>
+    {
+        int i = 0;
+        for (auto & actor : actors)
+        {
+            if (actor.output.array == array)
+                return make_pair(&actor, i);
+            ++i;
+        }
+        return make_pair(nullptr, -1);
+    };
+
+    isl::space rep_space(m_model.context, isl::set_tuple(actors.size()));
+    auto rep_domain = isl::basic_set::universe(rep_space);
+
+    int sink_idx = 0;
+    for (auto & sink : actors)
+    {
+        for (auto & input : sink.inputs)
+        {
+            auto source_info = actor_for_array(input.array);
+            if (source_info.first == nullptr)
+                continue;
+
+            auto & source = *source_info.first;
+            int source_idx = source_info.second;
+
+            rep_domain.add_constraint(rep_space.var(source_idx) * source.output.rate
+                                      == rep_space.var(sink_idx) * input.rate);
+        }
+
+        ++sink_idx;
+    }
+
+    isl::matrix eq = isl_basic_set_equalities_matrix
+            (rep_domain.get(), isl_dim_cst, isl_dim_set, isl_dim_div, isl_dim_param);
+    eq.drop_column(0);
+
+    auto solution = eq.nullspace();
+
+    cout << "Solution:" << endl;
+    isl::print(solution);
+
+    assert_or_throw(solution.column_count() == 1);
+
+    int actor_idx = 0;
+    for (auto & actor : actors)
+    {
+        auto rep_val = solution(actor_idx, 0).value();
+        assert_or_throw(rep_val.is_integer());
+
+        actor.rep_count = rep_val.integer();
+        cout << "Actor: " << actor.stmts.front().stmt->name
+             << " * " << actor.rep_count
+             << endl;
+        ++actor_idx;
+    }
 }
 
 }

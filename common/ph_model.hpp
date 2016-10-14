@@ -232,21 +232,14 @@ public:
 class schedule
 {
 public:
-    schedule(const isl::context & ctx):
-        tree(nullptr), full(ctx),
-        prelude_tree(nullptr), prelude(ctx),
-        period_tree(nullptr), period(ctx),
-        tiled(ctx),
-        params(isl::set(isl::space(ctx, isl::parameter_tuple())))
-    {}
-    isl::schedule tree;
-    isl::union_map full;
-    isl::schedule prelude_tree;
-    isl::union_map prelude;
-    isl::schedule period_tree;
-    isl::union_map period;
-    isl::union_map tiled;
-    isl::set params;
+    isl::schedule tree { nullptr };
+    isl::union_map full { nullptr };
+    isl::schedule prelude_tree { nullptr };
+    isl::union_map prelude { nullptr };
+    isl::schedule period_tree { nullptr };
+    isl::union_map period { nullptr };
+    isl::union_map tiled { nullptr };
+    isl::set params { nullptr };
 };
 
 #if 0

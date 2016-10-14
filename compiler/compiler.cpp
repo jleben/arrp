@@ -223,11 +223,25 @@ result::code compile_module
 
             // Compute polyhedral schedule
 
-            polyhedral::scheduler poly_scheduler( ph_model );
-            poly_scheduler.set_schedule_whole_program(opts.schedule_whole);
+            {
+                polyhedral::dataflow_scheduler scheduler(ph_model);
+                scheduler.run();
 
-            auto schedule = poly_scheduler.schedule(opts.optimize_schedule,
-                                                    opts.sched_reverse);
+                return result::ok;
+            }
+
+            polyhedral::schedule schedule;
+
+            {
+                polyhedral::scheduler poly_scheduler( ph_model );
+                poly_scheduler.set_schedule_whole_program(opts.schedule_whole);
+
+                polyhedral::scheduler::options sched_opt;
+                sched_opt.optimize = opts.optimize_schedule;
+
+                schedule = poly_scheduler.schedule(sched_opt,
+                                                   opts.sched_reverse);
+            }
 
             // Allocate storage (buffers)
 
