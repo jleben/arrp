@@ -255,6 +255,11 @@ result::code compile_module
             {
                 isl::printer printer(ph_model.context);
                 printer.set_format(isl::printer::c_format);
+                if (ast.full)
+                {
+                    cout << "AST for full schedule:" << endl;
+                    isl_printer_print_ast_node(printer.get(), ast.full);
+                }
                 if (ast.prelude)
                 {
                     cout << "AST for prelude:" << endl;

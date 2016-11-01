@@ -119,6 +119,14 @@ ast_isl make_isl_ast( schedule & sched, bool separate_loops )
 
     if (separate_loops)
     {
+        if (sched.tree.get())
+        {
+            auto root = isl_schedule_get_root(sched.prelude_tree.get());
+            root = mark_loop_type_separate(ctx, root);
+            sched.tree = isl_schedule_node_get_schedule(root);
+            isl_schedule_node_free(root);
+        }
+
         if (sched.prelude_tree.get())
         {
             auto root = isl_schedule_get_root(sched.prelude_tree.get());
@@ -140,6 +148,11 @@ ast_isl make_isl_ast( schedule & sched, bool separate_loops )
         }
     }
 
+    if (sched.tree.get())
+    {
+        output.full =
+                isl_ast_build_node_from_schedule(build, sched.tree.copy());
+    }
     if (sched.prelude_tree.get())
     {
         output.prelude =

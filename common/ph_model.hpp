@@ -265,10 +265,12 @@ class ast_isl
 public:
     ~ast_isl()
     {
+        isl_ast_node_free(full);
         isl_ast_node_free(prelude);
         isl_ast_node_free(period);
     }
 
+    isl_ast_node * full = nullptr;
     isl_ast_node * prelude = nullptr;
     isl_ast_node * period = nullptr;
 };
