@@ -21,9 +21,6 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef STREAM_LANG_COMPILER_ARG_PARSER
 #define STREAM_LANG_COMPILER_ARG_PARSER
 
-#include "../polyhedral/scheduling.hpp"
-#include "../utility/debug.hpp"
-
 #include <sstream>
 #include <iostream>
 #include <vector>
@@ -296,6 +293,19 @@ struct string_list_option : public option_parser
         string value;
         args.parse_argument(value, description);
         values->push_back(value);
+    }
+};
+
+struct int_option : public option_parser
+{
+    int * value;
+
+    int_option(int * v): value(v) {}
+
+    void process(arguments & args) {
+        string text;
+        args.parse_argument(text, "");
+        *value = std::stoi(text);
     }
 };
 
