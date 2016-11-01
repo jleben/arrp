@@ -1,5 +1,6 @@
 
 set(test_lib_src
+  ../../compiler/arg_parser.cpp
   test_parser.cpp
   testing.cpp
 )
