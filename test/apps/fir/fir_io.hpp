@@ -9,7 +9,7 @@ namespace arrp {
 namespace testing {
 
 template<>
-class io<test::traits> : public io_base<test::traits>
+class io<test::traits>
 {
 public:
     void input_coefs(double k[3])

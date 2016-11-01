@@ -1,6 +1,6 @@
 
 #include "test_parser.hpp"
-#include "io.hpp"
+#include "inspect_io.hpp"
 
 #include PROGRAM_SOURCE
 
@@ -18,7 +18,7 @@ using namespace std;
 
 namespace test { struct traits; }
 
-typedef arrp::testing::io<test::traits> io_type;
+typedef arrp::testing::inspect_io<test::traits> io_type;
 typedef test::program<io_type> program_type;
 
 class arguments

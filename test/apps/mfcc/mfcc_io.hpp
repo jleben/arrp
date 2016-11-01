@@ -10,7 +10,7 @@ namespace arrp {
 namespace testing {
 
 template<>
-class io<test::traits> : public io_base<test::traits>
+class io<test::traits>
 {
 public:
     static const int win_size = 64;

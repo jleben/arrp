@@ -7,7 +7,7 @@ namespace arrp {
 namespace testing {
 
 template<>
-class io<test::traits> : public io_base<test::traits>
+class io<test::traits>
 {
 public:
     void f(int in[4], int out[2])
