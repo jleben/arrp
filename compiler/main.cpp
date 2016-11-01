@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 {
     options opt;
 
-    arguments args(argc-1, argv+1);
+    arguments args;
 
     args.set_default_option({"", "", "<input filename>", ""}, [&opt](arguments& args){
         args.try_parse_argument(opt.input_filename);
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
     args.add_option({"verbose", "v", "<topic>", "Enable verbose output for <topic>."}, verbose_out);
 
     try {
-        args.parse();
+        args.parse(argc-1, argv+1);
     }
     catch (arguments::abortion &)
     {

@@ -5,9 +5,7 @@ using namespace std;
 namespace stream {
 namespace compiler {
 
-arguments::arguments(int argc, char *argv[]):
-    m_arg_count(argc),
-    m_args(argv)
+arguments::arguments()
 {}
 
 void arguments::print_help() const

@@ -125,15 +125,16 @@ public:
 
 private:
 
-    int m_arg_count;
-    char **m_args;
+    int m_arg_count = 0;
+    char **m_args = nullptr;
+
     string m_current_opt;
     option_description m_default_option_desc;
     option_parser * m_default_option = nullptr;
     vector<pair<option_description,option_parser*>> m_options;
 
 public:
-    arguments(int argc, char *argv[]);
+    arguments();
 
     void set_default_option(const option_description & desc, option_parser * parser)
     {
@@ -157,8 +158,11 @@ public:
         m_options.emplace_back(desc, parser);
     }
 
-    void parse()
+    void parse(int argc, char *argv[])
     {
+        m_arg_count = argc;
+        m_args = argv;
+
         if (m_default_option)
             m_default_option->process(*this);
 

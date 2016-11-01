@@ -60,7 +60,7 @@ int main(int argc, char * argv[])
 
     args arg;
 
-    stream::compiler::arguments arg_parser(argc-1, argv+1);
+    stream::compiler::arguments arg_parser;
     arg_parser.add_option({"periods", "p", "<count>",
                            "Execute <count> periods."},
                           new int_option(&arg.period_count));
@@ -72,7 +72,7 @@ int main(int argc, char * argv[])
                           new int_option(&arg.rep_count));
 
     try {
-        arg_parser.parse();
+        arg_parser.parse(argc-1, argv+1);
     }
     catch (stream::compiler::arguments::abortion &)
     {
