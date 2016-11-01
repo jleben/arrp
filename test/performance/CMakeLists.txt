@@ -28,6 +28,7 @@ function(add_perf_test name source)
 
   add_custom_command(OUTPUT ${tester_name}
     COMMAND ${icc_program} -std=c++11
+      -g
       -O3
       -Winline -inline-forceinline
       ${main_file}
@@ -55,3 +56,4 @@ add_custom_target(perf_tests)
 add_dependencies(tests perf_tests)
 
 add_subdirectory(dummy)
+add_subdirectory(mfcc)

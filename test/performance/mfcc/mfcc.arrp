@@ -1,0 +1,38 @@
+
+external fft : [64]real64 -> [33]complex64;
+external dct : [10]real64 -> [10]real64;
+input mel_coefs : [10,33]real64;
+
+sr = 20000;
+freq_hz = 500;
+freq = freq_hz/sr;
+win_size = 64;
+n_mels = 10;
+
+pi = atan(1) * 4;
+
+## Complex
+
+mag(X) = sqrt(real(X)*real(X) + imag(X)*imag(X));
+pow(X) = real(X)*real(X) + imag(X)*imag(X);
+
+## Program
+
+x = [t -> sin(freq*t*2*pi)];
+
+x_windows = [~,win_size: t,i -> x[t*win_size + i]];
+
+spectrum = [t -> fft(x_windows[t])];
+
+pow_spectrum = [t,i -> pow(spectrum[t,i])];
+
+mel_spectrum_sum = [
+  t,i,0 -> 0;
+  t,i,k -> mel_coefs[i,k-1] * pow_spectrum[t,k-1] + mel_spectrum_sum[t,i,k-1]
+];
+
+mel_spectrum = [t,i -> mel_spectrum_sum[t,i,#mel_spectrum_sum@3-1]];
+
+log_mel_spectrum = [t,i -> log(mel_spectrum[t,i] + 0.0001)];
+
+main = [t -> dct(log_mel_spectrum[t])];
