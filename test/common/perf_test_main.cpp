@@ -61,6 +61,11 @@ int main(int argc, char * argv[])
     args arg;
 
     stream::compiler::arguments arg_parser;
+
+    arg_parser.add_option({"help", "h", "Print help."}, [](arguments& args){
+        args.print_help();
+        throw arguments::abortion();
+    });
     arg_parser.add_option({"periods", "p", "<count>",
                            "Execute <count> periods."},
                           new int_option(&arg.period_count));
