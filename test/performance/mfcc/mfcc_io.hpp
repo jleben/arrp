@@ -4,6 +4,7 @@
 #include <io.hpp>
 #include <complex>
 #include <fftw3.h>
+#include <iostream>
 
 class program_id;
 
@@ -61,7 +62,20 @@ public:
 
     void input_mel_coefs(double out[mfcc_size][fft_size])
     {
+        using namespace std;
+
         mfcc::mel_coefs<mfcc_size, win_size>(sample_rate, freq_lower_bound, freq_upper_bound, out);
+#if 0
+        for (int i = 0; i < mfcc_size; ++i)
+        {
+            cout << "(";
+            for (int j = 0; j < fft_size; ++j)
+            {
+                cout << out[i][j] << ",";
+            }
+            cout << ")" << endl;
+        }
+#endif
     }
 };
 

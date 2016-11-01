@@ -38,7 +38,7 @@ vector<double> mel_freqs(double lf, double hf, int n)
     vector<double> m;
     for (int i = 0; i < n; ++i)
     {
-        m.push_back(mel_to_freq(i/float(n-1)) * (hm - lm) + lm);
+        m.push_back(mel_to_freq(i/double(n-1) * (hm - lm) + lm));
     }
     return m;
 }
@@ -47,6 +47,12 @@ template <int N, int WN>
 void mel_coefs(double sr, double fl, double fh, double coefs[N][WN/2+1])
 {
     auto freq_grid = mel_freqs(fl, fh, N+2);
+#if 0
+    for (auto & f : freq_grid)
+    {
+        cout << f << ", " << endl;
+    }
+#endif
     for (int n = 0; n < N; ++n)
     {
         for (int k = 0; k < WN/2+1; ++k)

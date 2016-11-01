@@ -24,7 +24,7 @@ x_windows = [~,win_size: t,i -> x[t*win_size + i]];
 
 spectrum = [t -> fft(x_windows[t])];
 
-pow_spectrum = [t,i -> pow(spectrum[t,i])];
+pow_spectrum = [t,i -> pow(spectrum[t,i])/win_size];
 
 mel_spectrum_sum = [
   t,i,0 -> 0;
