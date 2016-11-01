@@ -129,7 +129,7 @@ private:
     char **m_args;
     string m_current_opt;
     option_description m_default_option_desc;
-    option_parser * m_default_option;
+    option_parser * m_default_option = nullptr;
     vector<pair<option_description,option_parser*>> m_options;
 
 public:
