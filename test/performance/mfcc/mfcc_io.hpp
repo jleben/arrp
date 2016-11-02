@@ -15,9 +15,9 @@ template<>
 class io<test::traits>
 {
 public:
-    static const int win_size = 64;
+    static const int win_size = 1024;
     static const int fft_size = win_size/2 + 1;
-    static const int mfcc_size = 10;
+    static const int mfcc_size = 15;
 
     fftw_plan m_dft_plan;
     fftw_plan m_dct_plan;
