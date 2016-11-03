@@ -91,14 +91,16 @@ function(add_output_test name source)
 
   string(REGEX MATCH "\\.cpp$" cpp_ending ${source})
 
-  if (NOT cpp_ending)
+  if (cpp_ending)
+    set(cpp_source ${source})
+  else()
     stream_to_cpp(${name} ${source} "--cpp-namespace;test")
-    set(source "${name}.cpp")
+    set(cpp_source "${name}.cpp")
   endif()
 
   set(tester_name test_${name})
 
-  compile_output_test(${tester_name} "${source}" "${test_header}" "${test_libs}")
+  compile_output_test(${tester_name} "${cpp_source}" "${test_header}" "${test_libs}")
 
   add_custom_target(${tester_name} DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${tester_name}")
 
