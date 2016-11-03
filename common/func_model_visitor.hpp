@@ -97,24 +97,24 @@ public:
         }
     }
 
-    virtual R visit_int(const shared_ptr<int_const> &) = 0;
-    virtual R visit_real(const shared_ptr<real_const> &) = 0;
-    virtual R visit_complex(const shared_ptr<complex_const> &) = 0;
-    virtual R visit_bool(const shared_ptr<bool_const> &) = 0;
-    virtual R visit_infinity(const shared_ptr<infinity> &) = 0;
-    virtual R visit_ref(const shared_ptr<reference> &) = 0;
-    virtual R visit_array_self_ref(const shared_ptr<array_self_ref> &) = 0;
-    virtual R visit_primitive(const shared_ptr<primitive> & prim) = 0;
-    virtual R visit_operation(const shared_ptr<operation> &) = 0;
-    virtual R visit_affine(const shared_ptr<affine_expr> &) = 0;
-    virtual R visit_cases(const shared_ptr<case_expr> & cexpr) = 0;
-    virtual R visit_array(const shared_ptr<array> & arr) = 0;
-    virtual R visit_array_patterns(const shared_ptr<array_patterns> &) = 0;
-    virtual R visit_array_app(const shared_ptr<array_app> & app) = 0;
-    virtual R visit_array_size(const shared_ptr<array_size> & as) = 0;
-    virtual R visit_func_app(const shared_ptr<func_app> & app) = 0;
-    virtual R visit_func(const shared_ptr<function> & func) = 0;
-    virtual R visit_external(const shared_ptr<external> &) = 0;
+    virtual R visit_int(const shared_ptr<int_const> &) { return R(); }
+    virtual R visit_real(const shared_ptr<real_const> &) { return R(); }
+    virtual R visit_complex(const shared_ptr<complex_const> &) { return R(); }
+    virtual R visit_bool(const shared_ptr<bool_const> &) { return R(); }
+    virtual R visit_infinity(const shared_ptr<infinity> &) { return R(); }
+    virtual R visit_ref(const shared_ptr<reference> &) { return R(); }
+    virtual R visit_array_self_ref(const shared_ptr<array_self_ref> &) { return R(); }
+    virtual R visit_primitive(const shared_ptr<primitive> & prim) { return R(); }
+    virtual R visit_operation(const shared_ptr<operation> &) { return R(); }
+    virtual R visit_affine(const shared_ptr<affine_expr> &) { return R(); }
+    virtual R visit_cases(const shared_ptr<case_expr> & cexpr) { return R(); }
+    virtual R visit_array(const shared_ptr<array> & arr) { return R(); }
+    virtual R visit_array_patterns(const shared_ptr<array_patterns> &) { return R(); }
+    virtual R visit_array_app(const shared_ptr<array_app> & app) { return R(); }
+    virtual R visit_array_size(const shared_ptr<array_size> & as) { return R(); }
+    virtual R visit_func_app(const shared_ptr<func_app> & app) { return R(); }
+    virtual R visit_func(const shared_ptr<function> & func) { return R(); }
+    virtual R visit_external(const shared_ptr<external> &) { return R(); }
 };
 
 template<>
