@@ -71,6 +71,7 @@ private:
     expr_ptr apply(expr_ptr, const vector<expr_ptr> & args);
     expr_ptr substitute(expr_ptr);
     expr_ptr eta_expand(expr_ptr);
+    expr_ptr lambda_lift(expr_ptr, const string & name);
 
     isl::context m_isl_ctx;
 

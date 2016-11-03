@@ -35,6 +35,53 @@ string wrong_arg_count_msg(int required, int actual)
     return text.str();
 }
 
+class primitive_expr_check : private visitor<bool>
+{
+public:
+    bool operator()(const expr_ptr & e)
+    {
+        printer p;
+        //cout << "Checking if expr is primitive: ";
+        //p.print(e, cout);
+        //cout << endl;
+        bool is_primitive = visit(e);
+        //cout << "  -> " << is_primitive << endl;
+        return is_primitive;
+    }
+
+protected:
+    virtual bool visit_int(const shared_ptr<int_const> &) override { return true; }
+    virtual bool visit_real(const shared_ptr<real_const> &) override { return true; }
+    virtual bool visit_complex(const shared_ptr<complex_const> &) override { return true; }
+    virtual bool visit_bool(const shared_ptr<bool_const> &) override { return true; }
+    virtual bool visit_infinity(const shared_ptr<infinity> &) override { return true; }
+    virtual bool visit_ref(const shared_ptr<reference> &) override { return true; }
+    virtual bool visit_array_self_ref(const shared_ptr<array_self_ref> &) override { return true; }
+    virtual bool visit_primitive(const shared_ptr<primitive> & prim)
+    {
+        for (auto & arg : prim->operands)
+        {
+            if (!arg->type->is_scalar())
+                return false;
+        }
+        return true;
+    }
+    virtual bool visit_affine(const shared_ptr<affine_expr> &) override { return true; }
+    virtual bool visit_array_app(const shared_ptr<array_app> & app) override {
+        return visit(app->object);
+    }
+    virtual bool visit_array_size(const shared_ptr<array_size> & as) override { return true; }
+};
+
+class atomic_expr_check : public primitive_expr_check
+{
+protected:
+    virtual bool visit_primitive(const shared_ptr<primitive> & prim) override
+    { return false; }
+    virtual bool visit_affine(const shared_ptr<affine_expr> & prim) override
+    { return false; }
+};
+
 func_reducer::func_reducer(name_provider & nmp):
     m_trace("trace"),
     m_name_provider(nmp),
@@ -147,36 +194,10 @@ expr_ptr func_reducer::do_apply
         auto arg = args[i];
         m_type_checker.process(arg);
 
-        // FIXME: don't make ids for indexing expressions
-
-        if (var->ref_count > 1 && !dynamic_pointer_cast<reference>(arg)
-                && arg->type->is_data())
+        atomic_expr_check is_atomic;
+        if (var->ref_count > 1 && !is_atomic(arg))
         {
-            auto arg_id_name = m_name_provider.new_name(var->qualified_name);
-            auto arg_id = make_shared<identifier>(arg_id_name, arg, location_type());
-            arg = make_shared<reference>(arg_id, arg->location);
-
-            m_ids.insert(arg_id);
-            if (m_scope_stack.size())
-            {
-                m_scope_stack.top()->ids.push_back(arg_id);
-                if (verbose<func_reducer>::enabled())
-                {
-                    cout << "Stored id for multi-ref argument " << var->name
-                         << " into enclosing function scope."
-                         << " (" << m_scope_stack.top() << ")"
-                         << endl;
-                }
-            }
-            else
-            {
-                if (verbose<func_reducer>::enabled())
-                {
-                    cout << "No enclosing function scope for id for multi-ref argument "
-                         << var->name
-                         << endl;
-                }
-            }
+            arg = lambda_lift(arg, var->qualified_name);
         }
 
         if (verbose<func_reducer>::enabled())
@@ -448,13 +469,15 @@ expr_ptr func_reducer::visit_func_app(const shared_ptr<func_app> & app)
         for (auto & arg : app->args)
         {
             m_type_checker.process(arg);
-            if (arg->type->is_array())
+            primitive_expr_check is_primitive;
+            if (!is_primitive(arg))
                 arg = lambda_lift(arg, "_tmp");
         }
 
         m_type_checker.process(app);
 
-        result = lambda_lift(app, ext->name);
+        result = app;
+        //result = lambda_lift(app, ext->name);
     }
     else
     {
@@ -485,7 +508,25 @@ expr_ptr func_reducer::lambda_lift(expr_ptr e, const string & name)
     auto id = make_shared<identifier>(id_name, e, location_type());
     m_ids.insert(id);
     if (m_scope_stack.size())
+    {
         m_scope_stack.top()->ids.push_back(id);
+        if (verbose<func_reducer>::enabled())
+        {
+            cout << "Stored lambda-lifted expression with id " << id_name
+                 << " into enclosing function scope."
+                 << " (" << m_scope_stack.top() << ")"
+                 << endl;
+        }
+    }
+    else
+    {
+        if (verbose<func_reducer>::enabled())
+        {
+            cout << "No enclosing function scope for lambda-lifted expression with id "
+                 << id_name
+                 << endl;
+        }
+    }
 
     e = make_shared<reference>(id, e->location);
     return e;

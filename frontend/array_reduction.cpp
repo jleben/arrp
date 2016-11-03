@@ -451,17 +451,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
                 dynamic_pointer_cast<case_expr>(arr->expr.expr);
 
         if (is_irreducible)
-        {
-            auto name = m_name_provider.new_name("tmp");
-            auto id = make_shared<identifier>(name, arr, location_type());
-
-            auto ref = make_ref(id);
-            // Process id and detect free vars in substitution,
-            // by reducing the reference:
-            ref = reduce(ref);
-
-            app->object = ref;
-        }
+            app->object = lambda_lift(arr, "_tmp");
 
         requires_reduction = true;
     }
@@ -471,6 +461,11 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
     }
     else if (dynamic_pointer_cast<array_self_ref>(app->object.expr))
     {
+        requires_reduction = false;
+    }
+    else if (dynamic_pointer_cast<func_app>(app->object.expr))
+    {
+        app->object = lambda_lift(app->object, "_tmp");
         requires_reduction = false;
     }
     else
@@ -510,28 +505,25 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     for (auto & operand : op->operands)
     {
+        bool must_lambda_lift = false;
+
         // NOTE:
         // Pointwise operation is valid for an array with name recursion,
         // since the recursion refers to the resulting array.
         if (auto arr = dynamic_pointer_cast<array>(operand.expr))
         {
-            bool is_irreducible =
+            must_lambda_lift =
                     arr->is_recursive ||
-                    dynamic_pointer_cast<case_expr>(arr->expr.expr);
-
-            if (is_irreducible)
-            {
-                auto name = m_name_provider.new_name("tmp");
-                auto id = make_shared<identifier>(name, arr, location_type());
-
-                auto ref = make_ref(id);
-                // Process id and detect free vars in substitution,
-                // by reducing the reference:
-                ref = reduce(ref);
-
-                operand = ref;
-            }
+                    dynamic_pointer_cast<case_expr>(arr->expr.expr) ||
+                    dynamic_pointer_cast<func_app>(arr->expr.expr);
         }
+        else if (dynamic_pointer_cast<func_app>(operand.expr))
+        {
+            must_lambda_lift = true;
+        };
+
+        if (must_lambda_lift)
+            operand = lambda_lift(operand, "_tmp");
     }
 
     auto arr = make_shared<array>();
@@ -569,6 +561,18 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
     for (auto & operand : op->operands)
     {
         operand = reduce(operand);
+
+        bool must_lambda_lift = false;
+        if (dynamic_pointer_cast<array>(operand.expr))
+        {
+            if (dynamic_pointer_cast<func_app>(operand.expr))
+                must_lambda_lift = true;
+        }
+        else if (dynamic_pointer_cast<func_app>(operand.expr))
+            must_lambda_lift = true;
+
+        if (must_lambda_lift)
+            operand = lambda_lift(operand, "_tmp");
     }
 
     auto result_arr_type = dynamic_pointer_cast<array_type>(op->type);
@@ -995,7 +999,13 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args
     assert(expr->type);
 
     if (verbose<array_reducer>::enabled())
-        cout << "Applied type: " << *expr->type << endl;
+    {
+        cout << expr->location << ": ";
+        cout << "Applying: ";
+        m_printer.print(expr, cout);
+        cout << " : " << *expr->type;
+        cout << endl;
+    }
 
     auto ar_type = dynamic_pointer_cast<array_type>(expr->type);
 
@@ -1090,7 +1100,8 @@ expr_ptr array_reducer::eta_expand(expr_ptr expr)
 
     if (auto ar = dynamic_pointer_cast<array>(expr))
     {
-        if (ar->vars.size() == ar_type->size.size())
+        if ( dynamic_pointer_cast<func_app>(ar->expr.expr) ||
+             ar->vars.size() == ar_type->size.size() )
         {
             // Assume it is fully expanded.
             return expr;
@@ -1118,6 +1129,19 @@ expr_ptr array_reducer::eta_expand(expr_ptr expr)
     new_ar->is_recursive = is_recursive_array;
 
     return new_ar;
+}
+
+expr_ptr array_reducer::lambda_lift(expr_ptr e, const string & name)
+{
+    auto unique_name = m_name_provider.new_name(name);
+    auto id = make_shared<identifier>(unique_name, e, location_type());
+
+    auto ref = make_ref(id);
+    // Process id and detect free vars in substitution,
+    // by reducing the reference:
+    ref = reduce(ref);
+
+    return ref;
 }
 
 string array_reducer::new_var_name()
