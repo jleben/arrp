@@ -248,6 +248,10 @@ void printer::print(expr_ptr expr, ostream & out)
         }
         out << "\\";
     }
+    else if (auto ext = dynamic_pointer_cast<external>(expr))
+    {
+        out << ext->name;
+    }
     else
     {
         out << "?";
