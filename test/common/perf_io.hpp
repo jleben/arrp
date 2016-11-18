@@ -15,6 +15,8 @@ public:
 
     void output(output_unit_type & a)
     {
+        static volatile double z;
+        z = a[0];
     }
 };
 
