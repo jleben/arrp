@@ -43,8 +43,8 @@ vector<double> mel_freqs(double lf, double hf, int n)
     return m;
 }
 
-template <int N, int WN>
-void mel_coefs(double sr, double fl, double fh, double coefs[N][WN/2+1])
+template <int N, int WN, int CN>
+void mel_coefs(double sr, double fl, double fh, double coefs[N][CN])
 {
     auto freq_grid = mel_freqs(fl, fh, N+2);
 #if 0
@@ -55,7 +55,7 @@ void mel_coefs(double sr, double fl, double fh, double coefs[N][WN/2+1])
 #endif
     for (int n = 0; n < N; ++n)
     {
-        for (int k = 0; k < WN/2+1; ++k)
+        for (int k = 0; k < CN; ++k)
         {
             coefs[n][k] = coef
                     (freq_grid[n], freq_grid[n+1], freq_grid[n+2], bin_to_freq(sr,WN,k));

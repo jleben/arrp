@@ -26,6 +26,8 @@ public:
     double freq_lower_bound;
     double freq_upper_bound;
 
+    int t = 0;
+
     io(): io(20000, 100, 10000)
     {
 
@@ -58,6 +60,12 @@ public:
     void dct(double in[mfcc_size], double out[mfcc_size])
     {
         fftw_execute_r2r(m_dct_plan, in, out);
+    }
+
+    void input_x(double & x)
+    {
+        x = t;
+        t = (t + 1);
     }
 
     void input_mel_coefs(double out[mfcc_size][fft_size])

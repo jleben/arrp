@@ -2,6 +2,7 @@
 external fft : [1024]real64 -> [513]complex64;
 external dct : [15]real64 -> [15]real64;
 input mel_coefs : [15,513]real64;
+input x : [~]real64;
 
 sr = 20000;
 freq_hz = 500;
@@ -18,7 +19,7 @@ pow(X) = real(X)*real(X) + imag(X)*imag(X);
 
 ## Program
 
-x = [t -> sin(freq*t*2*pi)];
+## x = [t -> sin(freq*t*2*pi)];
 
 x_windows = [~,win_size: t,i -> x[t*win_size + i]];
 
