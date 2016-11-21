@@ -19,6 +19,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "scheduling.hpp"
+#include "utility.hpp"
 #include "../common/error.hpp"
 
 #include <isl/schedule.h>
@@ -690,85 +691,33 @@ void scheduler::find_stream_dim_and_period
                 cout << "... Dep: "; m_printer.print(bm); cout << endl;
             }
 
-            isl::matrix eq =
-                    isl_basic_map_equalities_matrix
-                    (bm.get(),
-                     isl_dim_cst,
-                     isl_dim_in,
-                     isl_dim_out,
-                     isl_dim_div,
-                     isl_dim_param);
+            vector<arrp::ivector> rays;
+            arrp::find_rays(bm.wrapped().lifted().flattened(), rays);
 
-            isl::matrix ineq =
-                    isl_basic_map_inequalities_matrix
-                    (bm.get(),
-                     isl_dim_cst,
-                     isl_dim_in,
-                     isl_dim_out,
-                     isl_dim_div,
-                     isl_dim_param);
+            if (verbose<scheduler>::enabled())
+            {
+                for (auto & r : rays)
+                {
+                    cout << "ray: ";
+                    for (auto & i : r)
+                        cout << i << " ";
+                    cout << endl;
+                }
+            }
 
-            for (int r = 0; r < eq.row_count(); ++r)
-                eq(r,0) = 0;
-
-            for (int r = 0; r < ineq.row_count(); ++r)
-                ineq(r,0) = 0;
-
-            auto dep_space = isl::local_space(bm.get_space());
-
-            int n_param = dep_space.dimension(isl::space::parameter);
-            int n_in = dep_space.dimension(isl::space::input);
-            int n_out = dep_space.dimension(isl::space::output);
-            int n_div = dep_space.dimension(isl::space::div);
-
-            // Make a set space which represents in, out and div dims
-            // simply as set dims.
-
-            isl::space space(bm.ctx(),
-                             isl::parameter_tuple(n_param),
-                             isl::set_tuple(n_in + n_out + n_div));
-
-            auto cone = isl_basic_set_from_constraint_matrices
-                    (space.copy(), eq.copy(), ineq.copy(),
-                     isl_dim_cst, isl_dim_set,
-                     isl_dim_div, isl_dim_param);
-
-            cone = isl_basic_set_detect_equalities(cone);
-
-            isl::matrix cone_eq = isl_basic_set_equalities_matrix
-                    (cone,
-                     isl_dim_set, isl_dim_param,
-                     isl_dim_div, isl_dim_cst);
-
-            isl_basic_set_free(cone);
-
-            cone_eq.drop_column(cone_eq.column_count()-1);
-
-            // If there is a single ray,
-            // it must be the nullspace of equalities.
-
-            // FIXME:
-            // We assume that the nullspace produces the direction
-            // consistent with the inqeualities
-            // (otherwise it would have to be inverted).
-
-            auto ray = cone_eq.nullspace();
-
-            if (ray.column_count() == 0)
+            if (rays.empty())
             {
                 if (verbose<scheduler>::enabled())
                     cout << "No ray. Skipping." << endl;
                 return true;
             }
 
-            if (verbose<scheduler>::enabled())
+            if (rays.size() != 1)
             {
-                cout << "Ray:" << endl;
-                isl::print(ray);
+                throw error("Multiple rays.");
             }
 
-            // Assert the nullspace is a line:
-            assert_or_throw(ray.column_count() == 1);
+            auto & ray = rays.front();
 
             // Find the first infinite schedule dimension,
             // = the first non-zero value of the ray.
@@ -783,13 +732,8 @@ void scheduler::find_stream_dim_and_period
             int period = 0;
             for (; dim < n_dim; ++dim)
             {
-                auto k1_val = ray(dim,0).value();
-                auto k2_val = ray(dim + n_dim,0).value();
-                assert_or_throw(k1_val.is_integer());
-                assert_or_throw(k2_val.is_integer());
-
-                auto k1 = k1_val.integer();
-                auto k2 = k2_val.integer();
+                auto k1 = ray[dim];
+                auto k2 = ray[dim + n_dim];
 
                 if (k1 == 0 && k2 == 0)
                   continue;
