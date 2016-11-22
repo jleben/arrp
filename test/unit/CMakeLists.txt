@@ -2,8 +2,9 @@
 add_custom_target(unit_tests)
  
 function(add_unit_test name source)
-  add_output_test(${ARGV})
-  add_dependencies(unit_tests test_${name})
+  set(test_name "unit.${name}")
+  add_output_test(${test_name} ${source} ${ARGN})
+  add_dependencies(unit_tests test_${test_name})
 endfunction()
 
 add_unit_test(array1 array1.stream)

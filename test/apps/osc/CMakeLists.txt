@@ -1,2 +1,2 @@
 
-add_output_test(osc osc.arrp)
+add_app_test(osc osc.arrp)

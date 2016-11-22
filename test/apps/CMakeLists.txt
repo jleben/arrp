@@ -1,3 +1,11 @@
+add_custom_target(app_tests)
+
+function(add_app_test name source)
+  set(test_name "app.${name}")
+  add_output_test(${test_name} ${source} ${ARGN})
+  add_dependencies(app_tests test_${test_name})
+endfunction()
+
 #add_subdirectory(fm_radio)
 #add_subdirectory(autocorrelation)
 #add_subdirectory(fft)
