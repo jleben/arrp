@@ -162,24 +162,7 @@ private:
 
     int find_period_onset(const access_info & info, int dim);
 
-    void find_stream_dim_and_period(const isl::union_map & schedule,
-                                    int & dim, int & period);
-    int find_prelude_duration(const isl::union_map & schedule,
-                              int time_dim);
-    void find_array_periods(const isl::union_map & schedule,
-                            int time_dim, int prelude, int period);
-
-    isl::union_map prelude_schedule
-    (const isl::union_map & schedule, int prelude);
-    isl::union_map periodic_schedule
-    (const isl::union_map & schedule, int prelude, int period);
-
     bool validate_schedule(isl::union_map & schedule);
-
-    int common_offset(isl::union_map & schedule, int flow_dim);
-
-    void print_each_in( const isl::union_set & );
-    void print_each_in( const isl::union_map & );
 
     isl::printer m_printer;
 
