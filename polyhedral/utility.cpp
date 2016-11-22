@@ -61,6 +61,27 @@ void find_rays(const isl::basic_set & set, vector<ivector> & rays)
 
         rays.push_back(vec);
     }
+
+    for (int c = 0; c < dual_eq.row_count(); ++c)
+    {
+        auto d = dual_eq(c,0).value().integer();
+        if (d != 0)
+            continue;
+
+        ivector pvec(n_dual_vars-1);
+        ivector nvec(n_dual_vars-1);
+        for (int i = 0; i < n_dual_vars-1; ++i)
+        {
+            auto val = dual_eq(c,i+1).value();
+            if (!val.is_integer())
+                throw stream::error("Ray coordinate not an integer.");
+            pvec[i] = dual_eq(c,i+1).value().integer();
+            nvec[i] = -pvec[i];
+        }
+
+        rays.push_back(pvec);
+        rays.push_back(nvec);
+    }
 }
 
 }
