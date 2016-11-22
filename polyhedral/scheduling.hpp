@@ -141,6 +141,27 @@ private:
 
     void make_periodic_schedule(polyhedral::schedule &);
 
+    struct tiling
+    {
+        int dim;
+        int offset;
+        int size;
+    };
+
+    tiling find_periodic_tiling(const isl::union_map & schedule);
+
+    struct access_info
+    {
+        polyhedral::array * array { nullptr };
+        isl::basic_map schedule { nullptr };
+        vector<int> time_period;
+        vector<int> data_offset;
+    };
+
+    vector<access_info> analyze_access_schedules(const isl::union_map & schedule);
+
+    int find_period_onset(const access_info & info, int dim);
+
     void find_stream_dim_and_period(const isl::union_map & schedule,
                                     int & dim, int & period);
     int find_prelude_duration(const isl::union_map & schedule,
