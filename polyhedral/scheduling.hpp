@@ -79,21 +79,15 @@ public:
         {}
     };
 
-    struct reversal
+    struct options
     {
-        string stmt_name;
-        int dim;
+        bool optimize = true;
+        bool cluster = true;
     };
 
     scheduler( model & m );
 
-    void set_schedule_whole_program(bool flag)
-    {
-        m_schedule_whole = flag;
-    }
-
-    polyhedral::schedule schedule
-    (bool optimize, const vector<reversal> & reversals);
+    polyhedral::schedule schedule(const options &);
 
 private:
 
@@ -134,8 +128,8 @@ private:
     // Scheduling
 
     isl::schedule make_schedule(const isl::union_set & domains,
-                                 const isl::union_map & dependencies,
-                                 bool optimize);
+                                const isl::union_map & dependencies,
+                                const options &);
 
     isl::union_map make_proximity_dependencies(const isl::union_map & dependencies);
 
@@ -168,8 +162,6 @@ private:
 
     model & m_model;
     model_summary m_model_summary;
-
-    bool m_schedule_whole = false;
 };
 
 }

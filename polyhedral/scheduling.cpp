@@ -82,7 +82,7 @@ scheduler::scheduler( model & m ):
 {}
 
 polyhedral::schedule
-scheduler::schedule(bool optimize, const vector<reversal> & reversals)
+scheduler::schedule(const scheduler::options & options)
 {
     if (verbose<scheduler>::enabled())
         cout << endl << "### Scheduling ###" << endl;
@@ -113,8 +113,8 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
     polyhedral::schedule schedule(m_model.context);
 
     schedule.tree = make_schedule(m_model_summary.domains,
-                                   m_model_summary.dependencies,
-                                   optimize);
+                                  m_model_summary.dependencies,
+                                  options);
 
     schedule.full = schedule.tree.map().in_domain(m_model_summary.domains);
 
@@ -166,80 +166,6 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
         cout << "Validating tiled schedule:" << endl;
         ok = validate_schedule(schedule.tiled);
         cout << (ok ? "Valid." : "Invalid!") << endl;
-    }
-
-    for (auto & reversal : reversals)
-    {
-        cout << "Reversing: " << reversal.stmt_name
-             << " @ " << reversal.dim << endl;
-
-        stmt_ptr stmt;
-        for (auto & s : m_model.statements)
-        {
-            if (s->name == reversal.stmt_name)
-            {
-                stmt = s;
-                break;
-            }
-        };
-
-        if (!stmt)
-            throw error("Can not reverse schedule: No statement named " + reversal.stmt_name);
-
-        auto sched = schedule.period.in_domain(stmt->domain);
-
-        auto union_sched_range = sched.range();
-        isl::space sched_space(nullptr);
-        union_sched_range.for_each([&](const isl::set & s){
-            sched_space = s.get_space();
-            return false;
-        });
-
-        if (reversal.dim < 0 || reversal.dim >= sched_space.dimension(isl::space::variable))
-            throw error("Schedule dimension out of range: ");
-
-        auto sched_range = union_sched_range.set_for(sched_space);
-        auto t = sched_space.var(reversal.dim);
-        auto min_t = sched_range.minimum(t);
-        auto max_t = sched_range.maximum(t);
-
-        if (min_t.is_infinity() || max_t.is_infinity())
-            throw error("Schedule dimension is infinite.");
-
-        cout << "Schedule dimension range: " << min_t.integer() << "," << max_t.integer() << endl;
-
-#if 1
-        {
-            // t2 = max + min - t1;
-            // t1 = max + min - t2;
-
-            auto sched_map_space = isl::space::from(sched_space, sched_space);
-
-            int dim = reversal.dim;
-
-            isl_multi_aff * transform =
-                    isl_multi_aff_identity(sched_map_space.copy());
-
-            isl_aff * out = isl_multi_aff_get_aff(transform, dim);
-            out = isl_aff_set_coefficient_si(out, isl_dim_in, dim, -1);
-            out = isl_aff_set_constant_si(out, max_t.integer() + min_t.integer());
-
-            transform = isl_multi_aff_set_aff(transform, dim, out);
-
-            schedule.period.subtract(sched);
-
-            schedule.period = schedule.period |
-                    isl_union_map_preimage_range_multi_aff
-                    (sched.copy(), transform);
-        }
-#endif
-    }
-
-    if (verbose<scheduler>::enabled() && !reversals.empty())
-    {
-        cout << "Periodic schedule with reversals:" << endl;
-        m_printer.print_each_in(schedule.period);
-        cout << endl;
     }
 
     return schedule;
@@ -343,12 +269,12 @@ scheduler::add_schedule_constraints
 #endif
 isl::schedule scheduler::make_schedule
 (const isl::union_set & domains, const isl::union_map & dependencies,
- bool optimize)
+ const scheduler::options & options)
 {
     // FIXME: statements with no dependencies
     // seem to always end up with an empty schedule.
 
-    isl_options_set_schedule_whole_component(domains.ctx().get(), m_schedule_whole);
+    isl_options_set_schedule_whole_component(domains.ctx().get(), options.cluster);
 
     isl_schedule_constraints *constr =
             isl_schedule_constraints_on_domain(domains.copy());
@@ -358,7 +284,7 @@ isl::schedule scheduler::make_schedule
 #endif
     constr = isl_schedule_constraints_set_validity(constr, dependencies.copy());
 
-    if (optimize)
+    if (options.optimize)
     {
         auto proximity_deps = make_proximity_dependencies(dependencies);
         constr = isl_schedule_constraints_set_proximity(constr, proximity_deps.copy());
