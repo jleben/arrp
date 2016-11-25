@@ -432,140 +432,136 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
           cout << endl;
         }
 
+        // Find periodic tiling
 
         auto tiling = find_periodic_tiling(infinite_sched);
 
-        infinite_sched = infinite_sched.in_domain(sched.full.domain());
+        isl::schedule tiled_schedule { nullptr };
 
-        // Extract statement domains for prelude and period
+        // Tile the infinite band
 
-        isl::union_set prelude_dom(sched.full.ctx()), period_dom(sched.full.ctx());
+        isl_options_set_tile_scale_tile_loops(m_model.context.get(), 0);
+        isl_options_set_tile_shift_point_loops(m_model.context.get(), 0);
 
-        if (tiling.offset > 0)
+        isl::space band_space = isl_schedule_node_band_get_space(infinite_band);
+        int n_dim = band_space.dimension(isl::space::variable);
+
+        auto tile_size = isl_multi_val_zero(band_space.copy());
+        for (int i = 0; i < n_dim; ++i)
         {
-            // Add prelude part of the infinite schedule part.
-            // = stream dim < tiling.offset
-            infinite_sched.for_each([&](isl::map & m)
+            int s = i == tiling.dim ? tiling.size : 1;
+            isl_multi_val_set_val(tile_size, i, isl::value(band_space.ctx(), s).copy());
+        }
+        auto tile_band = isl_schedule_node_band_tile
+                (isl_schedule_node_copy(infinite_band), tile_size);
+
+        // Permute band: make infinite tile dim the first
+
+        if (tiling.dim > 0)
+        {
+            auto permutation = isl::multi_expression::zero
+                    (band_space, n_dim);
+            permutation.set(0, band_space.var(tiling.dim));
+            for (int i = 0; i < n_dim; ++i)
             {
-                m.limit_above(isl::space::output, tiling.dim, tiling.offset - 1);
-                prelude_dom = prelude_dom | m.domain();
-                return true;
-            });
+                if (i == tiling.dim)
+                    permutation.set(0, band_space.var(i));
+                else if (i < tiling.dim)
+                    permutation.set(i+1, band_space.var(i));
+                else
+                    permutation.set(i, band_space.var(i));
+            }
+            tile_band = isl_schedule_node_band_apply(tile_band, permutation.copy());
         }
 
-        if (root_is_sequence && root_seq_elems >= 2)
+        // Get tiled schedule
+
+        tiled_schedule = isl_schedule_node_get_schedule(tile_band);
+
+        isl_schedule_node_free(tile_band);
+
+        if (verbose<scheduler>::enabled())
         {
-            // Add all finite sequence elements (all other than the last).
-            // = sequence index (zero dim of full schedule) < (#sequence - 1)
-            sched.full.for_each([&](isl::map & m){
-                m.limit_above(isl::space::output, 0, root_seq_elems - 2);
-                prelude_dom = prelude_dom | m.domain();
-                return true;
-            });
+            cout << "Tiled schedule:" << endl;
+            m_printer.print_each_in(tiled_schedule.map());
         }
 
+        // Extract prologue and period
+
+        int num_prologue_tiles = ceil((double)tiling.offset / tiling.size);
+
+        auto tiled_sched_map = tiled_schedule.map().in_domain(m_model_summary.domains);
+
+        isl::union_set prologue_dom(m_model.context), period_dom(m_model.context);
+
+        tiled_sched_map.for_each([&](isl::map & m)
         {
-            // Extract period domains
-            // = prelude dur <= stream dim < tiling.offset + tiling.size
-            infinite_sched.for_each([&](isl::map & m)
-            {
-                m.limit_below(isl::space::output, tiling.dim, tiling.offset);
-                m.limit_above(isl::space::output, tiling.dim, tiling.offset + tiling.size - 1);
-                period_dom = period_dom | m.domain();
-                return true;
-            });
-        }
-
-
-        // NOTE: Derive maps from sched.full instead of
-        // from trees, to ensure common space.
-
-        sched.prelude_tree = sched.tree;
-        sched.prelude_tree.intersect_domain(prelude_dom);
-        sched.prelude = sched.full.in_domain(prelude_dom);
-
-        sched.period_tree = sched.tree;
-        sched.period_tree.intersect_domain(period_dom);
-        sched.period = sched.full.in_domain(period_dom);
-
-        // Create tiled schedule, used for storage allocation.
-
-        {
-            isl::union_map tiled(m_model.context);
-
-            isl::space sched_space(nullptr);
-            sched.full.for_each([&](isl::map & m)
-            {
-                sched_space = m.get_space().range();
-                return false;
-            });
-            int n_dim = sched_space.dimension(isl::space::variable);
-
-            int full_stream_dim = tiling.dim;
+            auto space = m.get_space();
             if (root_is_sequence)
-                full_stream_dim += 1;
-
-            // Tile periodic part
-
             {
-                isl::union_set periodic_dom(m_model.context);
-                infinite_sched.for_each([&](isl::map & m)
-                {
-                    m.limit_below(isl::space::output, tiling.dim, tiling.offset);
-                    periodic_dom = periodic_dom | m.domain();
-                    return true;
-                });
+                auto mp = m;
+                mp.add_constraint(space.out(0) < root_seq_elems - 1);
+                prologue_dom |= mp.domain();
 
-                tiled = sched.full.in_domain(periodic_dom);
-
-                auto tiling_expr = isl::multi_expression::zero(sched_space, n_dim+1);
-                for (int i = 0; i < n_dim; ++i)
-                    tiling_expr.set(i+1, sched_space.var(i));
-                auto tile_index_expr =
-                        isl::floor((sched_space.var(full_stream_dim) - tiling.offset)
-                                   / tiling.size) + 1;
-                tiling_expr.set(0, tile_index_expr);
-
-                isl::map tiling_map(isl_map_from_multi_aff(tiling_expr.copy()));
-                if (false && verbose<scheduler>::enabled())
-                {
-                    cout << "Periodic tiling: " << endl;
-                    m_printer.print(tiling_expr);  cout << endl;
-                    m_printer.print(tiling_map);  cout << endl;
-                }
-
-                tiled.map_range_through(tiling_map);
-
-                if (false && verbose<scheduler>::enabled())
-                {
-                    cout << "Periodic tiles: " << endl;
-                    m_printer.print_each_in(tiled);
-                }
+                mp = m;
+                mp.add_constraint(space.out(0) == root_seq_elems - 1);
+                mp.add_constraint(space.out(1) < num_prologue_tiles);
+                prologue_dom |= mp.domain();
+                //cout << "Adding prologue domain: ";
+                //m_printer.print(mp.domain()); cout << endl;
             }
-
-            // Add the prelude tile
-
+            else
             {
-                auto tiling_expr = isl::multi_expression::zero(sched_space, n_dim+1);
-                for (int i = 0; i < n_dim; ++i)
-                    tiling_expr.set(i+1, sched_space.var(i));
-                tiling_expr.set(0, sched_space.val(0));
-
-                isl::map tiling_map(isl_map_from_multi_aff(tiling_expr.copy()));
-                auto prelude_tile = sched.prelude;
-                prelude_tile.map_range_through(tiling_map);
-
-                if (false && verbose<scheduler>::enabled())
-                {
-                    cout << "Prelude tile: " << endl;
-                    m_printer.print_each_in(prelude_tile);
-                }
-
-                tiled = tiled | prelude_tile;
+                auto mp = m;
+                mp.add_constraint(space.out(0) < num_prologue_tiles);
+                prologue_dom |= mp.domain();
+                //cout << "Adding prologue domain: ";
+                //m_printer.print(mp.domain()); cout << endl;
             }
+            return true;
+        });
 
-            sched.tiled = tiled;
+        tiled_sched_map.for_each([&](isl::map & m)
+        {
+            auto space = m.get_space();
+
+            if (root_is_sequence)
+                m.add_constraint(space.out(0) == root_seq_elems - 1);
+
+            auto t = root_is_sequence ? space.out(1) : space.out(0);
+            m.add_constraint(t == num_prologue_tiles);
+
+            //cout << "Adding period domain: ";
+            //m_printer.print(m.domain()); cout << endl;
+
+            period_dom |= m.domain();
+            return true;
+        });
+
+        auto prologue = tiled_schedule;
+        prologue.intersect_domain(prologue_dom);
+
+        auto period = tiled_schedule;
+        period.intersect_domain(period_dom);
+
+        if (verbose<scheduler>::enabled())
+        {
+            cout << "New prologue:" << endl;
+            m_printer.print_each_in(prologue.map());
+            cout << "New period:" << endl;
+            m_printer.print_each_in(period.map());
         }
+
+        // Store schedules
+
+        sched.tree = tiled_schedule;
+        sched.full = sched.tiled = tiled_sched_map;
+
+        sched.prelude_tree = prologue;
+        sched.prelude = prologue.map().in_domain(prologue_dom);
+
+        sched.period_tree = period;
+        sched.period = period.map().in_domain(period_dom);
     }
     else
     {
