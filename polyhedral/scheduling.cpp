@@ -79,7 +79,9 @@ scheduler::scheduler( model & m ):
     m_printer(m.context),
     m_model(m),
     m_model_summary(m)
-{}
+{
+  m_printer.set_yaml_style(isl::printer::yaml_block_style);
+}
 
 polyhedral::schedule
 scheduler::schedule(const scheduler::options & options)
@@ -121,8 +123,7 @@ scheduler::schedule(const scheduler::options & options)
     if (verbose<scheduler>::enabled())
     {
         cout << endl << "Schedule:" << endl;
-        isl_printer_print_schedule(m_printer.get(), schedule.tree.get());
-        cout << endl;
+        m_printer.print(schedule.tree);
 
         cout << endl << "Schedule map:" << endl;
         m_printer.print_each_in(schedule.full);
@@ -483,6 +484,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         if (verbose<scheduler>::enabled())
         {
             cout << "Tiled schedule:" << endl;
+            m_printer.print(tiled_schedule);
             m_printer.print_each_in(tiled_schedule.map());
         }
 
