@@ -441,39 +441,19 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
 
         // Tile the infinite band
 
-        isl_options_set_tile_scale_tile_loops(m_model.context.get(), 0);
-        isl_options_set_tile_shift_point_loops(m_model.context.get(), 0);
+        auto band_func = isl_schedule_node_band_get_partial_schedule(infinite_band);
 
-        isl::space band_space = isl_schedule_node_band_get_space(infinite_band);
-        int n_dim = band_space.dimension(isl::space::variable);
+        auto tiled_dim_func = isl_multi_union_pw_aff_get_union_pw_aff(band_func, tiling.dim);
+        tiled_dim_func = isl_union_pw_aff_scale_down_val
+            (tiled_dim_func, isl::value(m_model.context, tiling.size).copy());
+        tiled_dim_func = isl_union_pw_aff_floor(tiled_dim_func);
 
-        auto tile_size = isl_multi_val_zero(band_space.copy());
-        for (int i = 0; i < n_dim; ++i)
-        {
-            int s = i == tiling.dim ? tiling.size : 1;
-            isl_multi_val_set_val(tile_size, i, isl::value(band_space.ctx(), s).copy());
-        }
-        auto tile_band = isl_schedule_node_band_tile
-                (isl_schedule_node_copy(infinite_band), tile_size);
+        auto tile_func = isl_multi_union_pw_aff_from_union_pw_aff(tiled_dim_func);
 
-        // Permute band: make infinite tile dim the first
+        auto tile_band = isl_schedule_node_insert_partial_schedule
+            (isl_schedule_node_copy(infinite_band), tile_func);
 
-        if (tiling.dim > 0)
-        {
-            auto permutation = isl::multi_expression::zero
-                    (band_space, n_dim);
-            permutation.set(0, band_space.var(tiling.dim));
-            for (int i = 0; i < n_dim; ++i)
-            {
-                if (i == tiling.dim)
-                    permutation.set(0, band_space.var(i));
-                else if (i < tiling.dim)
-                    permutation.set(i+1, band_space.var(i));
-                else
-                    permutation.set(i, band_space.var(i));
-            }
-            tile_band = isl_schedule_node_band_apply(tile_band, permutation.copy());
-        }
+        isl_multi_union_pw_aff_free(band_func);
 
         // Get tiled schedule
 
