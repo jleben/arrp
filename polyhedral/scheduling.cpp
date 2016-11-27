@@ -137,7 +137,7 @@ scheduler::schedule(const scheduler::options & options)
         cout << endl;
     }
 
-    make_periodic_schedule(schedule);
+    make_periodic_schedule(schedule, options);
 
     if (verbose<scheduler>::enabled())
     {
@@ -266,7 +266,7 @@ isl::schedule scheduler::make_schedule
     // FIXME: statements with no dependencies
     // seem to always end up with an empty schedule.
 
-    isl_options_set_schedule_whole_component(domains.ctx().get(), options.cluster);
+    isl_options_set_schedule_whole_component(domains.ctx().get(), !options.cluster);
 
     isl_schedule_constraints *constr =
             isl_schedule_constraints_on_domain(domains.copy());
@@ -339,7 +339,7 @@ scheduler::make_proximity_dependencies(const isl::union_map & dependencies)
 }
 
 void
-scheduler::make_periodic_schedule(polyhedral::schedule & sched)
+scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & opt)
 {
     isl_schedule_node * domain_node = isl_schedule_get_root(sched.tree.get());
     assert_or_throw(isl_schedule_node_get_type(domain_node) == isl_schedule_node_domain);
@@ -348,7 +348,6 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
     assert_or_throw(root != nullptr);
 
     isl_schedule_node * infinite_band = nullptr;
-    bool root_is_sequence = false;
     int root_seq_elems = 0;
 
     auto node_is_infinite = [&sched](isl_schedule_node * node) -> bool
@@ -378,7 +377,6 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
     else
     {
         assert_or_throw(root_type == isl_schedule_node_sequence);
-        root_is_sequence = true;
         int elem_count = root_seq_elems = isl_schedule_node_n_children(root);
         for (int i = 0; i < elem_count; ++i)
         {
@@ -427,6 +425,14 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
         // Find periodic tiling
 
         auto tiling = find_periodic_tiling(infinite_sched);
+
+        if (opt.period_offset < 0)
+          throw error("Invalid period offset.");
+        if (opt.period_scale < 1)
+          throw error("Invalid period scaling.");
+
+        tiling.offset += opt.period_offset;
+        tiling.size *= opt.period_scale;
 
         // Extract prologue and periodic domains
 

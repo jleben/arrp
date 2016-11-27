@@ -227,8 +227,9 @@ result::code compile_module
 
             {
                 polyhedral::scheduler::options sched_opts;
-                sched_opts.optimize = true;
-                sched_opts.cluster = opts.schedule_whole;
+                sched_opts.cluster = opts.schedule.cluster;
+                sched_opts.period_offset = opts.schedule.period_offset;
+                sched_opts.period_scale = opts.schedule.period_scale;
 
                 polyhedral::scheduler poly_scheduler( ph_model );
                 schedule = poly_scheduler.schedule(sched_opts);

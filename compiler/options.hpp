@@ -45,8 +45,12 @@ struct options
     vector<string> import_dirs;
     vector<string> import_extensions { "arrp" };
 
-    bool optimize_schedule = true;
-    bool schedule_whole = false;
+    struct {
+      bool cluster = true;
+      int period_offset = 0;
+      int period_scale = 1;
+    } schedule;
+
     bool split_statements = false;
     bool separate_loops = false;
 };

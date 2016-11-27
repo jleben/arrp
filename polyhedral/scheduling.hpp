@@ -83,6 +83,8 @@ public:
     {
         bool optimize = true;
         bool cluster = true;
+        int period_offset = 0; // time steps beyond minimum offset
+        int period_scale = 1; // number of minimum period durations
     };
 
     scheduler( model & m );
@@ -133,7 +135,7 @@ private:
 
     isl::union_map make_proximity_dependencies(const isl::union_map & dependencies);
 
-    void make_periodic_schedule(polyhedral::schedule &);
+    void make_periodic_schedule(polyhedral::schedule &, const options &);
 
     struct tiling
     {
