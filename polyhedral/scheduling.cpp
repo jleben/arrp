@@ -424,15 +424,11 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
 
         // Find periodic tiling
 
-        auto tiling = find_periodic_tiling(infinite_sched);
+        vector<access_info> access_analysis = analyze_access_schedules(infinite_sched);
 
-        if (opt.period_offset < 0)
-          throw error("Invalid period offset.");
-        if (opt.period_scale < 1)
-          throw error("Invalid period scaling.");
+        auto tiling = find_periodic_tiling(access_analysis, opt);
 
-        tiling.offset += opt.period_offset;
-        tiling.size *= opt.period_scale;
+        assign_inter_tile_access_offsets(tiling, access_analysis);
 
         // Extract prologue and periodic domains
 
@@ -570,7 +566,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
 }
 
 scheduler::tiling
-scheduler::find_periodic_tiling(const isl::union_map & schedule)
+scheduler::find_periodic_tiling(const vector<access_info> & access_infos, const options & opt)
 {
     if (verbose<scheduler>::enabled())
         cout << endl << "Finding periodic tiling." << endl;
@@ -579,13 +575,6 @@ scheduler::find_periodic_tiling(const isl::union_map & schedule)
     periodic_tiling.dim = -1;
     periodic_tiling.offset = 0;
     periodic_tiling.size = 1;
-
-    auto accesses = m_model_summary.write_relations | m_model_summary.read_relations;
-    accesses = accesses.in_domain(m_model_summary.domains);
-    auto access_schedules = accesses;
-    access_schedules.map_domain_through(schedule);
-
-    vector<access_info> access_infos = analyze_access_schedules(schedule);
 
     // Find common tiling dimension
     for (auto & access : access_infos)
@@ -619,35 +608,22 @@ scheduler::find_periodic_tiling(const isl::union_map & schedule)
         periodic_tiling.size = lcm(periodic_tiling.size, access_period);
     }
 
-    // Find common data offsets
-    for (auto & access : access_infos)
-    {
-        if (access.time_period.empty())
-            continue;
-
-        // Make sure infinite direction is parallel to first dimension of array.
-        for (int dim = 1; dim < access.data_offset.size(); ++dim)
-        {
-            if (access.data_offset[dim] != 0)
-                throw error("Access has unexpected infinite direction in data space.");
-        }
-
-        int periods_per_tile = periodic_tiling.size / access.time_period[periodic_tiling.dim];
-        int offset = access.data_offset[0] * periods_per_tile;
-
-        auto array = access.array;
-        if (array->period == 0)
-            array->period = offset;
-        else if (array->period != offset)
-            throw error("Accesses have inconsistent tile offsets in array space.");
-    }
-
     // Find common period onset
     for (auto & access : access_infos)
     {
         int onset = find_period_onset(access, periodic_tiling.dim);
         periodic_tiling.offset = max(periodic_tiling.offset, onset);
     }
+
+    // Apply tiling options
+
+    if (opt.period_offset < 0)
+      throw error("Invalid period offset.");
+    if (opt.period_scale < 1)
+      throw error("Invalid period scaling.");
+
+    periodic_tiling.offset += opt.period_offset;
+    periodic_tiling.size *= opt.period_scale;
 
     if (verbose<scheduler>::enabled())
     {
@@ -811,6 +787,34 @@ int scheduler::find_period_onset(const access_info & info, int tiling_dim)
         }
 
         return time_of_latest_alien + 1;
+    }
+}
+
+void scheduler::assign_inter_tile_access_offsets
+(const tiling & periodic_tiling, const vector<access_info> & analysis)
+{
+    for (auto & access : analysis)
+    {
+        if (access.time_period.empty())
+            continue;
+
+        // Make sure:
+        // if there is an infinite direction in data space
+        // it is parallel to first dimension.
+        for (int dim = 1; dim < access.data_offset.size(); ++dim)
+        {
+            if (access.data_offset[dim] != 0)
+                throw error("Access has unexpected infinite direction in data space.");
+        }
+
+        int periods_per_tile = periodic_tiling.size / access.time_period[periodic_tiling.dim];
+        int offset = access.data_offset[0] * periods_per_tile;
+
+        auto array = access.array;
+        if (array->period == 0)
+            array->period = offset;
+        else if (array->period != offset)
+            throw error("Accesses have inconsistent tile offsets in array space.");
     }
 }
 

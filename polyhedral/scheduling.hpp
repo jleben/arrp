@@ -137,14 +137,6 @@ private:
 
     void make_periodic_schedule(polyhedral::schedule &, const options &);
 
-    struct tiling
-    {
-        int dim;
-        int offset;
-        int size;
-    };
-
-    tiling find_periodic_tiling(const isl::union_map & schedule);
 
     struct access_info
     {
@@ -154,9 +146,20 @@ private:
         vector<int> data_offset;
     };
 
+    struct tiling
+    {
+        int dim;
+        int offset;
+        int size;
+    };
+
     vector<access_info> analyze_access_schedules(const isl::union_map & schedule);
 
+    tiling find_periodic_tiling(const vector<access_info> &, const options &);
+
     int find_period_onset(const access_info & info, int dim);
+
+    void assign_inter_tile_access_offsets(const tiling &, const vector<access_info> &);
 
     bool validate_schedule(isl::union_map & schedule);
 
