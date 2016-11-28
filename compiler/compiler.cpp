@@ -250,7 +250,8 @@ result::code compile_module
             // Modulo avoidance
 
             {
-                avoid_modulo(schedule, ph_model, opts.split_statements);
+                // FIXME: It's broken and incomplete
+                //avoid_modulo(schedule, ph_model, opts.split_statements);
             }
 
             // Generate AST for schedule
