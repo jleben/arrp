@@ -223,11 +223,17 @@ result::code compile_module
 
             // Compute polyhedral schedule
 
-            polyhedral::scheduler poly_scheduler( ph_model );
-            poly_scheduler.set_schedule_whole_program(opts.schedule_whole);
+            polyhedral::schedule schedule(ph_model.context);
 
-            auto schedule = poly_scheduler.schedule(opts.optimize_schedule,
-                                                    opts.sched_reverse);
+            {
+                polyhedral::scheduler::options sched_opts;
+                sched_opts.cluster = opts.schedule.cluster;
+                sched_opts.period_offset = opts.schedule.period_offset;
+                sched_opts.period_scale = opts.schedule.period_scale;
+
+                polyhedral::scheduler poly_scheduler( ph_model );
+                schedule = poly_scheduler.schedule(sched_opts);
+            }
 
             // Allocate storage (buffers)
 
@@ -244,7 +250,8 @@ result::code compile_module
             // Modulo avoidance
 
             {
-                avoid_modulo(schedule, ph_model, opts.split_statements);
+                // FIXME: It's broken and incomplete
+                //avoid_modulo(schedule, ph_model, opts.split_statements);
             }
 
             // Generate AST for schedule

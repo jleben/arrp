@@ -542,7 +542,9 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
         bool may_wrap = false;
         if (dim_is_streaming)
         {
-            may_wrap = m_current_stmt->streaming_needs_modulo;
+            may_wrap = true;
+            // FIXME: this doesn't take into account accesses in prologue
+            //may_wrap = m_current_stmt->streaming_needs_modulo;
         }
         else
         {

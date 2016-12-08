@@ -79,10 +79,12 @@ scheduler::scheduler( model & m ):
     m_printer(m.context),
     m_model(m),
     m_model_summary(m)
-{}
+{
+  m_printer.set_yaml_style(isl::printer::yaml_block_style);
+}
 
 polyhedral::schedule
-scheduler::schedule(bool optimize, const vector<reversal> & reversals)
+scheduler::schedule(const scheduler::options & options)
 {
     if (verbose<scheduler>::enabled())
         cout << endl << "### Scheduling ###" << endl;
@@ -113,16 +115,15 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
     polyhedral::schedule schedule(m_model.context);
 
     schedule.tree = make_schedule(m_model_summary.domains,
-                                   m_model_summary.dependencies,
-                                   optimize);
+                                  m_model_summary.dependencies,
+                                  options);
 
     schedule.full = schedule.tree.map().in_domain(m_model_summary.domains);
 
     if (verbose<scheduler>::enabled())
     {
         cout << endl << "Schedule:" << endl;
-        isl_printer_print_schedule(m_printer.get(), schedule.tree.get());
-        cout << endl;
+        m_printer.print(schedule.tree);
 
         cout << endl << "Schedule map:" << endl;
         m_printer.print_each_in(schedule.full);
@@ -136,19 +137,10 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
         cout << endl;
     }
 
-    make_periodic_schedule(schedule);
+    make_periodic_schedule(schedule, options);
 
     if (verbose<scheduler>::enabled())
     {
-        cout << endl << "Prelude schedule:" << endl;
-        m_printer.print_each_in(schedule.prelude);
-
-        cout << endl << "Periodic schedule:" << endl;
-        m_printer.print_each_in(schedule.period);
-
-        cout << endl << "Tiled schedule:" << endl;
-        m_printer.print_each_in(schedule.tiled);
-
         bool ok;
 
         cout << "Validating full schedule:" << endl;
@@ -166,80 +158,6 @@ scheduler::schedule(bool optimize, const vector<reversal> & reversals)
         cout << "Validating tiled schedule:" << endl;
         ok = validate_schedule(schedule.tiled);
         cout << (ok ? "Valid." : "Invalid!") << endl;
-    }
-
-    for (auto & reversal : reversals)
-    {
-        cout << "Reversing: " << reversal.stmt_name
-             << " @ " << reversal.dim << endl;
-
-        stmt_ptr stmt;
-        for (auto & s : m_model.statements)
-        {
-            if (s->name == reversal.stmt_name)
-            {
-                stmt = s;
-                break;
-            }
-        };
-
-        if (!stmt)
-            throw error("Can not reverse schedule: No statement named " + reversal.stmt_name);
-
-        auto sched = schedule.period.in_domain(stmt->domain);
-
-        auto union_sched_range = sched.range();
-        isl::space sched_space(nullptr);
-        union_sched_range.for_each([&](const isl::set & s){
-            sched_space = s.get_space();
-            return false;
-        });
-
-        if (reversal.dim < 0 || reversal.dim >= sched_space.dimension(isl::space::variable))
-            throw error("Schedule dimension out of range: ");
-
-        auto sched_range = union_sched_range.set_for(sched_space);
-        auto t = sched_space.var(reversal.dim);
-        auto min_t = sched_range.minimum(t);
-        auto max_t = sched_range.maximum(t);
-
-        if (min_t.is_infinity() || max_t.is_infinity())
-            throw error("Schedule dimension is infinite.");
-
-        cout << "Schedule dimension range: " << min_t.integer() << "," << max_t.integer() << endl;
-
-#if 1
-        {
-            // t2 = max + min - t1;
-            // t1 = max + min - t2;
-
-            auto sched_map_space = isl::space::from(sched_space, sched_space);
-
-            int dim = reversal.dim;
-
-            isl_multi_aff * transform =
-                    isl_multi_aff_identity(sched_map_space.copy());
-
-            isl_aff * out = isl_multi_aff_get_aff(transform, dim);
-            out = isl_aff_set_coefficient_si(out, isl_dim_in, dim, -1);
-            out = isl_aff_set_constant_si(out, max_t.integer() + min_t.integer());
-
-            transform = isl_multi_aff_set_aff(transform, dim, out);
-
-            schedule.period.subtract(sched);
-
-            schedule.period = schedule.period |
-                    isl_union_map_preimage_range_multi_aff
-                    (sched.copy(), transform);
-        }
-#endif
-    }
-
-    if (verbose<scheduler>::enabled() && !reversals.empty())
-    {
-        cout << "Periodic schedule with reversals:" << endl;
-        m_printer.print_each_in(schedule.period);
-        cout << endl;
     }
 
     return schedule;
@@ -343,12 +261,12 @@ scheduler::add_schedule_constraints
 #endif
 isl::schedule scheduler::make_schedule
 (const isl::union_set & domains, const isl::union_map & dependencies,
- bool optimize)
+ const scheduler::options & options)
 {
     // FIXME: statements with no dependencies
     // seem to always end up with an empty schedule.
 
-    isl_options_set_schedule_whole_component(domains.ctx().get(), m_schedule_whole);
+    isl_options_set_schedule_whole_component(domains.ctx().get(), !options.cluster);
 
     isl_schedule_constraints *constr =
             isl_schedule_constraints_on_domain(domains.copy());
@@ -358,7 +276,7 @@ isl::schedule scheduler::make_schedule
 #endif
     constr = isl_schedule_constraints_set_validity(constr, dependencies.copy());
 
-    if (optimize)
+    if (options.optimize)
     {
         auto proximity_deps = make_proximity_dependencies(dependencies);
         constr = isl_schedule_constraints_set_proximity(constr, proximity_deps.copy());
@@ -421,7 +339,7 @@ scheduler::make_proximity_dependencies(const isl::union_map & dependencies)
 }
 
 void
-scheduler::make_periodic_schedule(polyhedral::schedule & sched)
+scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & opt)
 {
     isl_schedule_node * domain_node = isl_schedule_get_root(sched.tree.get());
     assert_or_throw(isl_schedule_node_get_type(domain_node) == isl_schedule_node_domain);
@@ -430,7 +348,6 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
     assert_or_throw(root != nullptr);
 
     isl_schedule_node * infinite_band = nullptr;
-    bool root_is_sequence = false;
     int root_seq_elems = 0;
 
     auto node_is_infinite = [&sched](isl_schedule_node * node) -> bool
@@ -460,7 +377,6 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
     else
     {
         assert_or_throw(root_type == isl_schedule_node_sequence);
-        root_is_sequence = true;
         int elem_count = root_seq_elems = isl_schedule_node_n_children(root);
         for (int i = 0; i < elem_count; ++i)
         {
@@ -506,140 +422,137 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
           cout << endl;
         }
 
+        // Find periodic tiling
 
-        auto tiling = find_periodic_tiling(infinite_sched);
+        vector<access_info> access_analysis = analyze_access_schedules(infinite_sched);
 
-        infinite_sched = infinite_sched.in_domain(sched.full.domain());
+        auto tiling = find_periodic_tiling(access_analysis, opt);
 
-        // Extract statement domains for prelude and period
+        assign_inter_tile_access_offsets(tiling, access_analysis);
 
-        isl::union_set prelude_dom(sched.full.ctx()), period_dom(sched.full.ctx());
+        // Extract prologue and periodic domains
 
-        if (tiling.offset > 0)
-        {
-            // Add prelude part of the infinite schedule part.
-            // = stream dim < tiling.offset
-            infinite_sched.for_each([&](isl::map & m)
-            {
-                m.limit_above(isl::space::output, tiling.dim, tiling.offset - 1);
-                prelude_dom = prelude_dom | m.domain();
-                return true;
-            });
-        }
-
-        if (root_is_sequence && root_seq_elems >= 2)
-        {
-            // Add all finite sequence elements (all other than the last).
-            // = sequence index (zero dim of full schedule) < (#sequence - 1)
-            sched.full.for_each([&](isl::map & m){
-                m.limit_above(isl::space::output, 0, root_seq_elems - 2);
-                prelude_dom = prelude_dom | m.domain();
-                return true;
-            });
-        }
+        isl::union_set prologue_dom(m_model.context);
+        isl::union_set periodic_dom(m_model.context);
 
         {
-            // Extract period domains
-            // = prelude dur <= stream dim < tiling.offset + tiling.size
-            infinite_sched.for_each([&](isl::map & m)
-            {
-                m.limit_below(isl::space::output, tiling.dim, tiling.offset);
-                m.limit_above(isl::space::output, tiling.dim, tiling.offset + tiling.size - 1);
-                period_dom = period_dom | m.domain();
-                return true;
-            });
+          isl::union_set infinite_sched_dom = isl_schedule_node_get_domain(infinite_band);
+
+          infinite_sched.in_domain(infinite_sched_dom).for_each([&](isl::map & m)
+          {
+            auto space = m.get_space();
+            auto mp = m;
+            mp.add_constraint(space.out(tiling.dim) < tiling.offset);
+            prologue_dom |= mp.domain();
+            //cout << "Adding prologue domain: ";
+            //m_printer.print(mp.domain()); cout << endl;
+            return true;
+          });
+
+          periodic_dom = infinite_sched_dom - prologue_dom;
         }
 
+        // Split band into prologue and periodic part
 
-        // NOTE: Derive maps from sched.full instead of
-        // from trees, to ensure common space.
-
-        sched.prelude_tree = sched.tree;
-        sched.prelude_tree.intersect_domain(prelude_dom);
-        sched.prelude = sched.full.in_domain(prelude_dom);
-
-        sched.period_tree = sched.tree;
-        sched.period_tree.intersect_domain(period_dom);
-        sched.period = sched.full.in_domain(period_dom);
-
-        // Create tiled schedule, used for storage allocation.
+        auto node = isl_schedule_node_copy(infinite_band);
 
         {
-            isl::union_map tiled(m_model.context);
-
-            isl::space sched_space(nullptr);
-            sched.full.for_each([&](isl::map & m)
-            {
-                sched_space = m.get_space().range();
-                return false;
-            });
-            int n_dim = sched_space.dimension(isl::space::variable);
-
-            int full_stream_dim = tiling.dim;
-            if (root_is_sequence)
-                full_stream_dim += 1;
-
-            // Tile periodic part
-
-            {
-                isl::union_set periodic_dom(m_model.context);
-                infinite_sched.for_each([&](isl::map & m)
-                {
-                    m.limit_below(isl::space::output, tiling.dim, tiling.offset);
-                    periodic_dom = periodic_dom | m.domain();
-                    return true;
-                });
-
-                tiled = sched.full.in_domain(periodic_dom);
-
-                auto tiling_expr = isl::multi_expression::zero(sched_space, n_dim+1);
-                for (int i = 0; i < n_dim; ++i)
-                    tiling_expr.set(i+1, sched_space.var(i));
-                auto tile_index_expr =
-                        isl::floor((sched_space.var(full_stream_dim) - tiling.offset)
-                                   / tiling.size) + 1;
-                tiling_expr.set(0, tile_index_expr);
-
-                isl::map tiling_map(isl_map_from_multi_aff(tiling_expr.copy()));
-                if (false && verbose<scheduler>::enabled())
-                {
-                    cout << "Periodic tiling: " << endl;
-                    m_printer.print(tiling_expr);  cout << endl;
-                    m_printer.print(tiling_map);  cout << endl;
-                }
-
-                tiled.map_range_through(tiling_map);
-
-                if (false && verbose<scheduler>::enabled())
-                {
-                    cout << "Periodic tiles: " << endl;
-                    m_printer.print_each_in(tiled);
-                }
-            }
-
-            // Add the prelude tile
-
-            {
-                auto tiling_expr = isl::multi_expression::zero(sched_space, n_dim+1);
-                for (int i = 0; i < n_dim; ++i)
-                    tiling_expr.set(i+1, sched_space.var(i));
-                tiling_expr.set(0, sched_space.val(0));
-
-                isl::map tiling_map(isl_map_from_multi_aff(tiling_expr.copy()));
-                auto prelude_tile = sched.prelude;
-                prelude_tile.map_range_through(tiling_map);
-
-                if (false && verbose<scheduler>::enabled())
-                {
-                    cout << "Prelude tile: " << endl;
-                    m_printer.print_each_in(prelude_tile);
-                }
-
-                tiled = tiled | prelude_tile;
-            }
-
-            sched.tiled = tiled;
+          auto domain_list = isl_union_set_list_alloc(m_model.context.get(), 2);
+          domain_list = isl_union_set_list_add(domain_list, prologue_dom.copy());
+          domain_list = isl_union_set_list_add(domain_list, periodic_dom.copy());
+          node = isl_schedule_node_insert_sequence(node, domain_list);
         }
+
+        // Tile the periodic part
+
+        {
+          // Periodic part filter
+          node = isl_schedule_node_child(node, 1);
+          // Periodic part
+          node = isl_schedule_node_child(node, 0);
+
+          auto band_func = isl_schedule_node_band_get_partial_schedule(node);
+          // t
+          auto tiled_dim_func = isl_multi_union_pw_aff_get_union_pw_aff(band_func, tiling.dim);
+
+          // t = t - tiling.offset
+          if (tiling.offset != 0)
+          {
+            auto offset =
+                isl_union_pw_aff_val_on_domain
+                (isl_union_pw_aff_domain(isl_union_pw_aff_copy(tiled_dim_func)),
+                 isl_val_int_from_si(m_model.context.get(), tiling.offset));
+            tiled_dim_func = isl_union_pw_aff_sub(tiled_dim_func, offset);
+          }
+
+          // t = floor(t / tiling.size)
+          tiled_dim_func = isl_union_pw_aff_scale_down_val
+              (tiled_dim_func, isl_val_int_from_si(m_model.context.get(), tiling.size));
+          tiled_dim_func = isl_union_pw_aff_floor(tiled_dim_func);
+
+          auto tile_func = isl_multi_union_pw_aff_from_union_pw_aff(tiled_dim_func);
+          // Tiled periodic part
+          node = isl_schedule_node_insert_partial_schedule(node, tile_func);
+
+          isl_multi_union_pw_aff_free(band_func);
+        }
+
+        // Store entire schedule
+        sched.tree = isl_schedule_node_get_schedule(node);
+
+        // Extract prologue
+        {
+          auto entire_prologue_domain = m_model_summary.domains - periodic_dom;
+          sched.prelude_tree = sched.tree;
+          sched.prelude_tree.intersect_domain(entire_prologue_domain);
+        }
+
+        // Extract single period
+        {
+          isl::union_map um = isl_schedule_node_get_subtree_schedule_union_map(node);
+          isl::union_set dom = isl_schedule_node_get_domain(node);
+          um = um.in_domain(dom);
+
+          isl::union_set period_dom(m_model.context);
+          um.for_each([&](isl::map & m)
+          {
+            auto space = m.get_space();
+            auto mp = m;
+            mp.add_constraint(space.out(0) == 0);
+            period_dom |= mp.domain();
+            //cout << "Adding prologue domain: ";
+            //m_printer.print(mp.domain()); cout << endl;
+            return true;
+          });
+
+          sched.period_tree = sched.tree;
+          sched.period_tree.intersect_domain(period_dom);
+        }
+
+        // Make map representations
+        sched.full = sched.tiled = sched.tree.map_on_domain();
+        sched.prelude = sched.prelude_tree.map_on_domain();
+        sched.period = sched.period_tree.map_on_domain();
+
+        if (verbose<scheduler>::enabled())
+        {
+            cout << endl << "Tiled schedule:" << endl;
+            m_printer.print(sched.tree);
+            cout << endl;
+            m_printer.print_each_in(sched.tiled);
+
+            cout << endl << "Prologue schedule:" << endl;
+            m_printer.print(sched.prelude_tree);
+            cout << endl;
+            m_printer.print_each_in(sched.prelude);
+
+            cout << endl << "Period schedule:" << endl;
+            m_printer.print(sched.period_tree);
+            cout << endl;
+            m_printer.print_each_in(sched.period);
+        }
+
+        isl_schedule_node_free(node);
     }
     else
     {
@@ -653,7 +566,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched)
 }
 
 scheduler::tiling
-scheduler::find_periodic_tiling(const isl::union_map & schedule)
+scheduler::find_periodic_tiling(const vector<access_info> & access_infos, const options & opt)
 {
     if (verbose<scheduler>::enabled())
         cout << endl << "Finding periodic tiling." << endl;
@@ -662,13 +575,6 @@ scheduler::find_periodic_tiling(const isl::union_map & schedule)
     periodic_tiling.dim = -1;
     periodic_tiling.offset = 0;
     periodic_tiling.size = 1;
-
-    auto accesses = m_model_summary.write_relations | m_model_summary.read_relations;
-    accesses = accesses.in_domain(m_model_summary.domains);
-    auto access_schedules = accesses;
-    access_schedules.map_domain_through(schedule);
-
-    vector<access_info> access_infos = analyze_access_schedules(schedule);
 
     // Find common tiling dimension
     for (auto & access : access_infos)
@@ -702,35 +608,22 @@ scheduler::find_periodic_tiling(const isl::union_map & schedule)
         periodic_tiling.size = lcm(periodic_tiling.size, access_period);
     }
 
-    // Find common data offsets
-    for (auto & access : access_infos)
-    {
-        if (access.time_period.empty())
-            continue;
-
-        // Make sure infinite direction is parallel to first dimension of array.
-        for (int dim = 1; dim < access.data_offset.size(); ++dim)
-        {
-            if (access.data_offset[dim] != 0)
-                throw error("Access has unexpected infinite direction in data space.");
-        }
-
-        int periods_per_tile = periodic_tiling.size / access.time_period[periodic_tiling.dim];
-        int offset = access.data_offset[0] * periods_per_tile;
-
-        auto array = access.array;
-        if (array->period == 0)
-            array->period = offset;
-        else if (array->period != offset)
-            throw error("Accesses have inconsistent tile offsets in array space.");
-    }
-
     // Find common period onset
     for (auto & access : access_infos)
     {
         int onset = find_period_onset(access, periodic_tiling.dim);
         periodic_tiling.offset = max(periodic_tiling.offset, onset);
     }
+
+    // Apply tiling options
+
+    if (opt.period_offset < 0)
+      throw error("Invalid period offset.");
+    if (opt.period_scale < 1)
+      throw error("Invalid period scaling.");
+
+    periodic_tiling.offset += opt.period_offset;
+    periodic_tiling.size *= opt.period_scale;
 
     if (verbose<scheduler>::enabled())
     {
@@ -894,6 +787,34 @@ int scheduler::find_period_onset(const access_info & info, int tiling_dim)
         }
 
         return time_of_latest_alien + 1;
+    }
+}
+
+void scheduler::assign_inter_tile_access_offsets
+(const tiling & periodic_tiling, const vector<access_info> & analysis)
+{
+    for (auto & access : analysis)
+    {
+        if (access.time_period.empty())
+            continue;
+
+        // Make sure:
+        // if there is an infinite direction in data space
+        // it is parallel to first dimension.
+        for (int dim = 1; dim < access.data_offset.size(); ++dim)
+        {
+            if (access.data_offset[dim] != 0)
+                throw error("Access has unexpected infinite direction in data space.");
+        }
+
+        int periods_per_tile = periodic_tiling.size / access.time_period[periodic_tiling.dim];
+        int offset = access.data_offset[0] * periods_per_tile;
+
+        auto array = access.array;
+        if (array->period == 0)
+            array->period = offset;
+        else if (array->period != offset)
+            throw error("Accesses have inconsistent tile offsets in array space.");
     }
 }
 

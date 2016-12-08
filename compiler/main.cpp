@@ -109,10 +109,13 @@ int main(int argc, char *argv[])
     args.add_option({"cpp-namespace", "", "<name>", "Generate C++ output in namespace <name>."},
                     new string_option(&opt.cpp.nmspace));
 
-    args.add_option({"sched-no-opt", "", "", "Disable schedule optimization."},
-                    new switch_option(&opt.optimize_schedule, false));
     args.add_option({"sched-whole", "", "", "Schedule whole program at once."},
-                    new switch_option(&opt.schedule_whole));
+                    new switch_option(&opt.schedule.cluster, false));
+    args.add_option({"sched-period-offset", "", "", "Offset of period relative to earliest onset."},
+                    new int_option(&opt.schedule.period_offset));
+    args.add_option({"sched-period-scale", "", "", "Size of period as a multiple of minimal periods."},
+                    new int_option(&opt.schedule.period_scale));
+
     args.add_option({"ast-avoid-branch-in-loop", "", "", "Split loops to avoid branching inside."},
                     new switch_option(&opt.separate_loops));
 

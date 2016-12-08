@@ -21,10 +21,14 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef ARRP_COMPILER_OPTIONS
 #define ARRP_COMPILER_OPTIONS
 
-#include "../polyhedral/scheduling.hpp"
+#include <string>
+#include <vector>
 
 namespace stream {
 namespace compiler {
+
+using std::string;
+using std::vector;
 
 struct options
 {
@@ -41,9 +45,12 @@ struct options
     vector<string> import_dirs;
     vector<string> import_extensions { "arrp" };
 
-    vector<polyhedral::scheduler::reversal> sched_reverse;
-    bool optimize_schedule = true;
-    bool schedule_whole = false;
+    struct {
+      bool cluster = true;
+      int period_offset = 0;
+      int period_scale = 1;
+    } schedule;
+
     bool split_statements = false;
     bool separate_loops = false;
 };

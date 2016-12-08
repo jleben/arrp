@@ -79,21 +79,17 @@ public:
         {}
     };
 
-    struct reversal
+    struct options
     {
-        string stmt_name;
-        int dim;
+        bool optimize = true;
+        bool cluster = true;
+        int period_offset = 0; // time steps beyond minimum offset
+        int period_scale = 1; // number of minimum period durations
     };
 
     scheduler( model & m );
 
-    void set_schedule_whole_program(bool flag)
-    {
-        m_schedule_whole = flag;
-    }
-
-    polyhedral::schedule schedule
-    (bool optimize, const vector<reversal> & reversals);
+    polyhedral::schedule schedule(const options &);
 
 private:
 
@@ -134,21 +130,13 @@ private:
     // Scheduling
 
     isl::schedule make_schedule(const isl::union_set & domains,
-                                 const isl::union_map & dependencies,
-                                 bool optimize);
+                                const isl::union_map & dependencies,
+                                const options &);
 
     isl::union_map make_proximity_dependencies(const isl::union_map & dependencies);
 
-    void make_periodic_schedule(polyhedral::schedule &);
+    void make_periodic_schedule(polyhedral::schedule &, const options &);
 
-    struct tiling
-    {
-        int dim;
-        int offset;
-        int size;
-    };
-
-    tiling find_periodic_tiling(const isl::union_map & schedule);
 
     struct access_info
     {
@@ -158,9 +146,20 @@ private:
         vector<int> data_offset;
     };
 
+    struct tiling
+    {
+        int dim;
+        int offset;
+        int size;
+    };
+
     vector<access_info> analyze_access_schedules(const isl::union_map & schedule);
 
+    tiling find_periodic_tiling(const vector<access_info> &, const options &);
+
     int find_period_onset(const access_info & info, int dim);
+
+    void assign_inter_tile_access_offsets(const tiling &, const vector<access_info> &);
 
     bool validate_schedule(isl::union_map & schedule);
 
@@ -168,8 +167,6 @@ private:
 
     model & m_model;
     model_summary m_model_summary;
-
-    bool m_schedule_whole = false;
 };
 
 }
