@@ -109,3 +109,4 @@ add_dependencies(tests perf_tests)
 
 #add_subdirectory(dummy)
 add_subdirectory(mfcc)
+add_subdirectory(fdtd-2d)
