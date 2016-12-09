@@ -6,10 +6,13 @@ Ny = 1000;
 
 hz = [~,Nx,Ny:
   0,i,j -> i*(j+3) / Nx;
-  t,0,0 -> hz[t-1,0,0];
-  t,i,j -> hz[t-1,i,j] - 0.7 * (ex[t,i,j+1] - ex[t,i,j] +
-                                ey[t,i+1,j] - ey[t,i,j]);
+  t,i,j
+    | i < Nx - 1 and j < Nx - 1 ->
+        hz[t-1,i,j] - 0.7 * (ex[t,i,j+1] - ex[t,i,j] +
+                             ey[t,i+1,j] - ey[t,i,j])
+    |   hz[t-1,i,j]
 ]
+
 where {
 
 ex = [~,Nx,Ny:
@@ -21,10 +24,10 @@ ex = [~,Nx,Ny:
 ey = [~,Nx,Ny:
   0,i,j -> i*(j+2) / Ny;
   ##t,0,j -> in[t];
-  t,0,j -> t;
+  t,0,j -> t-1;
   t,i,j -> ey[t-1,i,j] - 0.5 * (hz[t-1,i,j] - hz[t-1,i-1,j]);
 ];
 
 };
 
-main = [~: t -> hz[t,0,0]];
+main = [~: t -> hz[t,1,1]];
