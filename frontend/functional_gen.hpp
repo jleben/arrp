@@ -53,7 +53,11 @@ private:
 private:
     void do_input(ast::node_ptr);
     void do_external(ast::node_ptr);
+    void do_mutually_recursive_bindings(const vector<ast::node_ptr> &);
     id_ptr do_binding(ast::node_ptr);
+    id_ptr make_id_for_binding(ast::node_ptr);
+    void make_expr_for_binding(id_ptr, ast::node_ptr);
+
     expr_ptr do_expr(ast::node_ptr);
     expr_ptr do_binding_expr(ast::node_ptr);
     expr_ptr do_local_scope(ast::node_ptr);
@@ -103,7 +107,7 @@ private:
     module * m_current_module = nullptr;
 
     stack<array_ptr> m_array_stack;
-    stack<scope*> m_scope_stack;
+    stack<scope*> m_scope_stack; // Not used for lookup here
 
     typedef stack_adapter<deque<id_ptr>> id_stack_t;
     id_stack_t m_binding_stack;

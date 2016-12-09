@@ -99,10 +99,7 @@ generator::generate(module * mod)
 
         if (bindings)
         {
-            for (auto & binding : bindings->as_list()->elements)
-            {
-                do_binding(binding);
-            }
+            do_mutually_recursive_bindings(bindings->as_list()->elements);
         }
     }
 
@@ -162,12 +159,38 @@ void generator::do_external(ast::node_ptr root)
     m_scope_stack.top()->ids.push_back(id);
 }
 
+void generator::do_mutually_recursive_bindings(const vector<ast::node_ptr> & nodes)
+{
+    vector<id_ptr> ids;
+
+    for (auto & node : nodes)
+    {
+        auto id = make_id_for_binding(node);
+        ids.push_back(id);
+    }
+
+    auto id_it = ids.begin();
+    auto node_it = nodes.begin();
+
+    for(; node_it != nodes.end(); ++node_it, ++id_it)
+    {
+        make_expr_for_binding(*id_it, *node_it);
+    }
+}
+
 id_ptr generator::do_binding(ast::node_ptr root)
 {
-    auto name_node = root->as_list()->elements[0]->as_leaf<string>();
+    auto id = make_id_for_binding(root);
+
+    make_expr_for_binding(id, root);
+
+    return id;
+}
+
+id_ptr generator::make_id_for_binding(ast::node_ptr node)
+{
+    auto name_node = node->as_list()->elements[0]->as_leaf<string>();
     auto name = name_node->value;
-    auto params_node = root->as_list()->elements[1];
-    auto expr_node = root->as_list()->elements[2];
 
     auto id = make_shared<identifier>(qualified_name(name),
                                       location_in_module(name_node->location));
@@ -188,27 +211,30 @@ id_ptr generator::do_binding(ast::node_ptr root)
     assert(!m_scope_stack.empty());
     m_scope_stack.top()->ids.push_back(id);
 
-    // Generate named expression
+    return id;
+}
+
+void generator::make_expr_for_binding(id_ptr id, ast::node_ptr node)
+{
+    auto name = node->as_list()->elements[0]->as_leaf<string>()->value;
+    auto params_node = node->as_list()->elements[1];
+    auto expr_node = node->as_list()->elements[2];
 
     expr_ptr expr;
 
-    {
-        stacker<string, name_stack_t> name_stacker(name, m_name_stack);
-        stacker<id_ptr, id_stack_t> id_stacker(id, m_binding_stack);
+    stacker<string, name_stack_t> name_stacker(name, m_name_stack);
+    stacker<id_ptr, id_stack_t> id_stacker(id, m_binding_stack);
 
-        if (params_node)
-        {
-            expr = make_func(params_node, expr_node, root->location);
-        }
-        else
-        {
-            expr = do_expr(expr_node);
-        }
+    if (params_node)
+    {
+        expr = make_func(params_node, expr_node, node->location);
+    }
+    else
+    {
+        expr = do_expr(expr_node);
     }
 
     id->expr = expr_slot(expr);
-
-    return id;
 }
 
 expr_ptr generator::do_expr(ast::node_ptr root)
@@ -370,10 +396,7 @@ expr_ptr generator::do_local_scope(ast::node_ptr root)
 
     context_type::scope_holder scope(m_context);
 
-    for (auto & binding : bnds_node->as_list()->elements)
-    {
-        do_binding(binding);
-    }
+    do_mutually_recursive_bindings(bnds_node->as_list()->elements);
 
     return do_expr(expr_node);
 }
