@@ -29,6 +29,9 @@ add_library(arrp-lib ${lib_mode}
   ../frontend/array_transpose.cpp
   ../frontend/type_check.cpp
   ../frontend/ph_model_gen.cpp
+  ../new-type-system/types.cpp
+  ../new-type-system/built_in_types.cpp
+  ../new-type-system/type_check.cpp
   ../polyhedral/utility.cpp
   ../polyhedral/scheduling.cpp
   ../polyhedral/storage_alloc.cpp

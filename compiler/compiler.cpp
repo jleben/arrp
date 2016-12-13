@@ -30,6 +30,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
 #include "../frontend/type_check.hpp"
+#include "../new-type-system/type_check.hpp"
 #include "../frontend/ph_model_gen.hpp"
 #include "../polyhedral/scheduling.hpp"
 #include "../polyhedral/storage_alloc.hpp"
@@ -109,11 +110,12 @@ result::code compile_module
 
     try
     {
-        vector<functional::id_ptr> ids;
+        unordered_set<functional::id_ptr> ids;
 
         {
             functional::generator fgen;
-            ids = fgen.generate(parser.modules());
+            auto id_vector = fgen.generate(parser.modules());
+            ids.insert(id_vector.begin(), id_vector.end());
         }
 
         if (verbose<functional::model>::enabled())
@@ -125,6 +127,14 @@ result::code compile_module
                 printer.print(id, cout);
                 cout << endl;
             }
+        }
+
+        {
+            arrp::built_in_types builtins;
+            arrp::type_checker type_checker(&builtins);
+            type_checker.process(ids);
+
+            return result::ok;
         }
 
         // FIXME: choice of function to compile
