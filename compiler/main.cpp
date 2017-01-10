@@ -25,6 +25,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../common/functional_model.hpp"
 #include "../frontend/module_parser.hpp"
 #include "../frontend/functional_gen.hpp"
+#include "../frontend/topo_sort.hpp"
 #include "../frontend/func_reducer.hpp"
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
@@ -124,6 +125,7 @@ int main(int argc, char *argv[])
     verbose_out->add_topic<ast::output>("ast");
     verbose_out->add_topic<functional::model>("func-model");
     verbose_out->add_topic<functional::generator>("func-model-gen");
+    verbose_out->add_topic<arrp::topological_sort>("decl-sort");
     verbose_out->add_topic<functional::type_checker>("type-check");
     verbose_out->add_topic<functional::func_reducer>("func-reduction");
     verbose_out->add_topic<functional::array_reducer>("array-reduction");

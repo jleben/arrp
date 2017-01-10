@@ -20,6 +20,7 @@ add_library(arrp-lib ${lib_mode}
   ../frontend/module_parser.cpp
   ../frontend/prim_reduction.cpp
   ../frontend/functional_gen.cpp
+  ../frontend/topo_sort.cpp
   ../frontend/func_copy.cpp
   ../frontend/func_reducer.cpp
   ../frontend/linear_expr_gen.cpp

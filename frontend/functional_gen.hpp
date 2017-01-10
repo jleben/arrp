@@ -43,14 +43,13 @@ using std::unordered_map;
 class generator
 {
 public:
-    vector<id_ptr> generate(const vector<module*> modules);
-    vector<id_ptr> generate(module*);
+    generator();
+
+    void generate(const vector<module*> modules, functional::scope &);
 
 private:
-    using context_type = context<string,var_ptr>;
-    context_type m_context;
+    void generate(module*, functional::scope &);
 
-private:
     void do_input(ast::node_ptr);
     void do_external(ast::node_ptr);
     void do_mutually_recursive_bindings(const vector<ast::node_ptr> &);
@@ -100,9 +99,11 @@ private:
 
     source_error module_error(const string & what, const parsing::location & loc);
 
-    static unordered_map<string, primitive_op> m_prim_ops;
+private:
+    using context_type = context<string,var_ptr>;
+    context_type m_context;
 
-    unordered_map<string, id_ptr> m_final_ids;
+    static unordered_map<string, primitive_op> m_prim_ops;
 
     module * m_current_module = nullptr;
 

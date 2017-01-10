@@ -26,6 +26,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
+#include "../frontend/topo_sort.hpp"
 #include "../frontend/func_reducer.hpp"
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
@@ -112,29 +113,46 @@ result::code compile_module
     {
         unordered_set<functional::id_ptr> ids;
 
+        functional::scope root_scope;
+
         {
             functional::generator fgen;
-            auto id_vector = fgen.generate(parser.modules());
-            ids.insert(id_vector.begin(), id_vector.end());
+            fgen.generate(parser.modules(), root_scope);
         }
 
         if (verbose<functional::model>::enabled())
         {
             functional::printer printer;
             printer.set_print_scopes(true);
-            for (const auto & id : ids)
-            {
-                printer.print(id, cout);
-                cout << endl;
-            }
+            printer.print(root_scope, cout);
+            cout << endl;
         }
+
+        {
+            if (verbose<arrp::topological_sort>::enabled())
+            {
+                cout << endl
+                     << "### Topologically sorting declaration reference graph ###"
+                     << endl;
+            }
+            arrp::topological_sort topo_sort;
+            topo_sort.process(root_scope);
+        }
+
+        if (verbose<functional::model>::enabled())
+        {
+            functional::printer printer;
+            printer.set_print_scopes(true);
+            printer.print(root_scope, cout);
+            cout << endl;
+        }
+
+        return result::ok;
 
         {
             arrp::built_in_types builtins;
             arrp::type_checker type_checker(&builtins);
             type_checker.process(ids);
-
-            return result::ok;
         }
 
         // FIXME: choice of function to compile

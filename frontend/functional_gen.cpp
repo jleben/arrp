@@ -36,14 +36,19 @@ unordered_map<string, primitive_op> generator::m_prim_ops =
     { "complex64", primitive_op::to_complex64 },
 };
 
+generator::generator()
+{
+    m_context.enter_scope();
+}
+
 source_error generator::module_error(const string & what, const parsing::location & loc)
 {
     return source_error(what, location_in_module(loc));
 }
 
-vector<id_ptr> generator::generate(const vector<module*> modules)
+void generator::generate(const vector<module*> modules, functional::scope & root_id_scope)
 {
-    vector<id_ptr> ids;
+    context_type::scope_holder root_name_scope(m_context);
 
     for (auto mod : modules)
     {
@@ -52,19 +57,31 @@ vector<id_ptr> generator::generate(const vector<module*> modules)
         if (mod != modules.back())
             name_stacker.push(mod->name);
 
-        vector<id_ptr> mod_ids = generate(mod);
+        generate(mod, root_id_scope);
 
-        for (auto id : mod_ids)
-            m_final_ids.emplace(id->name, id);
+        for (auto & id : root_id_scope.ids)
+        {
+            if (verbose<generator>::enabled())
+            {
+                cout << "Binding name in root context: " << id->name << endl;
+            }
 
-        ids.insert(ids.end(), mod_ids.begin(), mod_ids.end());
+            // Bind qualified name in root context
+            m_context.bind(id->name, id);
+        }
     }
 
-    return ids;
+    for (auto & id : root_id_scope.ids)
+    {
+        if (verbose<generator>::enabled())
+        {
+            cout << "root id: " << id->name << endl;
+        }
+    }
 }
 
-vector<id_ptr>
-generator::generate(module * mod)
+void
+generator::generate(module * mod, functional::scope & module_id_scope)
 {
     if (verbose<generator>::enabled())
     {
@@ -79,11 +96,9 @@ generator::generate(module * mod)
         throw module_error("Invalid AST root.", ast->location);
     }
 
-    functional::scope func_scope;
-    m_scope_stack.push(&func_scope);
-
     {
-        context_type::scope_holder scope(m_context);
+        stacker<functional::scope*> id_scope_stacker(&module_id_scope, m_scope_stack);
+        context_type::scope_holder name_scope(m_context);
 
         auto externals = ast->as_list()->elements[2];
 
@@ -102,12 +117,6 @@ generator::generate(module * mod)
             do_mutually_recursive_bindings(bindings->as_list()->elements);
         }
     }
-
-    m_scope_stack.pop();
-
-    vector<id_ptr> ids(func_scope.ids.begin(), func_scope.ids.end());
-
-    return ids;
 }
 
 void generator::do_external(ast::node_ptr root)
@@ -157,6 +166,7 @@ void generator::do_external(ast::node_ptr root)
 
     assert(!m_scope_stack.empty());
     m_scope_stack.top()->ids.push_back(id);
+    id->scope = m_scope_stack.top();
 }
 
 void generator::do_mutually_recursive_bindings(const vector<ast::node_ptr> & nodes)
@@ -209,8 +219,16 @@ id_ptr generator::make_id_for_binding(ast::node_ptr node)
         cout << "Storing id " << id->name << endl;
 
     assert(!m_scope_stack.empty());
-    m_scope_stack.top()->ids.push_back(id);
 
+    auto & scope = m_scope_stack.top();
+    scope->ids.push_back(id);
+    id->scope = scope;
+#if 0
+    auto group = new functional::scope::group;
+    group->ids.push_back(id);
+    group->scope = scope;
+    scope->groups.push_back(group);
+#endif
     return id;
 }
 
@@ -308,15 +326,16 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         auto name = elems[1]->as_leaf<string>()->value;
         auto qname = module_name + '.' + name;
 
-        auto decl = m_final_ids.find(qname);
         if (verbose<generator>::enabled())
             cout << "Looking up qualified name: " << qname << endl;
-        if (decl == m_final_ids.end())
+
+        auto item = m_context.find(qname);
+        if (!item)
             throw module_error("Undefined name.", root->location);
 
-        auto id = decl->second;
-        ++id->ref_count;
-        return make_shared<reference>(id, location_in_module(root->location));
+        auto var = item.value();
+        ++var->ref_count;
+        return make_shared<reference>(var, location_in_module(root->location));
     }
     case ast::array_self_ref:
     {

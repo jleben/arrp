@@ -43,6 +43,7 @@ public:
     printer();
     void print(id_ptr id, ostream &);
     void print(expr_ptr expr, ostream &);
+    void print(const scope &, ostream &);
     void print(const linexpr & expr, ostream &);
     void indent() { ++level; }
     void unindent() { --level; }

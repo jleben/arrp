@@ -258,6 +258,41 @@ void printer::print(expr_ptr expr, ostream & out)
     }
 }
 
+void printer::print(const functional::scope & scope, ostream & out)
+{
+    if (scope.groups.empty())
+    {
+        for(const auto & id : scope.ids)
+        {
+            out << endl;
+            out << indentation();
+            print(id, out);
+        }
+    }
+    else
+    {
+        for (const auto & group : scope.groups)
+        {
+            bool first = true;
+            for(const auto & id : group->ids)
+            {
+                out << endl;
+                out << indentation();
+                if (first)
+                {
+                    out << "< ";
+                }
+                else
+                {
+                    out << "  ";
+                }
+                first = false;
+                print(id, out);
+            }
+        }
+    }
+}
+
 void printer::print(const linexpr & expr, ostream & out)
 {
     out << "{";

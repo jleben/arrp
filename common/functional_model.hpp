@@ -28,9 +28,10 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/location.hh"
 #include <memory>
 #include <vector>
+#include <list>
 #include <utility>
-#include <iostream>
 #include <unordered_set>
+#include <iostream>
 #include <complex>
 
 namespace stream {
@@ -39,9 +40,13 @@ namespace functional {
 struct model; // to control verbose output
 
 using std::vector;
+using std::list;
 using std::pair;
 using std::unordered_set;
 typedef code_location location_type;
+
+class identifier;
+typedef std::shared_ptr<identifier> id_ptr;
 
 class var
 {
@@ -100,6 +105,32 @@ public:
     location_type location;
 };
 
+class scope
+{
+public:
+    class group
+    {
+    public:
+        functional::scope * scope = nullptr;
+        vector<id_ptr> ids;
+    };
+
+    // must preserve order of dependency
+    vector<id_ptr> ids;
+    list<group*> groups;
+
+    scope() {}
+
+    ~scope()
+    {
+        for (auto group : groups)
+            delete group;
+    }
+
+    scope(const scope & other) = delete;
+    void operator=(const scope & other) = delete;
+};
+
 class identifier : public var
 {
 public:
@@ -111,14 +142,8 @@ public:
         var(name,loc), expr(e) {}
     expr_slot expr;
     bool is_recursive = false;
-};
-typedef std::shared_ptr<identifier> id_ptr;
-
-class scope
-{
-public:
-    // must preserve order of dependency
-    vector<id_ptr> ids;
+    functional::scope * scope = nullptr;
+    functional::scope::group * group = nullptr;
 };
 
 template <typename T>
