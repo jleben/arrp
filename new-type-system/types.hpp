@@ -55,6 +55,7 @@ public:
 
     unordered_set<type_class_ptr> constraints;
     type_ptr value;
+    bool is_universal = false;
 };
 
 class type_constructor

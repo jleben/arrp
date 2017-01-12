@@ -39,12 +39,14 @@ built_in_types::built_in_types()
     m_array_cons = shared(new array_type_constructor);
     m_func_cons = shared(new func_type_constructor);
 
+    m_boolean = make_primitive_type("bool");
     m_integer32 = make_primitive_type("int32");
     m_integer64 = make_primitive_type("int64");
     m_real32 = make_primitive_type("real32");
     m_real64 = make_primitive_type("real64");
     m_complex32 = make_primitive_type("complex32");
     m_complex64 = make_primitive_type("complex64");
+    m_infinity = make_primitive_type("inf");
 
     m_integral = shared(new type_class("Integral"));
     m_integral->members.push_back(m_integer32);

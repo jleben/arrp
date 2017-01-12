@@ -1,4 +1,5 @@
 #include "type_check.hpp"
+#include "../utility/containers.hpp"
 
 #include <iostream>
 
@@ -11,27 +12,44 @@ type_checker::type_checker(built_in_types * builtin):
     m_builtin(builtin)
 {}
 
-void type_checker::process(const unordered_set<id_ptr> & ids)
+void type_checker::process(const arrp::scope & scope)
 {
-    context_type::scope_holder scope(m_context);
+    context_type::scope_holder type_scope(m_context);
 
-    for (auto & id : ids)
+    for (auto group : scope.groups)
     {
-        m_context.bind(id, shared(new type_var));
-    }
+        auto active_group_token = stack_scoped(group, m_active_scope_groups);
 
-    for (auto & id : ids)
-    {
-        auto id_type = m_context.find(id).value();
-        auto expr_type = visit(id->expr);
-        unify(id_type, expr_type);
-    }
+        for (auto & id : group->ids)
+        {
+            m_context.bind(id, shared(new type_var));
+        }
 
-    for (auto & id : ids)
-    {
-        auto id_type = m_context.find(id).value();
-        cout << id->name << " : " << id_type << endl;
+        for (auto & id : group->ids)
+        {
+            cout << "id:" << id->name << endl;
+
+            auto expr_type = visit(id->expr);
+
+            auto binding = m_context.find(id);
+            auto id_type = binding.value();
+            unify(id_type, expr_type);
+        }
+
+        for (auto & id : group->ids)
+        {
+            auto id_type = m_context.find(id).value();
+
+            make_universal(id_type);
+
+            cout << id->name << " : " << id_type << endl;
+        }
     }
+}
+
+type_ptr type_checker::visit_bool(const shared_ptr<bool_const> &)
+{
+    return m_builtin->boolean();
 }
 
 type_ptr type_checker::visit_int(const shared_ptr<int_const> & i)
@@ -44,8 +62,27 @@ type_ptr type_checker::visit_real(const shared_ptr<real_const> &)
     return m_builtin->real64();
 }
 
+type_ptr type_checker::visit_complex(const shared_ptr<complex_const> &)
+{
+    return m_builtin->complex64();
+}
+
+type_ptr type_checker::visit_infinity(const shared_ptr<infinity> &)
+{
+    return m_builtin->infinity();
+}
+
+type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
+{
+    return type_ptr();
+}
+
 type_ptr type_checker::visit_func(const shared_ptr<stream::functional::function> & func)
 {
+    cout << "Function: ";
+    m_printer.print(func, cout);
+    cout << endl;
+
     context_type::scope_holder func_scope(m_context);
 
     vector<type_ptr> param_types;
@@ -83,7 +120,13 @@ type_ptr type_checker::visit_func(const shared_ptr<stream::functional::function>
 
 type_ptr type_checker::visit_func_app(const shared_ptr<func_app> &app)
 {
+    cout << "Application: ";
+    m_printer.print(app, cout);
+    cout << endl;
+
     auto result_t = visit(app->object);
+
+    cout << "Applying: " << *result_t << endl;
 
     for (auto & arg : app->args)
     {
@@ -96,47 +139,148 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> &app)
         result_t = expected_func_t->arguments[1];
     }
 
+    cout << "Result: " << *result_t;
+
     return result_t;
 }
 
 type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
-    auto binding = m_context.find(ref->var);
-    if (!binding)
-        throw stream::error("Unexpected: reference has no bound type.");
+    type_ptr type;
 
-    auto type = binding.value();
+    {
+        auto binding = m_context.find(ref->var);
+        if (!binding.value())
+            throw stream::error("Unexpected: reference has no bound type.");
+        type = binding.value();
+    }
 
-    cout << "Getting instance of: " << ref->var->name << " : " << type << endl;
+    cout << "Instantiating: " << ref->var->name << " : " << type << endl;
 
     return instance(type);
 }
 
-type_ptr type_checker::instance(type_ptr t)
+type_ptr type_checker::unify(const type_ptr & a_raw, const type_ptr & b_raw)
 {
-    if (auto var = dynamic_pointer_cast<type_var>(t))
+    cout << "Unifying: " << a_raw << " & " << b_raw << endl;
+
+    auto a = follow(a_raw);
+    auto b = follow(b_raw);
+
+    if (auto a_var = dynamic_pointer_cast<type_var>(a))
     {
-        if (is_free(var))
+        if (auto b_var = dynamic_pointer_cast<type_var>(b))
         {
-            cout << "Var " << var << " is free." << endl;
-            auto new_var = new type_var;
-            new_var->constraints = var->constraints;
-            return shared(new_var);
+            auto result_var = shared(new type_var);
+            result_var->constraints.insert(a_var->constraints.begin(), a_var->constraints.end());
+            result_var->constraints.insert(b_var->constraints.begin(), b_var->constraints.end());
+            a_var->constraints.clear();
+            b_var->constraints.clear();
+
+            a_var->value = b_var->value = result_var;
+
+            return result_var;
+        }
+        else if (is_contained(a_var, b))
+        {
+            ostringstream msg;
+            msg << "Variable " << *a << " is contained in type " << *b << ".";
+            throw type_error(msg.str());
         }
         else
         {
-            cout << "Var " << var << " is not free." << endl;
+            a_var->constraints.clear();
+            a_var->value = b;
+            return b;
+        }
+    }
+    else if (auto a_cons = dynamic_pointer_cast<type_cons>(a))
+    {
+        if (auto b_var = dynamic_pointer_cast<type_var>(b))
+        {
+            // Already handled above
+            return unify(b, a);
+        }
+        else if (auto b_cons = dynamic_pointer_cast<type_cons>(b))
+        {
+            if (a_cons->kind != b_cons->kind ||
+                    a_cons->arguments.size() != b_cons->arguments.size())
+            {
+                ostringstream msg;
+                msg << "Type mismatch: " << *a << " != " << *b;
+                throw type_error(msg.str());
+            }
+
+            // FIXME: Triggers on simple legal function application.
+#if 0
+            if (a_cons->kind == m_builtin->function_cons())
+            {
+                throw type_error("Recursive use of functions.");
+            }
+#endif
+
+            for (int i = 0; i < (int)a_cons->arguments.size(); ++i)
+            {
+                auto unified_arg = unify(a_cons->arguments[i], b_cons->arguments[i]);
+                a_cons->arguments[i] = unified_arg;
+                b_cons->arguments[i] = unified_arg;
+            }
+
+            return a_cons;
+        }
+    }
+
+    throw stream::error("Unexpected kind of type.");
+}
+
+type_ptr type_checker::instance(type_ptr type)
+{
+    auto type_instance = subterm_instance(type);
+    m_var_instances.clear();
+    return type_instance;
+}
+
+type_ptr type_checker::subterm_instance(type_ptr type)
+{
+    type = follow(type);
+
+
+    if (auto var = dynamic_pointer_cast<type_var>(type))
+    {
+        {
+            auto instance_pos = m_var_instances.find(var);
+            if (instance_pos != m_var_instances.end())
+            {
+                cout << "Reusing already copied var " << var << endl;
+                return instance_pos->second;
+            }
+        }
+
+        if (var->is_universal)
+        {
+            cout << "Copying universal var " << var << endl;
+
+            auto instance = shared(new type_var);
+            instance->constraints = var->constraints;
+
+            m_var_instances.emplace(var, instance);
+
+            return instance;
+        }
+        else
+        {
+            cout << "Reusing non-universal var " << var << endl;
             return var;
         }
     }
-    else if (auto cons = dynamic_pointer_cast<type_cons>(t))
+    else if (auto cons = dynamic_pointer_cast<type_cons>(type))
     {
-        auto new_cons = new type_cons(cons->kind);
+        auto new_cons = shared(new type_cons(cons->kind));
         for (auto & arg : cons->arguments)
         {
-            new_cons->arguments.push_back(instance(arg));
+            new_cons->arguments.push_back(subterm_instance(arg));
         }
-        return shared(new_cons);
+        return new_cons;
     }
     else
     {
@@ -161,6 +305,27 @@ bool type_checker::is_free(type_var_ptr var)
     }
 
     return true;
+}
+
+void type_checker::make_universal(type_ptr type)
+{
+    type = follow(type);
+
+    if (auto var = dynamic_pointer_cast<type_var>(type))
+    {
+        var->is_universal = true;
+    }
+    else if (auto cons = dynamic_pointer_cast<type_cons>(type))
+    {
+        for (auto & arg : cons->arguments)
+        {
+            make_universal(arg);
+        }
+    }
+    else
+    {
+        throw stream::error("Unexpected kind of type.");
+    }
 }
 
 }

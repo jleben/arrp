@@ -147,13 +147,13 @@ result::code compile_module
             cout << endl;
         }
 
-        return result::ok;
-
         {
             arrp::built_in_types builtins;
             arrp::type_checker type_checker(&builtins);
-            type_checker.process(ids);
+            type_checker.process(root_scope);
         }
+
+        return result::ok;
 
         // FIXME: choice of function to compile
         auto criteria = [&main_module](functional::id_ptr id) -> bool {

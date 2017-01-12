@@ -164,7 +164,7 @@ ostream & operator<<(ostream & out, const type_var & v)
 {
     if (v.value)
     {
-        out << *v.value;
+        out << "<" << &v << "> = " << *v.value;
     }
     else
     {

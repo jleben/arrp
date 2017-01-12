@@ -9,9 +9,14 @@ class built_in_types
 public:
     built_in_types();
 
+    type_constructor_ptr array_cons() { return m_array_cons; }
+    type_constructor_ptr function_cons() { return m_func_cons; }
+
     type_cons_ptr array(type_ptr elem);
     type_cons_ptr function(type_ptr param, type_ptr result);
 
+    type_cons_ptr infinity() { return m_infinity; }
+    type_cons_ptr boolean() { return m_boolean; }
     type_cons_ptr integer32() { return m_integer32; }
     type_cons_ptr integer64() { return m_integer64; }
     type_cons_ptr real32() { return m_real32; }
@@ -29,12 +34,14 @@ private:
     type_constructor_ptr m_array_cons;
     type_constructor_ptr m_func_cons;
 
+    type_cons_ptr m_boolean;
     type_cons_ptr m_integer32;
     type_cons_ptr m_integer64;
     type_cons_ptr m_real32;
     type_cons_ptr m_real64;
     type_cons_ptr m_complex32;
     type_cons_ptr m_complex64;
+    type_cons_ptr m_infinity;
 
     type_class_ptr m_integral;
     type_class_ptr m_real;
