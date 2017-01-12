@@ -144,13 +144,11 @@ void printer::print(expr_ptr expr, ostream & out)
         if (m_print_scopes && ar->scope.ids.size())
         {
             out << " where ";
-            int i = 0;
-            for(const auto & id : ar->scope.ids)
-            {
-                if (i++ > 0)
-                    out << ", ";
-                print(id, out);
-            }
+            indent();
+            print(ar->scope, out);
+            unindent();
+            out << endl;
+            out << indentation();
         }
         out << "]";
     }
@@ -238,13 +236,11 @@ void printer::print(expr_ptr expr, ostream & out)
         if (m_print_scopes && func->scope.ids.size())
         {
             out << " where ";
-            int i = 0;
-            for(const auto & id : func->scope.ids)
-            {
-                if (i++ > 0)
-                    out << ", ";
-                print(id, out);
-            }
+            indent();
+            print(func->scope, out);
+            unindent();
+            out << endl;
+            out << indentation();
         }
         out << "\\";
     }
@@ -287,7 +283,9 @@ void printer::print(const functional::scope & scope, ostream & out)
                     out << "  ";
                 }
                 first = false;
+                indent();
                 print(id, out);
+                unindent();
             }
         }
     }
