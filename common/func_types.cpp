@@ -62,15 +62,7 @@ bool scalar_type::operator<=(const type & rhs) const
 
     const auto & other = static_cast<const scalar_type &>(rhs);
 
-    bool ok = true;
-    ok &= this->primitive <= other.primitive;
-    if (other.is_affine())
-        ok &= this->is_affine();
-    if (other.is_constant())
-        ok &= this->is_constant();
-    if (other.is_data())
-        ok &= this->is_data();
-    return ok;
+    return this->primitive <= other.primitive;
 }
 
 array_type::array_type(const array_size_vec & size, const type_ptr & elem_type)

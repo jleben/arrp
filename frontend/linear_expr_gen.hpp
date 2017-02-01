@@ -9,7 +9,8 @@ namespace functional {
 
 linexpr to_linear_expr(expr_ptr);
 
-expr_ptr to_linear_set(expr_ptr);
+void ensure_affine_integer_expression(expr_ptr);
+void ensure_affine_integer_constraint(expr_ptr);
 
 linexpr maximum(const linexpr &);
 

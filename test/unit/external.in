@@ -1,9 +1,9 @@
 
-external f : [4]int -> [2]int;
+external f :: [4]int -> [2]int;
 ## f(x)[0] = x[0] + x[1]
 ## f(x)[1] = x[2] + x[3]
 
-external g : int -> int;
+external g :: int -> int;
 ## g(x) = x * 100
 
 a = [~,4: i,j -> i+j];

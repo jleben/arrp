@@ -1,6 +1,7 @@
 module osc;
 
-phase(freq) = p = [
+phase(freq) = p :: [~]real64 =
+[
     0 -> 0;
     t ->
       ## Breaks when using "this":

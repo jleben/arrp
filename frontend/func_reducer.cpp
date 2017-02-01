@@ -126,6 +126,7 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
 
         auto new_name = m_name_provider.new_name(id->name);
         auto new_id = make_shared<identifier>(new_name, id->location);
+        new_id->explicit_type = id->explicit_type;
         new_id->expr.location = id->expr.location;
 
         auto func_copy =
@@ -286,18 +287,18 @@ expr_ptr func_reducer::reduce(expr_ptr expr)
 
 expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
 {
-    if (ref->is_recursion)
-    {
-        if (verbose<func_reducer>::enabled())
-        {
-            cout << ref->location << ": "
-                 << "Recursion by ref to " << ref->var->name << endl;
-        }
-        return ref;
-    }
-
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
+        bool is_recursion =
+                std::find(m_processing_ids.begin(), m_processing_ids.end(), id)
+                != m_processing_ids.end();
+
+        if (is_recursion)
+        {
+            // Recursion
+            return ref;
+        }
+
         if (auto func = dynamic_pointer_cast<function>(id->expr.expr))
         {
             return m_copier.copy(func);
@@ -318,6 +319,8 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
 
             stacker<location_type, tracing_stack<location_type>> tracer(m_trace);
             tracer.push(location_type()); // Separator
+
+            auto processing_id_token = stack_scoped(id, m_processing_ids);
 
             id->expr = reduce(id->expr);
 

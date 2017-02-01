@@ -217,13 +217,18 @@ id_ptr generator::make_id_for_binding(ast::node_ptr node)
 void generator::make_expr_for_binding(id_ptr id, ast::node_ptr node)
 {
     auto name = node->as_list()->elements[0]->as_leaf<string>()->value;
-    auto params_node = node->as_list()->elements[1];
-    auto expr_node = node->as_list()->elements[2];
+    auto type_node = node->as_list()->elements[1];
+    auto params_node = node->as_list()->elements[2];
+    auto expr_node = node->as_list()->elements[3];
 
     expr_ptr expr;
 
     stacker<string, name_stack_t> name_stacker(name, m_name_stack);
-    stacker<id_ptr, id_stack_t> id_stacker(id, m_binding_stack);
+
+    if (type_node)
+    {
+        id->explicit_type = do_type(type_node);
+    }
 
     if (params_node)
     {
@@ -284,15 +289,6 @@ expr_ptr generator::do_expr(ast::node_ptr root)
         ++var->ref_count;
 
         auto ref = make_shared<reference>(var, location_in_module(root->location));
-
-        auto self =
-                std::find(m_binding_stack.begin(), m_binding_stack.end(), var);
-        if (self != m_binding_stack.end())
-        {
-            auto id = *self;
-            id->is_recursive = true;
-            ref->is_recursion = true;
-        }
 
         return ref;
     }
@@ -794,8 +790,7 @@ type_ptr generator::do_type(ast::node_ptr root)
         return do_function_type(root);
     }
     default:
-        throw source_error("Unexpected type.",
-                           location_in_module(root->location));
+        throw error("Unexpected type.");
     }
 }
 

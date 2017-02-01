@@ -109,9 +109,6 @@ private:
     stack<array_ptr> m_array_stack;
     stack<scope*> m_scope_stack; // Not used for lookup here
 
-    typedef stack_adapter<deque<id_ptr>> id_stack_t;
-    id_stack_t m_binding_stack;
-
     typedef stack_adapter<deque<string>> name_stack_t;
     name_stack_t m_name_stack;
 };

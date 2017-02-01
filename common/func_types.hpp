@@ -28,15 +28,9 @@ public:
     virtual bool is_scalar() const { return false; }
     virtual bool is_array() const { return false; }
     virtual bool is_function() const { return false; }
-    virtual bool is_constant() const { return false; }
-    virtual bool is_affine() const { return false; }
     virtual bool is_data() const { return false; }
     virtual bool operator==(const type & other) const = 0;
-    virtual bool operator<=(const type & other) const
-    {
-        // FIXME: Implement for all types
-        return *this == other;
-    }
+    virtual bool operator<=(const type & other) const { return *this == other; }
     bool operator!=(const type & other) const { return !(*this == other); }
     scalar_type * scalar();
     array_type * array();
@@ -52,9 +46,7 @@ public:
     scalar_type(primitive_type p): primitive(p) {}
 
     bool is_scalar() const override { return true; }
-    bool is_constant() const override { return constant_flag; }
-    bool is_affine() const override { return affine_flag; }
-    bool is_data() const override { return data_flag; }
+    bool is_data() const override { return primitive != primitive_type::infinity; }
 
     virtual bool operator==(const type & t) const override
     {
@@ -62,11 +54,7 @@ public:
             return false;
 
         const auto & s = static_cast<const scalar_type &>(t);
-
-        return primitive == s.primitive &&
-                affine_flag == s.affine_flag &&
-                constant_flag == s.constant_flag &&
-                data_flag == s.data_flag;
+        return primitive == s.primitive;
     }
 
     virtual bool operator<=(const type & rhs) const override;
@@ -74,9 +62,6 @@ public:
     void print(ostream &) const override;
 
     primitive_type primitive;
-    bool affine_flag = false;
-    bool constant_flag = false;
-    bool data_flag = true;
 };
 
 inline scalar_type * type::scalar()
@@ -92,18 +77,12 @@ inline shared_ptr<scalar_type> make_int_type()
 inline type_ptr type::undefined()
 {
     auto t = std::make_shared<scalar_type>(primitive_type::undefined);
-    t->data_flag = true;
-    t->affine_flag = true;
-    t->constant_flag = true;
     return t;
 }
 
 inline type_ptr type::infinity()
 {
     auto t = std::make_shared<scalar_type>(primitive_type::infinity);
-    t->data_flag = false;
-    t->affine_flag = false;
-    t->constant_flag = false;
     return t;
 }
 
@@ -115,7 +94,8 @@ public:
     array_type(const array_size_vec & s, primitive_type e): size(s), element(e) {}
     void print(ostream &) const override;
     bool is_array() const override { return true; }
-    bool is_data() const override { return true; }
+    bool is_data() const override { return element != primitive_type::infinity; }
+
     virtual bool operator==(const type & t) const override
     {
         if (!t.is_array())
@@ -123,6 +103,14 @@ public:
         const auto & a = static_cast<const array_type &>(t);
         return size == a.size &&
                 element == a.element;
+    }
+    virtual bool operator<=(const type & other) const override
+    {
+        if (!other.is_array())
+            return false;
+        const auto & a = static_cast<const array_type &>(other);
+        return size == a.size &&
+                element <= a.element;
     }
     array_size_vec size;
     primitive_type element;

@@ -1,8 +1,8 @@
 
-external fft : [1024]real64 -> [513]complex64;
-external dct : [15]real64 -> [15]real64;
-input mel_coefs : [15,513]real64;
-input x : [~]real64;
+external fft :: [1024]real64 -> [513]complex64;
+external dct :: [15]real64 -> [15]real64;
+input mel_coefs :: [15,513]real64;
+input x :: [~]real64;
 
 sr = 20000;
 freq_hz = 500;
@@ -27,7 +27,8 @@ spectrum = [t -> fft(x_windows[t])];
 
 pow_spectrum = [t,i -> pow(spectrum[t,i])/win_size];
 
-mel_spectrum_sum = [
+mel_spectrum_sum :: [~,15,514]real64 =
+[
   t,i,0 -> 0;
   t,i,k -> mel_coefs[i,k-1] * pow_spectrum[t,k-1] + mel_spectrum_sum[t,i,k-1]
 ];

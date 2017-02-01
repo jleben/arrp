@@ -110,7 +110,7 @@ public:
     identifier(const string & name, expr_ptr e, const location_type & loc):
         var(name,loc), expr(e) {}
     expr_slot expr;
-    bool is_recursive = false;
+    type_ptr explicit_type;
 };
 typedef std::shared_ptr<identifier> id_ptr;
 
@@ -145,22 +145,14 @@ class int_const : public constant<int>
 public:
     int_const(int v): constant(v)
     {
-        auto t = make_int_type();
-        t->affine_flag = true;
-        t->constant_flag = true;
-        t->data_flag = true;
-        type = t;
+        this->type = make_int_type();
     }
     int_const(int v, const location_type & loc, const type_ptr & type = nullptr):
         constant(v, loc, type)
     {
         if (!this->type)
         {
-            auto t = make_int_type();
-            t->affine_flag = true;
-            t->constant_flag = true;
-            t->data_flag = true;
-            this->type = t;
+            this->type = make_int_type();
         }
     }
 };
@@ -316,7 +308,6 @@ public:
     reference(var_ptr v, const location_type & loc = location_type(), type_ptr type = nullptr):
         expression(loc, type), var(v) {}
     var_ptr var;
-    bool is_recursion = false;
 };
 
 class array_self_ref : public expression

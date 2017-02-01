@@ -74,9 +74,11 @@ private:
     }
 
     using reduce_context_type = context<var_ptr, expr_ptr>;
+    using processing_id_stack_type = stack_adapter<deque<id_ptr>>;
 
     stack<scope*> m_scope_stack;
 
+    processing_id_stack_type m_processing_ids;
     tracing_stack<location_type> m_trace;
     stack<array_ptr> m_array_copy_stack;
 

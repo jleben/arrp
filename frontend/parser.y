@@ -27,6 +27,7 @@
 %token MODULE IMPORT AS INPUT EXTERNAL
 
 %left '='
+%left TYPE_EQ
 %right LET IN
 %right WHERE
 %right RIGHT_ARROW
@@ -134,10 +135,10 @@ external_decl_list:
 ;
 
 external_decl:
-  INPUT id ':' type ';'
+  INPUT id TYPE_EQ type ';'
   { $$ = make_list(ast::input, @$, {$2, $4}); }
   |
-  EXTERNAL id ':' type ';'
+  EXTERNAL id TYPE_EQ type ';'
   { $$ = make_list(ast::external, @$, {$2, $4}); }
 ;
 
@@ -163,14 +164,24 @@ binding_list:
 ;
 
 binding:
-  id '(' param_list ')' '=' expr
+  id '(' param_list ')' optional_type '=' expr
   {
-    $$ = make_list( ast::binding, @$, {$1, $3, $6} );
+    $$ = make_list( ast::binding, @$, {$1, $5, $3, $7} );
   }
   |
-  id '=' expr
+  id optional_type '=' expr
   {
-    $$ = make_list( ast::binding, @$, {$1, nullptr, $3} );
+    $$ = make_list( ast::binding, @$, {$1, $2, nullptr, $4} );
+  }
+;
+
+optional_type:
+  // empty
+  { $$ = nullptr; }
+  |
+  TYPE_EQ type
+  {
+    $$ = $2;
   }
 ;
 
@@ -315,9 +326,9 @@ expr:
   |
   where_expr
   |
-  id '=' expr
+  id TYPE_EQ type '=' expr
   {
-    $$ = make_list( ast::binding, @$, {$1, nullptr, $3} );
+    $$ = make_list( ast::binding, @$, {$1, $3, nullptr, $5} );
   }
 ;
 

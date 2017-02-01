@@ -84,6 +84,7 @@ private:
 
     using decl_var_stack = tracing_stack<array_var_ptr, stack_adapter<deque<array_var_ptr>>>;
     using decl_var_stacker = stacker<array_var_ptr, decl_var_stack>;
+
     decl_var_stack m_declared_vars;
 
     stack<unordered_set<array_var_ptr>> m_unbound_vars;

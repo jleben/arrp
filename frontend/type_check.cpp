@@ -56,37 +56,28 @@ type_ptr type_checker::process(const id_ptr & id)
         cout << endl;
     }
 
+    auto processed_id_token = stack_scoped(id, m_processed_ids);
+
     auto t = visit(id->expr);
 
-    if (id->is_recursive)
+    if (id->explicit_type)
     {
-        if (verbose<type_checker>::enabled())
-            cout << "Type checker: revisiting recursive id:" << id << endl;
-
-        revertable<bool> revisit(m_force_revisit, true);
-
-        t = visit(id->expr);
-        if (verbose<type_checker>::enabled())
-            cout << "1 -> " << *t << endl;
-
-        auto t2 = visit(id->expr);
-        if (verbose<type_checker>::enabled())
-            cout << "2 -> " << *t2 << endl;
-
-        bool is_undefined =
-                (!(*t2 == *t))
-                || (t->is_scalar() && t->scalar()->primitive == primitive_type::undefined)
-                || (t->is_array() && t->array()->element == primitive_type::undefined);
-        if (is_undefined)
-            throw type_error("Type of recursive expression undefined.",
-                             id->expr.location);
+        if (*t != *id->explicit_type)
+        {
+            ostringstream msg;
+            msg << "Explicit type "
+                << *id->explicit_type
+                << " does not match expression type "
+                << *t
+                << ".";
+            throw type_error(msg.str(), id->location);
+        }
     }
 
-    if (t->is_scalar())
+    if (!t->is_function() && !t->is_data())
     {
-        if (!t->scalar()->is_data())
-            throw type_error("Expression can not be used as data.",
-                             id->expr.location);
+        throw type_error("Expression can not be used as data.",
+                         id->expr.location);
     }
 
     if (verbose<type_checker>::enabled())
@@ -118,36 +109,24 @@ type_ptr type_checker::visit(const expr_ptr & expr)
 type_ptr type_checker::visit_int(const shared_ptr<int_const> &)
 {
     auto s = make_shared<scalar_type>(primitive_type::integer);
-    s->constant_flag = true;
-    s->affine_flag = true;
-    s->data_flag = true;
     return s;
 }
 
 type_ptr type_checker::visit_real(const shared_ptr<real_const> &)
 {
     auto s = make_shared<scalar_type>(primitive_type::real64);
-    s->constant_flag = true;
-    s->affine_flag = true;
-    s->data_flag = true;
     return s;
 }
 
 type_ptr type_checker::visit_complex(const shared_ptr<complex_const> &)
 {
     auto s = make_shared<scalar_type>(primitive_type::complex64);
-    s->constant_flag = true;
-    s->affine_flag = false;
-    s->data_flag = true;
     return s;
 }
 
 type_ptr type_checker::visit_bool(const shared_ptr<bool_const> &)
 {
     auto s = make_shared<scalar_type>(primitive_type::boolean);
-    s->constant_flag = true;
-    s->affine_flag = false;
-    s->data_flag = true;
     return s;
 }
 
@@ -160,12 +139,18 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
-        if (ref->is_recursion)
+        bool is_processed;
         {
-            if (id->expr->type)
-                return id->expr->type;
+            auto it = std::find(m_processed_ids.begin(), m_processed_ids.end(), id);
+            is_processed = it != m_processed_ids.end();
+        }
+        if (is_processed)
+        {
+            if (id->explicit_type)
+                return id->explicit_type;
             else
-                return type::undefined();
+                throw type_error("Recursively used name requires explicit type.",
+                                 id->location);
         }
         else
         {
@@ -175,9 +160,6 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
         auto s = make_shared<scalar_type>(primitive_type::integer);
-        s->constant_flag = false;
-        s->affine_flag = true;
-        s->data_flag = true;
         return s;
     }
     else
@@ -246,16 +228,6 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
     {
         auto s = make_shared<scalar_type>(result_elem_type);
 
-        s->data_flag = true;
-        for (auto & t : operand_types)
-            s->data_flag &= t->is_data();
-
-        // This denotes whether the result depends on a variable,
-        // rather than whether it is a compile-time constant.
-        s->constant_flag = true;
-        for (auto & t : operand_types)
-            s->constant_flag &= t->is_constant();
-
         switch(prim->kind)
         {
         case primitive_op::add:
@@ -263,16 +235,12 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
         {
             auto lhs = operand_types[0];
             auto rhs = operand_types[1];
-            s->affine_flag = lhs->is_affine() && rhs->is_affine();
             break;
         }
         case primitive_op::multiply:
         {
             auto lhs = operand_types[0];
             auto rhs = operand_types[1];
-            s->affine_flag =
-                    lhs->is_affine() && rhs->is_affine() &&
-                    (lhs->is_constant() || rhs->is_constant());
             break;
         }
         case primitive_op::divide_integer:
@@ -280,9 +248,6 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
         {
             auto lhs = operand_types[0];
             auto rhs = operand_types[1];
-            s->affine_flag =
-                    lhs->is_affine() && rhs->is_affine() &&
-                    rhs->is_constant();
             break;
         }
         default:
@@ -330,7 +295,7 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 
         visit(domain);
 
-        to_linear_set(domain);
+        ensure_affine_integer_constraint(domain);
 
         if (dynamic_pointer_cast<function_type>(type))
         {
@@ -370,7 +335,6 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
     if (common_size.empty())
     {
         auto st = make_shared<scalar_type>(result_elem_type);
-        st->data_flag = true;
         return st;
     }
     else
@@ -491,7 +455,7 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
                 auto & expr = c.second;
 
                 visit(domain);
-                to_linear_set(domain);
+                ensure_affine_integer_constraint(domain);
 
                 visit(expr);
                 process_type(expr);
@@ -802,7 +766,6 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
     if (object_size.size() <= app->args.size())
     {
         auto st = make_shared<scalar_type>(elem_type);
-        st->data_flag = true;
         return st;
     }
     else
@@ -821,10 +784,6 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
     {
         // Result is always 1.
         auto result = make_shared<scalar_type>(primitive_type::integer);
-        result->constant_flag = true;
-        result->affine_flag = true;
-        result->data_flag = true;
-
         return result;
     }
     else if (!as->object->type->is_array())
@@ -867,9 +826,6 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
     if (size >= 0)
     {
         auto result = make_shared<scalar_type>(primitive_type::integer);
-        result->constant_flag = true;
-        result->affine_flag = true;
-        result->data_flag = true;
         return result;
     }
     else

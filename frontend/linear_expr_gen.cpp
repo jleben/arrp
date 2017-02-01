@@ -112,7 +112,73 @@ linear_set::constraint to_linear_constraint(expr_ptr expr)
     }
 }
 
-expr_ptr to_linear_set(expr_ptr expr)
+enum affine_expr_type
+{
+    affine_constant,
+    affine_variable
+};
+
+static
+affine_expr_type get_affine_expr_type(expr_ptr expr)
+{
+    if (auto cint = dynamic_pointer_cast<int_const>(expr))
+    {
+        return affine_constant;
+    }
+    else if (auto ref = dynamic_pointer_cast<reference>(expr))
+    {
+        if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
+            return affine_variable;
+    }
+    else if (auto op = dynamic_pointer_cast<primitive>(expr))
+    {
+        switch(op->kind)
+        {
+        case primitive_op::add:
+        case primitive_op::subtract:
+        {
+            auto lhs = get_affine_expr_type(op->operands[0]);
+            auto rhs = get_affine_expr_type(op->operands[1]);
+            if (lhs == affine_constant && rhs == affine_constant)
+                return affine_constant;
+            return affine_variable;
+            break;
+        }
+        case primitive_op::multiply:
+        {
+            auto lhs = get_affine_expr_type(op->operands[0]);
+            auto rhs = get_affine_expr_type(op->operands[1]);
+            if (lhs == affine_constant && rhs == affine_constant)
+                return affine_constant;
+            if (lhs == affine_constant || rhs == affine_constant)
+                return affine_variable;
+            break;
+        }
+        case primitive_op::divide_integer:
+        case primitive_op::modulo:
+        {
+            auto lhs = get_affine_expr_type(op->operands[0]);
+            auto rhs = get_affine_expr_type(op->operands[1]);
+            if (lhs == affine_constant && rhs == affine_constant)
+                return affine_constant;
+            if (rhs == affine_constant)
+                return affine_variable;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    throw source_error("Not an affine integer expression.", expr->location);
+}
+
+void ensure_affine_integer_expression(expr_ptr expr)
+{
+    get_affine_expr_type(expr);
+}
+
+void ensure_affine_integer_constraint(expr_ptr expr)
 {
     if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
@@ -126,36 +192,30 @@ expr_ptr to_linear_set(expr_ptr expr)
         case primitive_op::compare_geq:
         {
             assert(op->operands.size() == 2);
-            auto & lhs = op->operands[0];
-            auto & rhs = op->operands[1];
-            if (!lhs->type->is_affine())
-                throw source_error("Not an affine expression.", lhs.location);
-            if (!rhs->type->is_affine())
-                throw source_error("Not an affine expression.", rhs.location);
-            return op;
+            ensure_affine_integer_expression(op->operands[0]);
+            ensure_affine_integer_expression(op->operands[1]);
+            return;
         }
         case primitive_op::negate:
         {
             assert(op->operands.size() == 1);
-            to_linear_set(op->operands[0]);
-            return op;
+            ensure_affine_integer_constraint(op->operands[0]);
+            return;
         }
         case primitive_op::logic_and:
         case primitive_op::logic_or:
         {
             assert(op->operands.size() == 2);
-            to_linear_set(op->operands[0]);
-            to_linear_set(op->operands[1]);
-            return op;
+            ensure_affine_integer_constraint(op->operands[0]);
+            ensure_affine_integer_constraint(op->operands[1]);
+            return;
         }
         default:
-            throw source_error("Not a linear constraint.", expr->location);
+            break;
         }
     }
-    else
-    {
-        throw source_error("Not a linear constraint.", expr->location);
-    }
+
+    throw source_error("Not an affine integer constraint.", expr->location);
 }
 
 }

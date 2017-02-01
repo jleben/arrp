@@ -8,11 +8,13 @@
 #include "../common/func_model_printer.hpp"
 
 #include <unordered_set>
+#include <deque>
 
 namespace stream {
 namespace functional {
 
 using std::unordered_set;
+using std::deque;
 
 class type_checker : public visitor<type_ptr>
 {
@@ -53,12 +55,16 @@ private:
         return source_error(msg, loc, m_trace);
     }
 
+    using processed_id_stack = stack_adapter<deque<id_ptr>>;
+
     bool m_force_revisit = false;
 
     printer m_printer;
     array_bounding m_array_bounding;
 
     stack<location_type> & m_trace;
+
+    processed_id_stack m_processed_ids;
 };
 
 }

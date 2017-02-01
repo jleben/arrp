@@ -231,6 +231,13 @@ id_ptr array_reducer::process(id_ptr id)
     m_unbound_vars.pop();
     m_declared_vars.pop();
 
+    if (verbose<array_reducer>::enabled())
+    {
+        cout << "Storing final id: " << id << endl;
+    }
+
+    m_final_ids.insert(id);
+
     return id;
 }
 
@@ -867,9 +874,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
 {
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
-        if (ref->is_recursion)
-            return ref;
-
         process(id);
 
         // Is there a substitution for references to this id?
@@ -888,12 +892,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
             // Reduce to detect free vars
             return reduce(sub);
         }
-
-        if (verbose<array_reducer>::enabled())
-        {
-            cout << "Storing final id: " << id << endl;
-        }
-        m_final_ids.insert(id);
     }
     else if (auto var = dynamic_pointer_cast<array_var>(ref->var))
     {

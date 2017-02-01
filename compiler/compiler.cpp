@@ -179,7 +179,6 @@ result::code compile_module
             functional::array_reducer reducer(func_name_provider);
             id = reducer.process(id);
             array_ids = reducer.ids();
-            array_ids.insert(id);
 
             if (verbose<functional::model>::enabled())
             {
