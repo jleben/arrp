@@ -117,7 +117,7 @@ declarations:
   // empty
   { $$ = nullptr; }
   |
-  declaration_list ';'
+  declaration_list optional_semicolon
 ;
 
 declaration_list:

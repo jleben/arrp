@@ -29,7 +29,9 @@ void printer::print(id_ptr id, ostream & out)
     if (id->type_expr)
     {
         out << " :: ";
+        out << '\'';
         print(id->type_expr, out);
+        out << '\'';
     }
     out << " = ";
     print(id->expr, out);
@@ -259,7 +261,9 @@ void printer::print(expr_ptr expr, ostream & out)
         out << "external ";
         out << ext->name;
         out << " :: ";
+        out << '\'';
         print(ext->type_expr, out);
+        out << '\'';
     }
     else if (auto type_name = dynamic_pointer_cast<type_name_expr>(expr))
     {
@@ -276,7 +280,7 @@ void printer::print(expr_ptr expr, ostream & out)
             print(size, out);
         }
         out << "]";
-        print(array_type->element, out);
+        out << array_type->element;
     }
     else if (auto func_type = dynamic_pointer_cast<func_type_expr>(expr))
     {

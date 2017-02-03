@@ -94,6 +94,8 @@ inline bool is_complex(primitive_type t)
     }
 }
 
+primitive_type primitive_type_for_name(const string &);
+
 enum class primitive_op
 {
     negate = 0,

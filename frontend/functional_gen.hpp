@@ -74,11 +74,7 @@ private:
     expr_ptr do_func_apply(ast::node_ptr);
     expr_ptr do_func_comp(ast::node_ptr);
     expr_ptr do_type_expr(ast::node_ptr);
-#if 0
-    type_ptr do_type(ast::node_ptr);
-    type_ptr do_array_type(ast::node_ptr);
-    type_ptr do_function_type(ast::node_ptr);
-#endif
+
     primitive_type primitive_type_for_name(const string &);
 
     string qualified_name(const string & name);

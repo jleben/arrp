@@ -58,6 +58,18 @@ type_ptr type_checker::process(const id_ptr & id)
 
     auto processed_id_token = stack_scoped(id, m_processed_ids);
 
+    if (id->type_expr)
+    {
+        auto meta_type = visit(id->type_expr);
+
+        if (!meta_type->is_meta())
+        {
+            throw source_error("Expression is not a type.", id->type_expr.location);
+        }
+
+        id->explicit_type = meta_type->meta()->concrete;
+    }
+
     auto t = visit(id->expr);
 
     if (id->explicit_type)
@@ -81,7 +93,11 @@ type_ptr type_checker::process(const id_ptr & id)
     }
 
     if (verbose<type_checker>::enabled())
-        cout << "Type checker: processed id: " << id->name << endl;
+    {
+        cout << "Type checker: processed id: " << id->name
+             << " :: " << *t
+             << endl;
+    }
 
     return t;
 }
@@ -886,7 +902,125 @@ type_ptr type_checker::visit_affine(const shared_ptr<affine_expr> &)
 
 type_ptr type_checker::visit_external(const shared_ptr<external> & ext)
 {
-    return ext->type;
+    auto meta_type = visit(ext->type_expr);
+
+    if (!meta_type->is_meta())
+    {
+        throw source_error("Expression is not a type.", ext->type_expr.location);
+    }
+
+    auto type = meta_type->meta()->concrete;
+
+    if (ext->is_input)
+    {
+        if (type->is_function())
+        {
+            throw source_error("Type of input must not be a function.",
+                               ext->type_expr.location);
+        }
+    }
+    else
+    {
+        if (!type->is_function())
+        {
+            throw source_error("Type of external must be a function.",
+                               ext->type_expr.location);
+        }
+
+        vector<type_ptr> types = type->func()->params;
+        types.push_back(type->func()->value);
+
+        for (auto & t : types)
+        {
+            if (t->is_array() && t->array()->is_infinite())
+            {
+                throw source_error("Type of external must not involve infinite arrays.",
+                                   ext->type_expr.location);
+            }
+            else if (t->is_function())
+            {
+                throw source_error("Parameters or result of external must not contain functions.",
+                                   ext->type_expr.location);
+            }
+        }
+    }
+
+    return type;
+}
+
+type_ptr type_checker::visit_type_name(const shared_ptr<type_name_expr> & e)
+{
+    auto pt = primitive_type_for_name(e->name);
+    if (pt == primitive_type::undefined)
+        throw source_error("Invalid type name.", e->location);
+
+    auto ct = make_shared<scalar_type>(pt);
+
+    return make_shared<meta_type>(ct);
+}
+
+type_ptr type_checker::visit_array_type(const shared_ptr<array_type_expr> & e)
+{
+    vector<int> size;
+
+    for (auto & size_expr : e->size)
+    {
+        if (auto ci = dynamic_pointer_cast<int_const>(size_expr.expr))
+        {
+            auto v = ci->value;
+            if (v < 0)
+                throw source_error("Array size must be positive.", size_expr.location);
+            size.push_back(v);
+        }
+        else if (auto i = dynamic_pointer_cast<infinity>(size_expr.expr))
+        {
+            size.push_back(-1);
+        }
+        else
+        {
+            throw source_error("Invalid array size.", size_expr.location);
+        }
+    }
+
+    auto element_type = primitive_type_for_name(e->element);
+    if (element_type == primitive_type::undefined)
+    {
+        throw source_error("Invalid array element type.", e->location);
+    }
+
+    auto at = make_shared<array_type>(size, element_type);
+
+    return make_shared<meta_type>(at);
+}
+
+type_ptr type_checker::visit_func_type(const shared_ptr<func_type_expr> & e)
+{
+    auto ft = make_shared<function_type>();
+
+    for (auto & param : e->params)
+    {
+        auto t = visit(param);
+        if (t->is_meta())
+        {
+            ft->params.push_back(t->meta()->concrete);
+        }
+        else
+        {
+            throw source_error("Expression is not a type.", param.location);
+        }
+    }
+
+    auto rt = visit(e->result);
+    if (rt->is_meta())
+    {
+        ft->value = rt->meta()->concrete;
+    }
+    else
+    {
+        throw source_error("Expression is not a type.", e->result.location);
+    }
+
+    return make_shared<meta_type>(ft);
 }
 
 }

@@ -101,6 +101,9 @@ id_ptr func_reducer::reduce(id_ptr id, const vector<expr_ptr> & args)
             cout << "Reducing expression of id " << id->name << endl;
         }
 
+        if (id->type_expr)
+            id->type_expr = reduce(id->type_expr);
+
         id->expr = reduce(id->expr);
 
         m_type_checker.process(id);
@@ -303,11 +306,6 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
         {
             return m_copier.copy(func);
         }
-        else if (auto ext = dynamic_pointer_cast<external>(id->expr.expr))
-        {
-            if (ext->type->is_function())
-                return m_copier.copy(ext);
-        }
 
         if (m_ids.find(id) == m_ids.end())
         {
@@ -322,16 +320,27 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
 
             auto processing_id_token = stack_scoped(id, m_processing_ids);
 
+            if (id->type_expr)
+                id->type_expr = reduce(id->type_expr);
+
             id->expr = reduce(id->expr);
 
             m_ids.insert(id);
         }
 
         if (auto func = dynamic_pointer_cast<function>(id->expr.expr))
+        {
             return m_copier.copy(func);
-
-        if (is_constant(id->expr))
+        }
+        else if (auto ext = dynamic_pointer_cast<external>(id->expr.expr))
+        {
+            if (!ext->is_input)
+                return m_copier.copy(ext);
+        }
+        else if (is_constant(id->expr))
+        {
             return id->expr;
+        }
 
         return ref;
     }

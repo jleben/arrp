@@ -51,6 +51,10 @@ protected:
     virtual expr_ptr visit_func_app(const shared_ptr<func_app> & app) override;
     virtual expr_ptr visit_func(const shared_ptr<function> & func) override;
     virtual expr_ptr visit_external(const shared_ptr<external> &) override;
+    virtual expr_ptr visit_type_name(const shared_ptr<type_name_expr> &) override;
+    virtual expr_ptr visit_array_type(const shared_ptr<array_type_expr> &) override;
+    virtual expr_ptr visit_func_type(const shared_ptr<func_type_expr> &) override;
+
 private:
     using context_type = context<var_ptr, var_ptr>;
     context_type m_copy_context;

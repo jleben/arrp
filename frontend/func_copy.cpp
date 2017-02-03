@@ -160,6 +160,7 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
     {
         auto new_name = m_name_provider.new_name(id->name);
         auto new_id = make_shared<identifier>(new_name, id->location);
+        new_id->type_expr = copy(id->type_expr);
         new_id->explicit_type = id->explicit_type;
         m_copy_context.bind(id, new_id);
 
@@ -240,6 +241,7 @@ expr_ptr copier::visit_func(const shared_ptr<function> & func)
     {
         auto new_name = m_name_provider.new_name(id->name);
         auto new_id = make_shared<identifier>(new_name, id->expr, id->location);
+        new_id->type_expr = copy(id->type_expr);
         new_id->explicit_type = id->explicit_type;
         new_func->scope.ids.push_back(new_id);
 
@@ -269,9 +271,52 @@ expr_ptr copier::visit_func_app(const shared_ptr<func_app> & app)
     return new_app;
 }
 
-expr_ptr copier::visit_external(const shared_ptr<external> & ext)
+expr_ptr copier::visit_external(const shared_ptr<external> & e)
 {
-    return make_shared<external>(*ext);
+    auto r = make_shared<external>();
+    r->location = e->location;
+    r->type = e->type;
+    r->is_input = e->is_input;
+    r->name = e->name;
+    r->type_expr = copy(e->type_expr);
+    return r;
+}
+
+expr_ptr copier::visit_type_name(const shared_ptr<type_name_expr> & e)
+{
+    auto r = make_shared<type_name_expr>();
+    r->location = e->location;
+    r->type = e->type;
+    r->name = e->name;
+    return r;
+}
+
+expr_ptr copier::visit_array_type(const shared_ptr<array_type_expr> & e)
+{
+    auto r = make_shared<array_type_expr>();
+    r->location = e->location;
+    r->type = e->type;
+
+    for (auto & size : e->size)
+        r->size.push_back(copy(size));
+
+    r->element = e->element;
+
+    return r;
+}
+
+expr_ptr copier::visit_func_type(const shared_ptr<func_type_expr> & e)
+{
+    auto r = make_shared<func_type_expr>();
+    r->location = e->location;
+    r->type = e->type;
+
+    for (auto & param : e->params)
+        r->params.push_back(copy(param));
+
+    r->result = copy(e->result);
+
+    return r;
 }
 
 }

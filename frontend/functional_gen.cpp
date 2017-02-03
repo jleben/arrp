@@ -171,6 +171,7 @@ void generator::make_expr_for_declaration(id_ptr id, ast::node_ptr root)
         auto type_node = root->as_list()->elements[1];
 
         auto ext = make_shared<external>();
+        ext->is_input = root->type == ast::input;
         ext->name = name;
         ext->type_expr = expr_slot(do_type_expr(type_node));
 
@@ -735,17 +736,17 @@ expr_ptr generator::do_func_comp(ast::node_ptr root)
 
 expr_ptr generator::do_type_expr(ast::node_ptr root)
 {
-    auto location = location_in_module(root->location);
+    expr_ptr result;
 
     switch(root->type)
     {
     case ast::identifier:
     {
         auto name = root->as_leaf<string>()->value;
-        auto expr = make_shared<type_name_expr>();
-        expr->name = name;
-        expr->location = location;
-        return expr;
+        auto type_name = make_shared<type_name_expr>();
+        type_name->name = name;
+        result = type_name;
+        break;
     }
     case ast::array_type:
     {
@@ -756,8 +757,9 @@ expr_ptr generator::do_type_expr(ast::node_ptr root)
         {
             array->size.emplace_back(do_expr(size_node));
         }
-        array->element = expr_slot(do_type_expr(elem_node));
-        return array;
+        array->element = elem_node->as_leaf<string>()->value;
+        result = array;
+        break;
     }
     case ast::function_type:
     {
@@ -769,126 +771,17 @@ expr_ptr generator::do_type_expr(ast::node_ptr root)
             func->params.emplace_back(do_type_expr(param_node));
         }
         func->result = expr_slot(do_type_expr(result_node));
-        return func;
+        result = func;
+        break;
     }
     default:
         throw error("Unexpected expression.");
     }
+
+    result->location = location_in_module(root->location);
+
+    return result;
 }
-#if 0
-type_ptr generator::do_type(ast::node_ptr root)
-{
-    switch(root->type)
-    {
-    case ast::scalar_type:
-    {
-        auto name = root->as_leaf<string>()->value;
-        auto ptype = primitive_type_for_name(name);
-        if (ptype == primitive_type::undefined)
-            throw source_error("Invalid type name.",
-                               location_in_module(root->location));
-        return make_shared<scalar_type>(ptype);
-    }
-    case ast::array_type:
-    {
-        return do_array_type(root);
-    }
-    case ast::function_type:
-    {
-        return do_function_type(root);
-    }
-    default:
-        throw error("Unexpected type.");
-    }
-}
-
-type_ptr generator::do_array_type(ast::node_ptr root)
-{
-    auto size_nodes = root->as_list()->elements[0];
-    auto elem_node = root->as_list()->elements[1];
-
-    array_size_vec size;
-
-    for(const auto & size_node : size_nodes->as_list()->elements)
-    {
-        if (size_node->type == ast::constant)
-        {
-            if(auto i = dynamic_pointer_cast<ast::leaf_node<int>>(size_node))
-            {
-                auto v = i->value;
-                if (v >= 0)
-                    size.push_back(v);
-                else
-                    throw source_error("Array size less than 1.",
-                                       location_in_module(size_node));
-            }
-            else
-                throw source_error("Array size not integer.",
-                                   location_in_module(size_node));
-        }
-        else if (size_node->type == ast::infinity)
-        {
-            size.push_back(-1);
-        }
-        else
-        {
-            throw source_error("Invalid array size.",
-                               location_in_module(size_node));
-        }
-    }
-
-    auto elem_name = elem_node->as_leaf<string>()->value;
-    auto elem_type = primitive_type_for_name(elem_name);
-    if (elem_type == primitive_type::undefined)
-        throw source_error("Invalid type name.",
-                           location_in_module(elem_node));
-
-    return make_shared<array_type>(size, elem_type);
-}
-
-type_ptr generator::do_function_type(ast::node_ptr root)
-{
-    auto params_node = root->as_list()->elements[0]->as_list();
-    auto value_node = root->as_list()->elements[1];
-
-    auto func_type = make_shared<function_type>();
-
-    auto is_infinite_array_type = [](type_ptr t) -> bool
-    {
-        if (!t->is_array())
-            return false;
-
-        for (auto & s : t->array()->size)
-            if (s < 0)
-                return true;
-
-        return false;
-    };
-
-    for (auto & param_node : params_node->elements)
-    {
-        auto param_type = do_type(param_node);
-
-        if (is_infinite_array_type(param_type))
-        {
-            throw source_error("Infinite array not allowed as function parameter.",
-                               location_in_module(param_node->location));
-        }
-
-        func_type->params.push_back(param_type);
-    }
-
-    func_type->value = do_type(value_node);
-
-    if (is_infinite_array_type(func_type->value))
-    {
-        throw source_error("Infinite array not allowed as function value.",
-                           location_in_module(value_node->location));
-    }
-
-    return func_type;
-}
-#endif
 
 primitive_type generator::primitive_type_for_name(const string & name)
 {

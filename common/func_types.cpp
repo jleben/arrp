@@ -36,6 +36,16 @@ void function_type::print(ostream & s) const
         s << "?";
 }
 
+void meta_type::print(ostream & out) const
+{
+    out << "{";
+    if (concrete)
+        out << *concrete;
+    else
+        out << "?";
+    out << "}";
+}
+
 std::ostream & operator<<(std::ostream & s, const array_size_vec & v)
 {
     s <<'[';

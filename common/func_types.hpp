@@ -16,6 +16,7 @@ typedef vector<int> array_size_vec;
 class scalar_type;
 class array_type;
 class function_type;
+class meta_type;
 
 class type;
 typedef shared_ptr<type> type_ptr;
@@ -29,12 +30,15 @@ public:
     virtual bool is_array() const { return false; }
     virtual bool is_function() const { return false; }
     virtual bool is_data() const { return false; }
+    virtual bool is_meta() const { return false; }
+
     virtual bool operator==(const type & other) const = 0;
     virtual bool operator<=(const type & other) const { return *this == other; }
     bool operator!=(const type & other) const { return !(*this == other); }
     scalar_type * scalar();
     array_type * array();
     function_type * func();
+    meta_type * meta();
 
     static type_ptr undefined();
     static type_ptr infinity();
@@ -95,7 +99,13 @@ public:
     void print(ostream &) const override;
     bool is_array() const override { return true; }
     bool is_data() const override { return element != primitive_type::infinity; }
-
+    bool is_infinite() const
+    {
+        for (auto & s : size)
+            if (s < 0)
+                return true;
+        return false;
+    }
     virtual bool operator==(const type & t) const override
     {
         if (!t.is_array())
@@ -162,6 +172,34 @@ inline function_type * type::func()
     if (!is_function())
         return nullptr;
     return static_cast<function_type*>(this);
+}
+
+class meta_type : public type
+{
+public:
+    meta_type() {}
+    meta_type(type_ptr c): concrete(c) {}
+
+    bool is_meta() const override { return true; }
+
+    void print(ostream & out) const override;
+
+    virtual bool operator==(const type & other) const
+    {
+        if (!other.is_meta())
+            return false;
+        const auto & other_meta = static_cast<const meta_type &>(other);
+        return *this->concrete == *other_meta.concrete;
+    }
+
+    type_ptr concrete;
+};
+
+inline meta_type * type::meta()
+{
+    if (!is_meta())
+        return nullptr;
+    return static_cast<meta_type*>(this);
 }
 
 array_size_vec common_array_size(const array_size_vec &, const array_size_vec &);

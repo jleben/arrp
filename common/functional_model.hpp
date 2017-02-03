@@ -369,6 +369,7 @@ public:
 class external : public expression
 {
 public:
+    bool is_input = false;
     string name;
     expr_slot type_expr;
 };
@@ -383,7 +384,7 @@ class array_type_expr : public expression
 {
 public:
     vector<expr_slot> size;
-    expr_slot element;
+    string element;
 };
 
 class func_type_expr : public expression

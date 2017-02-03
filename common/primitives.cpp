@@ -3,10 +3,30 @@
 
 #include <numeric>
 #include <sstream>
+#include <unordered_map>
 
 using namespace std;
 
 namespace stream {
+
+primitive_type primitive_type_for_name(const string & name)
+{
+    static unordered_map<string, primitive_type> map =
+    {
+        { "bool", primitive_type::boolean },
+        { "int", primitive_type::integer },
+        { "real32", primitive_type::real32 },
+        { "real64", primitive_type::real64 },
+        { "complex32", primitive_type::complex32 },
+        { "complex64", primitive_type::complex64 },
+    };
+
+    auto m = map.find(name);
+    if (m == map.end())
+        return primitive_type::undefined;
+    else
+        return m->second;
+}
 
 string name_of_primitive( primitive_op op )
 {

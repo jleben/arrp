@@ -49,6 +49,9 @@ private:
     type_ptr visit_func_app(const shared_ptr<func_app> & app) override;
     type_ptr visit_func(const shared_ptr<function> & func) override;
     type_ptr visit_external(const shared_ptr<external> &) override;
+    type_ptr visit_type_name(const shared_ptr<type_name_expr> &) override;
+    type_ptr visit_array_type(const shared_ptr<array_type_expr> &) override;
+    type_ptr visit_func_type(const shared_ptr<func_type_expr> &) override;
 
     source_error type_error(const string & msg, const location_type & loc)
     {

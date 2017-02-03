@@ -91,6 +91,18 @@ public:
         {
             return visit_external(ext);
         }
+        else if (auto type_name = dynamic_pointer_cast<type_name_expr>(expr))
+        {
+            return visit_type_name(type_name);
+        }
+        else if (auto array_type = dynamic_pointer_cast<array_type_expr>(expr))
+        {
+            return visit_array_type(array_type);
+        }
+        else if (auto func_type = dynamic_pointer_cast<func_type_expr>(expr))
+        {
+            return visit_func_type(func_type);
+        }
         else
         {
             throw error("Unexpected expression type");
@@ -115,6 +127,9 @@ public:
     virtual R visit_func_app(const shared_ptr<func_app> & app) { return R(); }
     virtual R visit_func(const shared_ptr<function> & func) { return R(); }
     virtual R visit_external(const shared_ptr<external> &) { return R(); }
+    virtual R visit_type_name(const shared_ptr<type_name_expr> &) { return R(); }
+    virtual R visit_array_type(const shared_ptr<array_type_expr> &) { return R(); }
+    virtual R visit_func_type(const shared_ptr<func_type_expr> &) { return R(); }
 };
 
 template<>
@@ -199,6 +214,18 @@ public:
         else if (auto in = dynamic_pointer_cast<external>(expr))
         {
             return;
+        }
+        else if (auto type_name = dynamic_pointer_cast<type_name_expr>(expr))
+        {
+            visit_type_name(type_name);
+        }
+        else if (auto array_type = dynamic_pointer_cast<array_type_expr>(expr))
+        {
+            visit_array_type(array_type);
+        }
+        else if (auto func_type = dynamic_pointer_cast<func_type_expr>(expr))
+        {
+            visit_func_type(func_type);
         }
         else
         {
@@ -292,6 +319,18 @@ public:
         }
 
         visit(func->expr);
+    }
+    virtual void visit_type_name(const shared_ptr<type_name_expr> &) {}
+    virtual void visit_array_type(const shared_ptr<array_type_expr> & at)
+    {
+        for (auto & size : at->size)
+            visit(size);
+    }
+    virtual void visit_func_type(const shared_ptr<func_type_expr> & ft)
+    {
+        for (auto & param : ft->params)
+            visit(param);
+        visit(ft->result);
     }
 };
 
@@ -418,7 +457,25 @@ public:
     }
     virtual expr_ptr visit_external(const shared_ptr<external> & ext) override
     {
+        ext->type_expr = visit(ext->type_expr);
         return ext;
+    }
+    virtual expr_ptr visit_type_name(const shared_ptr<type_name_expr> & tn) override
+    {
+        return tn;
+    }
+    virtual expr_ptr visit_array_type(const shared_ptr<array_type_expr> & at) override
+    {
+        for (auto & size : at->size)
+            size = visit(size);
+        return at;
+    }
+    virtual expr_ptr visit_func_type(const shared_ptr<func_type_expr> & ft) override
+    {
+        for (auto & param : ft->params)
+            param = visit(param);
+        ft->result = visit(ft->result);
+        return ft;
     }
 };
 
