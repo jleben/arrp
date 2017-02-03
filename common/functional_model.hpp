@@ -110,6 +110,7 @@ public:
     identifier(const string & name, expr_ptr e, const location_type & loc):
         var(name,loc), expr(e) {}
     expr_slot expr;
+    expr_slot type_expr;
     type_ptr explicit_type;
 };
 typedef std::shared_ptr<identifier> id_ptr;
@@ -368,8 +369,28 @@ public:
 class external : public expression
 {
 public:
-    external(string n, type_ptr t): expression(location_type(), t), name(n) {}
     string name;
+    expr_slot type_expr;
+};
+
+class type_name_expr : public expression
+{
+public:
+    string name;
+};
+
+class array_type_expr : public expression
+{
+public:
+    vector<expr_slot> size;
+    expr_slot element;
+};
+
+class func_type_expr : public expression
+{
+public:
+    vector<expr_slot> params;
+    expr_slot result;
 };
 
 }

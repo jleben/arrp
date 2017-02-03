@@ -85,21 +85,11 @@ generator::generate(module * mod)
     {
         context_type::scope_holder scope(m_context);
 
-        auto externals = ast->as_list()->elements[2];
+        auto declarations = ast->as_list()->elements[2];
 
-        if (externals)
+        if (declarations)
         {
-            for (auto & external : externals->as_list()->elements)
-            {
-                do_external(external);
-            }
-        }
-
-        auto bindings = ast->as_list()->elements[3];
-
-        if (bindings)
-        {
-            do_mutually_recursive_bindings(bindings->as_list()->elements);
+            do_mutually_recursive_declarations(declarations->as_list()->elements);
         }
     }
 
@@ -110,62 +100,13 @@ generator::generate(module * mod)
     return ids;
 }
 
-void generator::do_external(ast::node_ptr root)
-{
-    auto name_node = root->as_list()->elements[0];
-    auto type_node = root->as_list()->elements[1];
-
-    auto name = name_node->as_leaf<string>()->value;
-    auto type = do_type(type_node);
-
-    switch(root->type)
-    {
-    case ast::external:
-        if (!type->is_function())
-        {
-            throw source_error("Type of external must be a function.",
-                               location_in_module(root->location));
-        }
-        break;
-    case ast::input:
-        if (type->is_function())
-        {
-            throw source_error("Type of input must not be a function.",
-                               location_in_module(root->location));
-        }
-        break;
-    default:;
-    }
-
-    auto id = make_shared<identifier>
-            (qualified_name(name),
-             make_shared<external>(name, type),
-             location_in_module(name_node->location));
-
-    // Bind name for reference resolution
-
-    try  {
-        m_context.bind(name, id);
-    } catch (context_error & e) {
-        throw module_error(e.what(), name_node->location);
-    }
-
-    // Store name in current scope
-
-    if (verbose<generator>::enabled())
-        cout << "Storing id " << id->name << endl;
-
-    assert(!m_scope_stack.empty());
-    m_scope_stack.top()->ids.push_back(id);
-}
-
-void generator::do_mutually_recursive_bindings(const vector<ast::node_ptr> & nodes)
+void generator::do_mutually_recursive_declarations(const vector<ast::node_ptr> & nodes)
 {
     vector<id_ptr> ids;
 
     for (auto & node : nodes)
     {
-        auto id = make_id_for_binding(node);
+        auto id = make_id_for_declaration(node);
         ids.push_back(id);
     }
 
@@ -174,20 +115,20 @@ void generator::do_mutually_recursive_bindings(const vector<ast::node_ptr> & nod
 
     for(; node_it != nodes.end(); ++node_it, ++id_it)
     {
-        make_expr_for_binding(*id_it, *node_it);
+        make_expr_for_declaration(*id_it, *node_it);
     }
 }
 
 id_ptr generator::do_binding(ast::node_ptr root)
 {
-    auto id = make_id_for_binding(root);
+    auto id = make_id_for_declaration(root);
 
-    make_expr_for_binding(id, root);
+    make_expr_for_declaration(id, root);
 
     return id;
 }
 
-id_ptr generator::make_id_for_binding(ast::node_ptr node)
+id_ptr generator::make_id_for_declaration(ast::node_ptr node)
 {
     auto name_node = node->as_list()->elements[0]->as_leaf<string>();
     auto name = name_node->value;
@@ -214,29 +155,53 @@ id_ptr generator::make_id_for_binding(ast::node_ptr node)
     return id;
 }
 
-void generator::make_expr_for_binding(id_ptr id, ast::node_ptr node)
+void generator::make_expr_for_declaration(id_ptr id, ast::node_ptr root)
 {
-    auto name = node->as_list()->elements[0]->as_leaf<string>()->value;
-    auto type_node = node->as_list()->elements[1];
-    auto params_node = node->as_list()->elements[2];
-    auto expr_node = node->as_list()->elements[3];
+    auto name = root->as_list()->elements[0]->as_leaf<string>()->value;
 
     expr_ptr expr;
 
     stacker<string, name_stack_t> name_stacker(name, m_name_stack);
 
-    if (type_node)
+    switch(root->type)
     {
-        id->explicit_type = do_type(type_node);
-    }
+    case ast::input:
+    case ast::external:
+    {
+        auto type_node = root->as_list()->elements[1];
 
-    if (params_node)
-    {
-        expr = make_func(params_node, expr_node, node->location);
+        auto ext = make_shared<external>();
+        ext->name = name;
+        ext->type_expr = expr_slot(do_type_expr(type_node));
+
+        expr = ext;
+
+        break;
     }
-    else
+    case ast::binding:
     {
-        expr = do_expr(expr_node);
+        auto type_node = root->as_list()->elements[1];
+        auto params_node = root->as_list()->elements[2];
+        auto expr_node = root->as_list()->elements[3];
+
+        if (type_node)
+        {
+            id->type_expr = do_type_expr(type_node);
+        }
+
+        if (params_node)
+        {
+            expr = make_func(params_node, expr_node, root->location);
+        }
+        else
+        {
+            expr = do_expr(expr_node);
+        }
+
+        break;
+    }
+    default:
+        throw error("Unexpected expression.");
     }
 
     id->expr = expr_slot(expr);
@@ -387,12 +352,12 @@ expr_ptr generator::do_binding_expr(ast::node_ptr root)
 
 expr_ptr generator::do_local_scope(ast::node_ptr root)
 {
-    auto bnds_node = root->as_list()->elements[0];
+    auto decls_node = root->as_list()->elements[0];
     auto expr_node = root->as_list()->elements[1];
 
     context_type::scope_holder scope(m_context);
 
-    do_mutually_recursive_bindings(bnds_node->as_list()->elements);
+    do_mutually_recursive_declarations(decls_node->as_list()->elements);
 
     return do_expr(expr_node);
 }
@@ -768,6 +733,49 @@ expr_ptr generator::do_func_comp(ast::node_ptr root)
     return func;
 }
 
+expr_ptr generator::do_type_expr(ast::node_ptr root)
+{
+    auto location = location_in_module(root->location);
+
+    switch(root->type)
+    {
+    case ast::identifier:
+    {
+        auto name = root->as_leaf<string>()->value;
+        auto expr = make_shared<type_name_expr>();
+        expr->name = name;
+        expr->location = location;
+        return expr;
+    }
+    case ast::array_type:
+    {
+        auto array = make_shared<array_type_expr>();
+        auto size_nodes = root->as_list()->elements[0];
+        auto elem_node = root->as_list()->elements[1];
+        for (auto & size_node : size_nodes->as_list()->elements)
+        {
+            array->size.emplace_back(do_expr(size_node));
+        }
+        array->element = expr_slot(do_type_expr(elem_node));
+        return array;
+    }
+    case ast::function_type:
+    {
+        auto func = make_shared<func_type_expr>();
+        auto params_node = root->as_list()->elements[0];
+        auto result_node = root->as_list()->elements[1];
+        for (auto & param_node : params_node->as_list()->elements)
+        {
+            func->params.emplace_back(do_type_expr(param_node));
+        }
+        func->result = expr_slot(do_type_expr(result_node));
+        return func;
+    }
+    default:
+        throw error("Unexpected expression.");
+    }
+}
+#if 0
 type_ptr generator::do_type(ast::node_ptr root)
 {
     switch(root->type)
@@ -880,6 +888,7 @@ type_ptr generator::do_function_type(ast::node_ptr root)
 
     return func_type;
 }
+#endif
 
 primitive_type generator::primitive_type_for_name(const string & name)
 {

@@ -65,9 +65,9 @@ using op_type = stream::primitive_op;
 
 
 program:
-  module_decl imports external_decls bindings
+  module_decl imports declarations
   {
-    $$ = make_list(program, @$, { $1, $2, $3, $4 });
+    $$ = make_list(program, @$, { $1, $2, $3 });
     driver.m_ast = $$;
   }
 ;
@@ -113,40 +113,50 @@ import:
   }
 ;
 
-external_decls:
+declarations:
   // empty
   { $$ = nullptr; }
   |
-  external_decl_list
+  declaration_list ';'
 ;
 
-external_decl_list:
-  external_decl
+declaration_list:
+  declaration
   {
     $$ = make_list( @$, { $1 } );
   }
   |
-  external_decl_list external_decl
+  declaration_list ';' declaration
   {
     $$ = $1;
-    $$->as_list()->append( $2 );
+    $$->as_list()->append( $3 );
     $$->location = @$;
   }
 ;
 
+declaration:
+  external_decl | binding
+;
+
 external_decl:
-  INPUT id TYPE_EQ type ';'
+  INPUT id TYPE_EQ type
   { $$ = make_list(ast::input, @$, {$2, $4}); }
   |
-  EXTERNAL id TYPE_EQ type ';'
+  EXTERNAL id TYPE_EQ type
   { $$ = make_list(ast::external, @$, {$2, $4}); }
 ;
 
-bindings:
-  // empty
-  { $$ = nullptr; }
+
+binding:
+  id '(' param_list ')' optional_type '=' expr
+  {
+    $$ = make_list( ast::binding, @$, {$1, $5, $3, $7} );
+  }
   |
-  binding_list optional_semicolon
+  id optional_type '=' expr
+  {
+    $$ = make_list( ast::binding, @$, {$1, $2, nullptr, $4} );
+  }
 ;
 
 binding_list:
@@ -160,18 +170,6 @@ binding_list:
     $$ = $1;
     $$->as_list()->append( $3 );
     $$->location = @$;
-  }
-;
-
-binding:
-  id '(' param_list ')' optional_type '=' expr
-  {
-    $$ = make_list( ast::binding, @$, {$1, $5, $3, $7} );
-  }
-  |
-  id optional_type '=' expr
-  {
-    $$ = make_list( ast::binding, @$, {$1, $2, nullptr, $4} );
   }
 ;
 
@@ -232,7 +230,6 @@ array_type:
 
 primitive_type:
   id
-  { $$ = $1; $$->type = ast::scalar_type; }
 ;
 
 

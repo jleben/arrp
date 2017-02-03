@@ -51,12 +51,10 @@ private:
     context_type m_context;
 
 private:
-    void do_input(ast::node_ptr);
-    void do_external(ast::node_ptr);
-    void do_mutually_recursive_bindings(const vector<ast::node_ptr> &);
+    void do_mutually_recursive_declarations(const vector<ast::node_ptr> &);
     id_ptr do_binding(ast::node_ptr);
-    id_ptr make_id_for_binding(ast::node_ptr);
-    void make_expr_for_binding(id_ptr, ast::node_ptr);
+    id_ptr make_id_for_declaration(ast::node_ptr);
+    void make_expr_for_declaration(id_ptr, ast::node_ptr);
 
     expr_ptr do_expr(ast::node_ptr);
     expr_ptr do_binding_expr(ast::node_ptr);
@@ -75,9 +73,12 @@ private:
     expr_ptr do_array_concat(ast::node_ptr);
     expr_ptr do_func_apply(ast::node_ptr);
     expr_ptr do_func_comp(ast::node_ptr);
+    expr_ptr do_type_expr(ast::node_ptr);
+#if 0
     type_ptr do_type(ast::node_ptr);
     type_ptr do_array_type(ast::node_ptr);
     type_ptr do_function_type(ast::node_ptr);
+#endif
     primitive_type primitive_type_for_name(const string &);
 
     string qualified_name(const string & name);

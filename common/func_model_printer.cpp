@@ -25,7 +25,13 @@ void print_list(const L & list, const string & separator = ", ")
 
 void printer::print(id_ptr id, ostream & out)
 {
-    out << id->name << " = ";
+    out << id->name;
+    if (id->type_expr)
+    {
+        out << " :: ";
+        print(id->type_expr, out);
+    }
+    out << " = ";
     print(id->expr, out);
 }
 
@@ -250,7 +256,36 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto ext = dynamic_pointer_cast<external>(expr))
     {
+        out << "external ";
         out << ext->name;
+        out << " :: ";
+        print(ext->type_expr, out);
+    }
+    else if (auto type_name = dynamic_pointer_cast<type_name_expr>(expr))
+    {
+        out << type_name->name;
+    }
+    else if (auto array_type = dynamic_pointer_cast<array_type_expr>(expr))
+    {
+        out << "[";
+        int i = 0;
+        for (const auto & size : array_type->size)
+        {
+            if (i++ > 0)
+                out << ",";
+            print(size, out);
+        }
+        out << "]";
+        print(array_type->element, out);
+    }
+    else if (auto func_type = dynamic_pointer_cast<func_type_expr>(expr))
+    {
+        for (const auto & param : func_type->params)
+        {
+            print(param, out);
+            out << " -> ";
+        }
+        print(func_type->result, out);
     }
     else
     {

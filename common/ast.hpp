@@ -60,7 +60,6 @@ enum node_type
 
     program,
 
-    scalar_type,
     array_type,
     function_type,
 
