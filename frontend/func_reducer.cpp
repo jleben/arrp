@@ -325,6 +325,8 @@ expr_ptr func_reducer::visit_ref(const shared_ptr<reference> & ref)
 
             id->expr = reduce(id->expr);
 
+            m_type_checker.process(id);
+
             m_ids.insert(id);
         }
 

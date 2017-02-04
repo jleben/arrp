@@ -49,6 +49,34 @@ type_ptr type_checker::process(const id_ptr & id)
 {
     // FIXME: if this is a top-level id, add separator to trace.
 
+    if (id->expr->type)
+        return id->expr->type;
+
+    bool is_processed;
+    {
+        auto it = std::find(m_processed_ids.begin(), m_processed_ids.end(), id);
+        is_processed = it != m_processed_ids.end();
+    }
+
+    if (is_processed)
+    {
+        if (id->explicit_type)
+        {
+            if (verbose<type_checker>::enabled())
+            {
+                cout << "Type checker: using explicit type for recursion: "
+                     << id->name << " :: " << *id->explicit_type
+                     << endl;
+            }
+            return id->explicit_type;
+        }
+        else
+        {
+            throw type_error("Recursively used name requires explicit type.",
+                             id->location);
+        }
+    }
+
     if (verbose<type_checker>::enabled())
     {
         cout << "Type checker: processing id:" << endl << "  ";
@@ -155,23 +183,7 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
-        bool is_processed;
-        {
-            auto it = std::find(m_processed_ids.begin(), m_processed_ids.end(), id);
-            is_processed = it != m_processed_ids.end();
-        }
-        if (is_processed)
-        {
-            if (id->explicit_type)
-                return id->explicit_type;
-            else
-                throw type_error("Recursively used name requires explicit type.",
-                                 id->location);
-        }
-        else
-        {
-            return process(id);
-        }
+        return process(id);
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
