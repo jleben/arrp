@@ -4,7 +4,7 @@
 Nx = 1000;
 Ny = 1000;
 
-hz :: [~,1000,1000]real64 =
+hz :: [~,Nx,Ny]real64 =
 [~,Nx,Ny:
   0,i,j -> i*(j+3) / Nx;
   t,i,j
@@ -14,14 +14,14 @@ hz :: [~,1000,1000]real64 =
     |   hz[t-1,i,j]
 ];
 
-ex :: [~,1000,1000]real64
+ex :: [~,Nx,Ny]real64
 = [~,Nx,Ny:
   0,i,j -> i*(j+1) / Nx;
   t,i,0 -> ex[t-1,i,0];
   t,i,j -> ex[t-1,i,j] - 0.5 * (hz[t-1,i,j] - hz[t-1,i,j-1]);
 ];
 
-ey  :: [~,1000,1000]real64
+ey  :: [~,Nx,Ny]real64
 = [~,Nx,Ny:
   0,i,j -> i*(j+2) / Ny;
   ##t,0,j -> in[t];
