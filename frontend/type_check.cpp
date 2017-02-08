@@ -1,16 +1,88 @@
 #include "type_check.hpp"
+#include "prim_reduction.hpp"
 #include "linear_expr_gen.hpp"
 #include "error.hpp"
 #include "../common/func_model_printer.hpp"
 #include "../utility/stacker.hpp"
 #include "../utility/debug.hpp"
 
-#include <cassert>
+#include <iostream>
+#include <sstream>
 
 using namespace std;
 
 namespace stream {
 namespace functional {
+
+static bool is_constant(expr_ptr expr)
+{
+    if (dynamic_cast<int_const*>(expr.get()))
+        return true;
+    if (dynamic_cast<real_const*>(expr.get()))
+        return true;
+    if (dynamic_cast<bool_const*>(expr.get()))
+        return true;
+    return false;
+}
+
+string wrong_arg_count_msg(int required, int actual)
+{
+    ostringstream text;
+    text << " Wrong number of arguments ("
+         << "expected: " << required << ", "
+         << "actual: " << actual
+         << ")."
+            ;
+    return text.str();
+}
+
+class primitive_expr_check : private visitor<bool>
+{
+public:
+    bool operator()(const expr_ptr & e)
+    {
+        printer p;
+        //cout << "Checking if expr is primitive: ";
+        //p.print(e, cout);
+        //cout << endl;
+        bool is_primitive = visit(e);
+        //cout << "  -> " << is_primitive << endl;
+        return is_primitive;
+    }
+
+protected:
+    virtual bool visit_int(const shared_ptr<int_const> &) override { return true; }
+    virtual bool visit_real(const shared_ptr<real_const> &) override { return true; }
+    virtual bool visit_complex(const shared_ptr<complex_const> &) override { return true; }
+    virtual bool visit_bool(const shared_ptr<bool_const> &) override { return true; }
+    virtual bool visit_infinity(const shared_ptr<infinity> &) override { return true; }
+    virtual bool visit_ref(const shared_ptr<reference> &) override { return true; }
+    virtual bool visit_array_self_ref(const shared_ptr<array_self_ref> &) override { return true; }
+    virtual bool visit_primitive(const shared_ptr<primitive> & prim)
+    {
+        for (auto & arg : prim->operands)
+        {
+            if (!arg->type->is_scalar())
+                return false;
+        }
+        return true;
+    }
+    virtual bool visit_affine(const shared_ptr<affine_expr> &) override { return true; }
+    virtual bool visit_array_app(const shared_ptr<array_app> & app) override {
+        return visit(app->object);
+    }
+    virtual bool visit_array_size(const shared_ptr<array_size> & as) override { return true; }
+};
+
+class atomic_expr_check : public primitive_expr_check
+{
+protected:
+    virtual bool visit_primitive(const shared_ptr<primitive> & prim) override
+    { return false; }
+    virtual bool visit_affine(const shared_ptr<affine_expr> & prim) override
+    { return false; }
+};
+
 
 template <typename T>
 struct mention_ {
@@ -38,180 +110,442 @@ string text(primitive_op op, const vector<primitive_type> & args)
     return text.str();
 }
 
-type_checker::type_checker(stack<location_type> & trace):
-    m_trace(trace)
+type_checker::type_checker(name_provider & nmp):
+    m_trace("trace"),
+    m_name_provider(nmp),
+    m_copier(m_ids, nmp),
+    m_var_sub(m_copier)
 {
-    m_printer.set_print_var_address(true);
-    m_printer.set_print_scopes(false);
+    m_trace.set_enabled(false);
 }
 
-type_ptr type_checker::process(const id_ptr & id)
+void type_checker::process(const vector<id_ptr> & ids)
 {
-    // FIXME: if this is a top-level id, add separator to trace.
+    for (auto id : ids)
+        process(id);
+}
+
+void type_checker::process(id_ptr id)
+{
+    process_explicit_type(id);
 
     if (id->expr->type)
-        return id->expr->type;
-
-    bool is_processed;
-    {
-        auto it = std::find(m_processed_ids.begin(), m_processed_ids.end(), id);
-        is_processed = it != m_processed_ids.end();
-    }
-
-    if (is_processed)
-    {
-        if (id->explicit_type)
-        {
-            if (verbose<type_checker>::enabled())
-            {
-                cout << "Type checker: using explicit type for recursion: "
-                     << id->name << " :: " << *id->explicit_type
-                     << endl;
-            }
-            return id->explicit_type;
-        }
-        else
-        {
-            throw type_error("Recursively used name requires explicit type.",
-                             id->location);
-        }
-    }
+        return;
 
     if (verbose<type_checker>::enabled())
     {
-        cout << "Type checker: processing id:" << endl << "  ";
-        m_printer.print(id, cout);
-        cout << endl;
+        cout << "Processing id " << id->name << endl;
     }
 
-    auto processed_id_token = stack_scoped(id, m_processed_ids);
+    bool is_visiting =
+            std::find(m_processing_ids.begin(), m_processing_ids.end(), id)
+            != m_processing_ids.end();
 
-    if (id->type_expr)
+    if (is_visiting)
     {
-        auto meta_type = visit(id->type_expr);
-
-        if (!meta_type->is_meta())
+        if (verbose<type_checker>::enabled())
         {
-            throw source_error("Expression is not a type.", id->type_expr.location);
+            cout << "Recursion at id: " << id->name << endl;
         }
-
-        id->explicit_type = meta_type->meta()->concrete;
+        return;
     }
 
-    auto t = visit(id->expr);
+    auto processing_id_token = stack_scoped(id, m_processing_ids);
 
-    if (id->explicit_type)
+    id->expr = visit(id->expr);
+
+    if (id->explicit_type && *id->explicit_type != *id->expr->type)
     {
-        if (*t != *id->explicit_type)
-        {
-            ostringstream msg;
-            msg << "Explicit type "
-                << *id->explicit_type
-                << " does not match expression type "
-                << *t
-                << ".";
-            throw type_error(msg.str(), id->location);
-        }
+        ostringstream msg;
+        msg << "Explicit type "
+            << *id->explicit_type
+            << " does not match expression type "
+            << *id->expr->type
+            << ".";
+        throw type_error(msg.str(), id->location);
     }
+
+    auto t = id->expr->type;
 
     if (!t->is_function() && !t->is_data())
     {
-        throw type_error("Expression can not be used as data.",
-                         id->expr.location);
+        throw type_error("Expression can not be bound to name.",
+                              id->expr.location);
     }
 
     if (verbose<type_checker>::enabled())
     {
-        cout << "Type checker: processed id: " << id->name
+        cout << "Inferred type: " << id->name
              << " :: " << *t
              << endl;
     }
 
-    return t;
+    m_ids.insert(id);
 }
 
-void type_checker::process(const expr_ptr & expr)
+void type_checker::process_explicit_type(id_ptr id)
 {
+    if (id->explicit_type || !id->type_expr)
+        return;
+
     if (verbose<type_checker>::enabled())
     {
-        cout << "Type checker: processing expression:" << endl;
-        m_printer.print(expr, cout);
-        cout << endl;
+        cout << "Processing explicit type for id " << id->name << endl;
     }
 
-    visit(expr);
-}
+    bool is_visiting =
+            std::find(m_processing_ids.begin(), m_processing_ids.end(), id)
+            != m_processing_ids.end();
 
-type_ptr type_checker::visit(const expr_ptr & expr)
-{
-    if (m_force_revisit || !expr->type)
-        expr->type = visitor<type_ptr>::visit(expr);
-
-    return expr->type;
-}
-
-type_ptr type_checker::visit_int(const shared_ptr<int_const> &)
-{
-    auto s = make_shared<scalar_type>(primitive_type::integer);
-    return s;
-}
-
-type_ptr type_checker::visit_real(const shared_ptr<real_const> &)
-{
-    auto s = make_shared<scalar_type>(primitive_type::real64);
-    return s;
-}
-
-type_ptr type_checker::visit_complex(const shared_ptr<complex_const> &)
-{
-    auto s = make_shared<scalar_type>(primitive_type::complex64);
-    return s;
-}
-
-type_ptr type_checker::visit_bool(const shared_ptr<bool_const> &)
-{
-    auto s = make_shared<scalar_type>(primitive_type::boolean);
-    return s;
-}
-
-type_ptr type_checker::visit_infinity(const shared_ptr<infinity> &)
-{
-    return type::infinity();
-}
-
-type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
-{
-    if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+    if (is_visiting)
     {
-        return process(id);
+        if (verbose<type_checker>::enabled())
+        {
+            cout << "Recursion at id: " << id->name << endl;
+        }
+        return;
     }
-    else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
+
+    auto processing_id_token = stack_scoped(id, m_processing_ids);
+
+    id->type_expr = visit(id->type_expr);
+
+    auto meta_type = id->type_expr->type;
+    if (meta_type->is_meta())
     {
-        auto s = make_shared<scalar_type>(primitive_type::integer);
-        return s;
+        id->explicit_type = meta_type->meta()->concrete;
     }
     else
     {
-        throw error("Unexpected.");
+        throw type_error("Not a type expression.", id->type_expr.location);
+    }
+
+    if (verbose<type_checker>::enabled())
+    {
+        cout << "Explicit type: " << id->name
+             << " :: " << *id->explicit_type
+             << endl;
     }
 }
 
-type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
+expr_ptr type_checker::apply
+(expr_ptr e, const vector<expr_ptr> & args, const location_type & loc)
 {
-    array_size_vec common_size;
-    vector<primitive_type> elem_types;
-    vector<type_ptr> operand_types;
+    if (verbose<type_checker>::enabled())
+    {
+        cout << "+ Function application at: " << loc << endl;
+    }
+
+    auto arg_it = args.begin();
+    std::shared_ptr<function> f;
+    while((f = dynamic_pointer_cast<function>(e)) && arg_it != args.end())
+    {
+        vector<expr_ptr> applied_args;
+        while(arg_it != args.end() && applied_args.size() < f->vars.size())
+            applied_args.push_back(*arg_it++);
+
+        e = do_apply(f, applied_args, loc);
+    }
+    if (arg_it != args.end())
+    {
+        ostringstream msg;
+        msg << "Too many arguments in function application. "
+            << (arg_it - args.begin()) << "expected." << endl;
+        throw type_error(msg.str(), loc);
+    }
+
+    if (verbose<type_checker>::enabled())
+    {
+        cout << "- Function application at: " << loc << endl;
+    }
+
+    return e;
+}
+
+expr_ptr type_checker::do_apply
+(shared_ptr<function> func,
+ const vector<expr_ptr> & args,
+ const location_type & loc)
+{
+    assert_or_throw(func->vars.size() >= args.size());
+
+    reduce_context_type::scope_holder scope(m_var_sub.m_context);
+
+    // Prepare arguments
+
+    for (int i = 0; i < args.size(); ++i)
+    {
+        auto & var = func->vars[i];
+        auto arg = args[i];
+        arg = visit(arg);
+
+        atomic_expr_check is_atomic;
+        if (var->ref_count > 1 && !is_atomic(arg))
+        {
+            arg = lambda_lift(arg, var->qualified_name);
+        }
+
+        if (verbose<type_checker>::enabled())
+        {
+            cout << "+ bound var: " << var << endl;
+        }
+        m_var_sub.m_context.bind(var, arg);
+    }
+
+    // Remember if this is a partial application
+
+    bool is_partial_app = func->vars.size() > args.size();
+
+    // Reduce
+
+    m_trace.push(loc);
+
+    // Substitute
+
+    m_var_sub(func);
+
+    // Reduce
+
+    if (!is_partial_app)
+    {
+        if (verbose<type_checker>::enabled())
+        {
+            cout << "Pushing scope of applied function:";
+            cout << " (" << &func->scope << ")";
+            cout << endl;
+        }
+
+        m_scope_stack.push(&func->scope);
+
+        {
+            auto id_copies = func->scope.ids;
+            for (auto id : id_copies)
+                process(id);
+        }
+
+        func->expr = visit(func->expr);
+
+        if (verbose<type_checker>::enabled())
+        {
+            cout << "Popping scope of applied function:";
+            cout << " (" << &func->scope << ")";
+            cout << endl;
+        }
+
+        m_scope_stack.pop();
+    }
+
+    m_trace.pop();
+
+    if (is_partial_app)
+    {
+        // Return partially applied function
+
+        vector<func_var_ptr> remaining_vars
+                (func->vars.begin() + args.size(),
+                 func->vars.end());
+
+        func->vars = remaining_vars;
+
+        return func;
+    }
+    else
+    {
+        // Add ids to enclosing scope, if any.
+
+        if (!m_scope_stack.empty())
+        {
+            auto & parent_ids = m_scope_stack.top()->ids;
+            auto & ids = func->scope.ids;
+            parent_ids.insert(parent_ids.end(), ids.begin(), ids.end());
+        }
+
+        // Return function expression
+
+        return func->expr;
+    }
+}
+
+expr_ptr type_checker::apply_external(const shared_ptr<func_app> & app)
+{
+    auto func_type = dynamic_pointer_cast<function_type>(app->object->type);
+    if (!func_type)
+        throw type_error("Not a function.", app->object.location);
+
+    auto & args = app->args;
+
+    for (auto & arg : args)
+    {
+        arg = visit(arg);
+
+        primitive_expr_check is_primitive;
+        if (!is_primitive(arg))
+            arg = lambda_lift(arg, "_tmp");
+    }
+
+    if (args.size() != func_type->param_count())
+    {
+        ostringstream msg;
+        msg << "Wrong number of arguments in function application: "
+            << func_type->param_count() << " expected, "
+            << args.size() << " given.";
+        throw type_error(msg.str(), app->location);
+    }
+
+    for (int p = 0; p < func_type->param_count(); ++p)
+    {
+        assert(func_type->params[p]);
+        const auto & pt = *func_type->params[p];
+        const auto & at = *args[p]->type;
+        bool ok = at <= pt;
+        if (!ok)
+        {
+            ostringstream msg;
+            msg << "Argument type mismatch:"
+                << " expected " << pt
+                << " but given " << at;
+            throw type_error(msg.str(), args[p].location);
+        }
+    }
+
+    assert(func_type->value);
+    app->type = func_type->value;
+
+    return app;
+}
+
+expr_ptr type_checker::visit(const expr_ptr & expr)
+{
+    if (expr && (m_force_revisit || !expr->type))
+        return visitor<expr_ptr>::visit(expr);
+
+    return expr;
+}
+
+expr_ptr type_checker::visit_int(const shared_ptr<int_const> & expr)
+{
+    expr->type = make_shared<scalar_type>(primitive_type::integer);
+    return expr;
+}
+
+expr_ptr type_checker::visit_real(const shared_ptr<real_const> & expr)
+{
+    expr->type = make_shared<scalar_type>(primitive_type::real64);
+    return expr;
+}
+
+expr_ptr type_checker::visit_complex(const shared_ptr<complex_const> & expr)
+{
+    expr->type = make_shared<scalar_type>(primitive_type::complex64);
+    return expr;
+}
+
+expr_ptr type_checker::visit_bool(const shared_ptr<bool_const> & expr)
+{
+    expr->type = make_shared<scalar_type>(primitive_type::boolean);
+    return expr;
+}
+
+expr_ptr type_checker::visit_infinity(const shared_ptr<infinity> & expr)
+{
+    expr->type = type::infinity();
+    return expr;
+}
+
+expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
+{
+    if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+    {
+        process_explicit_type(id);
+
+        if (id->explicit_type)
+        {
+            ref->type = id->explicit_type;
+        }
+        else
+        {
+            process(id);
+
+            if (id->expr->type)
+            {
+                ref->type = id->expr->type;
+            }
+            else if (id->is_recursive)
+            {
+                throw type_error("Recursion requires explicit_type.", id->location);
+
+                process(id);
+            }
+            else
+            {
+                throw error("Id has no inferred or explicit type.");
+            }
+        }
+
+        if (auto func = dynamic_pointer_cast<function>(id->expr.expr))
+        {
+            if (id->is_recursive)
+            {
+                throw type_error("Recursive use of function not allowed.",
+                                      id->location);
+            }
+
+            return m_copier.copy(func);
+        }
+        else if (auto ext = dynamic_pointer_cast<external>(id->expr.expr))
+        {
+            if (!ext->is_input)
+                return m_copier.copy(ext);
+        }
+        else if (is_constant(id->expr))
+        {
+            return id->expr;
+        }
+
+        m_ids.insert(id);
+
+        return ref;
+    }
+    else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
+    {
+        ref->type = make_shared<scalar_type>(primitive_type::integer);
+        return ref;
+    }
+    else
+    {
+        throw error("Function variable was not substituted.");
+    }
+}
+
+expr_ptr type_checker::visit_primitive(const shared_ptr<primitive> & source_prim)
+{
+    auto prim = dynamic_pointer_cast<primitive>(rewriter_base::visit_primitive(source_prim));
+    assert(prim);
 
     for (auto & operand : prim->operands)
     {
-        auto type = visit(operand);
-        operand_types.push_back(type);
+        operand = visit(operand);
+    }
 
-        if (dynamic_pointer_cast<function_type>(type))
+    {
+        auto reduced_prim = reduce_primitive(prim);
+
+        if (reduced_prim != prim)
+        {
+            return visit(reduced_prim);
+        }
+    }
+
+    array_size_vec common_size;
+    vector<primitive_type> elem_types;
+
+    for (auto & operand : prim->operands)
+    {
+        if (operand->type->is_function())
         {
             throw type_error("Function not allowed as operand.", operand.location);
         }
-        else if (auto arr = dynamic_pointer_cast<array_type>(type))
+        else if (auto arr = dynamic_pointer_cast<array_type>(operand->type))
         {
             try {
                 common_size = common_array_size(common_size, arr->size);
@@ -224,7 +558,7 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 
             elem_types.push_back(arr->element);
         }
-        else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
+        else if (auto scalar = dynamic_pointer_cast<scalar_type>(operand->type))
         {
             elem_types.push_back(scalar->primitive);
         }
@@ -254,44 +588,17 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 
     if (common_size.empty())
     {
-        auto s = make_shared<scalar_type>(result_elem_type);
-
-        switch(prim->kind)
-        {
-        case primitive_op::add:
-        case primitive_op::subtract:
-        {
-            auto lhs = operand_types[0];
-            auto rhs = operand_types[1];
-            break;
-        }
-        case primitive_op::multiply:
-        {
-            auto lhs = operand_types[0];
-            auto rhs = operand_types[1];
-            break;
-        }
-        case primitive_op::divide_integer:
-        case primitive_op::modulo:
-        {
-            auto lhs = operand_types[0];
-            auto rhs = operand_types[1];
-            break;
-        }
-        default:
-            // FIXME: Reject non-data operands for all other operations?
-            ;
-        }
-
-        return s;
+        prim->type = make_shared<scalar_type>(result_elem_type);
     }
     else
     {
-        return make_shared<array_type>(common_size, result_elem_type);
+        prim->type = make_shared<array_type>(common_size, result_elem_type);
     }
+
+    return prim;
 }
 
-type_ptr type_checker::visit_operation(const shared_ptr<operation> & op)
+expr_ptr type_checker::visit_operation(const shared_ptr<operation> & op)
 {
     switch(op->kind)
     {
@@ -304,7 +611,152 @@ type_ptr type_checker::visit_operation(const shared_ptr<operation> & op)
     }
 }
 
-type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
+expr_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
+{
+    array_size_vec common_elem_size;
+    int total_elem_count = 0;
+    vector<primitive_type> elem_types;
+
+    for (auto & operand : op->operands)
+    {
+        if (total_elem_count == -1)
+        {
+            throw type_error
+                    ("Can not concatenate to end of infinite array.",
+                     operand.location);
+        }
+
+        operand = visit(operand);
+
+        auto type = operand->type;
+
+        if (!type->is_data())
+        {
+            throw type_error("Expression can not be used as data.",
+                               operand.location);
+        }
+
+        if (dynamic_pointer_cast<function_type>(type))
+        {
+            throw type_error("Function not allowed here.", operand.location);
+        }
+        else if (auto arr = dynamic_pointer_cast<array_type>(type))
+        {
+            assert(!arr->size.empty());
+
+            int elem_count = arr->size[0];
+            array_size_vec elem_size(++arr->size.begin(), arr->size.end());
+
+            if (elem_count >= 0)
+                total_elem_count += elem_count;
+            else
+                total_elem_count = -1;
+
+            try {
+                common_elem_size = common_array_size(common_elem_size, elem_size);
+            } catch (no_type &) {
+                ostringstream msg;
+                msg << "Element size mismatch: "
+                    << elem_size << " != " << common_elem_size;
+                throw type_error(msg.str(), operand.location);
+            }
+
+            elem_types.push_back(arr->element);
+        }
+        else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
+        {
+            elem_types.push_back(scalar->primitive);
+            ++total_elem_count;
+        }
+        else
+        {
+            throw error("Unexpected operand type.");
+        }
+    }
+
+    primitive_type result_elem_type;
+
+    try {
+        result_elem_type = common_type(elem_types);
+    } catch (no_type &) {
+        throw type_error("Incompatible element types.", op->location);
+    }
+
+    assert(total_elem_count != 0);
+
+    array_size_vec result_size;
+    result_size.push_back(total_elem_count);
+    result_size.insert(result_size.end(),
+                       common_elem_size.begin(), common_elem_size.end());
+
+    op->type = make_shared<array_type>(result_size, result_elem_type);
+
+    return op;
+}
+
+expr_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
+{
+    array_size_vec common_elem_size;
+    vector<primitive_type> elem_types;
+
+    for (auto & operand : op->operands)
+    {
+        operand = visit(operand);
+
+        auto type = operand->type;
+
+        if (!type->is_data())
+        {
+            throw type_error("Expression can not be used as data.",
+                               operand.location);
+        }
+
+        if (dynamic_pointer_cast<function_type>(type))
+        {
+            throw type_error("Function not allowed here.", operand.location);
+        }
+        else if (auto arr = dynamic_pointer_cast<array_type>(type))
+        {
+            try {
+                common_elem_size = common_array_size(common_elem_size, arr->size);
+            } catch (no_type &) {
+                ostringstream msg;
+                msg << "Element size mismatch: "
+                    << arr->size << " != " << common_elem_size;
+                throw type_error(msg.str(), operand.location);
+            }
+
+            elem_types.push_back(arr->element);
+        }
+        else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
+        {
+            elem_types.push_back(scalar->primitive);
+        }
+        else
+        {
+            throw error("Unexpected operand type.");
+        }
+    }
+
+    primitive_type result_elem_type;
+
+    try {
+        result_elem_type = common_type(elem_types);
+    } catch (no_type &) {
+        throw type_error("Incompatible element types.", op->location);
+    }
+
+    array_size_vec result_size;
+    result_size.push_back(op->operands.size());
+    result_size.insert(result_size.end(),
+                       common_elem_size.begin(), common_elem_size.end());
+
+    op->type = make_shared<array_type>(result_size, result_elem_type);
+
+    return op;
+}
+
+expr_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 {
     array_size_vec common_size;
     vector<primitive_type> elem_types;
@@ -314,16 +766,18 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
         auto & domain = c.first;
         auto & expr = c.second;
 
-        auto type = visit(expr);
+        domain = visit(domain);
+
+        ensure_affine_integer_constraint(domain);
+
+        expr = visit(expr);
+
+        auto type = expr->type;
 
         if (!type->is_data())
         {
             throw type_error("Expression can not be used as data.", expr.location);
         }
-
-        visit(domain);
-
-        ensure_affine_integer_constraint(domain);
 
         if (dynamic_pointer_cast<function_type>(type))
         {
@@ -360,54 +814,67 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
         throw type_error("Incompatible case types.", cexpr->location);
     }
 
+
     if (common_size.empty())
     {
-        auto st = make_shared<scalar_type>(result_elem_type);
-        return st;
+        cexpr->type = make_shared<scalar_type>(result_elem_type);
     }
     else
     {
-        return make_shared<array_type>(common_size, result_elem_type);
+        cexpr->type = make_shared<array_type>(common_size, result_elem_type);
     }
+
+    return cexpr;
 }
 
-type_ptr type_checker::visit_array(const shared_ptr<array> & arr)
+expr_ptr type_checker::visit_array(const shared_ptr<array> & arr)
 {
-    if (verbose<type_checker>::enabled())
-        cout << mention(arr->location)
-             << "Visiting array." << endl;
-
-    auto type = process_array(arr);
-
-    if (arr->is_recursive)
+    for (auto & var : arr->vars)
     {
-        if (verbose<type_checker>::enabled())
-            cout << mention(arr->location)
-                 << "Revisiting recursive array." << endl;
+        var->range = visit(var->range);
+    }
 
-        // We need another pass with proper type for self-references.
-        arr->type = type;
-        revertable<bool> revisit(m_force_revisit, true);
-        type = process_array(arr);
+    {
+        auto scope_stacker = stack_scoped(&arr->scope, m_scope_stack);
 
-        assert(type->is_array());
-        if (type->array()->element == primitive_type::undefined)
         {
-            throw type_error("Array type can not be inferred.",
-                             arr->location);
+            auto id_copies = arr->scope.ids;
+            for (auto id : id_copies)
+                process(id);
+        }
+
+        process_array(arr);
+
+        if (arr->is_recursive)
+        {
+            if (verbose<type_checker>::enabled())
+                cout << mention(arr->location)
+                     << "Revisiting recursive array." << endl;
+
+            // We need another pass with proper type for self-references.
+            revertable<bool> revisit(m_force_revisit, true);
+            process_array(arr);
+
+            assert(arr->type->is_array());
+            if (arr->type->array()->element == primitive_type::undefined)
+            {
+                throw type_error("Array type can not be inferred.",
+                                      arr->location);
+            }
         }
     }
-    return type;
+
+    return arr;
 }
 
-type_ptr type_checker::process_array(const shared_ptr<array> & arr)
+void type_checker::process_array(const shared_ptr<array> & arr)
 {
     for (auto & var : arr->vars)
     {
         if (!var->range)
             continue;
 
-        auto type = visit(var->range);
+        var->range = visit(var->range);
 
         if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
         {
@@ -482,15 +949,15 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
                 auto & domain = c.first;
                 auto & expr = c.second;
 
-                visit(domain);
+                domain = visit(domain);
                 ensure_affine_integer_constraint(domain);
 
-                visit(expr);
+                expr = visit(expr);
                 process_type(expr);
             }
         }
 
-        visit(pattern.expr);
+        pattern.expr = visit(pattern.expr);
         process_type(pattern.expr);
     }
 
@@ -524,153 +991,15 @@ type_ptr type_checker::process_array(const shared_ptr<array> & arr)
 
     size.insert(size.end(), common_subdom_size.begin(), common_subdom_size.end());
 
-    auto type = make_shared<array_type>(size, result_elem_type);
-    return type;
+    arr->type = make_shared<array_type>(size, result_elem_type);
 }
 
-type_ptr type_checker::visit_array_patterns(const shared_ptr<array_patterns> & ap)
+expr_ptr type_checker::visit_array_patterns(const shared_ptr<array_patterns> &)
 {
     throw error("Unexpected.");
 }
 
-type_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
-{
-    array_size_vec common_elem_size;
-    int total_elem_count = 0;
-    vector<primitive_type> elem_types;
-
-    for (auto & operand : op->operands)
-    {
-        if (total_elem_count == -1)
-        {
-            throw type_error
-                    ("Can not concatenate to end of infinite array.",
-                     operand.location);
-        }
-
-        auto type = visit(operand);
-
-        if (!type->is_data())
-        {
-            throw type_error("Expression can not be used as data.",
-                               operand.location);
-        }
-
-        if (dynamic_pointer_cast<function_type>(type))
-        {
-            throw type_error("Function not allowed here.", operand.location);
-        }
-        else if (auto arr = dynamic_pointer_cast<array_type>(type))
-        {
-            assert(!arr->size.empty());
-
-            int elem_count = arr->size[0];
-            array_size_vec elem_size(++arr->size.begin(), arr->size.end());
-
-            if (elem_count >= 0)
-                total_elem_count += elem_count;
-            else
-                total_elem_count = -1;
-
-            try {
-                common_elem_size = common_array_size(common_elem_size, elem_size);
-            } catch (no_type &) {
-                ostringstream msg;
-                msg << "Element size mismatch: "
-                    << elem_size << " != " << common_elem_size;
-                throw type_error(msg.str(), operand.location);
-            }
-
-            elem_types.push_back(arr->element);
-        }
-        else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
-        {
-            elem_types.push_back(scalar->primitive);
-            ++total_elem_count;
-        }
-        else
-        {
-            throw error("Unexpected operand type.");
-        }
-    }
-
-    primitive_type result_elem_type;
-
-    try {
-        result_elem_type = common_type(elem_types);
-    } catch (no_type &) {
-        throw type_error("Incompatible element types.", op->location);
-    }
-
-    assert(total_elem_count != 0);
-
-    array_size_vec result_size;
-    result_size.push_back(total_elem_count);
-    result_size.insert(result_size.end(),
-                       common_elem_size.begin(), common_elem_size.end());
-
-    return make_shared<array_type>(result_size, result_elem_type);
-}
-
-type_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
-{
-    array_size_vec common_elem_size;
-    vector<primitive_type> elem_types;
-
-    for (auto & operand : op->operands)
-    {
-        auto type = visit(operand);
-
-        if (!type->is_data())
-        {
-            throw type_error("Expression can not be used as data.",
-                               operand.location);
-        }
-
-        if (dynamic_pointer_cast<function_type>(type))
-        {
-            throw type_error("Function not allowed here.", operand.location);
-        }
-        else if (auto arr = dynamic_pointer_cast<array_type>(type))
-        {
-            try {
-                common_elem_size = common_array_size(common_elem_size, arr->size);
-            } catch (no_type &) {
-                ostringstream msg;
-                msg << "Element size mismatch: "
-                    << arr->size << " != " << common_elem_size;
-                throw type_error(msg.str(), operand.location);
-            }
-
-            elem_types.push_back(arr->element);
-        }
-        else if (auto scalar = dynamic_pointer_cast<scalar_type>(type))
-        {
-            elem_types.push_back(scalar->primitive);
-        }
-        else
-        {
-            throw error("Unexpected operand type.");
-        }
-    }
-
-    primitive_type result_elem_type;
-
-    try {
-        result_elem_type = common_type(elem_types);
-    } catch (no_type &) {
-        throw type_error("Incompatible element types.", op->location);
-    }
-
-    array_size_vec result_size;
-    result_size.push_back(op->operands.size());
-    result_size.insert(result_size.end(),
-                       common_elem_size.begin(), common_elem_size.end());
-
-    return make_shared<array_type>(result_size, result_elem_type);
-}
-
-type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & self)
+expr_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & self)
 {
     vector<int> size;
 
@@ -682,7 +1011,8 @@ type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
             cout << mention(self->location)
                  << "Self reference using known array type: "
                  << *arr->type << endl;
-        return arr->type;
+        self->type = arr->type;
+        return self;
     }
 
     for (auto & var : arr->vars)
@@ -702,12 +1032,15 @@ type_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
         cout << mention(self->location)
              << "Self reference synthesized type: " << *result << endl;
 
-    return result;
+    self->type = result;
+    return self;
 }
 
-type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
+expr_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
 {
-    auto object_type = visit(app->object);
+    app->object = visit(app->object);
+
+    auto object_type = app->object->type;
     array_size_vec object_size;
     primitive_type elem_type;
 
@@ -746,7 +1079,9 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
     {
         auto & arg = app->args[arg_idx];
 
-        auto arg_type = dynamic_pointer_cast<scalar_type>(visit(arg));
+        arg = visit(arg);
+
+        auto arg_type = dynamic_pointer_cast<scalar_type>(arg->type);
 
         if (!arg_type)
         {
@@ -775,7 +1110,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
                 ostringstream msg;
                 msg << "Argument range (" << max_value << ")"
                     << " out of array bound (" << bound << ")";
-                throw type_error(msg.str(),
+                throw reduction_error(msg.str(),
                                    arg.location);
             }
         }
@@ -783,7 +1118,7 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
         {
             if (bound != array_var::unconstrained)
             {
-                throw type_error("Unbounded argument to"
+                throw reduction_error("Unbounded argument to"
                                    " bounded array dimension.",
                                    arg.location);
             }
@@ -793,28 +1128,32 @@ type_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
 
     if (object_size.size() <= app->args.size())
     {
-        auto st = make_shared<scalar_type>(elem_type);
-        return st;
+        app->type = make_shared<scalar_type>(elem_type);
     }
     else
     {
         vector<int> remaining_size(object_size.begin() + app->args.size(),
                                    object_size.end());
-        return make_shared<array_type>(remaining_size, elem_type);
+        app->type = make_shared<array_type>(remaining_size, elem_type);
     }
+
+    return app;
 }
 
-type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
+
+
+expr_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
 {
-    visit(as->object);
+    as->object = visit(as->object);
+    if (as->dimension)
+        as->dimension = visit(as->dimension);
 
     if (as->object->type->is_scalar())
     {
-        // Result is always 1.
-        auto result = make_shared<scalar_type>(primitive_type::integer);
-        return result;
+        return make_shared<int_const>(1, location_type());
     }
-    else if (!as->object->type->is_array())
+
+    if (!as->object->type->is_array())
     {
         ostringstream msg;
         msg << "Invalid type of object for array size operation: "
@@ -852,73 +1191,20 @@ type_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
         size = 1;
 
     if (size >= 0)
-    {
-        auto result = make_shared<scalar_type>(primitive_type::integer);
-        return result;
-    }
+        return make_shared<int_const>(size, as->location);
     else
-    {
-        return type::infinity();
-    }
+        return make_shared<infinity>(as->location);
 }
 
-type_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
+expr_ptr type_checker::visit_external(const shared_ptr<external> & ext)
 {
-    // Application of external functions
+    ext->type_expr = visit(ext->type_expr);
 
-    auto func_type = dynamic_pointer_cast<function_type>(visit(app->object));
-    if (!func_type)
-        throw type_error("Not a function.", app->object.location);
-
-    if (app->args.size() != func_type->param_count())
-    {
-        ostringstream msg;
-        msg << "Wrong number of arguments in function application: "
-            << func_type->param_count() << " expected, "
-            << app->args.size() << " given.";
-        throw type_error(msg.str(), app->location);
-    }
-
-    for (auto & arg : app->args)
-        visit(arg);
-
-    for (int p = 0; p < func_type->param_count(); ++p)
-    {
-        assert(func_type->params[p]);
-        const auto & pt = *func_type->params[p];
-        const auto & at = *app->args[p]->type;
-        bool ok = at <= pt;
-        if (!ok)
-        {
-            ostringstream msg;
-            msg << "Argument type mismatch:"
-                << " expected " << pt
-                << " but given " << at;
-            throw type_error(msg.str(), app->args[p].location);
-        }
-    }
-
-    assert(func_type->value);
-    return func_type->value;
-}
-
-type_ptr type_checker::visit_func(const shared_ptr<function> & func)
-{
-    return make_shared<function_type>(func->vars.size());
-}
-
-type_ptr type_checker::visit_affine(const shared_ptr<affine_expr> &)
-{
-    throw error("Not supported.");
-}
-
-type_ptr type_checker::visit_external(const shared_ptr<external> & ext)
-{
-    auto meta_type = visit(ext->type_expr);
+    auto meta_type = ext->type_expr->type;
 
     if (!meta_type->is_meta())
     {
-        throw source_error("Expression is not a type.", ext->type_expr.location);
+        throw type_error("Expression is not a type.", ext->type_expr.location);
     }
 
     auto type = meta_type->meta()->concrete;
@@ -927,7 +1213,7 @@ type_ptr type_checker::visit_external(const shared_ptr<external> & ext)
     {
         if (type->is_function())
         {
-            throw source_error("Type of input must not be a function.",
+            throw type_error("Type of input must not be a function.",
                                ext->type_expr.location);
         }
     }
@@ -935,7 +1221,7 @@ type_ptr type_checker::visit_external(const shared_ptr<external> & ext)
     {
         if (!type->is_function())
         {
-            throw source_error("Type of external must be a function.",
+            throw type_error("Type of external must be a function.",
                                ext->type_expr.location);
         }
 
@@ -946,42 +1232,49 @@ type_ptr type_checker::visit_external(const shared_ptr<external> & ext)
         {
             if (t->is_array() && t->array()->is_infinite())
             {
-                throw source_error("Type of external must not involve infinite arrays.",
+                throw type_error("Type of external must not involve infinite arrays.",
                                    ext->type_expr.location);
             }
             else if (t->is_function())
             {
-                throw source_error("Parameters or result of external must not contain functions.",
+                throw type_error("Parameters or result of external must not contain functions.",
                                    ext->type_expr.location);
             }
         }
     }
 
-    return type;
+    ext->type = type;
+
+    return ext;
 }
 
-type_ptr type_checker::visit_type_name(const shared_ptr<type_name_expr> & e)
+
+expr_ptr type_checker::visit_type_name(const shared_ptr<type_name_expr> & e)
 {
     auto pt = primitive_type_for_name(e->name);
     if (pt == primitive_type::undefined)
-        throw source_error("Invalid type name.", e->location);
+        throw type_error("Invalid type name.", e->location);
 
     auto ct = make_shared<scalar_type>(pt);
 
-    return make_shared<meta_type>(ct);
+    e->type = make_shared<meta_type>(ct);
+
+    return e;
 }
 
-type_ptr type_checker::visit_array_type(const shared_ptr<array_type_expr> & e)
+expr_ptr type_checker::visit_array_type(const shared_ptr<array_type_expr> & e)
 {
     vector<int> size;
 
     for (auto & size_expr : e->size)
     {
+        size_expr = visit(size_expr);
+
         if (auto ci = dynamic_pointer_cast<int_const>(size_expr.expr))
         {
             auto v = ci->value;
             if (v < 0)
-                throw source_error("Array size must be positive.", size_expr.location);
+                throw type_error("Array size must be positive.", size_expr.location);
             size.push_back(v);
         }
         else if (auto i = dynamic_pointer_cast<infinity>(size_expr.expr))
@@ -990,49 +1283,147 @@ type_ptr type_checker::visit_array_type(const shared_ptr<array_type_expr> & e)
         }
         else
         {
-            throw source_error("Invalid array size.", size_expr.location);
+            throw type_error("Invalid array size.", size_expr.location);
         }
     }
 
     auto element_type = primitive_type_for_name(e->element);
     if (element_type == primitive_type::undefined)
     {
-        throw source_error("Invalid array element type.", e->location);
+        throw type_error("Invalid array element type.", e->location);
     }
 
     auto at = make_shared<array_type>(size, element_type);
 
-    return make_shared<meta_type>(at);
+    e->type = make_shared<meta_type>(at);
+
+    return e;
 }
 
-type_ptr type_checker::visit_func_type(const shared_ptr<func_type_expr> & e)
+expr_ptr type_checker::visit_func_type(const shared_ptr<func_type_expr> & e)
 {
     auto ft = make_shared<function_type>();
 
     for (auto & param : e->params)
     {
-        auto t = visit(param);
-        if (t->is_meta())
+        param = visit(param);
+
+        if (param->type->is_meta())
         {
-            ft->params.push_back(t->meta()->concrete);
+            ft->params.push_back(param->type->meta()->concrete);
         }
         else
         {
-            throw source_error("Expression is not a type.", param.location);
+            throw type_error("Expression is not a type.", param.location);
         }
     }
 
-    auto rt = visit(e->result);
+    e->result = visit(e->result);
+
+    auto rt = e->result->type;
     if (rt->is_meta())
     {
         ft->value = rt->meta()->concrete;
     }
     else
     {
-        throw source_error("Expression is not a type.", e->result.location);
+        throw type_error("Expression is not a type.", e->result.location);
     }
 
-    return make_shared<meta_type>(ft);
+    e->type = make_shared<meta_type>(ft);
+
+    return e;
+}
+
+expr_ptr type_checker::visit_func(const shared_ptr<function> & func)
+{
+    // FIXME: Imprecise function type:
+    func->type = make_shared<function_type>(func->vars.size());
+    return func;
+}
+
+expr_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
+{
+    app->object = visit(app->object);
+
+    expr_ptr result;
+
+    if (auto func = dynamic_pointer_cast<function>(app->object.expr))
+    {
+        // convert vector of slots to vector of expressions
+        vector<expr_ptr> args;
+        for (auto & arg : app->args)
+            args.push_back(arg);
+
+        result = apply(func, args, app->location);
+    }
+    else if (auto ext = dynamic_pointer_cast<external>(app->object.expr))
+    {
+        result = apply_external(app);
+    }
+    else
+    {
+        throw type_error("Not a function.", app->object.location);
+    }
+
+    return result;
+}
+
+expr_ptr type_checker::lambda_lift(expr_ptr e, const string & name)
+{
+    auto id_name = m_name_provider.new_name(name);
+    auto id = make_shared<identifier>(id_name, e, location_type());
+    m_ids.insert(id);
+    if (m_scope_stack.size())
+    {
+        m_scope_stack.top()->ids.push_back(id);
+        if (verbose<type_checker>::enabled())
+        {
+            cout << "Stored lambda-lifted expression with id " << id_name
+                 << " into enclosing function scope."
+                 << " (" << m_scope_stack.top() << ")"
+                 << endl;
+        }
+    }
+    else
+    {
+        if (verbose<type_checker>::enabled())
+        {
+            cout << "No enclosing function scope for lambda-lifted expression with id "
+                 << id_name
+                 << endl;
+        }
+    }
+
+    auto ref = make_shared<reference>(id, e->location);
+    ref->type = e->type;
+
+    return ref;
+}
+
+expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
+{
+    if (auto fv = dynamic_pointer_cast<func_var>(ref->var))
+    {
+        auto binding = m_context.find(fv);
+        if (binding)
+        {
+            if (verbose<type_checker>::enabled())
+            {
+                cout << "Substituting a reference to var: " << fv << endl;
+            }
+            return m_copier.copy(binding.value());
+        }
+        else
+        {
+            if (verbose<type_checker>::enabled())
+            {
+                cout << "No substitution for reference to var: " << fv << endl;
+            }
+        }
+    }
+
+    return ref;
 }
 
 }

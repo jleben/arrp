@@ -112,6 +112,7 @@ public:
     expr_slot expr;
     expr_slot type_expr;
     type_ptr explicit_type;
+    bool is_recursive = false;
 };
 typedef std::shared_ptr<identifier> id_ptr;
 

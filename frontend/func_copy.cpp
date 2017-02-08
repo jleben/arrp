@@ -162,6 +162,7 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
         auto new_id = make_shared<identifier>(new_name, id->location);
         new_id->type_expr = copy(id->type_expr);
         new_id->explicit_type = id->explicit_type;
+        new_id->is_recursive = id->is_recursive;
         m_copy_context.bind(id, new_id);
 
         new_id->expr = copy(id->expr);
@@ -243,6 +244,7 @@ expr_ptr copier::visit_func(const shared_ptr<function> & func)
         auto new_id = make_shared<identifier>(new_name, id->expr, id->location);
         new_id->type_expr = copy(id->type_expr);
         new_id->explicit_type = id->explicit_type;
+        new_id->is_recursive = id->is_recursive;
         new_func->scope.ids.push_back(new_id);
 
         m_copy_context.bind(id, new_id);

@@ -26,10 +26,10 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/error.hpp"
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
-#include "../frontend/func_reducer.hpp"
+#include "../frontend/reference_analysis.hpp"
+#include "../frontend/type_check.hpp"
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
-#include "../frontend/type_check.hpp"
 #include "../frontend/ph_model_gen.hpp"
 #include "../polyhedral/scheduling.hpp"
 #include "../polyhedral/storage_alloc.hpp"
@@ -140,14 +140,21 @@ result::code compile_module
         }
         auto id = *id_it;
 
+        {
+            functional::reference_analysis refs;
+            refs.process(ids);
+        }
+
         unordered_set<functional::id_ptr> array_ids;
 
         functional::name_provider func_name_provider(':');
 
         {
-            functional::func_reducer reducer(func_name_provider);
-            id = reducer.reduce(id, {});
-            array_ids = reducer.ids();
+            functional::type_checker type_checker(func_name_provider);
+
+            type_checker.process(ids);
+
+            array_ids = type_checker.ids();
 
             if (verbose<functional::model>::enabled())
             {
@@ -160,11 +167,6 @@ result::code compile_module
                     cout << endl;
                 }
             }
-        }
-
-        if (verbose<functional::type_checker>::enabled())
-        {
-            cout << "Type = " << *id->expr->type << endl;
         }
 
         if (id->expr->type->is_function())
