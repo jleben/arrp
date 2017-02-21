@@ -131,6 +131,7 @@ private:
 
     isl::schedule make_schedule(const isl::union_set & domains,
                                 const isl::union_map & dependencies,
+                                const isl::union_map & order,
                                 const options &);
 
     isl::union_map make_proximity_dependencies(const isl::union_map & dependencies);

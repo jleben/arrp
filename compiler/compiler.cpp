@@ -217,9 +217,14 @@ result::code compile_module
             polyhedral::model ph_model;
 
             {
-                functional::polyhedral_gen gen;
+                functional::polyhedral_gen::options ph_opts;
+                ph_opts.atomic_io = opts.atomic_io;
+                ph_opts.ordered_io = opts.ordered_io;
+
+                functional::polyhedral_gen gen(ph_opts);
                 ph_model = gen.process(array_ids);
-                gen.add_output(ph_model, "output", id);
+
+                gen.add_output(ph_model, "output", id, opts.atomic_io, opts.ordered_io);
             }
 
             // Compute polyhedral schedule

@@ -24,10 +24,17 @@ using std::unordered_set;
 class polyhedral_gen : public rewriter_base
 {
 public:
-    polyhedral_gen();
+    struct options
+    {
+        bool ordered_io = true;
+        bool atomic_io = false;
+    };
+
+    polyhedral_gen(const options &);
     polyhedral::model process(const unordered_set<id_ptr> & ids);
     void add_output(polyhedral::model &,
-                    const string & name, id_ptr id);
+                    const string & name, id_ptr id,
+                    bool atomic, bool ordered);
 
 private:
     struct space_map
@@ -54,7 +61,7 @@ private:
     void make_time_array();
     void add_time_array(polyhedral::model &);
 
-    void make_input(id_ptr id, polyhedral::model &);
+    void make_input(id_ptr id, polyhedral::model &, bool atomic, bool ordered);
 
     polyhedral::array_ptr make_array(id_ptr id);
 
@@ -71,6 +78,8 @@ private:
     expr_ptr visit_ref(const shared_ptr<reference> & e) override;
     expr_ptr visit_array_app(const shared_ptr<array_app> & app) override;
     expr_ptr visit_func_app(const shared_ptr<func_app> &app) override;
+
+    const options m_options;
 
     isl::context m_isl_ctx;
     isl::printer m_isl_printer;

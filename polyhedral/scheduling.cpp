@@ -99,6 +99,8 @@ scheduler::schedule(const scheduler::options & options)
         m_printer.print_each_in(m_model_summary.read_relations);
         cout << "Dependencies:" << endl;
         m_printer.print_each_in(m_model_summary.dependencies);
+        cout << "Order:" << endl;
+        m_printer.print_each_in(m_model_summary.order_relations);
     }
 
     if (verbose<polyhedral::model>::enabled())
@@ -110,12 +112,17 @@ scheduler::schedule(const scheduler::options & options)
         cout << endl << "### Dependencies:" << endl;
         m_printer.print(m_model_summary.dependencies);
         cout << endl;
+
+        cout << endl << "### Order:" << endl;
+        m_printer.print(m_model_summary.order_relations);
+        cout << endl;
     }
 
     polyhedral::schedule schedule(m_model.context);
 
     schedule.tree = make_schedule(m_model_summary.domains,
                                   m_model_summary.dependencies,
+                                  m_model_summary.order_relations,
                                   options);
 
     schedule.full = schedule.tree.map().in_domain(m_model_summary.domains);
@@ -261,6 +268,7 @@ scheduler::add_schedule_constraints
 #endif
 isl::schedule scheduler::make_schedule
 (const isl::union_set & domains, const isl::union_map & dependencies,
+ const isl::union_map & order,
  const scheduler::options & options)
 {
     // FIXME: statements with no dependencies
@@ -274,7 +282,8 @@ isl::schedule scheduler::make_schedule
     constr = isl_schedule_constraints_set_constraint_filter
             (constr, &add_schedule_constraints_helper, this);
 #endif
-    constr = isl_schedule_constraints_set_validity(constr, dependencies.copy());
+    auto validity = dependencies | order;
+    constr = isl_schedule_constraints_set_validity(constr, validity.copy());
 
     if (options.optimize)
     {
@@ -820,7 +829,7 @@ void scheduler::assign_inter_tile_access_offsets
 
 bool scheduler::validate_schedule(isl::union_map & schedule)
 {
-    auto deps = m_model_summary.dependencies;
+    auto deps = m_model_summary.dependencies | m_model_summary.order_relations;
     deps.map_domain_through(schedule);
     deps.map_range_through(schedule);
 

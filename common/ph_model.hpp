@@ -195,7 +195,8 @@ public:
         domains(m.context),
         write_relations(m.context),
         read_relations(m.context),
-        dependencies(m.context)
+        dependencies(m.context),
+        order_relations(m.context)
     {
         for (const auto & stmt : m.statements)
         {
@@ -219,7 +220,7 @@ public:
         for (const auto & stmt : m.statements)
         {
             if (stmt->self_relations.is_valid())
-                dependencies |= stmt->self_relations.in_domain(stmt->domain).in_range(stmt->domain);
+                order_relations |= stmt->self_relations.in_domain(stmt->domain).in_range(stmt->domain);
         }
     }
 
@@ -227,6 +228,7 @@ public:
     isl::union_map write_relations;
     isl::union_map read_relations;
     isl::union_map dependencies;
+    isl::union_map order_relations;
 };
 
 class schedule

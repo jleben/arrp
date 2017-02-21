@@ -20,7 +20,8 @@ namespace ph = stream::polyhedral;
 
 using my_verbose_out = verbose<polyhedral_gen>;
 
-polyhedral_gen::polyhedral_gen():
+polyhedral_gen::polyhedral_gen(const polyhedral_gen::options &options):
+    m_options(options),
     m_isl_printer(m_isl_ctx)
 {
     m_isl_ctx.set_error_action(isl::context::abort_on_error);
@@ -119,7 +120,7 @@ polyhedral_gen::process(const unordered_set<id_ptr> & ids)
     {
         if (auto input = dynamic_pointer_cast<functional::external>(id->expr.expr))
         {
-            make_input(id, model);
+            make_input(id, model, m_options.atomic_io, m_options.ordered_io);
         }
         else
         {
@@ -144,7 +145,7 @@ polyhedral_gen::process(const unordered_set<id_ptr> & ids)
     return model;
 }
 
-void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
+void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomic, bool ordered)
 {
     auto input = dynamic_pointer_cast<functional::external>(id->expr.expr);
     auto type = input->type;
@@ -209,22 +210,32 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
         // Make statement domain.
 
         // If the array is not infinite, the statement has
-        // a single iteration that writes the entire array.
+        // a single iteration that writes the entire array,
+        // unless atomic input is requested.
 
         string stmt_name = id->name + ".s";
 
-        auto tuple = isl::set_tuple( isl::identifier(stmt_name), 1 );
-        auto space = isl::space(model.context, tuple);
-        auto domain = isl::set::universe(space);
+        isl::set domain(nullptr);
 
-        auto i = space.var(0);
-        if (size.empty() || !ar->is_infinite)
+        if (atomic)
         {
-            domain.add_constraint(i == 0);
+            domain = ar->domain;
         }
         else
         {
-            domain.add_constraint( i >= 0 );
+            auto tuple = isl::set_tuple( isl::identifier(stmt_name), 1 );
+            auto space = isl::space(model.context, tuple);
+            domain = isl::set::universe(space);
+
+            auto i = space.var(0);
+            if (size.empty() || !ar->is_infinite)
+            {
+                domain.add_constraint(i == 0);
+            }
+            else
+            {
+                domain.add_constraint( i >= 0 );
+            }
         }
 
         auto stmt = make_shared<polyhedral::statement>(domain);
@@ -237,9 +248,16 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
         call->name = call_name;
 
         vector<expr_ptr> ar_index;
-        if (ar->is_infinite)
+        if (atomic)
+        {
+            for (int i = 0; i < domain.dimensions(); ++i)
+                ar_index.push_back(make_shared<ph::iterator_read>(i));
+        }
+        else if (ar->is_infinite)
+        {
             // Iterate first dimension
             ar_index.push_back(make_shared<ph::iterator_read>(0));
+        }
 
         auto read = make_shared<ph::array_read>(ar, ar_index);
 
@@ -247,11 +265,21 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
 
         // Add data read & write relations
         {
-            auto s = isl::space::from(stmt->domain.get_space(),
-                                      ar->domain.get_space());
-            auto m = isl::basic_map::universe(s);
-            if (ar->is_infinite)
-                m.add_constraint(s.out(0) == s.in(0));
+            isl::basic_map m(nullptr);
+
+            if (atomic)
+            {
+                m = isl::basic_map::identity(stmt->domain.get_space(),
+                                             ar->domain.get_space());
+            }
+            else
+            {
+                auto s = isl::space::from(stmt->domain.get_space(),
+                                          ar->domain.get_space());
+                m = isl::basic_map::universe(s);
+                if (ar->is_infinite)
+                    m.add_constraint(s.out(0) == s.in(0));
+            }
 
             stmt->write_relation = { ar, m };
             stmt->read_relations.emplace_back(ar, m);
@@ -265,12 +293,9 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
         }
 
         // Add self-relation to impose order
-        if (ar->is_infinite)
+        if (ordered && (atomic || ar->is_infinite))
         {
-            auto s = isl::space::from(stmt->domain.get_space(),
-                                      stmt->domain.get_space());
-            auto m = isl::basic_map::universe(s);
-            m.add_constraint(s.out(0) == s.in(0) + 1);
+            auto m = isl::order_less_than(stmt->domain.get_space());
 
             stmt->self_relations = m;
 
@@ -294,24 +319,34 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model)
 }
 
 void polyhedral_gen::add_output(polyhedral::model & model,
-                                const string & name, id_ptr id)
+                                const string & name, id_ptr id,
+                                bool atomic, bool ordered)
 {
     auto array = m_arrays.at(id);
 
     string stmt_name = id->name + "." + name;
 
-    auto tuple = isl::set_tuple( isl::identifier(stmt_name, nullptr), 1 );
-    auto space = isl::space(model.context, tuple);
-    auto domain = isl::set::universe(space);
+    isl::set domain(nullptr);
 
-    auto i = space.var(0);
-    if (array->size.empty() || !array->is_infinite)
+    if (atomic)
     {
-        domain.add_constraint(i == 0);
+        domain = array->domain;
     }
     else
     {
-        domain.add_constraint( i >= 0 );
+        auto tuple = isl::set_tuple( isl::identifier(stmt_name, nullptr), 1 );
+        auto space = isl::space(model.context, tuple);
+        domain = isl::set::universe(space);
+
+        auto i = space.var(0);
+        if (array->size.empty() || !array->is_infinite)
+        {
+            domain.add_constraint(i == 0);
+        }
+        else
+        {
+            domain.add_constraint( i >= 0 );
+        }
     }
 
     auto stmt = make_shared<polyhedral::statement>(domain);
@@ -323,24 +358,43 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     call->name = name;
 
     vector<expr_ptr> ar_index;
-    if (array->is_infinite)
+    if (atomic)
+    {
+        for (int i = 0; i < ar_index.size(); ++i)
+            ar_index.push_back(make_shared<ph::iterator_read>(i));
+    }
+    else if (array->is_infinite)
+    {
         // Iterate first dimension
         ar_index.push_back(make_shared<ph::iterator_read>(0));
+    }
 
     auto read = make_shared<ph::array_read>(array, ar_index);
 
     call->args.push_back(read);
+
+    stmt->expr = call;
 
     // isl index expression
 
     {
         // Add array read relation
         {
-            auto s = isl::space::from(stmt->domain.get_space(),
-                                      array->domain.get_space());
-            auto m = isl::basic_map::universe(s);
-            if (array->is_infinite)
-                m.add_constraint(s.out(0) == s.in(0));
+            isl::basic_map m(nullptr);
+
+            if (atomic)
+            {
+                m = isl::basic_map::identity(stmt->domain.get_space(),
+                                             array->domain.get_space());
+            }
+            else
+            {
+                auto s = isl::space::from(stmt->domain.get_space(),
+                                          array->domain.get_space());
+                m = isl::basic_map::universe(s);
+                if (array->is_infinite)
+                    m.add_constraint(s.out(0) == s.in(0));
+            }
 
             stmt->read_relations.emplace_back(array, m);
             read->relation = &stmt->read_relations.back();
@@ -353,13 +407,9 @@ void polyhedral_gen::add_output(polyhedral::model & model,
         }
 
         // Add self-relation to impose order
-        if (array->is_infinite)
+        if (ordered && (atomic || array->is_infinite))
         {
-            auto s = isl::space::from(stmt->domain.get_space(),
-                                      stmt->domain.get_space());
-            auto m = isl::basic_map::universe(s);
-            m.add_constraint(s.out(0) == s.in(0) + 1);
-
+            auto m = isl::order_less_than(stmt->domain.get_space());
             stmt->self_relations = m;
 
             if (verbose<polyhedral_gen>::enabled())
@@ -369,8 +419,6 @@ void polyhedral_gen::add_output(polyhedral::model & model,
             }
         }
     }
-
-    stmt->expr = call;
 
     model.statements.push_back(stmt);
 

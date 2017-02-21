@@ -119,6 +119,11 @@ int main(int argc, char *argv[])
     args.add_option({"ast-avoid-branch-in-loop", "", "", "Split loops to avoid branching inside."},
                     new switch_option(&opt.separate_loops));
 
+    args.add_option({"io-unordered", "", "", "Do not necessarily order input and output."},
+                    new switch_option(&opt.ordered_io, false));
+    args.add_option({"io-atomic", "", "", "Input and output singular elements."},
+                    new switch_option(&opt.atomic_io, true));
+
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");
     verbose_out->add_topic<ast::output>("ast");

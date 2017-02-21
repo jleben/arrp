@@ -53,6 +53,9 @@ struct options
 
     bool split_statements = false;
     bool separate_loops = false;
+
+    bool atomic_io = false;
+    bool ordered_io = true;
 };
 
 }
