@@ -461,25 +461,30 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
           periodic_dom = infinite_sched_dom - prologue_dom;
         }
 
-        // Split band into prologue and periodic part
-
         auto node = isl_schedule_node_copy(infinite_band);
 
-        {
-          auto domain_list = isl_union_set_list_alloc(m_model.context.get(), 2);
-          domain_list = isl_union_set_list_add(domain_list, prologue_dom.copy());
-          domain_list = isl_union_set_list_add(domain_list, periodic_dom.copy());
-          node = isl_schedule_node_insert_sequence(node, domain_list);
-        }
-
-        // Tile the periodic part
+        // Tile
 
         {
-          // Periodic part filter
-          node = isl_schedule_node_child(node, 1);
-          // Periodic part
-          node = isl_schedule_node_child(node, 0);
+            // Tile entire schedule, because different schedules for prologue
+            // and period can mess up with storage allocation
+            // (storage required in prologue is redundant in period).
+#if 0
+            // Split band into prologue and periodic parts
+            // and tile only the periodic part
 
+            {
+                auto domain_list = isl_union_set_list_alloc(m_model.context.get(), 2);
+                domain_list = isl_union_set_list_add(domain_list, prologue_dom.copy());
+                domain_list = isl_union_set_list_add(domain_list, periodic_dom.copy());
+                node = isl_schedule_node_insert_sequence(node, domain_list);
+
+                // Periodic part filter
+                node = isl_schedule_node_child(node, 1);
+                // Periodic part
+                node = isl_schedule_node_child(node, 0);
+            }
+#endif
           auto band_func = isl_schedule_node_band_get_partial_schedule(node);
           // t
           auto tiled_dim_func = isl_multi_union_pw_aff_get_union_pw_aff(band_func, tiling.dim);
