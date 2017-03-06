@@ -1,3 +1,4 @@
+
 function(stream_to_cpp name source)
 
   set(source_path ${CMAKE_CURRENT_SOURCE_DIR}/${source})
@@ -14,43 +15,6 @@ function(stream_to_cpp name source)
 
 endfunction()
 
-add_custom_target(tests)
-
-function(icc_compile_test name sources deps)
-  set(source_paths "")
-  foreach(source ${sources})
-    list(APPEND source_paths ${CMAKE_CURRENT_SOURCE_DIR}/${source})
-  endforeach()
-
-  add_custom_command(OUTPUT ${name}
-    COMMAND /home/jakob/intel/bin/icc
-    #COMMAND g++
-      -o ${name}
-      -std=c++11 -O3 -g -Winline -inline-forceinline
-      -fp-model strict
-      #-std=c++11 -O3 -g -Winline
-      -I ${CMAKE_CURRENT_BINARY_DIR}
-      ${source_paths}
-      -lm -lpapi
-    DEPENDS ${sources} ${deps}
-      ${CMAKE_SOURCE_DIR}/test/common/generic_tester.hpp
-      ${CMAKE_SOURCE_DIR}/test/common/generic_printer.hpp
-  )
-  add_custom_target(${name} DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${name})
-endfunction()
-
-function(add_stream_test name source options cpp_extra)
-
-  string(REPLACE " " ";" options "${options}")
-  stream_to_cpp(${name} ${source} ${options})
-  #stream_to_cpp(${name}_program ${source} "none")
-  icc_compile_test(test_${name} "${cpp_extra}" "${name}.cpp")
-  add_dependencies(test_${name} ${name})
-  add_dependencies(tests test_${name})
-
-endfunction()
-
-
 function(compile_output_test name test_source test_header test_libs)
   if(test_header)
     set(define_test_header "-DTEST_HEADER=<${test_header}>")
@@ -64,7 +28,7 @@ function(compile_output_test name test_source test_header test_libs)
   )
 
   add_custom_command(OUTPUT ${name}
-    COMMAND c++ -std=c++11 -O0 -g ${main_source}
+    COMMAND c++ -std=c++17 -O0 -g ${main_source}
       "-DPROGRAM_SOURCE=<${test_source}>"
       ${define_test_header}
       "-I${CMAKE_SOURCE_DIR}/test/common"
@@ -111,6 +75,8 @@ function(add_output_test name source)
     "--compare=${CMAKE_CURRENT_SOURCE_DIR}/${source}"
   )
 endfunction()
+
+add_custom_target(tests)
 
 add_subdirectory(common)
 add_subdirectory(unit)

@@ -16,7 +16,7 @@ function(compile_perf_test name main_source test_source test_header test_libs)
   )
 
   add_custom_command(OUTPUT ${name}
-    COMMAND ${icc_program} -std=c++11
+    COMMAND ${icc_program} -std=c++17
       -O3
       -g
       -Winline -inline-forceinline
