@@ -7,6 +7,7 @@ function(add_app_test name source)
 endfunction()
 
 #add_subdirectory(fm_radio)
+# FIXME: autocorrelation: Broken scheduling (infinite statements not merged).
 #add_subdirectory(autocorrelation)
 add_subdirectory(fft)
 add_subdirectory(fir)
