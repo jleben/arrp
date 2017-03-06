@@ -1,0 +1,2 @@
+/proc/sys/kernel/kptr_restrict = 1
+/proc/sys/kernel/perf_event_paranoid = 1
