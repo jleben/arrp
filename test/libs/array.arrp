@@ -16,4 +16,6 @@ iterate(f,init) = [
     i -> f(this[i-1]);
 ];
 
-map(f,a) = [i -> f(a[i])]
+map(f,a) = [i -> f(a[i])];
+
+reverse(x) = [#x: i -> x[#x-1-i]];
