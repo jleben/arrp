@@ -10,6 +10,7 @@ endfunction()
 # FIXME: autocorrelation: Broken scheduling (infinite statements not merged).
 #add_subdirectory(autocorrelation)
 add_subdirectory(upsample)
+add_subdirectory(lp)
 add_subdirectory(fir)
 add_subdirectory(osc)
 add_subdirectory(wavetable_osc)
