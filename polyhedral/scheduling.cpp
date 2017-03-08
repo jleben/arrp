@@ -284,6 +284,7 @@ isl::schedule scheduler::make_schedule
 #endif
     auto validity = dependencies | order;
     constr = isl_schedule_constraints_set_validity(constr, validity.copy());
+    constr = isl_schedule_constraints_set_coincidence(constr, validity.copy());
 
     if (options.optimize)
     {
