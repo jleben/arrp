@@ -135,6 +135,27 @@ scheduler::schedule(const scheduler::options & options)
         cout << endl << "Schedule map:" << endl;
         m_printer.print_each_in(schedule.full);
         cout << endl;
+
+        cout << endl << "Scheduled dependencies:" << endl;
+        m_model_summary.dependencies.for_each([&](isl::map m){
+            auto space = m.get_space();
+            cout << space.id(isl::space::input).name << " -> "
+                 << space.id(isl::space::output).name << ": " << endl;
+            isl::union_map um(m);
+            um.map_domain_through(schedule.full);
+            um.map_range_through(schedule.full);
+            isl::union_set us = isl_union_map_deltas(um.copy());
+            us.for_each([&](const isl::set & s){
+                s.for_each([&](isl::basic_set bs){
+                    m_printer.print(bs);
+                    cout << endl;
+                    return true;
+                });
+                return true;
+            });
+            return true;
+        });
+        cout << endl;
     }
 
     if (verbose<polyhedral::model>::enabled())
