@@ -76,6 +76,32 @@ private:
     unordered_map<string,bool*> m_topics;
 };
 
+struct tile_size_parser : public option_parser
+{
+    vector<int> * size;
+
+    tile_size_parser(vector<int> * target): size(target) {}
+
+    void process(arguments & args) override
+    {
+        string text;
+        args.parse_argument(text, "tile size");
+        size_t pos = 0;
+        while(pos < text.size())
+        {
+            auto separator_pos = text.find(',', pos);
+            auto num_text = text.substr(pos, separator_pos);
+            auto num = stoi(num_text);
+            if (num <= 0)
+                throw arguments::error("Invalid tile size: " + num_text);
+            size->push_back(num);
+            if (separator_pos == string::npos)
+                break;
+            pos = separator_pos + 1;
+        }
+    }
+};
+
 }
 }
 
@@ -123,6 +149,9 @@ int main(int argc, char *argv[])
                     new switch_option(&opt.ordered_io, false));
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
+
+    args.add_option({"tile-size", "", "", "Tile size."},
+                    new tile_size_parser(&opt.schedule.tile_size));
 
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");

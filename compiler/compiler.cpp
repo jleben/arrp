@@ -236,6 +236,7 @@ result::code compile_module
                 sched_opts.cluster = opts.schedule.cluster;
                 sched_opts.period_offset = opts.schedule.period_offset;
                 sched_opts.period_scale = opts.schedule.period_scale;
+                sched_opts.tile_size = opts.schedule.tile_size;
 
                 polyhedral::scheduler poly_scheduler( ph_model );
                 schedule = poly_scheduler.schedule(sched_opts);

@@ -28,6 +28,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <isl/union_set.h>
 #include <isl/map.h>
 #include <isl/union_map.h>
+#include <isl/schedule_node.h>
 #include <isl/ast_build.h>
 #include <isl/printer.h>
 
@@ -85,6 +86,7 @@ public:
         bool cluster = true;
         int period_offset = 0; // time steps beyond minimum offset
         int period_scale = 1; // number of minimum period durations
+        vector<int> tile_size;
     };
 
     scheduler( model & m );
@@ -153,6 +155,8 @@ private:
         int offset;
         int size;
     };
+
+    isl_schedule_node * tile(isl_schedule_node *, const options &);
 
     vector<access_info> analyze_access_schedules(const isl::union_map & schedule);
 

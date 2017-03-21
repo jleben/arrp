@@ -49,6 +49,7 @@ struct options
       bool cluster = true;
       int period_offset = 0;
       int period_scale = 1;
+      vector<int> tile_size;
     } schedule;
 
     bool split_statements = false;

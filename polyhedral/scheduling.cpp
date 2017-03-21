@@ -453,6 +453,24 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
           cout << endl;
         }
 
+        // Tile
+
+        if (!opt.tile_size.empty())
+        {
+            infinite_band = tile(infinite_band, opt);
+
+            infinite_sched =
+                    isl_schedule_node_get_subtree_schedule_union_map(infinite_band);
+
+
+            if (verbose<scheduler>::enabled())
+            {
+                cout << "Tiled infinite schedule:" << endl;
+                m_printer.print_each_in(infinite_sched);
+                cout << endl;
+            }
+        }
+
         // Find periodic tiling
 
         vector<access_info> access_analysis = analyze_access_schedules(infinite_sched);
@@ -599,6 +617,27 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
     infinite_band = isl_schedule_node_free(infinite_band);
     root = isl_schedule_node_free(root);
     domain_node = isl_schedule_node_free(domain_node);
+}
+
+isl_schedule_node * scheduler::tile(isl_schedule_node * node, const options & opt)
+{
+    if (opt.tile_size.empty())
+        return node;
+
+    isl::space sched_space = isl_schedule_node_band_get_space(node);
+
+    auto tile_size = isl_multi_val_zero(sched_space.copy());
+
+    for (int i = 0; i < sched_space.dimension(isl::space::variable); ++i)
+    {
+        int size = i < opt.tile_size.size() ? opt.tile_size[i] : 1;
+        isl::value val(m_model.context, size);
+        tile_size = isl_multi_val_set_val(tile_size, i, val.copy());
+    }
+
+    node = isl_schedule_node_band_tile(node, tile_size);
+
+    return node;
 }
 
 scheduler::tiling
