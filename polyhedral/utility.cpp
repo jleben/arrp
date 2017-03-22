@@ -1,6 +1,7 @@
 #include "utility.hpp"
 #include "../common/error.hpp"
 #include <isl-cpp/printer.hpp>
+#include <iostream>
 
 using namespace std;
 
@@ -82,6 +83,88 @@ void find_rays(const isl::basic_set & set, vector<ivector> & rays)
         rays.push_back(pvec);
         rays.push_back(nvec);
     }
+}
+
+ivector find_single_ray(const isl::basic_set & set, bool * tell_has_rays)
+{
+    isl::matrix eq =
+            isl_basic_set_equalities_matrix
+            (set.get(),
+             isl_dim_cst,
+             isl_dim_set,
+             isl_dim_param,
+             isl_dim_div
+             );
+
+    isl::matrix ineq =
+            isl_basic_set_inequalities_matrix
+            (set.get(),
+             isl_dim_cst,
+             isl_dim_set,
+             isl_dim_param,
+             isl_dim_div
+             );
+
+    for (int i = 0; i < eq.row_count(); ++i)
+        eq(i,0) = 0;
+    for (int i = 0; i < ineq.row_count(); ++i)
+        ineq(i,0) = 0;
+
+    isl::basic_set cone =
+            isl_basic_set_from_constraint_matrices
+            (set.get_space().copy(),
+             eq.copy(),
+             ineq.copy(),
+             isl_dim_cst,
+             isl_dim_set,
+             isl_dim_param,
+             isl_dim_div
+             );
+
+    cone = isl_basic_set_remove_redundancies(cone.copy());
+    cone = isl_basic_set_detect_equalities(cone.copy());
+
+    eq = isl_basic_set_equalities_matrix
+            (cone.get(),
+             isl_dim_cst,
+             isl_dim_set,
+             isl_dim_param,
+             isl_dim_div
+             );
+
+    ineq = isl_basic_set_inequalities_matrix
+            (cone.get(),
+             isl_dim_cst,
+             isl_dim_set,
+             isl_dim_param,
+             isl_dim_div
+             );
+
+    if (eq.row_count() < cone.dimensions())
+        if (tell_has_rays)
+            *tell_has_rays = true;
+
+    if (!(eq.row_count() == cone.dimensions() - 1 && ineq.row_count() == 1))
+        return ivector();
+
+    eq.drop_column(0);
+
+    auto nullspace = eq.nullspace();
+
+    if (nullspace.column_count() != 1)
+        return ivector();
+
+    int dot_product = 0;
+    for (int i = 0; i < nullspace.row_count(); ++i)
+        dot_product += nullspace(i,0).value().integer() * ineq(0,i+1).value().integer();
+
+    int scale = dot_product > 0 ? 1 : -1;
+
+    ivector ray;
+    ray.reserve(nullspace.row_count());
+    for (int i = 0; i < nullspace.row_count(); ++i)
+        ray.push_back(nullspace(i,0).value().integer() * scale);
+    return ray;
 }
 
 }

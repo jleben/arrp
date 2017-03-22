@@ -753,36 +753,27 @@ scheduler::analyze_access_schedules(const isl::union_map & schedule)
 
                     // Find smallest unique ray of access schedule
 
-                    vector<arrp::ivector> rays;
-                    arrp::find_rays(access_schedule.wrapped().lifted().flattened(), rays);
-
-                    if (verbose<scheduler>::enabled())
+                    bool has_rays = false;
+                    auto ray = arrp::find_single_ray(access_schedule.wrapped().lifted().flattened(), &has_rays);
+                    if (ray.empty())
                     {
-                        for (auto & r : rays)
-                        {
-                            cout << "ray: ";
-                            for (auto & i : r)
-                                cout << i << " ";
-                            cout << endl;
-                        }
-                    }
+                        if (has_rays)
+                            throw error("Multiple infinite directions.");
 
-                    if (rays.empty())
-                    {
                         if (verbose<scheduler>::enabled())
-                            cout << "No ray. Skipping." << endl;
+                            cout << "No infinite direction. Skipping." << endl;
 
                         access_infos.push_back(info);
                         return true;
                     }
 
-                    if (rays.size() != 1)
+                    if (verbose<scheduler>::enabled())
                     {
-                        throw error("Multiple rays.");
+                        cout << "ray: ";
+                        for (auto & i : ray)
+                            cout << i << " ";
+                        cout << endl;
                     }
-
-
-                    auto & ray = rays.front();
 
                     int n_time_dim = access_schedule.get_space().dimension(isl::space::input);
                     int n_array_dim = access_schedule.get_space().dimension(isl::space::output);
