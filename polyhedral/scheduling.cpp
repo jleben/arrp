@@ -378,7 +378,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
     isl_schedule_node * root = isl_schedule_node_get_child(domain_node, 0);
     assert_or_throw(root != nullptr);
 
-    isl_schedule_node * infinite_band = nullptr;
+    isl_schedule_node * infinite_node = nullptr;
     int root_seq_elems = 0;
 
     auto node_is_infinite = [&sched](isl_schedule_node * node) -> bool
@@ -403,7 +403,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
     if (root_type == isl_schedule_node_band)
     {
         if (node_is_infinite(root))
-            infinite_band = isl_schedule_node_copy(root);
+            infinite_node = isl_schedule_node_copy(root);
     }
     else
     {
@@ -411,7 +411,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
         int elem_count = root_seq_elems = isl_schedule_node_n_children(root);
         for (int i = 0; i < elem_count; ++i)
         {
-            if (infinite_band)
+            if (infinite_node)
             {
                 throw error("Schedule sequence contains infinite element that is not last.");
             }
@@ -428,7 +428,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
                 if (type == isl_schedule_node_band)
                 {
                     if (node_is_infinite(child))
-                        infinite_band = isl_schedule_node_copy(child);
+                        infinite_node = isl_schedule_node_copy(child);
                 }
                 else
                 {
@@ -441,10 +441,10 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
         }
     }
 
-    if (infinite_band)
+    if (infinite_node)
     {
         isl::union_map infinite_sched =
-                isl_schedule_node_get_subtree_schedule_union_map(infinite_band);
+                isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
 
         if (verbose<scheduler>::enabled())
         {
@@ -457,11 +457,14 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
 
         if (!opt.tile_size.empty())
         {
-            infinite_band = tile(infinite_band, opt);
+            // NOTE: Tile entire schedule, because different schedules for prologue
+            // and period can mess up with storage allocation
+            // (storage required in prologue is redundant in period).
+
+            infinite_node = tile(infinite_node, opt);
 
             infinite_sched =
-                    isl_schedule_node_get_subtree_schedule_union_map(infinite_band);
-
+                    isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
 
             if (verbose<scheduler>::enabled())
             {
@@ -471,13 +474,29 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
             }
         }
 
-        // Find periodic tiling
+        // Add periodic tiling dimension
+
+        {
+            infinite_node = add_periodic_tiling_dimension(infinite_node, opt);
+
+            infinite_sched =
+                    isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
+
+            if (verbose<scheduler>::enabled())
+            {
+                cout << "Schedule with period dimension:" << endl;
+                m_printer.print_each_in(infinite_sched);
+                cout << endl;
+            }
+        }
+
+        // Find period size and offset
 
         vector<access_info> access_analysis = analyze_access_schedules(infinite_sched);
 
-        auto tiling = find_periodic_tiling(access_analysis, opt);
+        auto periodic_tiling = find_periodic_tiling(access_analysis, opt);
 
-        assign_inter_tile_access_offsets(tiling, access_analysis);
+        assign_inter_tile_access_offsets(periodic_tiling, access_analysis);
 
         // Extract prologue and periodic domains
 
@@ -485,13 +504,13 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
         isl::union_set periodic_dom(m_model.context);
 
         {
-          isl::union_set infinite_sched_dom = isl_schedule_node_get_domain(infinite_band);
+          isl::union_set infinite_sched_dom = isl_schedule_node_get_domain(infinite_node);
 
           infinite_sched.in_domain(infinite_sched_dom).for_each([&](isl::map & m)
           {
             auto space = m.get_space();
             auto mp = m;
-            mp.add_constraint(space.out(tiling.dim) < tiling.offset);
+            mp.add_constraint(space.out(periodic_tiling.dim) < periodic_tiling.offset);
             prologue_dom |= mp.domain();
             //cout << "Adding prologue domain: ";
             //m_printer.print(mp.domain()); cout << endl;
@@ -501,58 +520,32 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
           periodic_dom = infinite_sched_dom - prologue_dom;
         }
 
-        auto node = isl_schedule_node_copy(infinite_band);
-
-        // Tile
+        // Apply period size and offset
 
         {
-            // Tile entire schedule, because different schedules for prologue
-            // and period can mess up with storage allocation
-            // (storage required in prologue is redundant in period).
-#if 0
-            // Split band into prologue and periodic parts
-            // and tile only the periodic part
+            isl::space band_space = isl_schedule_node_band_get_space(infinite_node);
 
-            {
-                auto domain_list = isl_union_set_list_alloc(m_model.context.get(), 2);
-                domain_list = isl_union_set_list_add(domain_list, prologue_dom.copy());
-                domain_list = isl_union_set_list_add(domain_list, periodic_dom.copy());
-                node = isl_schedule_node_insert_sequence(node, domain_list);
+            auto offset_val = isl::value(m_model.context, -periodic_tiling.offset);
+            auto scale_val = isl::value(m_model.context, periodic_tiling.size);
 
-                // Periodic part filter
-                node = isl_schedule_node_child(node, 1);
-                // Periodic part
-                node = isl_schedule_node_child(node, 0);
-            }
-#endif
-          auto band_func = isl_schedule_node_band_get_partial_schedule(node);
-          // t
-          auto tiled_dim_func = isl_multi_union_pw_aff_get_union_pw_aff(band_func, tiling.dim);
+            auto offset_upa =
+                    isl_union_pw_aff_val_on_domain
+                    (m_model_summary.domains.universe().copy(), offset_val.copy());
 
-          // t = t - tiling.offset
-          if (tiling.offset != 0)
-          {
-            auto offset =
-                isl_union_pw_aff_val_on_domain
-                (isl_union_pw_aff_domain(isl_union_pw_aff_copy(tiled_dim_func)),
-                 isl_val_int_from_si(m_model.context.get(), tiling.offset));
-            tiled_dim_func = isl_union_pw_aff_sub(tiled_dim_func, offset);
-          }
+            infinite_node = isl_schedule_node_band_shift
+                    (infinite_node,
+                     isl_multi_union_pw_aff_from_union_pw_aff(offset_upa));
 
-          // t = floor(t / tiling.size)
-          tiled_dim_func = isl_union_pw_aff_scale_down_val
-              (tiled_dim_func, isl_val_int_from_si(m_model.context.get(), tiling.size));
-          tiled_dim_func = isl_union_pw_aff_floor(tiled_dim_func);
+            auto scale_multi_val = isl_multi_val_zero(band_space.copy());
+            scale_multi_val = isl_multi_val_set_val(scale_multi_val, 0, scale_val.copy());
+            infinite_node = isl_schedule_node_band_scale_down(infinite_node, scale_multi_val);
 
-          auto tile_func = isl_multi_union_pw_aff_from_union_pw_aff(tiled_dim_func);
-          // Tiled periodic part
-          node = isl_schedule_node_insert_partial_schedule(node, tile_func);
-
-          isl_multi_union_pw_aff_free(band_func);
+            infinite_sched =
+                    isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
         }
 
         // Store entire schedule
-        sched.tree = isl_schedule_node_get_schedule(node);
+        sched.tree = isl_schedule_node_get_schedule(infinite_node);
 
         // Extract prologue
         {
@@ -563,8 +556,8 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
 
         // Extract single period
         {
-          isl::union_map um = isl_schedule_node_get_subtree_schedule_union_map(node);
-          isl::union_set dom = isl_schedule_node_get_domain(node);
+          isl::union_map um = isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
+          isl::union_set dom = isl_schedule_node_get_domain(infinite_node);
           um = um.in_domain(dom);
 
           isl::union_set period_dom(m_model.context);
@@ -605,8 +598,6 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
             cout << endl;
             m_printer.print_each_in(sched.period);
         }
-
-        isl_schedule_node_free(node);
     }
     else
     {
@@ -614,7 +605,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
         sched.prelude = sched.tiled = sched.full;
     }
 
-    infinite_band = isl_schedule_node_free(infinite_band);
+    infinite_node = isl_schedule_node_free(infinite_node);
     root = isl_schedule_node_free(root);
     domain_node = isl_schedule_node_free(domain_node);
 }
@@ -631,6 +622,8 @@ isl_schedule_node * scheduler::tile(isl_schedule_node * node, const options & op
     for (int i = 0; i < sched_space.dimension(isl::space::variable); ++i)
     {
         int size = i < opt.tile_size.size() ? opt.tile_size[i] : 1;
+        if (size < 1)
+            throw error("Invalid tile size: " + to_string(size));
         isl::value val(m_model.context, size);
         tile_size = isl_multi_val_set_val(tile_size, i, val.copy());
     }
@@ -640,38 +633,164 @@ isl_schedule_node * scheduler::tile(isl_schedule_node * node, const options & op
     return node;
 }
 
+isl_schedule_node * scheduler::add_periodic_tiling_dimension(isl_schedule_node * band_node, const options & opt)
+{
+    if (verbose<scheduler>::enabled())
+    {
+        cout << "Adding periodic tiling dimesion..." << endl;
+    }
+
+    isl::space band_space = isl_schedule_node_band_get_space(band_node);
+    int band_size = band_space.dimension(isl::space::variable);
+
+    // Find the infinite direction of the range of schedule.
+    // Since the schedule is a union map, we find the ray of the
+    // convex hull of the range of schedule, with equivalent result.
+
+    isl::union_map schedule_map = isl_schedule_node_get_subtree_schedule_union_map(band_node);
+    schedule_map = schedule_map
+            .in_domain(m_model_summary.domains);
+
+    isl::space range_space(nullptr);
+    schedule_map.for_each([&](const isl::map & m){
+        range_space = m.get_space().range();
+        return false;
+    });
+
+    auto sched_range = schedule_map.range().set_for(range_space);
+
+    auto simplified_range = sched_range.lifted().flattened();
+
+    // NOTE: Finding convex hull takes too long in some cases, so we find simple hull:
+    isl::basic_set schedule_range_hull = simplified_range.simple_hull();
+
+    if (verbose<scheduler>::enabled())
+    {
+        cout << "Schedule hull:" << endl;
+        m_printer.print(schedule_range_hull);
+        cout << endl;
+    }
+
+    arrp::ivector ray = arrp::find_single_ray(schedule_range_hull);
+    if (ray.empty())
+        throw error("Schedule has multiple or no infinite directions.");
+
+    if (verbose<scheduler>::enabled())
+    {
+        cout << "Infinite direction:";
+        for (auto & v : ray)
+            cout << ' ' << v;
+        cout << endl;
+    }
+
+    // Get periodic tiling direction selected by user.
+
+    arrp::ivector period_dir = opt.periodic_tile_direction;
+
+    if (!period_dir.empty())
+    {
+        // Validate selected direction.
+
+        if (period_dir.size() > band_size)
+            throw error("Selected periodic tiling direction has too many dimensions.");
+
+        for (int i = 0 ; i < band_size && i < period_dir.size(); ++i)
+            if (period_dir[i] < 0)
+                throw error("Periodic tiling direction must be non-negative.");
+
+        // Map tile to schedule space
+
+        int common_tile_size_multiple = 1;
+        for (auto size : opt.tile_size)
+            common_tile_size_multiple = lcm(common_tile_size_multiple, size);
+
+        for (int i = 0; i < period_dir.size(); ++i)
+        {
+            auto & coef = period_dir[i];
+            coef = common_tile_size_multiple * coef;
+            if (i < opt.tile_size.size())
+                coef /= opt.tile_size[i];
+        }
+
+        if (verbose<scheduler>::enabled())
+        {
+            cout << "Mapped period direction: ";
+            for (auto coef : period_dir)
+                cout << " " << coef;
+            cout << endl;
+        }
+
+        int dot_product = 0;
+        for (int i = 0 ; i < band_size && i < period_dir.size(); ++i)
+        {
+            auto coef = period_dir[i];
+            if (coef < 0)
+                throw error("Periodic tiling direction must be non-negative.");
+
+            dot_product += ray[i] * coef;
+        }
+
+        if (dot_product == 0)
+            throw error("Selected periodic tiling direction is perpendicular to infinite direction of schedule.");
+    }
+    else
+    {
+        // Select first dimension not perpendicular to infinite direction.
+
+        for (int i = 0; i < band_size; ++i)
+        {
+            if (ray[i] != 0)
+            {
+                period_dir.push_back(1);
+                break;
+            }
+
+            period_dir.push_back(0);
+        }
+    }
+
+    // Insert a new band for the schedule of periods
+
+    isl::local_space local_band_space(band_space);
+
+    // .. Create function to map given band dimensions to periods
+
+    auto period_func = isl::expression::value(local_band_space, 0);
+
+    for (int i = 0; i < period_dir.size(); ++i)
+    {
+        auto coef = period_dir[i];
+        period_func = period_func + coef * local_band_space(isl::space::variable, i);
+    }
+
+    // .. Compose period function with given band function, to get a
+    // function in original domain variables.
+
+    auto band_func = isl_schedule_node_band_get_partial_schedule(band_node);
+
+    auto full_period_func = isl_multi_union_pw_aff_apply_aff(band_func, period_func.copy());
+
+    // .. Insert new band with period function
+
+    auto period_node = isl_schedule_node_insert_partial_schedule
+            (band_node,
+             isl_multi_union_pw_aff_from_union_pw_aff(full_period_func));
+
+    return period_node;
+}
+
 scheduler::tiling
 scheduler::find_periodic_tiling(const vector<access_info> & access_infos, const options & opt)
 {
     if (verbose<scheduler>::enabled())
         cout << endl << "Finding periodic tiling." << endl;
 
+    // FIXME: Periodic tiling dimension is found earlier,
+    // no point in storing it into "periodic_tiling":
     tiling periodic_tiling;
-    periodic_tiling.dim = -1;
+    periodic_tiling.dim = 0;
     periodic_tiling.offset = 0;
     periodic_tiling.size = 1;
-
-    // Find common tiling dimension
-    for (auto & access : access_infos)
-    {
-        if (access.time_period.empty())
-            continue;
-
-        // Find schedule tiling dimension (first dim where ray is not 0),
-        // and time period.
-        for (int dim = 0; dim < access.time_period.size(); ++dim)
-        {
-            if(access.time_period[dim] != 0)
-            {
-                // Make sure the dimension is identical for all access schedule
-                if (periodic_tiling.dim == -1)
-                    periodic_tiling.dim = dim;
-                else if (periodic_tiling.dim != dim)
-                    throw error("Inconsistent infinite directions of access schedules.");
-                break;
-            }
-        }
-    }
 
     // Find common tiling period
     for (auto & access : access_infos)
@@ -801,13 +920,18 @@ int scheduler::find_period_onset(const access_info & info, int tiling_dim)
     if (info.time_period.empty())
     {
         auto times = info.schedule.domain();
+
+        if (verbose<scheduler>::enabled())
+        {
+            cout << "Finite Domain: "; m_printer.print(times); cout << endl;
+        }
+
         auto time_space = times.get_space();
         // NOTE: Assuming infinite direction of schedule is positive in all dimensions
         int last_time = times.maximum(time_space.var(tiling_dim)).integer();
 
         if (verbose<scheduler>::enabled())
         {
-            cout << "Finite Domain: "; m_printer.print(times); cout << endl;
             cout << "Latest: " << last_time << endl;
         }
 

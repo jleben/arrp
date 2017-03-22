@@ -35,6 +35,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../polyhedral/storage_alloc.hpp"
 #include "../cpp/cpp_target.hpp"
 
+#include <stdexcept>
+
 using namespace std;
 using namespace stream;
 using namespace stream::compiler;
@@ -76,24 +78,29 @@ private:
     unordered_map<string,bool*> m_topics;
 };
 
-struct tile_size_parser : public option_parser
+struct int_tuple_parser : public option_parser
 {
+    string name;
     vector<int> * size;
 
-    tile_size_parser(vector<int> * target): size(target) {}
+    int_tuple_parser(const string & name, vector<int> * target): name(name), size(target) {}
 
     void process(arguments & args) override
     {
         string text;
-        args.parse_argument(text, "tile size");
+        args.parse_argument(text, name);
         size_t pos = 0;
         while(pos < text.size())
         {
             auto separator_pos = text.find(',', pos);
             auto num_text = text.substr(pos, separator_pos);
-            auto num = stoi(num_text);
-            if (num <= 0)
-                throw arguments::error("Invalid tile size: " + num_text);
+            int num;
+            try {
+                num = stoi(num_text);
+            } catch (std::invalid_argument&) {
+                throw arguments::error("Invalid element in " + name + ": " + num_text);
+            }
+
             size->push_back(num);
             if (separator_pos == string::npos)
                 break;
@@ -137,6 +144,10 @@ int main(int argc, char *argv[])
 
     args.add_option({"sched-whole", "", "", "Schedule whole program at once."},
                     new switch_option(&opt.schedule.cluster, false));
+    args.add_option({"sched-tile-size", "", "", "Tile size."},
+                    new int_tuple_parser("tile size", &opt.schedule.tile_size));
+    args.add_option({"sched-period-direction", "", "", "Direction of periodic tiling."},
+                    new int_tuple_parser("period direction", &opt.schedule.periodic_tile_direction));
     args.add_option({"sched-period-offset", "", "", "Offset of period relative to earliest onset."},
                     new int_option(&opt.schedule.period_offset));
     args.add_option({"sched-period-scale", "", "", "Size of period as a multiple of minimal periods."},
@@ -149,9 +160,6 @@ int main(int argc, char *argv[])
                     new switch_option(&opt.ordered_io, false));
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
-
-    args.add_option({"tile-size", "", "", "Tile size."},
-                    new tile_size_parser(&opt.schedule.tile_size));
 
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");

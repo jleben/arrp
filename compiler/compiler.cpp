@@ -234,6 +234,7 @@ result::code compile_module
             {
                 polyhedral::scheduler::options sched_opts;
                 sched_opts.cluster = opts.schedule.cluster;
+                sched_opts.periodic_tile_direction = opts.schedule.periodic_tile_direction;
                 sched_opts.period_offset = opts.schedule.period_offset;
                 sched_opts.period_scale = opts.schedule.period_scale;
                 sched_opts.tile_size = opts.schedule.tile_size;
