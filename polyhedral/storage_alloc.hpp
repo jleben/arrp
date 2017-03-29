@@ -42,6 +42,14 @@ private:
     ( const schedule &,
       const array_ptr & array );
 
+    isl::map compute_conflicts
+    (const isl::map & write_schedule,
+     const isl::map & read_schedule,
+     const isl::map & order_relation);
+
+    void compute_buffer_size_from_conflicts
+    ( const isl::map & conflict_set, vector<int> & buffer_size );
+
     void find_inter_period_dependency
     ( const schedule &,
       const array_ptr & );

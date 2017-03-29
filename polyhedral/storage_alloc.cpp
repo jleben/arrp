@@ -96,11 +96,11 @@ void storage_allocator::compute_buffer_size
 
     if (verbose<storage_allocator>::enabled())
     {
-        cout << "  Write schedule: ";
-        m_printer.print(write_sched);
+        cout << "  Write schedule: " << endl;
+        m_printer.print_each_in(write_sched);
         cout << endl;
-        cout << "  Read schedule: ";
-        m_printer.print(read_sched);
+        cout << "  Read schedule: " << endl;
+        m_printer.print_each_in(read_sched);
         cout << endl;
     }
 
@@ -121,82 +121,167 @@ void storage_allocator::compute_buffer_size
 
     /*
     A pair of array elements is live at the same time if
-    mutually one is written before the other one is read.
-
-    ISCC:
-    w_before_r := unwrap(domain((aw cross ar) ->* wrap (t <<= t)));
-    live_together := w_before_r * (w_before_r^-1);
+    there exists an overlapping pair of periods between
+    a write and a read of each of the elements -
+    i.e the write of one is before the read of the other,
+    as well as the opposite.
     */
 
     auto access_sched = write_sched | read_sched;
 
-    auto before = order_less_than(sched_space);
-
-    auto accessed_before_accessed =
-            access_sched.cross(access_sched).in_range(before.wrapped()).domain().unwrapped();
-
-    auto live_together =
-            accessed_before_accessed & accessed_before_accessed.inverse();
-
-#if 0
     if (verbose<storage_allocator>::enabled())
     {
-        cout << ".. Written before read:" << endl;
-        m_printer.print_each_in(written_before_read);
-
-        cout << ".. Live together:" << endl;
-        m_printer.print_each_in(live_together);
+        cout << "  Access schedule: " << endl;
+        m_printer.print_each_in(access_sched);
+        cout << endl;
     }
-#endif
-    vector<int> buffer_size;
 
-    int buf_dim_count = array_space.dimension(isl::space::variable);
-    buffer_size.reserve(buf_dim_count);
+    //cout << "Num access schedule sets: " << isl_map_n_basic_map(access_sched.get()) << endl;
 
-    if (live_together.is_empty())
+    int buffer_dim_count = array_space.dimension(isl::space::variable);
+    array->buffer_size = vector<int>(buffer_dim_count, 1);
+
+    auto conflicts = compute_conflicts(write_sched, read_sched, order_less_than(sched_space));
+
+    compute_buffer_size_from_conflicts(conflicts, array->buffer_size);
+}
+
+isl::map storage_allocator::compute_conflicts
+(const isl::map & write_schedule,
+ const isl::map & read_schedule,
+ const isl::map & order_relation)
+{
+    auto array_space = write_schedule.get_space().domain();
+
+    isl::map precedence(isl::space::from(array_space, array_space));
+    isl::map conflicts(precedence.get_space());
+
+    int d = 0;
+
+    auto access_schedule_pairs = write_schedule.cross(read_schedule);
+
+    if (verbose<storage_allocator>::enabled())
+    {
+        cout << endl
+             << "*** Num access schedule pairs: "
+             << isl_map_n_basic_map(access_schedule_pairs.get())
+             << endl;
+    }
+
+    order_relation.for_each([&](const isl::basic_map & order)
+    {
+        auto wrapped_order = order.wrapped();
+
+        access_schedule_pairs.for_each([&](const isl::basic_map & a)
+        {
+            auto this_precedence = a.in_range(wrapped_order).domain().unwrapped();
+
+            if (!this_precedence.is_empty())
+                precedence |= this_precedence;
+
+            return true;
+        });
+
+        return true;
+    });
+
+    if (verbose<storage_allocator>::enabled())
+        cout << "Num precedence sets: " << isl_map_n_basic_map(precedence.get()) << endl;
+
+
+    precedence = isl_map_coalesce(precedence.copy());
+    //precedence = isl_map_remove_redundancies(precedence.copy());
+
+    if (verbose<storage_allocator>::enabled())
+        cout << "Num coalesced precedence sets: " << isl_map_n_basic_map(precedence.get()) << endl;
+
+    int i = 0;
+    precedence.for_each([&](const isl::basic_map & a){
+        ++i;
+        int j = 0;
+        precedence.for_each([&](const isl::basic_map & b){
+            ++j;
+            if (j > i)
+                return false;
+
+            auto conflict = a & b.inverse();
+
+            if (!conflict.is_empty())
+            {
+                // NOTE:
+                // We need the inverse conflict too,
+                // to ensure distance maximization works, since
+                // some conflicts might have negative distance.
+                conflicts |= conflict;
+                conflicts |= conflict.inverse();
+            }
+
+            return true;
+        });
+        return true;
+    });
+
+    if (verbose<storage_allocator>::enabled())
+        cout << "Num conflicts: " << isl_map_n_basic_map(conflicts.get()) << endl;
+
+    //conflicts = isl_map_coalesce(conflicts.copy());
+    //cout << "Basic maps in conflicts optimized: " << isl_map_n_basic_map(conflicts.get()) << endl;
+
+    return conflicts;
+}
+
+void storage_allocator::compute_buffer_size_from_conflicts
+( const isl::map & conflicts, vector<int> & buffer_size )
+{
+    if (conflicts.is_empty())
     {
         if (verbose<storage_allocator>::enabled())
             cout << "  No elements live together" << endl;
 
-        buffer_size.resize(buf_dim_count, 1);
+        for (auto & s : buffer_size)
+            s = 1;
     }
     else
     {
         if (verbose<storage_allocator>::enabled())
+            cout << "  Computing max reuse distance..." << endl;
+
+        if (verbose<storage_allocator>::enabled())
             cout << "  Max reuse distance:";
 
-        for (int dim = 0; dim < buf_dim_count; ++dim)
+        isl::map active_conflicts = conflicts;
+
+        for (int dim = 0; dim < buffer_size.size(); ++dim)
         {
             {
-                auto live_together_set = live_together.wrapped();
-                isl::local_space space(live_together_set.get_space());
+                auto conflict_set = active_conflicts.wrapped();
+                isl::local_space space(conflict_set.get_space());
                 auto a = space(isl::space::variable, dim);
-                auto b = space(isl::space::variable, buf_dim_count + dim);
-                auto max_distance = live_together_set.maximum(b - a);
+                auto b = space(isl::space::variable, buffer_size.size() + dim);
+                auto max_distance = conflict_set.maximum(b - a);
                 if (!max_distance.is_integer())
                 {
                     ostringstream msg;
                     msg << "Infinite buffer size required for array "
-                        << array->name << ", dimension " << dim << ".";
+                        //<< array->name
+                        << ", dimension " << dim << ".";
                     throw std::runtime_error(msg.str());
                 }
                 if (verbose<storage_allocator>::enabled())
                     cout << max_distance.integer() << " ";
-                buffer_size.push_back((int) max_distance.integer() + 1);
+                buffer_size[dim] = (int) max_distance.integer() + 1;
             }
             {
-                isl::local_space space(live_together.get_space());
+                isl::local_space space(active_conflicts.get_space());
                 auto a = space(isl::space::input, dim);
                 auto b = space(isl::space::output, dim);
-                live_together.add_constraint(a == b);
+                active_conflicts.add_constraint(a == b);
             }
         }
 
         if (verbose<storage_allocator>::enabled())
             cout << endl;
     }
-
-    array->buffer_size = buffer_size;
 }
 
 void storage_allocator::find_inter_period_dependency
