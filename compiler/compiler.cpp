@@ -227,6 +227,30 @@ result::code compile_module
                 gen.add_output(ph_model, "output", id, opts.atomic_io, opts.ordered_io);
             }
 
+            // Drop statement instances which write elements which are never read
+
+            {
+                isl::printer printer(ph_model.context);
+                polyhedral::model_summary summary(ph_model);
+
+                auto read_elements = summary.read_relations.in_domain(summary.domains).range();
+                auto useful_domains = summary.write_relations.in_domain(summary.domains).inverse()(read_elements);
+
+                useful_domains.for_each([&](const isl::set & domain)
+                {
+                    auto stmt = ph_model.statement_for(domain.id());
+                    stmt->domain &= domain;
+                    stmt->domain.coalesce();
+                    if (verbose<functional::polyhedral_gen>::enabled())
+                    {
+                        cout << "Restricted statement domain: ";
+                        printer.print(stmt->domain);
+                        cout << endl;
+                    }
+                    return true;
+                });
+            }
+
             // Compute polyhedral schedule
 
             polyhedral::schedule schedule(ph_model.context);
