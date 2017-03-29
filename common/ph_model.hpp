@@ -186,6 +186,16 @@ public:
     vector<io_channel> inputs;
     vector<io_channel> outputs;
     unordered_map<string, array_ptr> phase_ids;
+
+    statement *statement_for( const isl::identifier & id )
+    {
+        return reinterpret_cast<statement*>(id.data);
+    }
+
+    array * array_for( const isl::identifier & id)
+    {
+        return reinterpret_cast<array*>(id.data);
+    }
 };
 
 class model_summary
