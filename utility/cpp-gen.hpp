@@ -721,6 +721,7 @@ public:
     expression_ptr condition;
     expression_ptr update;
     statement_ptr body;
+    bool is_parallel = false;
     void generate(state &, ostream &);
 };
 

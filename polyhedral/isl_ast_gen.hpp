@@ -24,12 +24,54 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../common/ph_model.hpp"
 #include "../utility/debug.hpp"
 
+#include <isl/ast_build.h>
+#include <isl/id.h>
+
 namespace stream {
 namespace polyhedral {
 
-struct ast_gen {}; // for verbose output
+class ast_gen
+{
+public:
+    struct options
+    {
+        bool separate_loops = false;
+        bool parallel = false;
+    };
 
-ast_isl make_isl_ast(schedule &, bool separate_loops );
+    ast_gen(model &, schedule &, const options &);
+
+    ast_isl generate();
+
+private:
+    isl::union_map compute_order();
+
+    static isl_id * invoke_before_for
+    (isl_ast_build *build, void *user)
+    {
+        return reinterpret_cast<ast_gen*>(user)->before_for(build);
+    }
+
+    static isl_ast_node * invoke_after_for
+    (isl_ast_node *node, isl_ast_build *build, void *user)
+    {
+        return reinterpret_cast<ast_gen*>(user)->after_for(node, build);
+    }
+
+    isl_id * before_for(isl_ast_build *);
+    isl_ast_node * after_for(isl_ast_node *node, isl_ast_build *);
+    bool current_schedule_dimension_is_parallel(isl_ast_build *);
+
+    model & m_model;
+    model_summary m_model_summary;
+    schedule & m_schedule;
+    options m_options;
+    isl::union_map m_order;
+
+    bool m_in_parallel_for = false;
+};
+
+
 
 }
 }

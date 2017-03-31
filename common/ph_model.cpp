@@ -32,5 +32,20 @@ isl::matrix to_isl_matrix(const affine_matrix & src, const isl::context & ctx, b
     return dst;
 }
 
+void ast_node_info_deleter(void * data)
+{
+    delete reinterpret_cast<ast_node_info*>(data);
+}
+
+isl_id * ast_node_info::create_on_id(isl::context & ctx, const string & name)
+{
+    auto info = new ast_node_info;
+    auto id = isl_id_alloc(ctx.get(), name.c_str(), info);
+    id = isl_id_set_free_user(id, &ast_node_info_deleter);
+    if (!id)
+        delete info;
+    return id;
+}
+
 }
 }

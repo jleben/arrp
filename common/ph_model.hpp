@@ -275,6 +275,15 @@ public:
 class ast_isl
 {
 public:
+    ast_isl() {}
+
+    ast_isl(const ast_isl & other)
+    {
+        full = isl_ast_node_copy(other.full);
+        prelude = isl_ast_node_copy(other.prelude);
+        period = isl_ast_node_copy(other.period);
+    }
+
     ~ast_isl()
     {
         isl_ast_node_free(full);
@@ -282,9 +291,29 @@ public:
         isl_ast_node_free(period);
     }
 
+    ast_isl & operator=(const ast_isl & other)
+    {
+        full = isl_ast_node_copy(other.full);
+        prelude = isl_ast_node_copy(other.prelude);
+        period = isl_ast_node_copy(other.period);
+        return *this;
+    }
+
     isl_ast_node * full = nullptr;
     isl_ast_node * prelude = nullptr;
     isl_ast_node * period = nullptr;
+};
+
+struct ast_node_info
+{
+    bool is_parallel_for = false;
+
+    static ast_node_info * get_from_id(isl_id * id)
+    {
+        return reinterpret_cast<ast_node_info*>(isl_id_get_user(id));
+    }
+
+    static isl_id * create_on_id(isl::context &, const string & name = string());
 };
 
 } // namespace polyhedral

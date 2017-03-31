@@ -58,6 +58,8 @@ struct options
 
     bool atomic_io = false;
     bool ordered_io = true;
+
+    bool parallel = false;
 };
 
 }

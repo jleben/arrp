@@ -161,6 +161,9 @@ int main(int argc, char *argv[])
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
 
+    args.add_option({"parallel", "", "", "Generate parallelized code, if possible."},
+                    new switch_option(&opt.parallel, true));
+
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");
     verbose_out->add_topic<ast::output>("ast");

@@ -19,6 +19,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "cpp_from_isl.hpp"
+#include "../common/ph_model.hpp"
 #include "../common/error.hpp"
 
 #include <iostream>
@@ -148,6 +149,16 @@ void cpp_from_isl::process_for(isl_ast_node *node)
     auto inc_expr = isl_ast_node_for_get_inc(node);
     auto body_node = isl_ast_node_for_get_body(node);
 
+    polyhedral::ast_node_info * info = nullptr;
+    {
+        auto id = isl_ast_node_get_annotation(node);
+        if (id)
+        {
+            info = polyhedral::ast_node_info::get_from_id(id);
+            id = isl_id_free(id);
+        }
+    }
+
     auto iter = process_expr(iter_expr);
     auto init = process_expr(init_expr);
     auto cond = process_expr(cond_expr);
@@ -178,6 +189,11 @@ void cpp_from_isl::process_for(isl_ast_node *node)
             for_stmt->body = stmts.front();
         else
             for_stmt->body = block(stmts);
+    }
+
+    if (info)
+    {
+        for_stmt->is_parallel = info->is_parallel_for;
     }
 
     m_ctx->add(for_stmt);
