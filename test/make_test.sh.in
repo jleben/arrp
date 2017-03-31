@@ -1,0 +1,16 @@
+#! /bin/bash
+
+arrp_args="$1"
+cpp_args="$2"
+
+${ARRP_COMPILER} $arrp_args --cpp test --cpp-namespace test || exit 1
+
+g++ -std=c++17 $cpp_args \
+-DPROGRAM_SOURCE="<test.cpp>" \
+${TEST_SOURCE_DIR}/test_main.cpp \
+${TEST_SOURCE_DIR}/testing.cpp \
+${TEST_SOURCE_DIR}/test_parser.cpp \
+-I${TEST_SOURCE_DIR} \
+-I${CPP_INCLUDE_DIR} \
+-I. \
+|| exit 1
