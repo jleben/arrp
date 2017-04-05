@@ -5,6 +5,12 @@
 #include <iostream>
 #include <complex>
 
+#ifdef __GNUC__
+#define ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define ALWAYS_INLINE
+#endif
+
 namespace arrp {
 namespace testing {
 
