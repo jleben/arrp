@@ -186,6 +186,7 @@ public:
     vector<io_channel> inputs;
     vector<io_channel> outputs;
     unordered_map<string, array_ptr> phase_ids;
+    isl::union_map parallel_accesses { nullptr };
 
     statement *statement_for( const isl::identifier & id )
     {

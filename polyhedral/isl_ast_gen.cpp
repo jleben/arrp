@@ -20,6 +20,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "isl_ast_gen.hpp"
 #include "../utility/debug.hpp"
+#include "../utility/stacker.hpp"
 
 #include <isl/ast_build.h>
 #include <isl/schedule_node.h>
@@ -92,6 +93,7 @@ ast_gen::ast_gen(model & m, schedule & s, const options & opt):
     m_model_summary(m),
     m_schedule(s),
     m_options(opt),
+    m_printer(m.context),
     m_order(compute_order())
 {
 
@@ -101,26 +103,6 @@ isl::union_map ast_gen::compute_order()
 {
     auto writes = m_model_summary.write_relations.in_domain(m_model_summary.domains);
     auto reads = m_model_summary.read_relations.in_domain(m_model_summary.domains);
-
-    isl::union_map array_to_buffer(m_model.context);
-
-    for (auto & array : m_model.arrays)
-    {
-        auto as = array->domain.get_space();
-        auto m = isl::basic_map::universe(isl::space::from(as,as));
-        int n_dim = array->domain.dimensions();
-        auto s = m.get_space();
-        for (int d = 0; d < n_dim; ++d)
-        {
-            int buf_size = array->buffer_size[d];
-            m.add_constraint(s.out(d) == s.in(d) % buf_size);
-        }
-
-        array_to_buffer |= m;
-    }
-
-    writes.map_range_through(array_to_buffer);
-    reads.map_range_through(array_to_buffer);
 
     isl::union_map order(m_model.context);
 
@@ -183,11 +165,14 @@ ast_isl ast_gen::generate()
     build = isl_ast_build_set_before_each_for(build, &ast_gen::invoke_before_for, this);
     build = isl_ast_build_set_after_each_for(build, &ast_gen::invoke_after_for, this);
 
+    // Initialize parallel accesses to empty map
+    m_model.parallel_accesses = isl::union_map(m_model.context);
+
     if (m_schedule.tree.get())
     {
         if (verbose<ast_gen>::enabled())
             cout << endl << "** Building AST for entire program." << endl;
-        m_in_parallel_for = false;
+        m_allow_parallel_for = false;
         output.full =
                 isl_ast_build_node_from_schedule(build, m_schedule.tree.copy());
     }
@@ -195,7 +180,7 @@ ast_isl ast_gen::generate()
     {
         if (verbose<ast_gen>::enabled())
             cout << endl << "** Building AST for prelude." << endl;
-        m_in_parallel_for = false;
+        m_allow_parallel_for = false;
         output.prelude =
                 isl_ast_build_node_from_schedule(build, m_schedule.prelude_tree.copy());
     }
@@ -203,7 +188,7 @@ ast_isl ast_gen::generate()
     {
         if (verbose<ast_gen>::enabled())
             cout << endl << "** Building AST for period." << endl;
-        m_in_parallel_for = false;
+        m_allow_parallel_for = m_options.parallel;
         output.period =
                 isl_ast_build_node_from_schedule(build, m_schedule.period_tree.copy());
     }
@@ -217,8 +202,12 @@ isl_id * ast_gen::before_for(isl_ast_build *builder)
 {
     auto id = ast_node_info::create_on_id(m_model.context);
 
-    if (!m_options.parallel)
+    if (!m_allow_parallel_for)
+    {
+        if (verbose<ast_gen>::enabled())
+            cout << "-- For loop: Parallelization disabled." << endl;
         return id;
+    }
 
     if (verbose<ast_gen>::enabled())
         cout << "-- Attempting to parallelize for loop.." << endl;
@@ -241,9 +230,13 @@ isl_id * ast_gen::before_for(isl_ast_build *builder)
     if (verbose<ast_gen>::enabled())
         cout << "   Parallelized." << endl;
 
+    store_parallel_accesses_for_current_dimension(builder);
+
     auto info = ast_node_info::get_from_id(id);
     info->is_parallel_for = true;
+
     m_in_parallel_for = true;
+
     return id;
 }
 
@@ -264,9 +257,6 @@ isl_ast_node * ast_gen::after_for(isl_ast_node *node, isl_ast_build *)
 
 bool ast_gen::current_schedule_dimension_is_parallel(isl_ast_build * builder)
 {
-    // FIXME: Storage optimization may introduce additional dependencies!
-    // FIXME: isl says some objects are not dereferenced.
-
     isl::union_map schedule = isl_ast_build_get_schedule(builder);
     isl::space schedule_space = isl_ast_build_get_schedule_space(builder);
     int dimension = schedule_space.dimension(isl::space::output) - 1;
@@ -316,6 +306,56 @@ bool ast_gen::current_schedule_dimension_is_parallel(isl_ast_build * builder)
                                    isl_dim_in, dimension);
 
     return schedule_deps.is_subset_of(all_zero_deps);
+}
+
+void ast_gen::store_parallel_accesses_for_current_dimension(isl_ast_build * builder)
+{
+    // Parallel = { [a[i] -> a[j]] -> [[t_i] -> [t_j]] : t_i < t_j }
+
+    // NOTE: Reduce number of relations by making the relation non-reflexive,
+    // i.e. by relating times with < instead of !=.
+
+    // NOTE: Since parallel accesses are only used for storage allocation
+    // where only their distances matter,
+    // and the distances remain the same accross periods,
+    // it is sufficient to store accesses for a single period.
+
+    isl::union_map schedule = isl_ast_build_get_schedule(builder);
+    isl::space schedule_space = isl_ast_build_get_schedule_space(builder);
+    int dimension = schedule_space.dimension(isl::space::output) - 1;
+
+    auto access_relations = m_model_summary.read_relations | m_model_summary.write_relations;
+    auto access_schedule = schedule;
+    access_schedule.map_domain_through(access_relations);
+
+    access_schedule.for_each([&](const isl::map & m)
+    {
+        auto parallel = m.cross(m);
+
+        auto sched_relation_space = isl::space::from(schedule_space, schedule_space);
+        auto parallel_times = isl::basic_map::universe(sched_relation_space);
+
+        for (int i = 0; i < dimension; i++)
+            parallel_times.add_constraint
+                    (sched_relation_space.in(i) == sched_relation_space.out(i));
+
+        parallel_times.add_constraint
+                (sched_relation_space.in(dimension) < sched_relation_space.out(dimension));
+
+        parallel = parallel.in_range(parallel_times.wrapped());
+
+        auto parallel_accesses = parallel.domain().unwrapped();
+
+        if (verbose<ast_gen>::enabled())
+        {
+            cout << "  Parallel accesses:" << endl;
+            m_printer.print_each_in(parallel_accesses);
+        }
+
+        m_model.parallel_accesses |= parallel_accesses;
+
+        return true;
+    });
 }
 
 }

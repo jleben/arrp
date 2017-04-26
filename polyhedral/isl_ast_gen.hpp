@@ -61,13 +61,16 @@ private:
     isl_id * before_for(isl_ast_build *);
     isl_ast_node * after_for(isl_ast_node *node, isl_ast_build *);
     bool current_schedule_dimension_is_parallel(isl_ast_build *);
+    void store_parallel_accesses_for_current_dimension(isl_ast_build *);
 
     model & m_model;
     model_summary m_model_summary;
     schedule & m_schedule;
     options m_options;
+    isl::printer m_printer;
     isl::union_map m_order;
 
+    bool m_allow_parallel_for = false;
     bool m_in_parallel_for = false;
 };
 

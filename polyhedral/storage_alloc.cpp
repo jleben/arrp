@@ -143,6 +143,15 @@ void storage_allocator::compute_buffer_size
 
     auto conflicts = compute_conflicts(write_sched, read_sched, order_less_than(sched_space));
 
+    auto parallel_conflicts = m_model.parallel_accesses.map_for(conflicts.get_space());
+
+    if (verbose<storage_allocator>::enabled())
+    {
+        cout << "Num parallel conflicts: " << isl_map_n_basic_map(parallel_conflicts.get()) << endl;
+    }
+
+    conflicts |= parallel_conflicts;
+
     compute_buffer_size_from_conflicts(conflicts, array->buffer_size);
 }
 
@@ -155,8 +164,6 @@ isl::map storage_allocator::compute_conflicts
 
     isl::map precedence(isl::space::from(array_space, array_space));
     isl::map conflicts(precedence.get_space());
-
-    int d = 0;
 
     auto access_schedule_pairs = write_schedule.cross(read_schedule);
 
@@ -264,6 +271,7 @@ void storage_allocator::compute_buffer_size_from_conflicts
                     ostringstream msg;
                     msg << "Infinite buffer size required for array "
                         //<< array->name
+                        << conflicts.name(isl::space::input)
                         << ", dimension " << dim << ".";
                     throw std::runtime_error(msg.str());
                 }

@@ -267,6 +267,20 @@ result::code compile_module
                 schedule = poly_scheduler.schedule(sched_opts);
             }
 
+            // Generate AST for schedule
+
+            polyhedral::ast_isl ast;
+
+            {
+                polyhedral::ast_gen::options ast_opts;
+                ast_opts.separate_loops = opts.separate_loops;
+                ast_opts.parallel = opts.parallel;
+
+                polyhedral::ast_gen ast_gen(ph_model, schedule, ast_opts);
+
+                ast = ast_gen.generate();
+            }
+
             // Allocate storage (buffers)
 
             polyhedral::storage_allocator storage_alloc( ph_model );
@@ -284,20 +298,6 @@ result::code compile_module
             {
                 // FIXME: It's broken and incomplete
                 //avoid_modulo(schedule, ph_model, opts.split_statements);
-            }
-
-            // Generate AST for schedule
-
-            polyhedral::ast_isl ast;
-
-            {
-                polyhedral::ast_gen::options ast_opts;
-                ast_opts.separate_loops = opts.separate_loops;
-                ast_opts.parallel = opts.parallel;
-
-                polyhedral::ast_gen ast_gen(ph_model, schedule, ast_opts);
-
-                ast = ast_gen.generate();
             }
 
             if (verbose<polyhedral::ast_isl>::enabled())
