@@ -175,6 +175,8 @@ class io_channel
 public:
     string name;
     functional::type_ptr type;
+    array_ptr array;
+    stmt_ptr statement;
 };
 
 class model

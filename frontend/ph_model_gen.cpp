@@ -206,6 +206,8 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
 
     string call_name = "input_" + id->name;
 
+    ph::stmt_ptr stmt;
+
     {
         // Make statement domain.
 
@@ -238,7 +240,7 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
             }
         }
 
-        auto stmt = make_shared<polyhedral::statement>(domain);
+        stmt = make_shared<polyhedral::statement>(domain);
 
         stmt->is_infinite = ar->is_infinite;
 
@@ -314,6 +316,8 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
     ph::io_channel ch;
     ch.name = call_name;
     ch.type = type;
+    ch.array = ar;
+    ch.statement = stmt;
 
     model.inputs.push_back(ch);
 }
@@ -425,6 +429,8 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     ph::io_channel ch;
     ch.name = name;
     ch.type = id->expr->type;
+    ch.array = array;
+    ch.statement = stmt;
 
     model.outputs.push_back(ch);
 }
