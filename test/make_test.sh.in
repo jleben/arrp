@@ -7,8 +7,10 @@ ${ARRP_COMPILER} $arrp_args --cpp test --cpp-namespace test || exit 1
 
 g++ -std=c++17 $cpp_args \
 -DPROGRAM_SOURCE="<test.cpp>" \
-${TEST_SOURCE_DIR}/perf_pure_main.cpp \
+${TEST_SOURCE_DIR}/perf_measure_main.cpp \
+${TEST_SOURCE_DIR}/../../compiler/arg_parser.cpp \
 -I${TEST_SOURCE_DIR} \
 -I${CPP_INCLUDE_DIR} \
 -I. \
+-lpapi \
 || exit 1
