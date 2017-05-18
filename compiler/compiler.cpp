@@ -355,7 +355,8 @@ result::code compile_module
                 cpp_gen::generate(nmspace,
                                   ph_model,
                                   ast,
-                                  cpp_file);
+                                  cpp_file,
+                                  opts);
             }
         }
     }

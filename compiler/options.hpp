@@ -60,6 +60,8 @@ struct options
     bool ordered_io = true;
 
     bool parallel = false;
+
+    int data_alignment = 0;
 };
 
 }

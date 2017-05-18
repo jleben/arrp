@@ -135,7 +135,7 @@ func_sig_ptr signature_for(const string & name)
 #endif
 
 variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
-                              name_mapper & namer)
+                              name_mapper & namer, int alignment = 0)
 {
     assert(!array->buffer_size.empty());
 
@@ -153,7 +153,7 @@ variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
     else
     {
         auto decl = make_shared<array_decl>(elem_type, namer(array->name), compressed_size);
-        decl->alignment = 16;
+        decl->alignment = alignment;
         return decl;
     }
 }
@@ -228,11 +228,11 @@ shared_ptr<custom_decl> io_period_count_decl(const polyhedral::io_channel & io)
 
 class_node * state_type_def(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers,
-                            name_mapper & namer)
+                            name_mapper & namer,
+                            int data_alignment)
 {
     auto def = new class_node(class_class, "program");
     def->template_parameters.push_back("IO");
-    def->alignment = 16; // for vectorization;
 
     def->sections.resize(2);
     def->sections[0].access = public_access;
@@ -259,7 +259,7 @@ class_node * state_type_def(const polyhedral::model & model,
     {
         if (buffers[array->name].on_stack)
             continue;
-        auto field = make_shared<data_field>(buffer_decl(array,namer));
+        auto field = make_shared<data_field>(buffer_decl(array,namer,data_alignment));
         private_sec.members.push_back(field);
     }
 
@@ -495,7 +495,8 @@ void add_output_getter_func(cpp_gen::module &module, namespace_node & nmspc,
 void generate(const string & name,
               const polyhedral::model & model,
               const polyhedral::ast_isl & ast,
-              std::ostream & src_stream)
+              std::ostream & src_stream,
+              const compiler::options & opt)
 {
     unordered_map<string,buffer> buffers = buffer_analysis(model);
 
@@ -536,7 +537,8 @@ void generate(const string & name,
     nmspc->members.push_back(traits);
 
     // FIXME: rather include header:
-    nmspc->members.push_back(namespace_member_ptr(state_type_def(model,buffers,name_mapper)));
+    nmspc->members.push_back
+            (namespace_member_ptr(state_type_def(model, buffers, name_mapper, opt.data_alignment)));
 
     // FIXME: not of much use with infinite I/O
     //add_output_getter_func(m, *nmspc, model.arrays.back());
@@ -572,7 +574,8 @@ void generate(const string & name,
             for (auto array : model.arrays)
             {
                 if (buffers[array->name].on_stack)
-                    b.add(make_shared<var_decl_expression>(buffer_decl(array,name_mapper)));
+                    b.add(make_shared<var_decl_expression>
+                          (buffer_decl(array,name_mapper,opt.data_alignment)));
             }
 
             isl.generate(ast.prelude);
@@ -601,7 +604,8 @@ void generate(const string & name,
             for (auto array : model.arrays)
             {
                 if (buffers[array->name].on_stack)
-                    b.add(make_shared<var_decl_expression>(buffer_decl(array,name_mapper)));
+                    b.add(make_shared<var_decl_expression>
+                          (buffer_decl(array,name_mapper,opt.data_alignment)));
             }
 
             isl.generate(ast.period);

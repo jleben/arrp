@@ -23,6 +23,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "../common/ph_model.hpp"
 #include "../utility/cpp-gen.hpp"
+#include "../compiler/options.hpp"
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -89,7 +91,8 @@ inline int size_for(primitive_type pt)
 void generate(const string & name,
               const polyhedral::model & model,
               const polyhedral::ast_isl & ast,
-              ostream & cpp_file);
+              ostream & cpp_file,
+              const compiler::options &);
 
 }
 }
