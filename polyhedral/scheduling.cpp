@@ -443,14 +443,13 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
 
     if (infinite_node)
     {
-        isl::union_map infinite_sched =
-                isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
-
         if (verbose<scheduler>::enabled())
         {
-          cout << "Infinite part of schedule:" << endl;
-          m_printer.print_each_in(infinite_sched);
-          cout << endl;
+            isl::union_map infinite_sched =
+                    isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
+            cout << "Infinite part of schedule:" << endl;
+            m_printer.print_each_in(infinite_sched);
+            cout << endl;
         }
 
         // Tile
@@ -463,11 +462,10 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
 
             infinite_node = tile(infinite_node, opt);
 
-            infinite_sched =
-                    isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
-
             if (verbose<scheduler>::enabled())
             {
+                isl::union_map infinite_sched =
+                        isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
                 cout << "Tiled infinite schedule:" << endl;
                 m_printer.print_each_in(infinite_sched);
                 cout << endl;
@@ -479,11 +477,10 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
         {
             infinite_node = add_periodic_tiling_dimension(infinite_node, opt);
 
-            infinite_sched =
-                    isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
-
             if (verbose<scheduler>::enabled())
             {
+                isl::union_map infinite_sched =
+                        isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
                 cout << "Schedule with period dimension:" << endl;
                 m_printer.print_each_in(infinite_sched);
                 cout << endl;
@@ -492,7 +489,9 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
 
         // Find period size and offset
 
-        vector<access_info> access_analysis = analyze_access_schedules(infinite_sched);
+        vector<access_info> access_analysis =
+                analyze_access_schedules
+                (isl_schedule_node_get_subtree_schedule_union_map(infinite_node));
 
         auto periodic_tiling = find_periodic_tiling(access_analysis, opt);
 
@@ -505,8 +504,11 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
 
         {
           isl::union_set infinite_sched_dom = isl_schedule_node_get_domain(infinite_node);
+          isl::union_map infinite_sched =
+                  isl::union_map(isl_schedule_node_get_subtree_schedule_union_map(infinite_node))
+                  .in_domain(infinite_sched_dom);
 
-          infinite_sched.in_domain(infinite_sched_dom).for_each([&](isl::map & m)
+          infinite_sched.for_each([&](isl::map & m)
           {
             auto space = m.get_space();
             auto mp = m;
@@ -539,9 +541,6 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
             auto scale_multi_val = isl_multi_val_zero(band_space.copy());
             scale_multi_val = isl_multi_val_set_val(scale_multi_val, 0, scale_val.copy());
             infinite_node = isl_schedule_node_band_scale_down(infinite_node, scale_multi_val);
-
-            infinite_sched =
-                    isl_schedule_node_get_subtree_schedule_union_map(infinite_node);
         }
 
         // Store entire schedule
@@ -835,6 +834,7 @@ scheduler::analyze_access_schedules(const isl::union_map & schedule)
 {
     auto accesses = m_model_summary.write_relations | m_model_summary.read_relations;
     accesses = accesses.in_domain(m_model_summary.domains);
+
     auto access_schedules = accesses;
     access_schedules.map_domain_through(schedule);
 
