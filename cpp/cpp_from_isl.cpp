@@ -281,45 +281,67 @@ expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
     switch(type)
     {
     case isl_ast_op_and:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::logic_and, args[0], args[1]);
         break;
     case isl_ast_op_or:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::logic_or, args[0], args[1]);
         break;
     case isl_ast_op_max:
+    {
+        assert_or_throw(args.size() >= 2);
         expr = make_shared<call_expression>("max", args[0], args[1]);
+        for(int i = 2; i < args.size(); ++i)
+            expr = make_shared<call_expression>("max", expr, args[i]);
         break;
+    }
     case isl_ast_op_min:
+    {
+        assert_or_throw(args.size() >= 2);
         expr = make_shared<call_expression>("min", args[0], args[1]);
+        for(int i = 2; i < args.size(); ++i)
+            expr = make_shared<call_expression>("min", expr, args[i]);
         break;
+    }
     case isl_ast_op_minus:
+        assert_or_throw(args.size() == 1);
         expr = unop(op::u_minus, args[0]);
         break;
     case isl_ast_op_add:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::add, args[0], args[1]);
         break;
     case isl_ast_op_sub:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::sub, args[0], args[1]);
         break;
     case isl_ast_op_mul:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::mult, args[0], args[1]);
         break;
     case isl_ast_op_div:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::div, args[0], args[1]);
         break;
     case isl_ast_op_eq:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::equal, args[0], args[1]);
         break;
     case isl_ast_op_le:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::lesser_or_equal, args[0], args[1]);
         break;
     case isl_ast_op_lt:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::lesser, args[0], args[1]);
         break;
     case isl_ast_op_ge:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::greater_or_equal, args[0], args[1]);
         break;
     case isl_ast_op_gt:
+        assert_or_throw(args.size() == 2);
         expr = binop(op::greater, args[0], args[1]);
         break;
     case isl_ast_op_call:
@@ -339,18 +361,21 @@ expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
     }
     case isl_ast_op_zdiv_r:
     {
+        assert_or_throw(args.size() == 2);
         // "Equal to zero iff the remainder on integer division is zero."
         expr = binop(op::rem, args[0], args[1]);
         break;
     }
     case isl_ast_op_pdiv_r:
     {
+        assert_or_throw(args.size() == 2);
         //Remainder of integer division, where dividend is known to be non-negative.
         expr = binop(op::rem, args[0], args[1]);
         break;
     }
     case isl_ast_op_pdiv_q:
     {
+        assert_or_throw(args.size() == 2);
         // Result of integer division, where dividend is known to be non-negative.
         expr = binop(op::div, args[0], args[1]);
         break;
