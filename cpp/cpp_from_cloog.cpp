@@ -215,9 +215,11 @@ expression_ptr cpp_from_cloog::process( clast_expr* expr )
             throw std::runtime_error("Ceiling-of-division not implemented.");
         case clast_bin_div:
             op_type = op::div;
+            break;
         case clast_bin_mod:
             // FIXME: should be modulo, not remainder!
             op_type = op::rem;
+            break;
         default:
             throw std::runtime_error("Unexpected binary operation type.");
         }
