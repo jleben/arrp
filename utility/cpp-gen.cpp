@@ -82,9 +82,10 @@ void class_node::generate(cpp_gen::state & state, ostream & stream)
         int i = 0;
         for(auto & param : template_parameters)
         {
-            stream << "typename " << param;
             if (i > 0)
                 stream << ", ";
+            stream << "typename " << param;
+            ++i;
         }
         stream << ">";
         state.new_line(stream);
