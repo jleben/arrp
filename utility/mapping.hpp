@@ -206,7 +206,7 @@ inline vector<int> operator*(const mapping & m, const vector<int> & v)
 inline mapping operator+ (const mapping & m1, const mapping & m2)
 {
     assert(m1.input_dimension() == m2.input_dimension());
-    assert(m2.output_dimension() == m2.output_dimension());
+    assert(m1.output_dimension() == m2.output_dimension());
 
     using namespace ::stream::utility;
 
