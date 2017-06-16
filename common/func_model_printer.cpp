@@ -12,17 +12,6 @@ printer::printer()
 
 }
 
-template<typename L>
-void print_list(const L & list, const string & separator = ", ")
-{
-    int size = list.size();
-    int count = 0;
-    for(const auto & elem : list)
-    {
-        ++count;
-    }
-}
-
 void printer::print(id_ptr id, ostream & out)
 {
     out << id->name;
