@@ -350,6 +350,7 @@ expr_ptr array_reducer::reduce
 
     array_ref_sub::var_map::scope_holder scope(m_sub.vars);
 
+    // D* (prev. domain)
     expr_ptr previous_domain;
 
     for (auto & pattern : ap->patterns)
@@ -359,6 +360,7 @@ expr_ptr array_reducer::reduce
 
         // Create pattern constraint expressions
 
+        // C (constraint)
         expr_ptr pattern_constraint;
 
         {
@@ -381,10 +383,11 @@ expr_ptr array_reducer::reduce
         }
 
         // Create subdomain expressions
-
+        // D (domain) = !DD && C
         expr_ptr pattern_domain =
                 intersect(negate(previous_domain), pattern_constraint);
 
+        // SD* (prev. sub-domain)
         expr_ptr prev_case_domain;
 
         if (pattern.domains)
@@ -392,19 +395,39 @@ expr_ptr array_reducer::reduce
             auto cexpr = dynamic_pointer_cast<case_expr>(pattern.domains.expr);
             for (auto & c : cexpr->cases)
             {
+                // SC (sub-contraint)
                 auto dom = c.first;
+                // SD = !SD* && SC
                 dom = intersect(negate(prev_case_domain), dom);
+                // SD = SD && D
                 dom = intersect(pattern_domain, dom);
+                // SD* = SD* | SC
                 prev_case_domain = unite(prev_case_domain, c.first);
                 c.first = dom;
                 subdomains->cases.push_back(c);
             }
         }
 
+        // SD = D && !SD*
         auto last_case = intersect(pattern_domain, negate(prev_case_domain));
         subdomains->cases.emplace_back(expr_slot(last_case), pattern.expr);
 
-        previous_domain = unite(previous_domain, pattern_constraint);
+        // D* = D* | D
+        if (pattern_constraint)
+        {
+            // Since D = (!D* && C),
+            // D* = D* | (!D* && C)
+            //    = D* | C
+            previous_domain = unite(previous_domain, pattern_constraint);
+        }
+        else
+        {
+            // Since D = !D*,
+            // D* = D* | !D*
+            // D* = universe
+            // The entire array is covered
+            break;
+        }
     }
 
     // Subtitute vars in local ids
