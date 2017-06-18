@@ -14,7 +14,7 @@ class inspect_io : public io<program_traits>
 public:
     using output_type = typename program_traits::output_type;
     using output_unit_type = typename array_traits<output_type>::unit_type;
-
+    using output_element_type = typename array_traits<output_type>::element_type;
     inspect_io()
     {
         using namespace std;
@@ -29,6 +29,8 @@ public:
         }
 
         m_data.resize(size);
+
+        m_data.set_type(element_type_id<output_element_type>());
 
 #if 0
         cout << "Allocating size: ";

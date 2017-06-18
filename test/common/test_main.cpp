@@ -80,6 +80,15 @@ bool compare(const arrp::testing::array & actual, const arrp::testing::array & e
 {
     using namespace std;
 
+    if (actual.type() != expected.type())
+    {
+        cout << "Different element types."
+             << " Expected = " << expected.type()
+             << ", Actual = " << actual.type()
+             << endl;
+        return false;
+    }
+
     if (actual.size().size() != expected.size().size())
     {
         cout << "Different number of dimensions." << endl;

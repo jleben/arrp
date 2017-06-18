@@ -35,6 +35,7 @@ bool compare(const element & a, const element & b)
 
 ostream & operator<< (ostream & s, const element & e)
 {
+    s << e.type << ' ';
     switch(e.type)
     {
     case bool_type:
@@ -49,6 +50,8 @@ ostream & operator<< (ostream & s, const element & e)
         s << e.cf; break;
     case complex_double_type:
         s << e.cd; break;
+    default:
+        s << "?"; break;
     }
     return s;
 }

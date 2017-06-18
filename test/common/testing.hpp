@@ -20,13 +20,23 @@ using std::complex;
 
 template<typename T> struct array_traits
 {
-    typedef T unit_type;
+    using element_type = T;
+    using unit_type = T;
+    static const bool is_stream = false;
+};
+
+template <typename E, size_t S>
+struct array_traits<E[S]>
+{
+    using element_type = typename array_traits<E>::element_type;
+    using unit_type = E[S];
     static const bool is_stream = false;
 };
 
 template<typename E> struct array_traits<stream_type<E>>
 {
-    typedef E unit_type;
+    using element_type = typename array_traits<E>::element_type;
+    using unit_type = E;
     static const bool is_stream = true;
 };
 
@@ -65,6 +75,37 @@ enum elem_type {
     complex_double_type
 };
 
+template <typename T>
+elem_type element_type_id();
+
+template<> inline
+elem_type element_type_id<double>() { return double_type; }
+template<> inline
+elem_type element_type_id<float>() { return float_type; }
+template<> inline
+elem_type element_type_id<int>() { return int_type; }
+template<> inline
+elem_type element_type_id<bool>() { return bool_type; }
+template<> inline
+elem_type element_type_id<complex<double>>() { return complex_double_type; }
+template<> inline
+elem_type element_type_id<complex<float>>() { return complex_float_type; }
+
+inline
+ostream & operator<< (ostream & out, elem_type t)
+{
+    switch(t)
+    {
+    case bool_type: out << "bool"; break;
+    case int_type: out << "int"; break;
+    case float_type: out << "real32"; break;
+    case double_type: out << "real64"; break;
+    case complex_float_type: out << "complex32"; break;
+    case complex_double_type: out << "complex64"; break;
+    default: out << "?"; break;
+    }
+    return out;
+}
 
 struct element
 {
@@ -102,6 +143,8 @@ public:
     {}
 
     elem_type type() const { return m_type; }
+
+    void set_type(elem_type type) { m_type = type; }
 
     static int total_count(const vector<int> & size)
     {

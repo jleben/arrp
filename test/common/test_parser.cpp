@@ -89,6 +89,8 @@ void test_parser::parse(istream & src)
             m_type = double_type;
         else
             throw error("Invalid type name: " + type_str);
+
+        m_data.set_type(m_type);
     }
 
     // Parse expected data
