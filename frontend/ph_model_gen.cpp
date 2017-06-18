@@ -849,7 +849,18 @@ expr_ptr polyhedral_gen::visit_func_app(const shared_ptr<func_app> &app)
 
 isl::set polyhedral_gen::to_affine_set(expr_ptr e, const space_map & s)
 {
-    if (auto op = dynamic_pointer_cast<primitive>(e))
+    if (auto b = dynamic_pointer_cast<bool_const>(e))
+    {
+        if (b->value)
+        {
+            return isl::set::universe(s.space);
+        }
+        else
+        {
+            return isl::set(s.space);
+        }
+    }
+    else if (auto op = dynamic_pointer_cast<primitive>(e))
     {
         switch(op->kind)
         {

@@ -23,11 +23,42 @@ expr_ptr make_ref(id_ptr id)
                                   id->expr ? id->expr->type : nullptr);
 }
 
+expr_ptr make_int(int v)
+{
+    auto r = make_shared<int_const>(v);
+    r->type = make_int_type();
+    return r;
+}
+
+expr_ptr empty_set()
+{
+    return make_shared<bool_const>(false);
+}
+
+expr_ptr universe_set()
+{
+    return make_shared<bool_const>(true);
+}
+
+bool is_empty_set(expr_ptr e)
+{
+    auto b = dynamic_pointer_cast<bool_const>(e);
+    return bool(b) && b->value == false;
+}
+
+bool is_universe_set(expr_ptr e)
+{
+    auto b = dynamic_pointer_cast<bool_const>(e);
+    return bool(b) && b->value == true;
+}
+
 expr_ptr unite(expr_ptr a, expr_ptr b)
 {
-    if (!a)
+    if (is_universe_set(a) || is_universe_set(b))
+        return universe_set();
+    if (is_empty_set(a))
         return b;
-    if (!b)
+    if (is_empty_set(b))
         return a;
     auto r = make_shared<primitive>(primitive_op::logic_or, a, b);
     r->type = make_shared<scalar_type>(primitive_type::boolean);
@@ -36,9 +67,11 @@ expr_ptr unite(expr_ptr a, expr_ptr b)
 
 expr_ptr intersect(expr_ptr a, expr_ptr b)
 {
-    if (!a)
+    if (is_empty_set(a) || is_empty_set(b))
+        return empty_set();
+    if (is_universe_set(a))
         return b;
-    if (!b)
+    if (is_universe_set(b))
         return a;
     auto r = make_shared<primitive>(primitive_op::logic_and, a, b);
     r->type = make_shared<scalar_type>(primitive_type::boolean);
@@ -47,8 +80,10 @@ expr_ptr intersect(expr_ptr a, expr_ptr b)
 
 expr_ptr negate(expr_ptr a)
 {
-    if (!a)
-        return nullptr;
+    if (is_universe_set(a))
+        return empty_set();
+    if (is_empty_set(a))
+        return universe_set();
     auto r = make_shared<primitive>(primitive_op::negate, a);
     r->type = make_shared<scalar_type>(primitive_type::boolean);
     return r;
@@ -61,12 +96,6 @@ expr_ptr equal(expr_ptr a, expr_ptr b)
     return r;
 }
 
-expr_ptr int_expr(int v)
-{
-    auto r = make_shared<int_const>(v);
-    r->type = make_int_type();
-    return r;
-}
 
 array_reducer::array_reducer(name_provider & nmp):
     m_declared_vars("declared var"),
@@ -351,7 +380,7 @@ expr_ptr array_reducer::reduce
     array_ref_sub::var_map::scope_holder scope(m_sub.vars);
 
     // D* (prev. domain)
-    expr_ptr previous_domain;
+    expr_ptr previous_domain = empty_set();
 
     for (auto & pattern : ap->patterns)
     {
@@ -361,7 +390,7 @@ expr_ptr array_reducer::reduce
         // Create pattern constraint expressions
 
         // C (constraint)
-        expr_ptr pattern_constraint;
+        expr_ptr pattern_constraint = universe_set();
 
         {
             int dim_idx = 0;
@@ -373,7 +402,7 @@ expr_ptr array_reducer::reduce
                 if (index.is_fixed)
                 {
                     auto v = make_ref(ar->vars[dim_idx]);
-                    auto constraint = equal(v, int_expr(index.value));
+                    auto constraint = equal(v, make_int(index.value));
                     pattern_constraint =
                             intersect(pattern_constraint, constraint);
                 }
@@ -388,7 +417,7 @@ expr_ptr array_reducer::reduce
                 intersect(negate(previous_domain), pattern_constraint);
 
         // SD* (prev. sub-domain)
-        expr_ptr prev_case_domain;
+        expr_ptr prev_case_domain = empty_set();
 
         if (pattern.domains)
         {
@@ -413,21 +442,7 @@ expr_ptr array_reducer::reduce
         subdomains->cases.emplace_back(expr_slot(last_case), pattern.expr);
 
         // D* = D* | D
-        if (pattern_constraint)
-        {
-            // Since D = (!D* && C),
-            // D* = D* | (!D* && C)
-            //    = D* | C
-            previous_domain = unite(previous_domain, pattern_constraint);
-        }
-        else
-        {
-            // Since D = !D*,
-            // D* = D* | !D*
-            // D* = universe
-            // The entire array is covered
-            break;
-        }
+        previous_domain = unite(previous_domain, pattern_constraint);
     }
 
     // Subtitute vars in local ids
@@ -451,7 +466,7 @@ expr_ptr array_reducer::reduce
         auto & c = subdomains->cases.front();
         auto & domain = c.first;
         auto & expr = c.second;
-        if (!domain)
+        if (is_universe_set(domain))
             return expr;
     }
 
@@ -720,7 +735,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
 
                 expr_ptr arg = make_shared<primitive>
                         (primitive_op::add,
-                         make_ref(v), int_expr(current_index));
+                         make_ref(v), make_int(current_index));
                 arg->type = make_int_type();
 
                 vector<expr_ptr> args = { arg };

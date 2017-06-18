@@ -137,9 +137,9 @@ protected:
 class bool_const : public constant<bool>
 {
 public:
-    bool_const(bool v): constant(v) {}
-    bool_const(bool v, const location_type & loc, const type_ptr & type = nullptr):
-        constant(v, loc, type) {}
+    bool_const(bool v, const location_type & loc = location_type()):
+        constant(v, loc, std::make_shared<scalar_type>(primitive_type::boolean))
+    {}
 };
 
 class int_const : public constant<int>
