@@ -362,20 +362,7 @@ result::code compile_module
     }
     catch (source_error & e)
     {
-        list<code_location> reverse_locations;
-        while(!e.trace.empty())
-        {
-            auto location = e.trace.top();
-            if (!location.module)
-                break;
-            reverse_locations.push_front(location);
-            e.trace.pop();
-        }
-        for (auto & location : reverse_locations)
-            cout << ".. From " << location << endl;
-        cerr << "** ERROR: " << e.location << ": " << e.what() << endl;
-        if (e.location.module)
-            print_code_range(cerr, e.location.module->source, e.location.range);
+        print(source_error::critical, e);
         return result::semantic_error;
     }
     /*

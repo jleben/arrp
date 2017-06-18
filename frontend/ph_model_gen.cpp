@@ -579,13 +579,13 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
         }
         else
         {
-            auto s = make_stmt(arr->vars, stmt_name, nullptr, arr->expr);
+            auto s = make_stmt(arr->vars, stmt_name, expr_slot(nullptr), arr->expr);
             output.statements.push_back(s);
         }
     }
     else
     {
-        auto s = make_stmt({}, stmt_name, nullptr, id->expr);
+        auto s = make_stmt({}, stmt_name, expr_slot(nullptr), id->expr);
         output.statements.push_back(s);
     }
 }
@@ -593,7 +593,7 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
 polyhedral::stmt_ptr polyhedral_gen::make_stmt
 (const vector<array_var_ptr> & vars,
  const string & name,
- expr_ptr subdomain_expr, expr_ptr expr)
+ const expr_slot & subdomain_expr, const expr_slot & expr)
 {
     auto array = m_arrays.at(m_current_id);
 
@@ -635,6 +635,12 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
     if (subdomain_expr)
     {
         auto subdomain = to_affine_set(subdomain_expr, sm);
+        if (subdomain.is_empty())
+        {
+            print(source_error::non_critical,
+                  source_error("Effective domain of array part is empty.",
+                               expr.location));
+        }
         stmt->domain = stmt->domain & subdomain;
     }
 

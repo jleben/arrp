@@ -34,6 +34,12 @@ struct source_error : public error
 {
     using location_type = code_location;
 
+    enum kind
+    {
+        critical,
+        non_critical
+    };
+
     source_error(const string & what, const location_type & location):
         error(what),
         location(location)
@@ -50,6 +56,8 @@ struct source_error : public error
     location_type location;
     stack<location_type> trace;
 };
+
+void print(source_error::kind, const source_error &);
 
 }
 

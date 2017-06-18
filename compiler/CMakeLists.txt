@@ -17,6 +17,7 @@ add_library(arrp-lib ${lib_mode}
   ../common/func_model_printer.cpp
   ../common/ph_model.cpp
   ../common/module.cpp
+  ../frontend/error.cpp
   ../frontend/module_parser.cpp
   ../frontend/prim_reduction.cpp
   ../frontend/functional_gen.cpp

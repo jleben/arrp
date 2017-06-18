@@ -69,8 +69,8 @@ private:
 
     polyhedral::stmt_ptr make_stmt(const vector<array_var_ptr> &,
                                    const string & name,
-                                   expr_ptr subdomain_expr,
-                                   expr_ptr expr);
+                                   const expr_slot & subdomain_expr,
+                                   const expr_slot & expr);
 
     isl::set to_affine_set(expr_ptr, const space_map &);
     isl::expression to_affine_expr(expr_ptr, const space_map &);
