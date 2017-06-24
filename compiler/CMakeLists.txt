@@ -63,3 +63,15 @@ target_link_libraries( arrp-lib ${ISL_LIBRARY} isl-cpp json m )
 
 add_executable(arrp main.cpp)
 target_link_libraries(arrp arrp-lib)
+
+if (INSTALL_SELF_CONTAINED)
+    set_target_properties(arrp PROPERTIES INSTALL_RPATH "\$ORIGIN/../lib")
+endif()
+
+# Installation
+
+install(TARGETS arrp-lib arrp
+    RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+)
