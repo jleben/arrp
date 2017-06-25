@@ -8,7 +8,6 @@ enable_testing()
 
 option(BUILD_TESTING "Build tests" ON)
 set(TEST_BUILD_TYPE Release CACHE STRING "Build type for tests (affects performance evaluations).")
-option(INSTALL_SELF_CONTAINED CACHE "Make installation independent of system configuration.")
 
 # CMake setup
 

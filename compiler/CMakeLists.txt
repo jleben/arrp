@@ -1,15 +1,7 @@
-# Library
-
-if(WIN32)
-  set(lib_mode STATIC)
-else()
-  set(lib_mode SHARED)
-endif()
-
 # For parser
 include_directories(../common)
 
-add_library(arrp-lib ${lib_mode}
+add_library(arrp-lib STATIC
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../common/primitives.cpp
@@ -57,21 +49,20 @@ else()
 endif()
 endif()
 
-target_link_libraries( arrp-lib ${ISL_LIBRARY} isl-cpp json m )
+# NOTE: gmp needed by isl
+target_link_libraries( arrp-lib ${ISL_LIBRARY} isl-cpp json gmp m)
 
 # Executable
 
 add_executable(arrp main.cpp)
 target_link_libraries(arrp arrp-lib)
 
-if (INSTALL_SELF_CONTAINED)
-    set_target_properties(arrp PROPERTIES INSTALL_RPATH "\$ORIGIN/../lib")
-endif()
-
 # Installation
 
-install(TARGETS arrp-lib arrp
+install(TARGETS arrp
     RUNTIME DESTINATION bin
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
 )
+
+install(FILES ${CMAKE_SOURCE_DIR}/cpp/arrp.hpp DESTINATION include)
