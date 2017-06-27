@@ -54,7 +54,7 @@ private:
     void do_mutually_recursive_declarations(const vector<ast::node_ptr> &);
     id_ptr do_binding(ast::node_ptr);
     id_ptr make_id_for_declaration(ast::node_ptr);
-    void make_expr_for_declaration(id_ptr, ast::node_ptr);
+    void apply_declaration(id_ptr, ast::node_ptr);
 
     expr_ptr do_expr(ast::node_ptr);
     expr_ptr do_binding_expr(ast::node_ptr);

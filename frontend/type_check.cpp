@@ -132,6 +132,9 @@ void type_checker::process(id_ptr id)
     if (id->expr->type)
         return;
 
+    if (!id->expr)
+        return;
+
     if (verbose<type_checker>::enabled())
     {
         cout << "Processing id " << id->name << endl;
@@ -456,6 +459,12 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
+        if (!id->expr)
+        {
+            throw source_error("Name '" + id->name + "' is used, but has no defined value.",
+                               ref->location);
+        }
+
         process_explicit_type(id);
 
         if (id->explicit_type)

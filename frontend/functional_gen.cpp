@@ -115,7 +115,7 @@ void generator::do_mutually_recursive_declarations(const vector<ast::node_ptr> &
 
     for(; node_it != nodes.end(); ++node_it, ++id_it)
     {
-        make_expr_for_declaration(*id_it, *node_it);
+        apply_declaration(*id_it, *node_it);
     }
 }
 
@@ -123,18 +123,32 @@ id_ptr generator::do_binding(ast::node_ptr root)
 {
     auto id = make_id_for_declaration(root);
 
-    make_expr_for_declaration(id, root);
+    apply_declaration(id, root);
 
     return id;
 }
 
 id_ptr generator::make_id_for_declaration(ast::node_ptr node)
 {
+    // Note: Assuming that all declarations are a list with name as first element
+
     auto name_node = node->as_list()->elements[0]->as_leaf<string>();
     auto name = name_node->value;
 
-    auto id = make_shared<identifier>(qualified_name(name),
-                                      location_in_module(name_node->location));
+    id_ptr id;
+
+    {
+        auto item = m_context.find(name);
+        if (item &&
+            item.scope() == m_context.current_scope() &&
+            (id = dynamic_pointer_cast<identifier>(item.value())))
+        {
+            return id;
+        }
+    }
+
+    id = make_shared<identifier>(qualified_name(name),
+                                 location_in_module(name_node->location));
 
     // Bind name for reference resolution
 
@@ -155,7 +169,7 @@ id_ptr generator::make_id_for_declaration(ast::node_ptr node)
     return id;
 }
 
-void generator::make_expr_for_declaration(id_ptr id, ast::node_ptr root)
+void generator::apply_declaration(id_ptr id, ast::node_ptr root)
 {
     auto name = root->as_list()->elements[0]->as_leaf<string>()->value;
 
@@ -165,31 +179,56 @@ void generator::make_expr_for_declaration(id_ptr id, ast::node_ptr root)
 
     switch(root->type)
     {
+    case ast::id_type_decl:
+    {
+        if (id->type_expr)
+        {
+            throw source_error("Name already has a type declaration.",
+                               location_in_module(root->location));
+        }
+
+        auto type_node = root->as_list()->elements[1];
+        id->type_expr = expr_slot(do_type_expr(type_node));
+        break;
+    }
     case ast::input:
     case ast::external:
     {
+        if (id->expr)
+        {
+            throw source_error("Name already defined.",
+                               location_in_module(root->location));
+        }
+        if (id->type_expr)
+        {
+            throw source_error("Name already has a type declaration.",
+                               location_in_module(root->location));
+        }
+
         auto type_node = root->as_list()->elements[1];
 
         auto ext = make_shared<external>();
         ext->is_input = root->type == ast::input;
         ext->name = name;
-        ext->type_expr = expr_slot(do_type_expr(type_node));
 
-        expr = ext;
+        ext->type_expr = expr_slot(do_type_expr(type_node));
+        id->expr = expr_slot(ext);
+        id->type_expr = ext->type_expr;
 
         break;
     }
     case ast::binding:
     {
-        auto type_node = root->as_list()->elements[1];
-        auto params_node = root->as_list()->elements[2];
-        auto expr_node = root->as_list()->elements[3];
-
-        if (type_node)
+        if (id->expr)
         {
-            id->type_expr = do_type_expr(type_node);
+            throw source_error("Name already defined.",
+                               location_in_module(root->location));
         }
 
+        auto params_node = root->as_list()->elements[1];
+        auto expr_node = root->as_list()->elements[2];
+
+        expr_ptr expr;
         if (params_node)
         {
             expr = make_func(params_node, expr_node, root->location);
@@ -198,14 +237,13 @@ void generator::make_expr_for_declaration(id_ptr id, ast::node_ptr root)
         {
             expr = do_expr(expr_node);
         }
+        id->expr = expr_slot(expr);
 
         break;
     }
     default:
         throw error("Unexpected expression.");
     }
-
-    id->expr = expr_slot(expr);
 }
 
 expr_ptr generator::do_expr(ast::node_ptr root)

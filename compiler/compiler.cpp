@@ -127,18 +127,22 @@ result::code compile_module
             }
         }
 
-        // FIXME: choice of function to compile
-        auto criteria = [&main_module](functional::id_ptr id) -> bool {
-            return id->name == "main";
-        };
-        auto id_it = std::find_if(ids.begin(), ids.end(), criteria);
-        if (id_it == ids.end())
+        functional::id_ptr main_id;
+
         {
-            auto msg = "No function named \"main\" in module \""
-                    + main_module->name + "\".";
+            auto id_is_main = [&main_module](functional::id_ptr id) -> bool {
+                return id->name == "main";
+            };
+            auto main_id_it = std::find_if(ids.begin(), ids.end(), id_is_main);
+            if (main_id_it != ids.end())
+                main_id = *main_id_it;
+        }
+
+        if (!main_id || !main_id->expr)
+        {
+            auto msg = "No value named \"main\".";
             throw source_error(msg, code_location(main_module));
         }
-        auto id = *id_it;
 
         {
             functional::reference_analysis refs;
@@ -169,7 +173,7 @@ result::code compile_module
             }
         }
 
-        if (id->expr->type->is_function())
+        if (main_id->expr->type->is_function())
         {
             cerr << "Functions not supported in output. "
                  << "All functions must be fully applied."
@@ -179,7 +183,7 @@ result::code compile_module
 
         {
             functional::array_reducer reducer(func_name_provider);
-            id = reducer.process(id);
+            main_id = reducer.process(main_id);
             array_ids = reducer.ids();
 
             if (verbose<functional::model>::enabled())
@@ -224,7 +228,7 @@ result::code compile_module
                 functional::polyhedral_gen gen(ph_opts);
                 ph_model = gen.process(array_ids);
 
-                gen.add_output(ph_model, "output", id, opts.atomic_io, opts.ordered_io);
+                gen.add_output(ph_model, "output", main_id, opts.atomic_io, opts.ordered_io);
             }
 
             // Drop statement instances which write elements which are never read

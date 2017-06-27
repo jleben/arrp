@@ -493,8 +493,8 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 442,     ///< Last index in yytable_.
-      yynnts_ = 48,  ///< Number of nonterminal symbols.
+      yylast_ = 456,     ///< Last index in yytable_.
+      yynnts_ = 49,  ///< Number of nonterminal symbols.
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,

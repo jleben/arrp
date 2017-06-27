@@ -135,7 +135,24 @@ declaration_list:
 ;
 
 declaration:
-  external_decl | binding
+  external_decl | binding | id_type_decl
+;
+
+nested_decl: binding | id_type_decl
+;
+
+nested_decl_list:
+  nested_decl
+  {
+    $$ = make_list( @$, { $1 } );
+  }
+  |
+  nested_decl_list ';' nested_decl
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
 ;
 
 external_decl:
@@ -148,38 +165,14 @@ external_decl:
 
 
 binding:
-  id '(' param_list ')' optional_type '=' expr
+  id '(' param_list ')' '=' expr
   {
-    $$ = make_list( ast::binding, @$, {$1, $5, $3, $7} );
+    $$ = make_list( ast::binding, @$, {$1, $3, $6} );
   }
   |
-  id optional_type '=' expr
+  id '=' expr
   {
-    $$ = make_list( ast::binding, @$, {$1, $2, nullptr, $4} );
-  }
-;
-
-binding_list:
-  binding
-  {
-    $$ = make_list( @$, { $1 } );
-  }
-  |
-  binding_list ';' binding
-  {
-    $$ = $1;
-    $$->as_list()->append( $3 );
-    $$->location = @$;
-  }
-;
-
-optional_type:
-  // empty
-  { $$ = nullptr; }
-  |
-  TYPE_EQ type
-  {
-    $$ = $2;
+    $$ = make_list( ast::binding, @$, {$1, nullptr, $3} );
   }
 ;
 
@@ -196,6 +189,11 @@ param_list:
     $$->as_list()->append( $3 );
     $$->location = @$;
   }
+;
+
+id_type_decl:
+    id TYPE_EQ type
+    { $$ = make_list(ast::id_type_decl, @$, {$1, $3}); }
 ;
 
 type:
@@ -323,9 +321,9 @@ expr:
   |
   where_expr
   |
-  id TYPE_EQ type '=' expr
+  id '=' expr
   {
-    $$ = make_list( ast::binding, @$, {$1, $3, nullptr, $5} );
+    $$ = make_list( ast::binding, @$, {$1, nullptr, $3} );
   }
 ;
 
@@ -337,7 +335,7 @@ let_expr:
     $$ = make_list(ast::local_scope, @$, { bnd_list, $4 } );
   }
   |
-  LET '{' binding_list optional_semicolon '}' IN expr
+  LET '{' nested_decl_list optional_semicolon '}' IN expr
   {
     $$ = make_list(ast::local_scope, @$, { $3, $7 } );
   }
@@ -350,7 +348,7 @@ where_expr:
     $$ = make_list(ast::local_scope, @$, { bnd_list, $1 } );
   }
   |
-  expr WHERE '{' binding_list optional_semicolon '}'
+  expr WHERE '{' nested_decl_list optional_semicolon '}'
   {
     $$ = make_list(ast::local_scope, @$, { $4, $1 } );
   }

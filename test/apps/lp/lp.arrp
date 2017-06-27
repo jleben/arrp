@@ -1,7 +1,9 @@
 delay(v,a) = [0 -> v; t -> a[t-1]];
 
-lp(a,x) =
-  y :: [~,3]real64 = a*x + (1-a)*delay(0,y);
+lp(a,x) = y where {
+  y :: [~,3]real64;
+  y = a*x + (1-a)*delay(0,y);
+};
 
 ## Test signal: 3 harmonics
 

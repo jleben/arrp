@@ -12,10 +12,11 @@ convolve(h,x) =
   let f(w) = math.sum(h * array.reverse(w)) in
     array.map(f, signal.win(#h,1,x));
 
-iir(aa,bs,x) =
-    y :: [~]real64  =
-        convolve(bs, delay(0,#bs-1,x)) -
+iir(aa,bs,x) = y where {
+    y :: [~]real64;
+    y = convolve(bs, delay(0,#bs-1,x)) -
         convolve(aa, delay(0,#aa,y));
+};
 
 main = iir(coefs_a, coefs_b, x);
 

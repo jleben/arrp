@@ -65,8 +65,9 @@ enum node_type
 
     input,
     external,
-
+    id_type_decl,
     binding,
+
     local_scope,
     lambda,
     constant,

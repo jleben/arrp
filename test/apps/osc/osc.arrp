@@ -1,14 +1,18 @@
 module osc;
 
-phase(freq) = p :: [~]real64 =
-[
-    0 -> 0;
-    t ->
-      ## Breaks when using "this":
-      ## let x = this[t-1] + freq[t-1] in
-      let x = p[t-1] + freq[t-1] in
-        if x < 1 then x else x - 1
-];
+phase(freq) = p where
+{
+    p :: [~]real64;
+    p =
+    [
+        0 -> 0;
+        t ->
+        ## Breaks when using "this":
+        ## let x = this[t-1] + freq[t-1] in
+        let x = p[t-1] + freq[t-1] in
+            if x < 1 then x else x - 1
+    ];
+};
 
 pi = atan(1) * 4;
 
