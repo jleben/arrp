@@ -139,9 +139,9 @@ public:
                const location_type & l = location_type()):
         expression(l), array(a), indexes(i)
     {
-        // FIXME: this may be array type (for example in external call)
-        type = std::make_shared<functional::scalar_type>(a->type);
     }
+
+    // FIXME: type
 
     array_ptr array;
     // indexes:

@@ -20,6 +20,25 @@ public:
     {
         out = in * 100;
     }
+
+    double f2(int in)
+    {
+        return double(in) / 2;
+    }
+
+    void f3(int in[5], double out[5])
+    {
+        for(int i = 0; i < 5; ++i)
+            out[i] = double(in[i]) / 2;
+    }
+
+    void f4(int in, double out[5])
+    {
+        for(int i = 0; i < 5; ++i)
+        {
+            out[i] = in / double(i+1);
+        }
+    }
 };
 
 }

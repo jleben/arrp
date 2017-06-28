@@ -737,16 +737,12 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
     else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
         auto arr = m_arrays.at(id);
-        assert(arr->size.empty());
 
-        vector<expr_ptr> index = { make_shared<int_const>(0) };
-
-        auto read_expr = make_shared<ph::array_read>(arr, index, ref->location);
+        auto read_expr = make_shared<ph::array_read>(arr, vector<functional::expr_ptr>(), ref->location);
 
         {
             auto space = isl::space::from(m_space_map->space, arr->domain.get_space());
             auto map = isl::basic_map::universe(space);
-            map.add_constraint(space.out(0) == 0);
             ph::array_relation rel(arr, map);
             m_current_stmt->read_relations.push_back(rel);
             read_expr->relation = &m_current_stmt->read_relations.back();
@@ -763,6 +759,8 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
 expr_ptr polyhedral_gen::visit_array_app
 (const shared_ptr<array_app> & app)
 {
+    assert(app->type->is_scalar());
+
     auto read_expr = make_shared<ph::array_read>();
 
     ph::array_ptr arr;
@@ -833,22 +831,30 @@ expr_ptr polyhedral_gen::visit_func_app(const shared_ptr<func_app> &app)
     for (auto & arg : app->args)
         call->args.push_back(arg);
 
-    // Add pointer to write destination as arg
+    if (app->type->is_array())
+    {
+        // Add pointer to write destination as arg
 
-    auto ar = m_arrays.at(m_current_id);
-    assert(ar);
+        auto ar = m_arrays.at(m_current_id);
+        assert(ar);
 
-    vector<expr_ptr> index;
-    for (int dim = 0; dim < m_current_stmt->domain.dimensions(); ++dim)
-        index.push_back(make_shared<ph::iterator_read>(dim));
+        vector<expr_ptr> index;
+        for (int dim = 0; dim < m_current_stmt->domain.dimensions(); ++dim)
+            index.push_back(make_shared<ph::iterator_read>(dim));
 
-    auto dest = make_shared<ph::array_read>(ar, index);
+        auto dest = make_shared<ph::array_read>(ar, index);
 
-    // Read relation is same as write relation
-    m_current_stmt->read_relations.push_back(m_current_stmt->write_relation);
-    dest->relation = &m_current_stmt->read_relations.back();
+        // Read relation is same as write relation
+        m_current_stmt->read_relations.push_back(m_current_stmt->write_relation);
+        dest->relation = &m_current_stmt->read_relations.back();
 
-    call->args.push_back(dest);
+        call->args.push_back(dest);
+    }
+    else
+    {
+        assert(app->type->is_scalar());
+        call->type = app->type;
+    }
 
     return call;
 }
