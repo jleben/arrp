@@ -139,9 +139,18 @@ public:
                const location_type & l = location_type()):
         expression(l), array(a), indexes(i)
     {
+        if (indexes.size() < array->size.size())
+        {
+            functional::array_size_vec result_size;
+            for (int i = indexes.size(); i < array->size.size(); ++i)
+                result_size.push_back(array->size[i]);
+            type = std::make_shared<functional::array_type>(result_size, array->type);
+        }
+        else
+        {
+            type = std::make_shared<functional::scalar_type>(array->type);
+        }
     }
-
-    // FIXME: type
 
     array_ptr array;
     // indexes:
