@@ -39,11 +39,11 @@ public:
 private:
     struct space_map
     {
-        space_map(isl::space & s, isl::local_space & ls,
+        space_map(isl::space & s,
                   const vector<array_var_ptr> & v):
-            space(s), local_space(ls), vars(v) {}
+            space(s), local_space(s), vars(v) {}
         isl::space & space;
-        isl::local_space & local_space;
+        isl::local_space local_space;
         const vector<array_var_ptr> & vars;
 
         int index_of(array_var_ptr var) const
@@ -74,6 +74,10 @@ private:
 
     isl::set to_affine_set(expr_ptr, const space_map &);
     isl::expression to_affine_expr(expr_ptr, const space_map &);
+
+    shared_ptr<polyhedral::array_access> access
+    (const polyhedral::stmt_ptr &, const polyhedral::array_ptr &, const vector<expr_ptr> index,
+     bool read, bool write);
 
     expr_ptr visit_ref(const shared_ptr<reference> & e) override;
     expr_ptr visit_array_app(const shared_ptr<array_app> & app) override;

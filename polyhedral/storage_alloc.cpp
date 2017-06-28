@@ -125,6 +125,10 @@ void storage_allocator::compute_buffer_size
     a write and a read of each of the elements -
     i.e the write of one is before the read of the other,
     as well as the opposite.
+
+    We assume:
+    There are no writes unrelated to any reads.
+    If a write writes multiple elements, it also reads them.
     */
 
     auto access_sched = write_sched | read_sched;
@@ -141,7 +145,7 @@ void storage_allocator::compute_buffer_size
     int buffer_dim_count = array_space.dimension(isl::space::variable);
     array->buffer_size = vector<int>(buffer_dim_count, 1);
 
-    auto conflicts = compute_conflicts(write_sched, read_sched, order_less_than(sched_space));
+    auto conflicts = compute_conflicts(write_sched, read_sched, order_less_than_or_equal(sched_space));
 
     auto parallel_conflicts = m_model.parallel_accesses.map_for(conflicts.get_space());
 
@@ -155,6 +159,12 @@ void storage_allocator::compute_buffer_size
     compute_buffer_size_from_conflicts(conflicts, array->buffer_size);
 }
 
+/*
+Given a schedule of writes and reads, and an order relation R,
+compute all pairs of array elements (x,y) such that
+wx R ry and wy R rx where wx, wy, rx, ry are some write and read
+times.
+*/
 isl::map storage_allocator::compute_conflicts
 (const isl::map & write_schedule,
  const isl::map & read_schedule,

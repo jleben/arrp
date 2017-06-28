@@ -16,9 +16,28 @@ public:
         out[1] = in[2] + in[3];
     }
 
-    void g(int & in, int & out)
+    int g(int in)
     {
-        out = in * 100;
+        return in * 100;
+    }
+
+    double f1(int in)
+    {
+        return double(in) / 2;
+    }
+
+    void f2(int in[5], double out[5])
+    {
+        for(int i = 0; i < 5; ++i)
+            out[i] = double(in[i]) / 2;
+    }
+
+    void f3(int in, double out[5])
+    {
+        for(int i = 0; i < 5; ++i)
+        {
+            out[i] = in / double(i+1);
+        }
     }
 };
 

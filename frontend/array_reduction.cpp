@@ -7,6 +7,33 @@
 
 #include <sstream>
 
+/*
+Normal form of expression
+(omitting syntax elements that are not expressions).
+
+Note: An expression may not be fully eta-expanded,
+it will be expanded when assigned to an id though.
+
+normal =
+  simple | ref | array_app | array
+  | external | input
+
+primitive = simple*
+
+array_app = ref : array_t
+
+array =  simple | case | external
+
+case = (simple | external : scalar_t)*
+
+simple =
+  ref : scalar_t |
+  literal : scalar_t |
+  primitive : scalar_t |
+  array_app : scalar_t |
+  external : scalar_t
+*/
+
 using namespace std;
 
 namespace stream {
@@ -483,45 +510,41 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
         arg = reduce(arg);
     }
 
-    bool requires_reduction = true;
+    // Lambda lift if not a simple array
+
+    bool must_lambda_lift = false;
 
     if (auto arr = dynamic_pointer_cast<array>(app->object.expr))
     {
-        // TODO: Are name recursions in array OK?
-        // I think so.
-        // Any problem will show up as scheduling problem due to circular deps.
-
-        bool is_irreducible =
-                arr->is_recursive ||
-                dynamic_pointer_cast<case_expr>(arr->expr.expr);
-
-        if (is_irreducible)
-            app->object = lambda_lift(arr, "_tmp");
-
-        requires_reduction = true;
-    }
-    else if (dynamic_pointer_cast<array_app>(app->object.expr))
-    {
-        requires_reduction = true;
-    }
-    else if (dynamic_pointer_cast<array_self_ref>(app->object.expr))
-    {
-        requires_reduction = false;
+        must_lambda_lift =
+                        arr->is_recursive ||
+                        dynamic_pointer_cast<case_expr>(arr->expr.expr) ||
+                        dynamic_pointer_cast<func_app>(arr->expr.expr);
     }
     else if (dynamic_pointer_cast<func_app>(app->object.expr))
     {
-        app->object = lambda_lift(app->object, "_tmp");
-        requires_reduction = false;
-    }
-    else
-    {
-        auto object_ar = dynamic_pointer_cast<array_type>(app->object->type);
-        if (object_ar && object_ar->size.size() >= app->args.size())
-            requires_reduction = false;
+        must_lambda_lift = true;
     }
 
-    if (!requires_reduction)
+    if (must_lambda_lift)
+        app->object = lambda_lift(app->object, "_tmp");
+
+    // Is there anything left to do?
+
+    auto ar_type = dynamic_pointer_cast<array_type>(app->object->type);
+
+    bool is_overapplied =
+            !ar_type || ar_type->size.size() < app->args.size();
+
+    bool is_normal =
+            (dynamic_pointer_cast<array_self_ref>(app->object.expr)
+             || dynamic_pointer_cast<reference>(app->object.expr))
+            && !is_overapplied;
+
+    if (is_normal)
         return app;
+
+    // Reduce
 
     vector<expr_ptr> args(app->args.begin(), app->args.end());
     return apply(app->object, args);
@@ -560,9 +583,11 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
             must_lambda_lift =
                     arr->is_recursive ||
                     dynamic_pointer_cast<case_expr>(arr->expr.expr) ||
-                    dynamic_pointer_cast<func_app>(arr->expr.expr);
+                    (dynamic_pointer_cast<func_app>(arr->expr.expr) &&
+                     arr->expr->type->is_array());
         }
-        else if (dynamic_pointer_cast<func_app>(operand.expr))
+        else if (dynamic_pointer_cast<func_app>(operand.expr) &&
+                 operand->type->is_array())
         {
             must_lambda_lift = true;
         };
@@ -610,11 +635,14 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
         bool must_lambda_lift = false;
         if (dynamic_pointer_cast<array>(operand.expr))
         {
-            if (dynamic_pointer_cast<func_app>(operand.expr))
-                must_lambda_lift = true;
+            must_lambda_lift =
+                    dynamic_pointer_cast<func_app>(operand.expr) &&
+                    operand->type->is_array();
         }
         else if (dynamic_pointer_cast<func_app>(operand.expr))
-            must_lambda_lift = true;
+        {
+            must_lambda_lift = operand->type->is_array();
+        }
 
         if (must_lambda_lift)
             operand = lambda_lift(operand, "_tmp");
@@ -826,8 +854,24 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 {
     for (auto & a_case : cexpr->cases)
     {
-        auto & expr = a_case.second;
-        expr = reduce(expr);
+        auto & part = a_case.second;
+        part = reduce(part);
+
+        bool must_lambda_lift = false;
+
+        if (dynamic_pointer_cast<array>(part.expr))
+        {
+            must_lambda_lift =
+                    dynamic_pointer_cast<func_app>(part.expr) &&
+                    part->type->is_array();
+        }
+        else if (dynamic_pointer_cast<func_app>(part.expr))
+        {
+            must_lambda_lift = part->type->is_array();
+        }
+
+        if (must_lambda_lift)
+            part = lambda_lift(part, "_tmp");
     }
 
     array_ptr arr;
