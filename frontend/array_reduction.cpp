@@ -8,10 +8,15 @@
 #include <sstream>
 
 /*
-Normal form (omitting syntax elements that are not expressions):
+Normal form of expression
+(omitting syntax elements that are not expressions).
+
+Note: An expression may not be fully eta-expanded,
+it will be expanded when assigned to an id though.
 
 normal =
-  simple | input | external | array
+  simple | ref | array_app | array
+  | external | input
 
 primitive = simple*
 
@@ -526,21 +531,17 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 
     // Is there anything left to do?
 
-    bool should_reduce = true;
+    auto ar_type = dynamic_pointer_cast<array_type>(app->object->type);
 
-    if (dynamic_pointer_cast<array_self_ref>(app->object.expr))
-    {
-        should_reduce = false;
-    }
-    else
-    {
-        // We expect further applications, so we delay reduction until then.
-        auto array_t = dynamic_pointer_cast<array_type>(app->object->type);
-        if (array_t && array_t->size.size() >= app->args.size())
-            should_reduce = false;
-    }
+    bool is_overapplied =
+            !ar_type || ar_type->size.size() < app->args.size();
 
-    if (!should_reduce)
+    bool is_normal =
+            (dynamic_pointer_cast<array_self_ref>(app->object.expr)
+             || dynamic_pointer_cast<reference>(app->object.expr))
+            && !is_overapplied;
+
+    if (is_normal)
         return app;
 
     // Reduce
