@@ -1,9 +1,9 @@
  
-external f3 :: [5]int -> [5]real64;
+external f2 :: [5]int -> [5]real64;
 
 a = [5: i -> i];
 
-main = f3(a);
+main = f2(a);
 
 ##? [5]real64
 ##? (0.0, 0.5, 1.0, 1.5, 2.0)
