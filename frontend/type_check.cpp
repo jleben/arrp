@@ -272,6 +272,8 @@ expr_ptr type_checker::do_apply
 {
     assert_or_throw(func->vars.size() >= args.size());
 
+    printer p;
+
     reduce_context_type::scope_holder scope(m_var_sub.m_context);
 
     // Prepare arguments
@@ -283,14 +285,22 @@ expr_ptr type_checker::do_apply
         arg = visit(arg);
 
         atomic_expr_check is_atomic;
-        if (var->ref_count > 1 && !is_atomic(arg))
+        if (var->ref_count > 1 && !is_atomic(arg) && !arg->type->is_function())
         {
+            if (verbose<type_checker>::enabled())
+            {
+                cout << "Lambda-lifting arg " << i << " = ";
+                p.print(arg, cout);
+                cout << endl;
+            }
             arg = lambda_lift(arg, var->qualified_name);
         }
 
         if (verbose<type_checker>::enabled())
         {
-            cout << "+ bound var: " << var << endl;
+            cout << "+ bound var " << var << " = ";
+            p.print(arg, cout);
+            cout << endl;
         }
         m_var_sub.m_context.bind(var, arg);
     }
@@ -381,6 +391,9 @@ expr_ptr type_checker::apply_external(const shared_ptr<func_app> & app)
     {
         arg = visit(arg);
 
+        // FIXME: Why is lambda-lifting done here?
+        // Maybe it should be done in array reduction instead?
+        // Also, the primitive check should consider external calls primitive.
         primitive_expr_check is_primitive;
         if (!is_primitive(arg))
             arg = lambda_lift(arg, "_tmp");
@@ -457,6 +470,8 @@ expr_ptr type_checker::visit_infinity(const shared_ptr<infinity> & expr)
 
 expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
+    printer p;
+
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
         if (!id->expr)
@@ -498,16 +513,35 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
                 throw type_error("Recursive use of function not allowed.",
                                       id->location);
             }
-
+            if (verbose<type_checker>::enabled())
+            {
+                cout << "Reference to id " << id->name
+                     << " is a function - using a copy of the function intead."
+                     << endl;
+            }
             return m_copier.copy(func);
         }
         else if (auto ext = dynamic_pointer_cast<external>(id->expr.expr))
         {
             if (!ext->is_input)
+            {
+                if (verbose<type_checker>::enabled())
+                {
+                    cout << "Reference to id " << id->name
+                         << " is an external function call - using a copy of the call instead."
+                         << endl;
+                }
                 return m_copier.copy(ext);
+            }
         }
         else if (is_constant(id->expr))
         {
+            if (verbose<type_checker>::enabled())
+            {
+                cout << "Reference to id " << id->name
+                     << " is constant - using the value instead."
+                     << endl;
+            }
             return id->expr;
         }
 
@@ -1412,6 +1446,8 @@ expr_ptr type_checker::lambda_lift(expr_ptr e, const string & name)
 
 expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
 {
+    printer p;
+
     if (auto fv = dynamic_pointer_cast<func_var>(ref->var))
     {
         auto binding = m_context.find(fv);
@@ -1419,7 +1455,9 @@ expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
         {
             if (verbose<type_checker>::enabled())
             {
-                cout << "Substituting a reference to var: " << fv << endl;
+                cout << "Substituting a reference to var " << fv << " = ";
+                p.print(binding.value(), cout);
+                cout << endl;
             }
             return m_copier.copy(binding.value());
         }
@@ -1427,7 +1465,7 @@ expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
         {
             if (verbose<type_checker>::enabled())
             {
-                cout << "No substitution for reference to var: " << fv << endl;
+                cout << "No substitution for reference to var " << fv << endl;
             }
         }
     }
