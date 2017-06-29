@@ -16,9 +16,9 @@ public:
         out[1] = in[2] + in[3];
     }
 
-    void g(int & in, int & out)
+    int g(int in)
     {
-        out = in * 100;
+        return in * 100;
     }
 
     double f1(int in)

@@ -597,10 +597,13 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
         assert_or_throw(stmt->expr->type->is_scalar());
 
         vector<expr_ptr> index;
-        for (int dim = 0; dim < stmt->domain.dimensions(); ++dim)
+        if (array->size.size()) // If statement not singular
         {
-            auto i = make_shared<ph::iterator_read>(dim);
-            index.push_back(i);
+            for (int dim = 0; dim < stmt->domain.dimensions(); ++dim)
+            {
+                auto i = make_shared<ph::iterator_read>(dim);
+                index.push_back(i);
+            }
         }
         auto dest = access(stmt, array, index, false, true);
         stmt->expr = make_shared<ph::assignment>(dest, stmt->expr);
@@ -670,8 +673,6 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
 expr_ptr polyhedral_gen::visit_array_app
 (const shared_ptr<array_app> & app)
 {
-    assert(app->type->is_scalar());
-
     auto read_expr = make_shared<ph::array_access>();
 
     ph::array_ptr arr;
@@ -692,11 +693,15 @@ expr_ptr polyhedral_gen::visit_array_app
     }
 
     read_expr->array = arr;
-    // FIXME: Could be array type if this is partial application!
-    read_expr->type = make_shared<scalar_type>(arr->type);
-
     read_expr->reading = true;
     read_expr->writing = false;
+
+    assert(app->args.size() <= arr->size.size());
+
+    functional::array_size_vec result_size
+            (arr->size.begin() + app->args.size(),
+             arr->size.end());
+    read_expr->type = type_for(result_size, arr->type);
 
     {
         auto space = isl::space::from(m_space_map->space, arr->domain.get_space());
@@ -949,17 +954,11 @@ shared_ptr<polyhedral::array_access> polyhedral_gen::access
     access->reading = reading;
     access->writing = writing;
 
-    if (indexes.size() < array->size.size())
-    {
-        functional::array_size_vec result_size;
-        for (int i = indexes.size(); i < array->size.size(); ++i)
-            result_size.push_back(array->size[i]);
-        access->type = std::make_shared<functional::array_type>(result_size, array->type);
-    }
-    else
-    {
-        access->type = std::make_shared<functional::scalar_type>(array->type);
-    }
+    int used_index_count = min(indexes.size(), array->size.size());
+    functional::array_size_vec result_size
+            (array->size.begin() + used_index_count,
+             array->size.end());
+    access->type = type_for(result_size, array->type);
 
     auto space = isl::space::from(stmt->domain.get_space(), array->domain.get_space());
     auto m = isl::basic_map::universe(space);

@@ -1,7 +1,7 @@
  
 external f1 :: int -> real64;
 
-main = 1 + f1(2);
+main = 1 + f1(1);
 
-##? real64;
+##? real64
 ##? 1.5
