@@ -329,12 +329,13 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     auto a = access(stmt, array, ar_index, true, false);
     call->args.push_back(a);
 
+    stmt->expr = call;
+
     if (verbose<polyhedral_gen>::enabled())
     {
-        cout << "Output relation:" << endl;
-
+        cout << "Output read relation:" << endl;
+        m_isl_printer.print(a->map); cout << endl;
     }
-    stmt->expr = call;
 
     // Add self-relation to impose order
     if (ordered && (atomic || array->is_infinite))
@@ -751,8 +752,15 @@ expr_ptr polyhedral_gen::visit_func_app(const shared_ptr<func_app> &app)
         auto ar = m_arrays.at(m_current_id);
         assert(ar);
 
+        // Statement might be singular, so we only use
+        // non-singular dimensions.
+        int write_dim_count = app->type->array()->size.size();
+        assert(write_dim_count <= ar->size.size());
+        int max_stmt_dim = std::min((int) m_current_stmt->domain.dimensions(),
+                                    (int) ar->size.size() - write_dim_count);
+
         vector<expr_ptr> index;
-        for (int dim = 0; dim < m_current_stmt->domain.dimensions(); ++dim)
+        for (int dim = 0; dim < max_stmt_dim; ++dim)
             index.push_back(make_shared<ph::iterator_read>(dim));
 
         // FIXME: Make write-only (needs a fix in storage allocation).
