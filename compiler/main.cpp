@@ -29,7 +29,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
 #include "../frontend/ph_model_gen.hpp"
-#include "../polyhedral/modulo_avoidance.hpp"
+//#include "../polyhedral/modulo_avoidance.hpp"
 #include "../polyhedral/scheduling.hpp"
 #include "../polyhedral/isl_ast_gen.hpp"
 #include "../polyhedral/storage_alloc.hpp"
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
     verbose_out->add_topic<functional::array_transposer>("array-transpose");
     verbose_out->add_topic<functional::polyhedral_gen>("ph-model-gen");
     verbose_out->add_topic<polyhedral::model>("ph-model");
-    verbose_out->add_topic<polyhedral::modulo_avoidance>("mod-avoid");
+    //verbose_out->add_topic<polyhedral::modulo_avoidance>("mod-avoid");
     verbose_out->add_topic<polyhedral::scheduler>("ph-scheduling");
     verbose_out->add_topic<polyhedral::ast_isl>("ph-ast");
     verbose_out->add_topic<polyhedral::ast_gen>("ph-ast-gen");

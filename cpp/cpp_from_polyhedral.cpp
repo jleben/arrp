@@ -95,25 +95,9 @@ void cpp_from_polyhedral::generate_statement
 {
     m_current_stmt = stmt;
 
-    expression_ptr expr;
+    auto expr = generate_expression(stmt->expr, index, ctx);
 
-    {
-        expr = generate_expression(stmt->expr, index, ctx);
-
-        // NOTE: Input statements have a write relation, but no type.
-        if (stmt->write_relation.array && stmt->expr->type != nullptr)
-        {
-            // FIXME: map write relation (although it's currently identity)
-            auto array_index = index;
-            auto dst = generate_buffer_access(stmt->write_relation.array, array_index, ctx);
-            auto store = make_shared<bin_op_expression>(op::assign, dst, expr);
-            ctx->add(store);
-        }
-        else
-        {
-            ctx->add(expr);
-        }
-    }
+    ctx->add(expr);
 }
 
 expression_ptr cpp_from_polyhedral::generate_expression
@@ -132,13 +116,13 @@ expression_ptr cpp_from_polyhedral::generate_expression
         assert(iterator->index >= 0 && iterator->index < index.size());
         return index[iterator->index];
     }
-    else if (auto read = dynamic_cast<polyhedral::array_read*>(expr.get()))
+    else if (auto access = dynamic_cast<polyhedral::array_access*>(expr.get()))
     {
         index_type target_index;
-        for (auto & e : read->indexes)
+        for (auto & e : access->indexes)
             target_index.push_back(generate_expression(e, index, ctx));
 
-        result = generate_buffer_access(read->array, target_index, ctx);
+        result = generate_buffer_access(access->array, target_index, ctx);
     }
     else if ( auto const_int = dynamic_cast<functional::int_const*>(expr.get()) )
     {
@@ -174,6 +158,13 @@ expression_ptr cpp_from_polyhedral::generate_expression
         auto callee = make_shared<bin_op_expression>
                 (op::member_of_pointer, make_id("io"), make_id(call->name));
         return make_shared<call_expression>(callee, args);
+    }
+    else if (auto assign = dynamic_cast<polyhedral::assignment*>(expr.get()))
+    {
+        auto dest = generate_expression(assign->destination, index, ctx);
+        auto value = generate_expression(assign->value, index, ctx);
+        auto store = make_shared<bin_op_expression>(op::assign, dest, value);
+        return store;
     }
     else
     {

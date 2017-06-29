@@ -25,7 +25,7 @@ add_library(arrp-lib STATIC
   ../polyhedral/utility.cpp
   ../polyhedral/scheduling.cpp
   ../polyhedral/storage_alloc.cpp
-  ../polyhedral/modulo_avoidance.cpp
+  #../polyhedral/modulo_avoidance.cpp
   ../polyhedral/isl_ast_gen.cpp
   ../cpp/cpp_target.cpp
   ../cpp/cpp_from_polyhedral.cpp

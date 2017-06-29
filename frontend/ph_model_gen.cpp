@@ -51,14 +51,8 @@ void polyhedral_gen::make_time_array()
         s0_dom.add_constraint(s0_space.var(0) == 0);
 
         auto s0 = make_shared<ph::statement>(s0_dom);
-        s0->expr = make_shared<int_const>(0);
-
-        auto wrel_space = isl::space::from(s0->domain.get_space(), ar->domain.get_space());
-        auto wrel_map = isl::basic_map::universe(wrel_space);
-        wrel_map.add_constraint(wrel_space.out(0) == 0);
-
-        s0->write_relation.array = ar;
-        s0->write_relation.map = wrel_map;
+        auto a0 = access(s0, ar, {make_shared<int_const>(0)}, false, true);
+        s0->expr = make_shared<ph::assignment>(a0, make_shared<int_const>(0));
 
         m_time_stmts.push_back(s0);
     }
@@ -70,31 +64,19 @@ void polyhedral_gen::make_time_array()
         auto s1 = make_shared<ph::statement>(s1_dom);
 
         {
-            auto i = make_shared<ph::iterator_read>(0);
-            auto j = make_shared<primitive>(primitive_op::subtract, i, make_shared<int_const>(1));
-            j->type = make_int_type();
-            auto t0 = make_shared<ph::array_read>(ar, vector<expr_ptr>({j}));
-            auto t1 = make_shared<primitive>(primitive_op::add, t0, make_shared<int_const>(1));
-            t1->type = make_int_type();
+            auto t = make_shared<ph::iterator_read>(0);
+            auto t_1 = make_shared<primitive>(primitive_op::subtract, t, make_shared<int_const>(1));
+            t_1->type = make_int_type();
+            auto at_1 = access(s1, ar, {t_1}, true, false);
 
-            s1->expr = t1;
+            auto v = make_shared<primitive>(primitive_op::add, at_1, make_shared<int_const>(1));
+            v->type = make_int_type();
 
-            {
-                auto s = isl::space::from(s1->domain.get_space(), ar->domain.get_space());
-                auto m = isl:: basic_map::universe(s);
-                m.add_constraint(s.out(0) == s.in(0) - 1);
+            auto at = access(s1, ar, {make_shared<ph::iterator_read>(0)}, false, true);
 
-                s1->read_relations.emplace_back(ar, m);
-                t0->relation = &s1->read_relations.back();
-            }
+            s1->expr = make_shared<ph::assignment>(at, v);
         }
-        {
-            auto s = isl::space::from(s1->domain.get_space(), ar->domain.get_space());
-            auto m = isl::basic_map::universe(s);
-            m.add_constraint(s.out(0) == s.in(0));
 
-            s1->write_relation = {ar, m};
-        }
         s1->is_infinite = true;
 
         m_time_stmts.push_back(s1);
@@ -261,38 +243,11 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
             ar_index.push_back(make_shared<ph::iterator_read>(0));
         }
 
-        auto read = make_shared<ph::array_read>(ar, ar_index);
+        // FIXME: Make write-only (needs fix in storage allocation)
+        auto a = access(stmt, ar, ar_index, true, true);
+        call->args.push_back(a);
 
-        call->args.push_back(read);
-
-        // Add data read & write relations
-        {
-            isl::basic_map m(nullptr);
-
-            if (atomic)
-            {
-                m = isl::basic_map::identity(stmt->domain.get_space(),
-                                             ar->domain.get_space());
-            }
-            else
-            {
-                auto s = isl::space::from(stmt->domain.get_space(),
-                                          ar->domain.get_space());
-                m = isl::basic_map::universe(s);
-                if (ar->is_infinite)
-                    m.add_constraint(s.out(0) == s.in(0));
-            }
-
-            stmt->write_relation = { ar, m };
-            stmt->read_relations.emplace_back(ar, m);
-            read->relation = &stmt->read_relations.back();
-
-            if (verbose<polyhedral_gen>::enabled())
-            {
-                cout << "Input read and write relation:" << endl;
-                m_isl_printer.print(m); cout << endl;
-            }
-        }
+        stmt->expr = call;
 
         // Add self-relation to impose order
         if (ordered && (atomic || ar->is_infinite))
@@ -307,8 +262,6 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
                 m_isl_printer.print(m); cout << endl;
             }
         }
-
-        stmt->expr = call;
 
         model.statements.push_back(stmt);
     }
@@ -373,54 +326,26 @@ void polyhedral_gen::add_output(polyhedral::model & model,
         ar_index.push_back(make_shared<ph::iterator_read>(0));
     }
 
-    auto read = make_shared<ph::array_read>(array, ar_index);
+    auto a = access(stmt, array, ar_index, true, false);
+    call->args.push_back(a);
 
-    call->args.push_back(read);
+    if (verbose<polyhedral_gen>::enabled())
+    {
+        cout << "Output relation:" << endl;
 
+    }
     stmt->expr = call;
 
-    // isl index expression
-
+    // Add self-relation to impose order
+    if (ordered && (atomic || array->is_infinite))
     {
-        // Add array read relation
+        auto m = isl::order_less_than(stmt->domain.get_space());
+        stmt->self_relations = m;
+
+        if (verbose<polyhedral_gen>::enabled())
         {
-            isl::basic_map m(nullptr);
-
-            if (atomic)
-            {
-                m = isl::basic_map::identity(stmt->domain.get_space(),
-                                             array->domain.get_space());
-            }
-            else
-            {
-                auto s = isl::space::from(stmt->domain.get_space(),
-                                          array->domain.get_space());
-                m = isl::basic_map::universe(s);
-                if (array->is_infinite)
-                    m.add_constraint(s.out(0) == s.in(0));
-            }
-
-            stmt->read_relations.emplace_back(array, m);
-            read->relation = &stmt->read_relations.back();
-
-            if (verbose<polyhedral_gen>::enabled())
-            {
-                cout << "Output read relation:" << endl;
-                m_isl_printer.print(m); cout << endl;
-            }
-        }
-
-        // Add self-relation to impose order
-        if (ordered && (atomic || array->is_infinite))
-        {
-            auto m = isl::order_less_than(stmt->domain.get_space());
-            stmt->self_relations = m;
-
-            if (verbose<polyhedral_gen>::enabled())
-            {
-                cout << "Output self relation:" << endl;
-                m_isl_printer.print(m); cout << endl;
-            }
+            cout << "Output self relation:" << endl;
+            m_isl_printer.print(m); cout << endl;
         }
     }
 
@@ -549,14 +474,23 @@ void polyhedral_gen::make_statements(id_ptr id, ph::model & output)
             auto combined_write_domain = isl::set(array_domain.get_space());
             for (auto & stmt : case_stmts)
             {
-                auto write_domain = stmt->write_relation.map(stmt->domain);
+                auto write_domain = stmt->domain;
                 write_domain.clear_id();
+                if (write_domain.dimensions() < array_domain.dimensions())
+                {
+                    auto extra_dim_count = array_domain.dimensions() - write_domain.dimensions();
+                    write_domain.add_dimensions(isl::space::variable, extra_dim_count);
+                }
+
+                assert_or_throw(write_domain.dimensions() == array_domain.dimensions());
+
                 if (!write_domain.is_disjoint(combined_write_domain))
                 {
                     throw source_error("'" + id->name + "': " +
                                        "Array subdomains are not disjoint.",
                                        case_expr->location);
                 }
+
                 combined_write_domain = combined_write_domain | write_domain;
             }
 
@@ -627,8 +561,7 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
     }
 
     auto space = stmt->domain.get_space();
-    auto local_space = isl::local_space(space);
-    space_map sm(space, local_space, vars);
+    space_map sm(space, vars);
 
     m_space_map = &sm;
 
@@ -655,24 +588,22 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
         }
     }
 
-    {
-        // Create write relation
-
-        auto space = isl::space::from(stmt->domain.get_space(), array->domain.get_space());
-        auto map = isl::basic_map::universe(space);
-
-        assert(stmt->domain.dimensions() <= array->domain.dimensions());
-        for (int dim = 0; dim < stmt->domain.dimensions(); ++dim)
-        {
-            map.add_constraint(space.out(dim) == space.in(dim));
-        }
-
-        stmt->write_relation.array = array;
-        stmt->write_relation.map = map;
-    }
-
     m_current_stmt = stmt;
     stmt->expr = visit(expr);
+
+    if (stmt->expr->type)
+    {
+        assert_or_throw(stmt->expr->type->is_scalar());
+
+        vector<expr_ptr> index;
+        for (int dim = 0; dim < stmt->domain.dimensions(); ++dim)
+        {
+            auto i = make_shared<ph::iterator_read>(dim);
+            index.push_back(i);
+        }
+        auto dest = access(stmt, array, index, false, true);
+        stmt->expr = make_shared<ph::assignment>(dest, stmt->expr);
+    }
 
     if (my_verbose_out::enabled())
     {
@@ -681,13 +612,16 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
              << ":" << endl;
         m_isl_printer.print(stmt->domain); cout << endl;
 
-        cout << "Write relation: " << stmt->write_relation.array->name << endl;
-        m_isl_printer.print(stmt->write_relation.map); cout << endl;
-
-        for (const auto & rel : stmt->read_relations)
+        for (auto & rel : stmt->array_accesses)
         {
-            cout << "Read relation:" << rel.array->name << endl;
-            m_isl_printer.print(rel.map); cout << endl;
+            cout << "Relation (";
+            if (rel->reading)
+                cout << " read";
+            if (rel->writing)
+                cout << " write";
+            cout << " ):" << endl;
+            m_isl_printer.print(rel->map);
+            cout << endl;
         }
     }
 
@@ -713,20 +647,7 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
 
             m_time_array_needed = true;
 
-            auto time_value = make_shared<ph::array_read>
-                    (m_time_array, vector<expr_ptr>({iter_value}));
-
-            auto rel_space = isl::space::from
-                    (m_current_stmt->domain.get_space(),
-                     m_time_array->domain.get_space());
-            auto rel_map = isl::basic_map::universe(rel_space);
-            // FIXME: is the input dimension right?
-            rel_map.add_constraint(rel_space.out(0) == rel_space.in(dim));
-            ph::array_relation rel(m_time_array, rel_map);
-
-            m_current_stmt->read_relations.push_back(rel);
-            time_value->relation = &m_current_stmt->read_relations.back();
-
+            auto time_value = access(m_current_stmt, m_time_array, {iter_value}, true, false);
             return time_value;
         }
         else
@@ -737,18 +658,7 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
     else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
         auto arr = m_arrays.at(id);
-
-        auto read_expr = make_shared<ph::array_read>(arr, vector<functional::expr_ptr>(), ref->location);
-
-        {
-            auto space = isl::space::from(m_space_map->space, arr->domain.get_space());
-            auto map = isl::basic_map::universe(space);
-            ph::array_relation rel(arr, map);
-            m_current_stmt->read_relations.push_back(rel);
-            read_expr->relation = &m_current_stmt->read_relations.back();
-        }
-
-        return read_expr;
+        return access(m_current_stmt, arr, {}, true, false);
     }
     else
     {
@@ -761,7 +671,7 @@ expr_ptr polyhedral_gen::visit_array_app
 {
     assert(app->type->is_scalar());
 
-    auto read_expr = make_shared<ph::array_read>();
+    auto read_expr = make_shared<ph::array_access>();
 
     ph::array_ptr arr;
 
@@ -781,12 +691,15 @@ expr_ptr polyhedral_gen::visit_array_app
     }
 
     read_expr->array = arr;
+    // FIXME: Could be array type if this is partial application!
     read_expr->type = make_shared<scalar_type>(arr->type);
+
+    read_expr->reading = true;
+    read_expr->writing = false;
 
     {
         auto space = isl::space::from(m_space_map->space, arr->domain.get_space());
-        auto local_space = isl::local_space(space);
-        space_map sm_rel(space, local_space, m_space_map->vars);
+        space_map sm_rel(space, m_space_map->vars);
 
         auto m = isl::basic_map::universe(space);
 
@@ -808,10 +721,10 @@ expr_ptr polyhedral_gen::visit_array_app
             read_expr->indexes.push_back(visit(app->args[a]));
         }
 
-        m_current_stmt->read_relations.emplace_back(arr, m);
-
-        read_expr->relation = &m_current_stmt->read_relations.back();
+        read_expr->map = m;
     }
+
+    m_current_stmt->array_accesses.push_back(read_expr);
 
     return read_expr;
 }
@@ -842,13 +755,13 @@ expr_ptr polyhedral_gen::visit_func_app(const shared_ptr<func_app> &app)
         for (int dim = 0; dim < m_current_stmt->domain.dimensions(); ++dim)
             index.push_back(make_shared<ph::iterator_read>(dim));
 
-        auto dest = make_shared<ph::array_read>(ar, index);
-
-        // Read relation is same as write relation
-        m_current_stmt->read_relations.push_back(m_current_stmt->write_relation);
-        dest->relation = &m_current_stmt->read_relations.back();
+        // FIXME: Make write-only (needs a fix in storage allocation).
+        auto dest = access(m_current_stmt, ar, index, true, true);
 
         call->args.push_back(dest);
+
+        // No result value.
+        call->type = nullptr;
     }
     else
     {
@@ -959,6 +872,19 @@ isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & s)
             return isl::expression::variable(s.local_space, isl::space::input, dim);
         }
     }
+    else if (auto iter = dynamic_pointer_cast<ph::iterator_read>(e))
+    {
+        int dim = iter->index;
+
+        if (s.local_space.is_set_space())
+        {
+            return isl::expression::variable(s.local_space, isl::space::variable, dim);
+        }
+        else
+        {
+            return isl::expression::variable(s.local_space, isl::space::input, dim);
+        }
+    }
     else if (auto op = dynamic_pointer_cast<primitive>(e))
     {
         switch(op->kind)
@@ -999,7 +925,52 @@ isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & s)
     throw error("Not an integer affine expression.");
 }
 
+// NOTE: This only works for custom-made access,
+// with indexes already in polyhedral model form.
+shared_ptr<polyhedral::array_access> polyhedral_gen::access
+(const polyhedral::stmt_ptr & stmt,
+ const polyhedral::array_ptr & array,
+ const vector<expr_ptr> indexes,
+ bool reading, bool writing)
+{
+    assert(indexes.size() <= array->domain.dimensions());
 
+    auto access = make_shared<polyhedral::array_access>();
+    access->array = array;
+    access->indexes = indexes;
+    access->reading = reading;
+    access->writing = writing;
+
+    if (indexes.size() < array->size.size())
+    {
+        functional::array_size_vec result_size;
+        for (int i = indexes.size(); i < array->size.size(); ++i)
+            result_size.push_back(array->size[i]);
+        access->type = std::make_shared<functional::array_type>(result_size, array->type);
+    }
+    else
+    {
+        access->type = std::make_shared<functional::scalar_type>(array->type);
+    }
+
+    auto space = isl::space::from(stmt->domain.get_space(), array->domain.get_space());
+    auto m = isl::basic_map::universe(space);
+
+    {
+        space_map sm(space, {});
+        for (int i = 0; i < indexes.size(); ++i)
+        {
+            auto e = to_affine_expr(indexes[i], sm);
+            m.add_constraint(space.out(i) == e);
+        }
+    }
+
+    access->map = m;
+
+    stmt->array_accesses.push_back(access);
+
+    return access;
+}
 
 
 }

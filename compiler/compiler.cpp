@@ -33,7 +33,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/ph_model_gen.hpp"
 #include "../polyhedral/scheduling.hpp"
 #include "../polyhedral/storage_alloc.hpp"
-#include "../polyhedral/modulo_avoidance.hpp"
+//#include "../polyhedral/modulo_avoidance.hpp"
 #include "../polyhedral/isl_ast_gen.hpp"
 #include "../cpp/cpp_target.hpp"
 

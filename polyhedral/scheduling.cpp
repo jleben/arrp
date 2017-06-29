@@ -842,14 +842,10 @@ scheduler::analyze_access_schedules(const isl::union_map & schedule)
 
     for (auto & stmt : m_model.statements)
     {
-        vector<array_relation> accesses;
-        if (stmt->write_relation.array)
-            accesses.push_back(stmt->write_relation);
-        accesses.insert(accesses.end(), stmt->read_relations.begin(), stmt->read_relations.end());
-        for (auto & access : accesses)
+        for (auto & access : stmt->array_accesses)
         {
-            auto array = access.array;
-            auto a = access.map.in_domain(stmt->domain).in_range(array->domain);
+            auto array = access->array;
+            auto a = access->map.in_domain(stmt->domain).in_range(array->domain);
 
             if (verbose<scheduler>::enabled()) {
                 cout << ".. Access: "; m_printer.print(a); cout << endl;

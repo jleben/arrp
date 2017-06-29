@@ -49,28 +49,19 @@ using std::vector;
 using std::list;
 using std::string;
 using std::unordered_map;
+using std::shared_ptr;
 using affine_matrix = utility::mapping;
+using functional::expr_ptr;
 typedef code_location location_type;
 
 class array;
 class statement;
+class array_access;
 typedef std::shared_ptr<array> array_ptr;
 typedef std::shared_ptr<statement> stmt_ptr;
 
 enum {
     infinite = -1
-};
-
-struct array_relation
-{
-    array_relation() {}
-    array_relation(array_ptr a,
-                   const isl::map & m):
-        array(a), map(m) {}
-
-    array_ptr array { nullptr };
-    // map: Used to create polyhedral model summary in ISL:
-    isl::map map { nullptr };
 };
 
 class array
@@ -122,43 +113,30 @@ public:
     string name;
     isl::set domain;
     functional::expr_ptr expr = nullptr;
-    array_relation write_relation;
-    list<array_relation> read_relations;
     isl::map self_relations { nullptr };
+    vector<shared_ptr<array_access>> array_accesses;
     unordered_map<array*, int> array_access_offset;
     bool streaming_needs_modulo = false;
     bool is_infinite = false;
 };
 
-class array_read : public functional::expression
+class array_access : public functional::expression
 {
 public:
-    array_read() {}
-    array_read(array_ptr a,
-               const vector<functional::expr_ptr> & i,
-               const location_type & l = location_type()):
-        expression(l), array(a), indexes(i)
-    {
-        if (indexes.size() < array->size.size())
-        {
-            functional::array_size_vec result_size;
-            for (int i = indexes.size(); i < array->size.size(); ++i)
-                result_size.push_back(array->size[i]);
-            type = std::make_shared<functional::array_type>(result_size, array->type);
-        }
-        else
-        {
-            type = std::make_shared<functional::scalar_type>(array->type);
-        }
-    }
-
     array_ptr array;
+
     // indexes:
     // Used to generate C++.
     // There can be fewer indexes than array dimensions,
     // which means partial indexing.
     vector<functional::expr_ptr> indexes;
-    array_relation * relation = nullptr;
+
+    // map:
+    // Used for ISL model.
+    isl::map map { nullptr };
+
+    bool writing = false;
+    bool reading = false;
 };
 
 class iterator_read : public functional::expression
@@ -177,6 +155,19 @@ public:
 
     string name;
     vector<functional::expr_ptr> args;
+};
+
+class assignment : public functional::expression
+{
+public:
+    assignment(const expr_ptr & d, const expr_ptr & v):
+        expression(location_type(), v->type),
+        destination(d),
+        value(v)
+    {}
+
+    expr_ptr destination;
+    expr_ptr value;
 };
 
 class io_channel
@@ -224,14 +215,12 @@ public:
         {
             domains = domains | stmt->domain;
 
-            if (stmt->write_relation.array)
+            for(const auto & rel : stmt->array_accesses)
             {
-                write_relations = write_relations | stmt->write_relation.map;
-            }
-
-            for(const auto & rel : stmt->read_relations)
-            {
-                read_relations = read_relations | rel.map;
+                if (rel->reading)
+                    read_relations = read_relations | rel->map;
+                if (rel->writing)
+                    write_relations = write_relations | rel->map;
             }
         }
 
