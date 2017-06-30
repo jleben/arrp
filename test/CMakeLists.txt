@@ -81,7 +81,6 @@ add_custom_target(tests)
 add_subdirectory(common)
 add_subdirectory(unit)
 add_subdirectory(apps)
-#add_subdirectory(performance)
 
 set(ARRP_COMPILER ${CMAKE_BINARY_DIR}/compiler/arrp)
 set(TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
