@@ -51,7 +51,7 @@ enum type_relation_kind
 
 struct type_relation
 {
-    type_relation(type_relation_kind k, type a, type b):
+    type_relation(type_relation_kind k, const type & a, const type & b):
         kind(k), a(a), b(b) {}
 
     type_relation_kind kind;
@@ -76,7 +76,15 @@ struct scalar_type : public concrete_type
 
 struct array_type : public concrete_type
 {
-    array_type(type e): element(e) {}
+    array_type(const type & e): element(e) {}
+    bool is_data() override { return true; }
+
+    type element;
+};
+
+struct array_like_type : public concrete_type
+{
+    array_like_type(const type & e): element(e) {}
     bool is_data() override { return true; }
 
     type element;
@@ -85,7 +93,7 @@ struct array_type : public concrete_type
 struct function_type : public concrete_type
 {
     function_type() {}
-    function_type(const vector<type> & p, type v): parameters(p), value(v) {}
+    function_type(const vector<type> & p, const type & v): parameters(p), value(v) {}
     bool is_data() override { return false; }
 
     vector<type> parameters;

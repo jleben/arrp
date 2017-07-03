@@ -1,37 +1,28 @@
+#pragma once
+
 #include "../common/functional_model.hpp"
 #include "types.hpp"
 
 #include <memory>
 #include <list>
+#include <iostream>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace arrp {
 
 using namespace stream::functional;
 using std::shared_ptr;
 using std::list;
+using std::ostream;
+using std::string;
+using std::unordered_set;
+using std::unordered_map;
 
 class type_graph
 {
 public:
-    type add_variable()
-    {
-        return add_node(new type_variable);
-    }
-
-    template <typename T>
-    shared_ptr<T> add_node()
-    {
-        auto t = std::make_shared<T>();
-        nodes.push_back(t);
-        return t;
-    }
-
-    type add_node(type t)
-    {
-        nodes.push_back(t);
-        return t;
-    }
-
     type_relation * add_relation(type_relation_kind k, type a, type b)
     {
         return add_relation(new type_relation(k, a, b));
@@ -63,8 +54,25 @@ public:
         b->relations.push_back(r);
     }
 
-    list<type> nodes;
+    void print(ostream &);
+
     list<type_relation*> relations;
+};
+
+class type_graph_printer
+{
+public:
+    type_graph_printer() {}
+    void print(const unordered_set<id_ptr> &, const type_graph & g, ostream &);
+
+private:
+    void print(const id_ptr & id, ostream &);
+    void print(const type & t, ostream &);
+    void print(type_relation * rel, ostream &);
+    string name_for(const type & t);
+
+    int node_count = 0;
+    unordered_map<concrete_type*, string> node_names;
 };
 
 }

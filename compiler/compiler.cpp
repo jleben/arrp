@@ -177,6 +177,9 @@ result::code compile_module
             arrp::type_graph graph;
             arrp::type_constraint_setup constraints(graph);
             constraints.process(array_ids);
+
+            arrp::type_graph_printer printer;
+            printer.print(array_ids, graph, cout);
         }
 
         return result::ok;

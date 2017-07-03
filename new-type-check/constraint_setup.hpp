@@ -37,8 +37,12 @@ private:
     type visit_complex(const shared_ptr<complex_const> &) override;
     type visit_bool(const shared_ptr<bool_const> &) override;
     type visit_infinity(const shared_ptr<infinity> &) override;
+    type visit_array(const shared_ptr<array> & arr) override;
+    type visit_array_app(const shared_ptr<array_app> & app) override;
+    type visit_array_size(const shared_ptr<array_size> & as) override;
     type visit_func(const shared_ptr<function> & func) override;
     type visit_func_app(const shared_ptr<func_app> & app) override;
+
 
     type_graph & m_graph;
 };
