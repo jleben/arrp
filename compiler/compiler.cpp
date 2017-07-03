@@ -28,6 +28,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/reference_analysis.hpp"
 #include "../frontend/type_check.hpp"
+#include "../new-type-check/func_reduction.hpp"
+#include "../new-type-check/constraint_setup.hpp"
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
 #include "../frontend/ph_model_gen.hpp"
@@ -152,6 +154,32 @@ result::code compile_module
         unordered_set<functional::id_ptr> array_ids;
 
         functional::name_provider func_name_provider(':');
+
+        {
+            arrp::func_reducer func_reducer(func_name_provider);
+            func_reducer.process(ids);
+            array_ids = func_reducer.ids();
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "-- Reduced functions:" << endl;
+                functional::printer printer;
+                printer.set_print_scopes(false);
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+            }
+        }
+
+        {
+            arrp::type_graph graph;
+            arrp::type_constraint_setup constraints(graph);
+            constraints.process(array_ids);
+        }
+
+        return result::ok;
 
         {
             functional::type_checker type_checker(func_name_provider);

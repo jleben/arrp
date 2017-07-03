@@ -26,6 +26,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "linear_algebra.hpp"
 #include "module.hpp"
 #include "../frontend/location.hh"
+#include "../new-type-check/types.hpp"
 #include <memory>
 #include <vector>
 #include <utility>
@@ -75,6 +76,7 @@ public:
     virtual ~expression() {}
     location_type location;
     type_ptr type;
+    arrp::type type2;
 
 };
 typedef std::shared_ptr<expression> expr_ptr;
@@ -112,6 +114,7 @@ public:
     expr_slot expr;
     expr_slot type_expr;
     type_ptr explicit_type;
+    arrp::type type2;
     bool is_recursive = false;
 };
 typedef std::shared_ptr<identifier> id_ptr;

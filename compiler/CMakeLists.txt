@@ -2,6 +2,9 @@
 include_directories(../common)
 
 add_library(arrp-lib STATIC
+  ../new-type-check/func_reduction.cpp
+  ../new-type-check/constraint_setup.cpp
+  #../new-type-check/type_check.cpp
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../common/primitives.cpp

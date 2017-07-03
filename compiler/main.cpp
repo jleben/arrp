@@ -26,6 +26,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/module_parser.hpp"
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/type_check.hpp"
+#include "../new-type-check/func_reduction.hpp"
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
 #include "../frontend/ph_model_gen.hpp"
@@ -172,7 +173,7 @@ int main(int argc, char *argv[])
     verbose_out->add_topic<ast::output>("ast");
     verbose_out->add_topic<functional::model>("func-model");
     verbose_out->add_topic<functional::generator>("func-model-gen");
-    verbose_out->add_topic<functional::type_checker>("type-check");
+    verbose_out->add_topic<arrp::type_checker>("type-check");
     verbose_out->add_topic<functional::array_reducer>("array-reduction");
     verbose_out->add_topic<functional::array_transposer>("array-transpose");
     verbose_out->add_topic<functional::polyhedral_gen>("ph-model-gen");
