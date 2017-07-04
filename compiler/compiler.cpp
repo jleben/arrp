@@ -30,6 +30,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/type_check.hpp"
 #include "../new-type-check/func_reduction.hpp"
 #include "../new-type-check/constraint_setup.hpp"
+#include "../new-type-check/constraint_solution.hpp"
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
 #include "../frontend/ph_model_gen.hpp"
@@ -175,12 +176,18 @@ result::code compile_module
 
         {
             arrp::type_graph graph;
+            arrp::type_graph_printer printer;
+
             arrp::type_constraint_setup constraints(graph);
             constraints.process(array_ids);
 
             cout << "-- Type constraints:" << endl;
+            printer.print(array_ids, graph, cout);
 
-            arrp::type_graph_printer printer;
+            arrp::type_constraint_solver solver(graph, printer);
+            solver.solve();
+
+            cout << "-- Unified types:" << endl;
             printer.print(array_ids, graph, cout);
         }
 

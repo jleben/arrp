@@ -11,15 +11,8 @@ using stream::primitive_type;
 using std::vector;
 struct type_relation;
 
-struct concrete_type
-{
-    virtual ~concrete_type() {}
-    virtual bool is_data() = 0;
-
-    vector<type_relation*> relations;
-};
-
 struct type_relation;
+struct concrete_type;
 
 struct type : public std::shared_ptr<concrete_type>
 {
@@ -36,11 +29,20 @@ struct type : public std::shared_ptr<concrete_type>
         return *this;
     }
 
-    template<typename T>
-    type as()
+    template <typename T>
+    shared_ptr<T> as() const
     {
         return std::dynamic_pointer_cast<T>(*this);
     }
+};
+
+struct concrete_type
+{
+    virtual ~concrete_type() {}
+    virtual bool is_data() = 0;
+
+    vector<type_relation*> relations;
+    type value;
 };
 
 enum type_relation_kind
@@ -123,11 +125,9 @@ struct type_variable : public concrete_type
         classes.emplace_back(k, p);
     }
 
-    type_variable(const type & t): value(t) {}
     bool is_data() override { return false; }
 
     vector<type_class> classes;
-    type value;
 };
 
 }

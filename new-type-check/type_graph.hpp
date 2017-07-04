@@ -64,12 +64,12 @@ class type_graph_printer
 public:
     type_graph_printer() {}
     void print(const unordered_set<id_ptr> &, const type_graph & g, ostream &);
-
-private:
     void print(const id_ptr & id, ostream &);
     void print(const type & t, ostream &);
     void print(type_relation * rel, ostream &);
     void print(const type_class & c, ostream&);
+
+private:
     string name_for(const type & t);
 
     int node_count = 0;

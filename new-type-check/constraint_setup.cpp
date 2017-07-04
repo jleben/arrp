@@ -112,7 +112,7 @@ type type_constraint_setup::visit_array_patterns(const shared_ptr<array_patterns
 type type_constraint_setup::visit_array(const shared_ptr<array> & arr)
 {
     type t = visit(arr->expr);
-    for(auto & var : arr->vars)
+    for (int i = 0; i < arr->vars.size(); ++i)
         t = new array_type(t);
     return t;
 }
@@ -123,7 +123,7 @@ type type_constraint_setup::visit_array_app(const shared_ptr<array_app> & app)
 
     type element_type = new type_variable;
     type required_object_type = element_type;
-    for (auto & arg : app->args)
+    for (int i = 0; i < app->args.size(); ++i)
     {
         required_object_type = new type_variable(indexable_type, {required_object_type});
     }
