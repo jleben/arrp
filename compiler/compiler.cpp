@@ -178,6 +178,8 @@ result::code compile_module
             arrp::type_constraint_setup constraints(graph);
             constraints.process(array_ids);
 
+            cout << "-- Type constraints:" << endl;
+
             arrp::type_graph_printer printer;
             printer.print(array_ids, graph, cout);
         }

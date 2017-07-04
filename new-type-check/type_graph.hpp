@@ -69,6 +69,7 @@ private:
     void print(const id_ptr & id, ostream &);
     void print(const type & t, ostream &);
     void print(type_relation * rel, ostream &);
+    void print(const type_class & c, ostream&);
     string name_for(const type & t);
 
     int node_count = 0;

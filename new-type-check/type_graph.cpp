@@ -74,12 +74,6 @@ void type_graph_printer::print(const type & t, ostream & out)
         print(a->element, out);
         out << "]";
     }
-    else if (auto al = dynamic_pointer_cast<array_like_type>(t))
-    {
-        out << "{";
-        print(al->element, out);
-        out << "}";
-    }
     else if (auto f = dynamic_pointer_cast<function_type>(t))
     {
         out << "(";
@@ -91,6 +85,18 @@ void type_graph_printer::print(const type & t, ostream & out)
     else if (auto v = dynamic_pointer_cast<type_variable>(t))
     {
         out << "*";
+        if (!v->classes.empty())
+        {
+            out << "(";
+            int i = 0;
+            for (auto & c : v->classes)
+            {
+                if (i++ > 0)
+                    out << ",";
+                print(c, out);
+            }
+            out << ")";
+        }
         if (v->value)
         {
             out << " = ";
@@ -100,6 +106,43 @@ void type_graph_printer::print(const type & t, ostream & out)
     else
     {
         out << "?";
+    }
+}
+
+void type_graph_printer::print(const type_class & c, ostream & out)
+{
+    switch(c.kind)
+    {
+    case data_type:
+        out << "data"; break;
+    case array_like_type:
+        out << "array"; break;
+    case indexable_type:
+        out << "indexable"; break;
+    case scalar_data_type:
+        out << "scalar"; break;
+    case numeric_type:
+        out << "numeric"; break;
+    case simple_numeric_type:
+        out << "simple numeric"; break;
+    case real_numeric_type:
+        out << "real numeric"; break;
+    case complex_numeric_type:
+        out << "simple numeric"; break;
+    default:
+        out << "?";
+    }
+    if (!c.parameters.empty())
+    {
+        out << "(";
+        int i = 0;
+        for(const auto & p : c.parameters)
+        {
+            if (i++ > 0)
+                out << ",";
+            print(p, out);
+        }
+        out << ")";
     }
 }
 

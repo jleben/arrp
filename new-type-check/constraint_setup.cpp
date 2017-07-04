@@ -81,6 +81,34 @@ type type_constraint_setup::visit_infinity(const shared_ptr<infinity> &)
     return new infinity_type;
 }
 
+type type_constraint_setup::visit_cases(const shared_ptr<case_expr> & e)
+{
+    type r = new type_variable;
+
+    for (auto & part : e->cases)
+    {
+        auto t = visit(part.second);
+        m_graph.make_equal(t, new type_variable(data_type));
+        m_graph.make_sub_type(t, r);
+    }
+
+    return r;
+}
+
+type type_constraint_setup::visit_array_patterns(const shared_ptr<array_patterns> & e)
+{
+    type r = new type_variable;
+
+    for (auto & pattern : e->patterns)
+    {
+        auto t = visit(pattern.expr);
+        m_graph.make_equal(t, new type_variable(data_type));
+        m_graph.make_sub_type(t, r);
+    }
+
+    return r;
+}
+
 type type_constraint_setup::visit_array(const shared_ptr<array> & arr)
 {
     type t = visit(arr->expr);
@@ -97,7 +125,7 @@ type type_constraint_setup::visit_array_app(const shared_ptr<array_app> & app)
     type required_object_type = element_type;
     for (auto & arg : app->args)
     {
-        required_object_type = new array_like_type(required_object_type);
+        required_object_type = new type_variable(indexable_type, {required_object_type});
     }
 
     m_graph.make_equal(object_type, required_object_type);
@@ -143,5 +171,105 @@ type type_constraint_setup::visit_func_app(const shared_ptr<func_app> & app)
 
     return f->value;
 }
+
+type type_constraint_setup::visit_primitive(const shared_ptr<primitive> & prim)
+{
+    vector<type> operand_elem_types;
+
+    type result;
+
+    for (auto & operand : prim->operands)
+    {
+        auto t = visit(operand);
+        type e = new type_variable;
+        m_graph.make_equal(t, new type_variable(array_like_type, {e}));
+        operand_elem_types.push_back(e);
+    }
+
+    switch(prim->kind)
+    {
+    case primitive_op::negate:
+        m_graph.make_equal(operand_elem_types[0], new type_variable(scalar_data_type));
+        result = operand_elem_types[0];
+        break;
+    case primitive_op::add:
+    case primitive_op::subtract:
+    case primitive_op::multiply:
+        m_graph.make_equal(operand_elem_types[0], new type_variable(numeric_type));
+        m_graph.make_equal(operand_elem_types[1], new type_variable(numeric_type));
+        result = new type_variable;
+        m_graph.make_sub_type(operand_elem_types[0], result);
+        m_graph.make_sub_type(operand_elem_types[1], result);
+        break;
+    case primitive_op::divide:
+        m_graph.make_equal(operand_elem_types[0], new type_variable(numeric_type));
+        m_graph.make_equal(operand_elem_types[1], new type_variable(numeric_type));
+        result = new type_variable(real_numeric_type);
+        m_graph.make_sub_type(operand_elem_types[0], result);
+        m_graph.make_sub_type(operand_elem_types[1], result);
+        break;
+    case primitive_op::divide_integer:
+        m_graph.make_equal(operand_elem_types[0], new type_variable(simple_numeric_type));
+        m_graph.make_equal(operand_elem_types[1], new type_variable(simple_numeric_type));
+        result = new scalar_type(primitive_type::integer);
+        break;
+    case primitive_op::modulo:
+        result = new scalar_type(primitive_type::integer);
+        m_graph.make_equal(operand_elem_types[0], result);
+        m_graph.make_equal(operand_elem_types[1], result);
+        break;
+    case primitive_op::raise:
+    case primitive_op::min:
+    case primitive_op::max:
+        m_graph.make_equal(operand_elem_types[0], new type_variable(simple_numeric_type));
+        m_graph.make_equal(operand_elem_types[1], new type_variable(simple_numeric_type));
+        result = new type_variable;
+        m_graph.make_sub_type(operand_elem_types[0], result);
+        m_graph.make_sub_type(operand_elem_types[1], result);
+        break;
+    case primitive_op::exp:
+    case primitive_op::log:
+    case primitive_op::log10:
+    case primitive_op::sin:
+    case primitive_op::cos:
+    case primitive_op::tan:
+    case primitive_op::asin:
+    case primitive_op::acos:
+    case primitive_op::atan:
+    case primitive_op::sqrt:
+        m_graph.make_equal(operand_elem_types[0], new type_variable(numeric_type));
+        result = new type_variable(real_numeric_type);
+        m_graph.make_sub_type(operand_elem_types[0], result);
+        break;
+    case primitive_op::log2:
+    {
+        m_graph.make_equal(operand_elem_types[0], new type_variable(numeric_type));
+        auto r = new type_variable;
+        r->classes.emplace_back(real_numeric_type);
+        r->classes.emplace_back(simple_numeric_type);
+        result = r;
+        m_graph.make_sub_type(operand_elem_types[0], result);
+        break;
+    }
+    case primitive_op::exp2:
+    case primitive_op::ceil:
+    case primitive_op::floor:
+    case primitive_op::abs:
+        m_graph.make_equal(operand_elem_types[0], new type_variable(simple_numeric_type));
+        result = new type_variable;
+        m_graph.make_sub_type(operand_elem_types[0], result);
+        break;
+    case primitive_op::real:
+    case primitive_op::imag:
+        result = new type_variable;
+        m_graph.make_sub_type(operand_elem_types[0], new type_variable(complex_numeric_type, {result}));
+        break;
+    default:
+        throw error("Type constraints: This primitive kind not implemented.");
+    };
+
+    return result;
+}
+
 
 }

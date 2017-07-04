@@ -82,14 +82,6 @@ struct array_type : public concrete_type
     type element;
 };
 
-struct array_like_type : public concrete_type
-{
-    array_like_type(const type & e): element(e) {}
-    bool is_data() override { return true; }
-
-    type element;
-};
-
 struct function_type : public concrete_type
 {
     function_type() {}
@@ -100,12 +92,41 @@ struct function_type : public concrete_type
     type value;
 };
 
+
+enum type_class_kind
+{
+    data_type, // Not function
+    scalar_data_type,
+    numeric_type,
+    real_numeric_type,
+    complex_numeric_type, // parameter = real type
+    simple_numeric_type,
+    indexable_type, // parameter = the result of indexing
+    array_like_type // parameter = the innermost element type
+};
+
+struct type_class
+{
+    type_class(type_class_kind k, const vector<type> & p = vector<type>()):
+        kind(k), parameters(p) {}
+
+    type_class_kind kind;
+    vector<type> parameters;
+};
+
 struct type_variable : public concrete_type
 {
     type_variable() {}
+
+    type_variable(type_class_kind k, const vector<type> & p = vector<type>())
+    {
+        classes.emplace_back(k, p);
+    }
+
     type_variable(const type & t): value(t) {}
     bool is_data() override { return false; }
 
+    vector<type_class> classes;
     type value;
 };
 
