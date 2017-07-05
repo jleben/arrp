@@ -17,30 +17,209 @@ type_constraint_solver::type_constraint_solver(type_graph & graph, type_graph_pr
 
 void type_constraint_solver::solve()
 {
-    unify();
+    eliminate_equalities();
+
+    cout << "-- Eliminated equalities:" << endl;
+    for (auto r : m_graph.relations)
+    {
+        m_printer.print(r, cout);
+        cout << endl;
+    }
+
+    eliminate_subtype_cycles();
+
+    cout << "-- Eliminated subtype cycles:" << endl;
+    for (auto r : m_graph.relations)
+    {
+        m_printer.print(r, cout);
+        cout << endl;
+    }
 }
 
-void type_constraint_solver::unify()
+void type_constraint_solver::eliminate_equalities()
 {
     auto it = m_graph.relations.begin();
     while(it != m_graph.relations.end())
     {
-        bool unified = unify(*it);
-        if(unified)
+        type_relation * r = *it;
+        if (r->kind == equal_type)
+        {
+            r->a->relations.remove(r);
+            r->b->relations.remove(r);
+
+            unify(r->a, r->b);
+
+            delete *it;
             it = m_graph.relations.erase(it);
+        }
         else
+        {
             ++it;
+            continue;
+        }
     }
 }
 
-bool type_constraint_solver::unify(type_relation * relation)
+void type_constraint_solver::eliminate_subtype_cycles()
 {
-    if (relation->kind != equal_type)
-        return false;
+    m_node_trail.clear();
 
-    unify(relation->a, relation->b);
+    for (type_relation * r : m_graph.relations)
+        r->visited = false;
 
-    return true;
+    auto it = m_graph.relations.begin();
+    while(it != m_graph.relations.end())
+    {
+        type_relation * r = *it;
+
+        assert(r->kind != equal_type);
+        if (r->kind != sub_type)
+        {
+            ++it;
+            continue;
+        }
+
+        if (!r->visited)
+        {
+            eliminate_subtype_cycles(r->a);
+        }
+
+        if (r->a == r->b)
+        {
+            // The relation is obsolete
+            r->a->relations.remove(r);
+            it = m_graph.relations.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+bool type_constraint_solver::eliminate_subtype_cycles(const type & t)
+{
+    stream::revertable<bool> node_visited_marker(t->visited, true);
+    auto node_trail_marker = stream::stack_scoped(t, m_node_trail);
+
+    // Find one cycle recursively.
+    // When it is found, eliminate it, and return all the way
+    // back to eliminate_subtype_cycles(), which will find the next
+    // unvisited relation.
+
+    cout << "Eliminating cycles accessible from: "
+         << m_printer.name_for(t) << endl;
+
+    for (auto r : t->relations)
+    {
+        if (r->visited)
+        {
+            continue;
+        }
+
+        if (r->kind != sub_type)
+        {
+            assert(r->kind != equal_type);
+            continue;
+        }
+
+        // Skip if t is not the subtype in the relation
+        if (t != r->a)
+        {
+            continue;
+        }
+
+        // Skip self relation
+        // The relation is obsolete.
+        // It will be removed in eliminate_subtype_cycles();
+        if (r->b == t)
+        {
+            continue;
+        }
+
+        // If the supertype was already visited, this is a cycle.
+        if (r->b->visited)
+        {
+            eliminate_subtype_cycle(r->b);
+            return true;
+        }
+
+        // Else recurse into the other end of relation.
+        // If any cycles where eliminated there, return.
+
+        r->visited = true;
+
+        if (eliminate_subtype_cycles(r->b))
+            return true;
+    }
+
+    if(t.as<type_variable>())
+    {
+        auto v = t.as<type_variable>();
+        for (auto & c : v->classes)
+        {
+            switch(c.kind)
+            {
+            case indexable_type: // parameter = the result of indexing
+            case array_like_type: // parameter = the innermost element type
+            {
+                auto t2 = actual(c.parameters[0]);
+                cout << "Array or indexable class with param: ";
+                m_printer.print(t2, cout);
+                cout << endl;
+                if (t2 == t)
+                {
+                    continue;
+                }
+                else if(t2->visited)
+                {
+                    // FIXME: Unifying a parameter in a class with
+                    // the variable to which the class applies creates a
+                    // reference cycle.
+
+                    // This is a cycle.
+                    eliminate_subtype_cycle(t2);
+                    return true;
+                }
+                else if (eliminate_subtype_cycles(t2))
+                {
+                    return true;
+                }
+                break;
+            }
+            default:
+                break;
+            }
+        }
+    }
+
+    return false;
+}
+
+void type_constraint_solver::eliminate_subtype_cycle(const type & t)
+{
+    cout << "Cycle detected at:";
+    m_printer.print(t, cout);
+    cout << endl;
+
+    type u = t;
+
+    auto it = m_node_trail.rbegin();
+    assert(it != m_node_trail.rend());
+
+    while(*it != t)
+    {
+        const type & t2 = *it;
+
+        cout << "Unifying with: ";
+        m_printer.print(t2, cout);
+        cout << endl;
+
+        u = unify(t2, u);
+
+        ++it;
+        assert(it != m_node_trail.rend());
+    }
 }
 
 type type_constraint_solver::unify(const type & raw_a, const type & raw_b)

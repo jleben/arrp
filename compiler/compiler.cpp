@@ -186,9 +186,6 @@ result::code compile_module
 
             arrp::type_constraint_solver solver(graph, printer);
             solver.solve();
-
-            cout << "-- Unified types:" << endl;
-            printer.print(array_ids, graph, cout);
         }
 
         return result::ok;

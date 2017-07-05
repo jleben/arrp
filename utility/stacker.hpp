@@ -47,6 +47,48 @@ stacker<T,S> stack_scoped(const T & val, S & stack)
     return stacker<T,S>(val, stack);
 }
 
+template <typename T, typename C>
+struct scoped_inserter
+{
+public:
+    scoped_inserter(const T & item, C & container):
+        m_container(container), m_item(&item)
+    {
+        m_container.insert(item);
+    }
+
+    ~scoped_inserter()
+    {
+        if (m_item)
+        {
+            auto it = m_container.find(*m_item);
+            if (it != m_container.end())
+                m_container.erase(it);
+        }
+    }
+
+    scoped_inserter(const scoped_inserter & other) = delete;
+
+    void operator=(const scoped_inserter & other) = delete;
+
+    scoped_inserter(scoped_inserter && other):
+        m_container(other.m_container),
+        m_item(other.m_item)
+    {
+        other.m_item = nullptr;
+    }
+
+private:
+    C & m_container;
+    const T * m_item = nullptr;
+};
+
+template <typename T, typename C> inline
+scoped_inserter<T,C> insert_scoped(const T & i, C & c)
+{
+    return scoped_inserter<T,C>(i,c);
+}
+
 template <typename T, typename S = std::stack<T> >
 class tracing_stack : public S
 {

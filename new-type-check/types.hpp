@@ -4,11 +4,13 @@
 
 #include <memory>
 #include <vector>
+#include <list>
 
 namespace arrp {
 
 using stream::primitive_type;
 using std::vector;
+using std::list;
 struct type_relation;
 
 struct type_relation;
@@ -41,8 +43,9 @@ struct concrete_type
     virtual ~concrete_type() {}
     virtual bool is_data() = 0;
 
-    vector<type_relation*> relations;
+    list<type_relation*> relations;
     type value;
+    bool visited = false;
 };
 
 enum type_relation_kind
@@ -60,6 +63,8 @@ struct type_relation
 
     type a;
     type b;
+    bool visited = false;
+    bool obsolete = false;
 };
 
 
