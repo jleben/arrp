@@ -176,6 +176,7 @@ bool type_constraint_solver::eliminate_subtype_cycles(const type & t)
                     // FIXME: Unifying a parameter in a class with
                     // the variable to which the class applies creates a
                     // reference cycle.
+                    // Maybe handle this when unifying?
 
                     // This is a cycle.
                     eliminate_subtype_cycle(t2);
@@ -224,6 +225,9 @@ void type_constraint_solver::eliminate_subtype_cycle(const type & t)
 
 type type_constraint_solver::unify(const type & raw_a, const type & raw_b)
 {
+    // FIXME: Check if one is structurally included the other,
+    // or the other's classes.
+
     type a = actual(raw_a);
     type b = actual(raw_b);
 
