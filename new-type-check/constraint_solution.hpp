@@ -23,6 +23,7 @@ private:
     void eliminate_subtype_cycle(const type &);
 
     type actual(const type &);
+    bool is_included_in(const type & a, const type & b);
     void move_relations(const type & a, const type & b);
 
     type_graph & m_graph;

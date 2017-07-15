@@ -225,9 +225,6 @@ void type_constraint_solver::eliminate_subtype_cycle(const type & t)
 
 type type_constraint_solver::unify(const type & raw_a, const type & raw_b)
 {
-    // FIXME: Check if one is structurally included the other,
-    // or the other's classes.
-
     type a = actual(raw_a);
     type b = actual(raw_b);
 
@@ -239,6 +236,8 @@ type type_constraint_solver::unify(const type & raw_a, const type & raw_b)
 
     if (av && bv)
     {
+        // FIXME: Check if one is structurally included in other's classes.
+
         // Move classes of a to b
 
         std::move(av->classes.begin(), av->classes.end(), back_inserter(bv->classes));
@@ -257,6 +256,16 @@ type type_constraint_solver::unify(const type & raw_a, const type & raw_b)
     else if (av)
     {
         // a is variable and b is not
+
+        if (is_included_in(a, b))
+        {
+            ostringstream msg;
+            msg << "Unification would result in recursive type: ";
+            m_printer.print(a, msg);
+            msg << " is included in ";
+            m_printer.print(b, msg);
+            throw stream::error(msg.str());
+        }
 
         // Unify classes of with b
 
@@ -466,6 +475,34 @@ type type_constraint_solver::actual(const type & t)
     }
 
     return t;
+}
+
+bool type_constraint_solver::is_included_in(const type & aa, const type & bb)
+{
+    auto a = actual(aa);
+    auto b = actual(bb);
+
+    if (!a || !b)
+        return false;
+
+    if (a == b)
+        return true;
+
+    if (auto array = b->as<array_type>())
+    {
+        return is_included_in(a, array->element);
+    }
+    else if (auto func = b->as<function_type>())
+    {
+        for (auto & param : func->parameters)
+        {
+            if (is_included_in(a, param))
+                return true;
+        }
+        return is_included_in(a, func->value);
+    }
+
+    else return false;
 }
 
 void type_constraint_solver::move_relations(const type & a, const type & b)
