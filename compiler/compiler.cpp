@@ -185,7 +185,7 @@ result::code compile_module
             printer.print(array_ids, graph, cout);
 
             arrp::type_constraint_solver solver(graph, printer);
-            solver.solve();
+            solver.solve(array_ids);
         }
 
         return result::ok;

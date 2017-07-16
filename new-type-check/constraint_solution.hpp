@@ -10,7 +10,7 @@ class type_constraint_solver
 {
 public:
     type_constraint_solver(type_graph &, type_graph_printer &);
-    void solve();
+    void solve(const unordered_set<id_ptr> & ids);
     void eliminate_equalities();
     void eliminate_subtype_cycles();
 

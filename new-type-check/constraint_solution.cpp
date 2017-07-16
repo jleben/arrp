@@ -15,16 +15,12 @@ type_constraint_solver::type_constraint_solver(type_graph & graph, type_graph_pr
 
 }
 
-void type_constraint_solver::solve()
+void type_constraint_solver::solve(const unordered_set<id_ptr> & ids)
 {
     eliminate_equalities();
 
     cout << "-- Eliminated equalities:" << endl;
-    for (auto r : m_graph.relations)
-    {
-        m_printer.print(r, cout);
-        cout << endl;
-    }
+    m_printer.print(ids, m_graph, cout);
 
     eliminate_subtype_cycles();
 
@@ -352,6 +348,12 @@ type type_constraint_solver::unify(type_class & c, const type & raw_t)
 
     type t = actual(raw_t);
 
+    if (auto v = t.as<type_variable>())
+    {
+        v->classes.push_back(c);
+        return t;
+    }
+
     switch (c.kind) {
     case data_type:
     {
@@ -440,7 +442,7 @@ type type_constraint_solver::unify(type_class & c, const type & raw_t)
         auto a = t.as<array_type>();
         if (a)
         {
-            unify(c, a->element);
+            a->element = unify(c, a->element);
             return t;
         }
         auto s = t.as<scalar_type>();
@@ -459,6 +461,7 @@ type type_constraint_solver::unify(type_class & c, const type & raw_t)
     ostringstream msg;
     msg << "Type does not meet constraint:" << endl;
     m_printer.print(t, msg);
+    msg << endl;
     m_printer.print(c, msg);
     // FIXME: throw source_error
     throw stream::error(msg.str());
@@ -488,11 +491,11 @@ bool type_constraint_solver::is_included_in(const type & aa, const type & bb)
     if (a == b)
         return true;
 
-    if (auto array = b->as<array_type>())
+    if (auto array = b.as<array_type>())
     {
         return is_included_in(a, array->element);
     }
-    else if (auto func = b->as<function_type>())
+    else if (auto func = b.as<function_type>())
     {
         for (auto & param : func->parameters)
         {
