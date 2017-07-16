@@ -198,25 +198,25 @@ type type_constraint_setup::visit_primitive(const shared_ptr<primitive> & prim)
         m_graph.make_equal(operand_elem_types[0], new type_variable(numeric_type));
         m_graph.make_equal(operand_elem_types[1], new type_variable(numeric_type));
         result = new type_variable;
-        m_graph.make_sub_type(operand_elem_types[0], result);
-        m_graph.make_sub_type(operand_elem_types[1], result);
         break;
     case primitive_op::divide:
         m_graph.make_equal(operand_elem_types[0], new type_variable(numeric_type));
         m_graph.make_equal(operand_elem_types[1], new type_variable(numeric_type));
-        result = new type_variable(real_numeric_type);
-        m_graph.make_sub_type(operand_elem_types[0], result);
-        m_graph.make_sub_type(operand_elem_types[1], result);
+        result = new type_variable(array_like_type, { new type_variable(real_numeric_type) });
         break;
     case primitive_op::divide_integer:
         m_graph.make_equal(operand_elem_types[0], new type_variable(simple_numeric_type));
         m_graph.make_equal(operand_elem_types[1], new type_variable(simple_numeric_type));
-        result = new scalar_type(primitive_type::integer);
+        // FIXME: Doesn't work:
+        // Result must be supertype, to handle array operands,
+        // but its element type must be integer
+        // - not necessarily a super-type of operand element types.
+        result = new type_variable(array_like_type, { new scalar_type(primitive_type::integer) });
         break;
     case primitive_op::modulo:
-        result = new scalar_type(primitive_type::integer);
-        m_graph.make_equal(operand_elem_types[0], result);
-        m_graph.make_equal(operand_elem_types[1], result);
+        m_graph.make_equal(operand_elem_types[0], new scalar_type(primitive_type::integer));
+        m_graph.make_equal(operand_elem_types[1], new scalar_type(primitive_type::integer));
+        result = new type_variable(array_like_type, { new scalar_type(primitive_type::integer) });
         break;
     case primitive_op::raise:
     case primitive_op::min:
@@ -224,8 +224,6 @@ type type_constraint_setup::visit_primitive(const shared_ptr<primitive> & prim)
         m_graph.make_equal(operand_elem_types[0], new type_variable(simple_numeric_type));
         m_graph.make_equal(operand_elem_types[1], new type_variable(simple_numeric_type));
         result = new type_variable;
-        m_graph.make_sub_type(operand_elem_types[0], result);
-        m_graph.make_sub_type(operand_elem_types[1], result);
         break;
     case primitive_op::exp:
     case primitive_op::log:
@@ -267,6 +265,11 @@ type type_constraint_setup::visit_primitive(const shared_ptr<primitive> & prim)
     default:
         throw error("Type constraints: This primitive kind not implemented.");
     };
+
+    for (auto & operand : prim->operands)
+    {
+        m_graph.make_sub_type(operand, result);
+    }
 
     return result;
 }
