@@ -243,8 +243,7 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
             ar_index.push_back(make_shared<ph::iterator_read>(0));
         }
 
-        // FIXME: Make write-only (needs fix in storage allocation)
-        auto a = access(stmt, ar, ar_index, true, true);
+        auto a = access(stmt, ar, ar_index, false, true);
         call->args.push_back(a);
 
         stmt->expr = call;
@@ -754,6 +753,9 @@ expr_ptr polyhedral_gen::visit_func_app(const shared_ptr<func_app> &app)
     {
         // Add pointer to write destination as arg
 
+        // FIXME: Prevent aliasing between input and output by
+        // adding conflicts to polyhedral::model::parallel_accesses.
+
         auto ar = m_arrays.at(m_current_id);
         assert(ar);
 
@@ -768,8 +770,7 @@ expr_ptr polyhedral_gen::visit_func_app(const shared_ptr<func_app> &app)
         for (int dim = 0; dim < max_stmt_dim; ++dim)
             index.push_back(make_shared<ph::iterator_read>(dim));
 
-        // FIXME: Make write-only (needs a fix in storage allocation).
-        auto dest = access(m_current_stmt, ar, index, true, true);
+        auto dest = access(m_current_stmt, ar, index, false, true);
 
         call->args.push_back(dest);
 

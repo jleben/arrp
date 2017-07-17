@@ -145,8 +145,15 @@ void storage_allocator::compute_buffer_size
     int buffer_dim_count = array_space.dimension(isl::space::variable);
     array->buffer_size = vector<int>(buffer_dim_count, 1);
 
-    auto conflicts = compute_conflicts(write_sched, read_sched, order_less_than_or_equal(sched_space));
+    // Read-write conflicts
+    auto conflicts = compute_conflicts(write_sched, read_sched, order_less_than(sched_space));
 
+    // Read-read and write-write conflicts
+    auto equal_time = isl::basic_map::identity(sched_space, sched_space);
+    conflicts |= write_sched.cross(write_sched).in_range(equal_time.wrapped()).domain().unwrapped();
+    conflicts |= read_sched.cross(read_sched).in_range(equal_time.wrapped()).domain().unwrapped();
+
+    // Parallel conflicts
     auto parallel_conflicts = m_model.parallel_accesses.map_for(conflicts.get_space());
 
     if (verbose<storage_allocator>::enabled())
