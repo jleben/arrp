@@ -38,8 +38,12 @@ using std::ostream;
 
 struct buffer
 {
+    string name;
+    primitive_type type;
     bool has_phase;
+    int phase_period_offset;
     bool on_stack;
+    vector<int> dimension_size;
     int size;
 };
 

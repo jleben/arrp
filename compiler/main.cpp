@@ -167,6 +167,10 @@ int main(int argc, char *argv[])
     args.add_option({"align-data", "", "<bytes>", "Alignment requirement of data."},
                     new int_option(&opt.data_alignment));
 
+    args.add_option({"avoid-modulo-bitmask", "", "", "Avoid modulo in array indexing by extending"
+                     " array size to power of two and using bitmasking instead."},
+                    new switch_option(&opt.data_size_power_of_two, true));
+
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");
     verbose_out->add_topic<ast::output>("ast");

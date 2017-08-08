@@ -134,25 +134,25 @@ func_sig_ptr signature_for(const string & name)
 }
 #endif
 
-variable_decl_ptr buffer_decl(polyhedral::array_ptr array,
+variable_decl_ptr buffer_decl(const buffer & buf,
                               name_mapper & namer, int alignment = 0)
 {
-    assert(!array->buffer_size.empty());
+    assert(!buf.dimension_size.empty());
 
-    auto elem_type = type_for(array->type);
+    auto elem_type = type_for(buf.type);
 
     vector<int> compressed_size;
-    for (auto & s : array->buffer_size)
+    for (auto & s : buf.dimension_size)
         if (s != 1)
             compressed_size.push_back(s);
 
     if (compressed_size.empty())
     {
-        return decl(elem_type, namer(array->name));
+        return decl(elem_type, namer(buf.name));
     }
     else
     {
-        auto decl = make_shared<array_decl>(elem_type, namer(array->name), compressed_size);
+        auto decl = make_shared<array_decl>(elem_type, namer(buf.name), compressed_size);
         decl->alignment = alignment;
         return decl;
     }
@@ -257,15 +257,16 @@ class_node * state_type_def(const polyhedral::model & model,
 
     for (auto array : model.arrays)
     {
-        if (buffers[array->name].on_stack)
+        const auto & buf = buffers.at(array->name);
+        if (buf.on_stack)
             continue;
-        auto field = make_shared<data_field>(buffer_decl(array,namer,data_alignment));
+        auto field = make_shared<data_field>(buffer_decl(buf,namer,data_alignment));
         private_sec.members.push_back(field);
     }
 
     for (auto array : model.arrays)
     {
-        if (!buffers[array->name].has_phase)
+        if (!buffers.at(array->name).has_phase)
             continue;
         auto int_t = make_shared<basic_type>("int");
         auto field = decl(int_t, namer(array->name + "_ph"));
@@ -277,7 +278,7 @@ class_node * state_type_def(const polyhedral::model & model,
 }
 
 unordered_map<string,buffer>
-buffer_analysis(const polyhedral::model & model)
+buffer_analysis(const polyhedral::model & model, const compiler::options & opt)
 {
     using polyhedral::array;
 
@@ -289,21 +290,46 @@ buffer_analysis(const polyhedral::model & model)
     for (const auto & array : model.arrays)
     {
         buffer buf;
-        buf.size = volume(array->buffer_size);
+
+        buf.name = array->name;
+
+        buf.type = array->type;
 
         if(array->is_infinite)
         {
             int flow_size = array->buffer_size[0];
             buf.has_phase =
-                    //array->period_offset % flow_size  != 0 ||
                     array->period % flow_size  != 0;
+            buf.phase_period_offset = array->period;
         }
         else
         {
             buf.has_phase = false;
         }
 
-        buffers[array->name] = buf;
+        for(int dim = 0; dim < array->buffer_size.size(); ++dim)
+        {
+            int s = array->buffer_size[dim];
+
+            if (opt.data_size_power_of_two && s > 1)
+            {
+                bool may_wrap =
+                        (array->is_infinite && dim == 0) ||
+                        (array->size[dim] > array->buffer_size[dim]);
+
+                if (may_wrap)
+                {
+                    // Round to the next power of two, to avoid modulo when indexing
+                    s = (int) pow(2, ceil(log2(s)));
+                }
+            }
+
+            buf.dimension_size.push_back(s);
+        }
+
+        buf.size = volume(buf.dimension_size);
+
+        buffers.emplace(array->name, buf);
 
         if (array->inter_period_dependency)
         {
@@ -317,7 +343,7 @@ buffer_analysis(const polyhedral::model & model)
 
     auto buffer_size_is_smaller =
             [&](polyhedral::array * a, polyhedral::array * b) -> bool
-    { return buffers[a->name].size < buffers[b->name].size; };
+    { return buffers.at(a->name).size < buffers.at(b->name).size; };
 
     std::sort(buffers_on_stack.begin(), buffers_on_stack.end(), buffer_size_is_smaller);
 
@@ -326,7 +352,7 @@ buffer_analysis(const polyhedral::model & model)
     for(int idx = 0; idx < buffers_on_stack.size(); ++idx)
     {
         polyhedral::array *array = buffers_on_stack[idx];
-        buffer & b = buffers[array->name];
+        buffer & b = buffers.at(array->name);
 
         int elem_size = size_for(array->type);
 
@@ -346,7 +372,7 @@ buffer_analysis(const polyhedral::model & model)
     for(int idx = 0; idx < buffers_in_memory.size(); ++idx)
     {
         polyhedral::array *array = buffers_in_memory[idx];
-        buffer & b = buffers[array->name];
+        buffer & b = buffers.at(array->name);
         b.on_stack = false;
     }
 
@@ -362,14 +388,13 @@ static void advance_buffers(const polyhedral::model & model,
 {
     for (const auto & array : model.arrays)
     {
-        const buffer & buf = buffers[array->name];
+        const buffer & buf = buffers.at(array->name);
 
         if (!buf.has_phase)
             continue;
 
-        int offset = init ?
-                    array->period_offset : array->period;
-        int buffer_size = array->buffer_size[0];
+        int offset = init ? 0 : buf.phase_period_offset;
+        int buffer_size = buf.dimension_size[0];
 
         assert(buffer_size > 0);
         bool size_is_power_of_two =
@@ -498,7 +523,7 @@ void generate(const string & name,
               std::ostream & src_stream,
               const compiler::options & opt)
 {
-    unordered_map<string,buffer> buffers = buffer_analysis(model);
+    unordered_map<string,buffer> buffers = buffer_analysis(model, opt);
 
     cpp_gen::name_mapper name_mapper;
     module m;
@@ -573,9 +598,10 @@ void generate(const string & name,
 
             for (auto array : model.arrays)
             {
-                if (buffers[array->name].on_stack)
+                const auto & buf = buffers.at(array->name);
+                if (buf.on_stack)
                     b.add(make_shared<var_decl_expression>
-                          (buffer_decl(array,name_mapper,opt.data_alignment)));
+                          (buffer_decl(buf,name_mapper,opt.data_alignment)));
             }
 
             isl.generate(ast.prelude);
@@ -603,9 +629,10 @@ void generate(const string & name,
 
             for (auto array : model.arrays)
             {
-                if (buffers[array->name].on_stack)
+                const auto & buf = buffers.at(array->name);
+                if (buf.on_stack)
                     b.add(make_shared<var_decl_expression>
-                          (buffer_decl(array,name_mapper,opt.data_alignment)));
+                          (buffer_decl(buf,name_mapper,opt.data_alignment)));
             }
 
             isl.generate(ast.period);

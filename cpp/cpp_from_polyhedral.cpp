@@ -477,12 +477,10 @@ expression_ptr cpp_from_polyhedral::generate_primitive
 expression_ptr cpp_from_polyhedral::generate_buffer_access
 (polyhedral::array_ptr array, const index_type & index, builder * ctx)
 {
-    assert(!array->buffer_size.empty());
-
     index_type buffer_index = index;
     string array_name = m_name_mapper(array->name);
 
-    cpp_gen::buffer & buffer_info = m_buffers[array->name];
+    cpp_gen::buffer & buffer_info = m_buffers.at(array->name);
 
     expression_ptr buffer = make_shared<id_expression>(array_name);
 
@@ -505,8 +503,6 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     {
         int offset = 0;
 
-        offset += array->period_offset;
-
         auto stmt_offset = m_current_stmt->array_access_offset.find(array.get());
         if (stmt_offset != m_current_stmt->array_access_offset.end())
             offset += stmt_offset->second;
@@ -523,7 +519,7 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     for (int dim = 0; dim < buffer_index.size(); ++dim)
     {
         bool dim_is_streaming = array->is_infinite && dim == 0;
-        int buffer_size = array->buffer_size[dim];
+        int buffer_size = buffer_info.dimension_size[dim];
 
         if (buffer_size == 1)
             continue;
