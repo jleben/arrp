@@ -204,12 +204,18 @@ class model_summary
 {
 public:
     model_summary(const model & m):
+        array_domains(m.context),
         domains(m.context),
         write_relations(m.context),
         read_relations(m.context),
         dependencies(m.context),
         order_relations(m.context)
     {
+        for (const auto & array : m.arrays)
+        {
+            array_domains |= array->domain;
+        }
+
         for (const auto & stmt : m.statements)
         {
             domains = domains | stmt->domain;
@@ -234,6 +240,7 @@ public:
         }
     }
 
+    isl::union_set array_domains;
     isl::union_set domains;
     isl::union_map write_relations;
     isl::union_map read_relations;
