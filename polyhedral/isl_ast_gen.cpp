@@ -324,7 +324,10 @@ void ast_gen::store_parallel_accesses_for_current_dimension(isl_ast_build * buil
     isl::space schedule_space = isl_ast_build_get_schedule_space(builder);
     int dimension = schedule_space.dimension(isl::space::output) - 1;
 
-    auto access_relations = m_model_summary.read_relations | m_model_summary.write_relations;
+    auto access_relations = (m_model_summary.read_relations | m_model_summary.write_relations)
+            .in_domain(m_model_summary.domains)
+            .in_range(m_model_summary.array_domains);
+
     auto access_schedule = schedule;
     access_schedule.map_domain_through(access_relations);
 
@@ -332,6 +335,7 @@ void ast_gen::store_parallel_accesses_for_current_dimension(isl_ast_build * buil
     {
         auto parallel = m.cross(m);
 
+        // parallel_times: { [i_0 ... i_d] -> [j_0 ... j_d] : i_0 == j_0 ... j_d < j_d }
         auto sched_relation_space = isl::space::from(schedule_space, schedule_space);
         auto parallel_times = isl::basic_map::universe(sched_relation_space);
 
@@ -346,9 +350,16 @@ void ast_gen::store_parallel_accesses_for_current_dimension(isl_ast_build * buil
 
         auto parallel_accesses = parallel.domain().unwrapped();
 
+        if (parallel_accesses.is_empty())
+            return true;
+
         if (verbose<ast_gen>::enabled())
         {
-            cout << "  Parallel accesses:" << endl;
+            cout << "  -- Access schedule: " << endl;
+            m_printer.print(m);
+            cout << endl;
+
+            cout << "  => Parallel accesses:" << endl;
             m_printer.print_each_in(parallel_accesses);
         }
 
