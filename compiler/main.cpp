@@ -146,6 +146,8 @@ int main(int argc, char *argv[])
                     new switch_option(&opt.schedule.cluster, false));
     args.add_option({"sched-tile-size", "", "", "Tile size."},
                     new int_tuple_parser("tile size", &opt.schedule.tile_size));
+    args.add_option({"sched-tile-parallel", "", "", "Design schedule to ensure possibility of tile parallelism."},
+                    new switch_option(&opt.schedule.tile_parallelism, true));
     args.add_option({"sched-period-direction", "", "", "Direction of periodic tiling."},
                     new int_tuple_parser("period direction", &opt.schedule.periodic_tile_direction));
     args.add_option({"sched-period-offset", "", "", "Offset of period relative to earliest onset."},

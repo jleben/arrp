@@ -305,7 +305,17 @@ bool ast_gen::current_schedule_dimension_is_parallel(isl_ast_build * builder)
                                    isl_dim_out, dimension,
                                    isl_dim_in, dimension);
 
-    return schedule_deps.is_subset_of(all_zero_deps);
+    bool is_parallel = schedule_deps.is_subset_of(all_zero_deps);
+
+    if (!is_parallel && verbose<ast_gen>::enabled())
+    {
+        auto violating_deps = schedule_deps;
+        violating_deps.subtract(all_zero_deps);
+        cout << "  Dependencies preventing parallelization: " << endl;
+        printer.print_each_in(violating_deps);
+    }
+
+    return is_parallel;
 }
 
 void ast_gen::store_parallel_accesses_for_current_dimension(isl_ast_build * builder)

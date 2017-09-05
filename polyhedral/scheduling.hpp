@@ -85,6 +85,7 @@ public:
         bool optimize = true;
         bool cluster = true;
         vector<int> tile_size;
+        bool tile_parallelism = false;
         vector<int> periodic_tile_direction;
         int period_offset = 0; // time steps beyond minimum offset
         int period_scale = 1; // number of minimum period durations
@@ -159,7 +160,11 @@ private:
 
     isl_schedule_node * tile(isl_schedule_node *, const options &);
 
-    isl_schedule_node * add_periodic_tiling_dimension(isl_schedule_node *, const options &);
+    isl_schedule_node * ensure_tile_parallelism(isl_schedule_node *, const options &);
+
+    isl_schedule_node * add_periodic_tiling_dimension(isl_schedule_node *,
+                                                      isl_multi_union_pw_aff *,
+                                                      const options &);
 
     vector<access_info> analyze_access_schedules(const isl::union_map & schedule);
 
