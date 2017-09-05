@@ -237,7 +237,7 @@ isl::map storage_allocator::compute_conflicts
                 // to ensure distance maximization works, since
                 // some conflicts might have negative distance.
                 conflicts |= conflict;
-                conflicts |= conflict.inverse();
+                //conflicts |= conflict.inverse();
             }
 
             return true;
@@ -254,6 +254,49 @@ isl::map storage_allocator::compute_conflicts
     return conflicts;
 }
 
+static
+isl::set absolute_values(const isl::set & set)
+{
+    auto abs_set = isl::set(set.get_space());
+
+    // Keep items that are already positive
+
+    {
+        auto positive = set;
+
+        for(int dim = 0; dim < set.dimensions(); ++dim)
+        {
+            positive.limit_below(isl::space::variable, dim, 0);
+        }
+
+        abs_set |= positive;
+    }
+
+    // Map non-positive items into positive items
+
+    auto abs_map = isl::map(isl::space::from(set.get_space(), set.get_space()));
+
+    for(int dim = 0; dim < set.dimensions(); ++dim)
+    {
+        auto m = isl::basic_map::universe(abs_map.get_space());
+        m.limit_above(isl::space::input, dim, 0);
+
+        for(int dim2 = 0; dim2 < set.dimensions(); ++dim2)
+        {
+            if (dim2 == dim)
+                m.add_constraint(m.get_space().out(dim2) == -m.get_space().in(dim2));
+            else
+                m.add_constraint(m.get_space().out(dim2) == m.get_space().in(dim2));
+        }
+
+        abs_map |= m;
+    }
+
+    abs_set |= abs_map(set);
+
+    return abs_set;
+}
+
 void storage_allocator::compute_buffer_size_from_conflicts
 ( const isl::map & conflicts, vector<int> & buffer_size )
 {
@@ -267,45 +310,68 @@ void storage_allocator::compute_buffer_size_from_conflicts
     }
     else
     {
-        if (verbose<storage_allocator>::enabled())
-            cout << "  Computing max reuse distance..." << endl;
+        // Initialize buffer size, just in case.
 
-        if (verbose<storage_allocator>::enabled())
-            cout << "  Max reuse distance:";
+        for (auto & s : buffer_size)
+            s = 1;
 
-        isl::map active_conflicts = conflicts;
+        // Compute conflict distances
+
+        auto deltas = conflicts.deltas();
+
+        // Compute absolute values of distances
+
+        deltas = absolute_values(deltas);
+
+        // For each dimension, find out the conflicts that can only be satisfied
+        // by this dimension (their distance is zero in all other dimensions).
+        // The maximum distance of such conflicts is the minimum buffer size in this dimension.
+
+        for (int dim = 0; dim < deltas.dimensions(); ++dim)
+        {
+            auto exclusive_deltas = deltas;
+
+            for (int dim2 = 0; dim2 < deltas.dimensions(); ++dim2)
+            {
+                if (dim2 != dim)
+                    exclusive_deltas.add_constraint(exclusive_deltas.get_space().var(dim2) == 0);
+            }
+
+            auto max = exclusive_deltas.maximum(deltas.get_space().var(dim));
+            if (!max.is_integer())
+                throw error("Infinite storage conflict distance.");
+
+            buffer_size[dim] = max.integer() + 1;
+        }
+
+        // Exclude conflicts already satisfied by the buffer size computed above
+
+        for (int dim = 0; dim < deltas.dimensions(); ++dim)
+        {
+            deltas.limit_below(isl::space::variable, dim, buffer_size[dim]);
+        }
+
+        // Expand buffer to satisfy remaining conflicts using the
+        // classic successive modulo technique.
 
         for (int dim = 0; dim < buffer_size.size(); ++dim)
         {
+            if (deltas.is_empty())
+                break;
+
             {
-                auto conflict_set = active_conflicts.wrapped();
-                isl::local_space space(conflict_set.get_space());
-                auto a = space(isl::space::variable, dim);
-                auto b = space(isl::space::variable, buffer_size.size() + dim);
-                auto max_distance = conflict_set.maximum(b - a);
+                auto max_distance = deltas.maximum(deltas.get_space().var(dim));
                 if (!max_distance.is_integer())
-                {
-                    ostringstream msg;
-                    msg << "Infinite buffer size required for array "
-                        //<< array->name
-                        << conflicts.name(isl::space::input)
-                        << ", dimension " << dim << ".";
-                    throw std::runtime_error(msg.str());
-                }
-                if (verbose<storage_allocator>::enabled())
-                    cout << max_distance.integer() << " ";
-                buffer_size[dim] = (int) max_distance.integer() + 1;
+                    throw error("Infinite storage conflict distance.");
+
+                int max_distance_int = (int) max_distance.integer() + 1;
+
+                buffer_size[dim] = std::max(max_distance_int, buffer_size[dim]);
             }
             {
-                isl::local_space space(active_conflicts.get_space());
-                auto a = space(isl::space::input, dim);
-                auto b = space(isl::space::output, dim);
-                active_conflicts.add_constraint(a == b);
+                deltas.add_constraint(deltas.get_space().var(dim) == 0);
             }
         }
-
-        if (verbose<storage_allocator>::enabled())
-            cout << endl;
     }
 }
 
