@@ -344,11 +344,18 @@ void storage_allocator::compute_buffer_size_from_conflicts
             buffer_size[dim] = max.integer() + 1;
         }
 
-        // Exclude conflicts already satisfied by the buffer size computed above
-
+        // Exclude conflicts already satisfied by the buffer size computed above.
+        // A conflict is unsatisfied if its distance in each dimension is either 0
+        // or larger than the buffer size.
         for (int dim = 0; dim < deltas.dimensions(); ++dim)
         {
-            deltas.limit_below(isl::space::variable, dim, buffer_size[dim]);
+            auto a = isl::set::universe(deltas.get_space());
+            a.limit_below(isl::space::variable, dim, buffer_size[dim]);
+
+            auto b = isl::set::universe(deltas.get_space());
+            b.add_constraint(b.get_space().var(dim) == 0);
+
+            deltas &= (a | b);
         }
 
         // Expand buffer to satisfy remaining conflicts using the
