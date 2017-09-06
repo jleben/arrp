@@ -288,7 +288,7 @@ result::code compile_module
 
             // Allocate storage (buffers)
 
-            polyhedral::storage_allocator storage_alloc( ph_model );
+            polyhedral::storage_allocator storage_alloc( ph_model, opts.classic_storage_allocation );
             storage_alloc.allocate(schedule);
 
             // Print buffers

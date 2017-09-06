@@ -62,6 +62,8 @@ struct options
 
     bool parallel = false;
 
+    bool classic_storage_allocation = false;
+
     int data_alignment = 0;
     bool data_size_power_of_two = false;
 };

@@ -163,6 +163,9 @@ int main(int argc, char *argv[])
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
 
+    args.add_option({"classic-storage", "", "", "Input and output singular elements."},
+                    new switch_option(&opt.classic_storage_allocation, true));
+
     args.add_option({"parallel", "", "", "Generate parallelized code, if possible."},
                     new switch_option(&opt.parallel, true));
 

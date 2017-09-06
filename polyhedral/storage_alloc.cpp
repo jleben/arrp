@@ -33,10 +33,11 @@ using namespace std;
 namespace stream {
 namespace polyhedral {
 
-storage_allocator::storage_allocator( model & m):
+storage_allocator::storage_allocator( model & m, bool classic):
     m_model(m),
     m_model_summary(m),
-    m_printer(m.context)
+    m_printer(m.context),
+    m_classic(classic)
 {
 
 }
@@ -323,6 +324,9 @@ void storage_allocator::compute_buffer_size_from_conflicts
 
         deltas = absolute_values(deltas);
 
+        if (!m_classic)
+        {
+
         // For each dimension, find out the conflicts that can only be satisfied
         // by this dimension (their distance is zero in all other dimensions).
         // The maximum distance of such conflicts is the minimum buffer size in this dimension.
@@ -356,6 +360,8 @@ void storage_allocator::compute_buffer_size_from_conflicts
             b.add_constraint(b.get_space().var(dim) == 0);
 
             deltas &= (a | b);
+        }
+
         }
 
         // Expand buffer to satisfy remaining conflicts using the

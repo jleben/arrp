@@ -32,7 +32,7 @@ namespace polyhedral {
 class storage_allocator
 {
 public:
-    storage_allocator( model & );
+    storage_allocator( model &, bool m_classic = false );
 
     void allocate(const schedule &);
 
@@ -57,6 +57,8 @@ private:
     model & m_model;
     model_summary m_model_summary;
     isl::printer m_printer;
+
+    bool m_classic = false;
 };
 
 struct storage_output {};
