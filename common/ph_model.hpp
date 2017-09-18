@@ -103,12 +103,6 @@ public:
         domain.set_id(id);
     }
 
-    // FIXME:
-    // Instead of just a write relation:
-    // - Implement "array access" expr that can both read & write
-    //   (representing a pointer).
-    // - Implement special "assignment" expr.
-
     string name;
     isl::set domain;
     functional::expr_ptr expr = nullptr;
