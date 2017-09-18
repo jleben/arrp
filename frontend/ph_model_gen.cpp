@@ -223,7 +223,7 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
         }
 
         stmt = make_shared<polyhedral::statement>(domain);
-
+        stmt->is_input_or_output = true;
         stmt->is_infinite = ar->is_infinite;
 
         // functional call expression
@@ -306,6 +306,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     }
 
     auto stmt = make_shared<polyhedral::statement>(domain);
+    stmt->is_input_or_output = true;
     stmt->is_infinite = array->is_infinite;
 
     // functional call expression

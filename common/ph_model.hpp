@@ -111,6 +111,7 @@ public:
     unordered_map<array*, int> array_access_offset;
     bool streaming_needs_modulo = false;
     bool is_infinite = false;
+    bool is_input_or_output = false;
 };
 
 class array_access : public functional::expression

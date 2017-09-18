@@ -240,10 +240,11 @@ result::code compile_module
                 auto read_elements = summary.read_relations.in_domain(summary.domains).range();
                 auto useful_domains = summary.write_relations.in_domain(summary.domains).inverse()(read_elements);
 
-                useful_domains.for_each([&](const isl::set & domain)
+                for (auto stmt : ph_model.statements)
                 {
-                    auto stmt = ph_model.statement_for(domain.id());
-                    stmt->domain &= domain;
+                    if (stmt->is_input_or_output)
+                        continue;
+                    stmt->domain &= useful_domains.set_for(stmt->domain.get_space());
                     stmt->domain.coalesce();
                     if (verbose<functional::polyhedral_gen>::enabled())
                     {
@@ -251,8 +252,7 @@ result::code compile_module
                         printer.print(stmt->domain);
                         cout << endl;
                     }
-                    return true;
-                });
+                }
             }
 
             // Compute polyhedral schedule
