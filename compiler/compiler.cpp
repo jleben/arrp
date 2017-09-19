@@ -38,7 +38,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../cpp/cpp_target.hpp"
 
 #include <isl-cpp/printer.hpp>
-
+#include <isl-cpp/utility.hpp>
 #include <json++/json.hh>
 
 #include <fstream>
@@ -51,6 +51,8 @@ using namespace std;
 
 namespace stream {
 namespace compiler {
+
+void print_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule);
 
 result::code compile(const options & opts)
 {
@@ -298,6 +300,11 @@ result::code compile_module
                 print_buffer_sizes(ph_model.arrays);
             }
 
+            if (opts.report_latency && ph_model.outputs.size())
+            {
+                print_latencies(ph_model, schedule);
+            }
+
             // Modulo avoidance
 
             {
@@ -402,6 +409,57 @@ void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
     }
 }
 
+void print_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule)
+{
+    cerr << "-- Latencies:" << endl;
+
+    isl::space sched_space(nullptr);
+    schedule.full.for_each([&](const isl::map & m){
+        sched_space = m.get_space().range();
+        return false;
+    });
+
+    const auto & out = ph_model.outputs.front();
+    if (!out.statement->is_infinite)
+    {
+        cerr << "Output is not infinite." << endl;
+    }
+    else
+    {
+        for (const auto & in : ph_model.inputs)
+        {
+            if (!in.statement->is_infinite)
+            {
+                cerr << in.name << ": Not a stream." << endl;
+                continue;
+            }
+
+            // Let r be the ratio between the input and output rate: r = in_rate / out_rate.
+            // Then, for any output o, and latest preceding input i,
+            // latency = i - o * r,
+            // i.e. latency is the difference between actual i and expected i
+            // if the rate was constant and there was no offset.
+
+            isl::printer p(ph_model.context);
+            auto in_sched = schedule.full.map_for(isl::space::from(in.statement->domain.get_space(), sched_space));
+            auto out_sched = schedule.full.map_for(isl::space::from(out.statement->domain.get_space(), sched_space));
+            auto precedence = out_sched.cross(in_sched).in_range(isl::order_greater_than(sched_space).wrapped()).domain();
+            //cout << "Precedence: "; p.print(precedence); cout << endl;
+            int out_var = 0;
+            int in_var = out.statement->domain.dimensions();
+            auto space = precedence.get_space();
+            auto latency = space.var(in_var) - isl::floor(space.var(out_var) * in.array->period / out.array->period);
+            //cout << "Latency: "; p.print(latency); cout << endl;
+            auto max_latency = precedence.maximum(latency);
+            if (max_latency.is_infinity())
+                cerr << in.name << ": Infinite." << endl;
+            else if (max_latency.is_integer())
+                cerr << in.name << ": " << max_latency.integer() << endl;
+            else
+                cerr << in.name << ": ERROR." << endl;
+        }
+    }
+}
 
 } // namespace compiler
 } // namespace stream
