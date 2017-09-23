@@ -66,8 +66,6 @@ struct options
 
     int data_alignment = 0;
     bool data_size_power_of_two = false;
-
-    bool report_latency = false;
 };
 
 }

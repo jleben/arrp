@@ -176,9 +176,6 @@ int main(int argc, char *argv[])
                      " array size to power of two and using bitmasking instead."},
                     new switch_option(&opt.data_size_power_of_two, true));
 
-    args.add_option({"print-latency"},
-                    new switch_option(&opt.report_latency, true));
-
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");
     verbose_out->add_topic<ast::output>("ast");
@@ -196,6 +193,7 @@ int main(int argc, char *argv[])
     verbose_out->add_topic<polyhedral::storage_allocator>("storage-alloc");
     verbose_out->add_topic<polyhedral::storage_output>("storage");
     verbose_out->add_topic<cpp_gen::renaming>("renaming");
+    verbose_out->add_topic<io_latency>("latency");
 
     args.add_option({"verbose", "v", "<topic>", "Enable verbose output for <topic>."}, verbose_out);
 

@@ -171,6 +171,7 @@ public:
     functional::type_ptr type;
     array_ptr array;
     stmt_ptr statement;
+    int latency = 0;
 };
 
 class model

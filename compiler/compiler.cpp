@@ -52,7 +52,7 @@ using namespace std;
 namespace stream {
 namespace compiler {
 
-void print_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule);
+void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule);
 
 result::code compile(const options & opts)
 {
@@ -300,10 +300,7 @@ result::code compile_module
                 print_buffer_sizes(ph_model.arrays);
             }
 
-            if (opts.report_latency && ph_model.outputs.size())
-            {
-                print_latencies(ph_model, schedule);
-            }
+            compute_io_latencies(ph_model, schedule);
 
             // Modulo avoidance
 
@@ -409,9 +406,10 @@ void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
     }
 }
 
-void print_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule)
+void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule)
 {
-    cerr << "-- Latencies:" << endl;
+    if (verbose<io_latency>::enabled())
+        cerr << "-- Latencies:" << endl;
 
     isl::space sched_space(nullptr);
     schedule.full.for_each([&](const isl::map & m){
@@ -422,15 +420,17 @@ void print_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedu
     const auto & out = ph_model.outputs.front();
     if (!out.statement->is_infinite)
     {
-        cerr << "Output is not infinite." << endl;
+        if (verbose<io_latency>::enabled())
+            cerr << "Output is not a stream." << endl;
     }
     else
     {
-        for (const auto & in : ph_model.inputs)
+        for (auto & in : ph_model.inputs)
         {
             if (!in.statement->is_infinite)
             {
-                cerr << in.name << ": Not a stream." << endl;
+                if (verbose<io_latency>::enabled())
+                    cerr << in.name << ": Not a stream." << endl;
                 continue;
             }
 
@@ -440,7 +440,7 @@ void print_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedu
             // i.e. latency is the difference between actual i and expected i
             // if the rate was constant and there was no offset.
 
-            isl::printer p(ph_model.context);
+            //isl::printer p(ph_model.context);
             auto in_sched = schedule.full.map_for(isl::space::from(in.statement->domain.get_space(), sched_space));
             auto out_sched = schedule.full.map_for(isl::space::from(out.statement->domain.get_space(), sched_space));
             auto precedence = out_sched.cross(in_sched).in_range(isl::order_greater_than(sched_space).wrapped()).domain();
@@ -452,11 +452,23 @@ void print_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedu
             //cout << "Latency: "; p.print(latency); cout << endl;
             auto max_latency = precedence.maximum(latency);
             if (max_latency.is_infinity())
-                cerr << in.name << ": Infinite." << endl;
+            {
+                in.latency = -1;
+
+                if (verbose<io_latency>::enabled())
+                    cerr << in.name << ": Infinite." << endl;
+            }
             else if (max_latency.is_integer())
-                cerr << in.name << ": " << max_latency.integer() << endl;
+            {
+                in.latency = max_latency.integer();
+
+                if (verbose<io_latency>::enabled())
+                    cerr << in.name << ": " << max_latency.integer() << endl;
+            }
             else
-                cerr << in.name << ": ERROR." << endl;
+            {
+                throw error("Could not compute input-output latency for input " + in.name);
+            }
         }
     }
 }
