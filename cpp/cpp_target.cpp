@@ -226,6 +226,18 @@ shared_ptr<custom_decl> io_period_count_decl(const polyhedral::io_channel & io)
     return decl;
 }
 
+shared_ptr<custom_decl> io_latency_decl(const polyhedral::io_channel & io)
+{
+    ostringstream text;
+    text << "static constexpr int ";
+    text << (io.name + "_latency = ");
+    text << io.latency << endl;
+
+    auto decl = make_shared<custom_decl>();
+    decl->text = text.str();
+    return decl;
+}
+
 class_node * state_type_def(const polyhedral::model & model,
                             unordered_map<string,buffer> & buffers,
                             name_mapper & namer,
@@ -552,6 +564,7 @@ void generate(const string & name,
     {
         traits->sections[0].members.push_back(io_decl(io));
         traits->sections[0].members.push_back(io_period_count_decl(io));
+        traits->sections[0].members.push_back(io_latency_decl(io));
     }
     for (auto & io : model.outputs)
     {
