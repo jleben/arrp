@@ -226,12 +226,17 @@ shared_ptr<custom_decl> io_period_count_decl(const polyhedral::io_channel & io)
     return decl;
 }
 
-shared_ptr<custom_decl> io_latency_decl(const polyhedral::io_channel & io)
+shared_ptr<custom_decl> io_latency_decl(const vector<polyhedral::io_channel> & channels)
 {
     ostringstream text;
-    text << "static constexpr int ";
-    text << (io.name + "_latency = ");
-    text << io.latency << endl;
+    text << "static unordered_map<string,int> latency() { return {";
+
+    for (auto & channel : channels)
+    {
+        text << " { \"" << channel.name << "\", " << channel.latency << " },";
+    }
+
+    text << "}; }";
 
     auto decl = make_shared<custom_decl>();
     decl->text = text.str();
@@ -547,6 +552,7 @@ void generate(const string & name,
     m.members.push_back(make_shared<include_dir>("cmath"));
     m.members.push_back(make_shared<include_dir>("algorithm"));
     m.members.push_back(make_shared<include_dir>("complex"));
+    m.members.push_back(make_shared<include_dir>("unordered_map"));
     m.members.push_back(make_shared<include_dir>("arrp.hpp"));
 
     m.members.push_back(make_shared<using_decl>("namespace std"));
@@ -560,11 +566,12 @@ void generate(const string & name,
     auto traits = make_shared<class_node>(struct_class, "traits");
     traits->sections.resize(1);
 
+    traits->sections[0].members.push_back(io_latency_decl(model.inputs));
+
     for (auto & io : model.inputs)
     {
         traits->sections[0].members.push_back(io_decl(io));
         traits->sections[0].members.push_back(io_period_count_decl(io));
-        traits->sections[0].members.push_back(io_latency_decl(io));
     }
     for (auto & io : model.outputs)
     {
