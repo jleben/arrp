@@ -88,6 +88,8 @@ public:
     vector<int> buffer_size;
     //int flow_dim = -1;
     int period = 0;
+    int first_period_access = 0;
+    int last_period_access = 0;
     bool inter_period_dependency = true;
 #endif
 };

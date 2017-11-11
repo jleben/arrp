@@ -518,7 +518,6 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 
     for (int dim = 0; dim < buffer_index.size(); ++dim)
     {
-        bool dim_is_streaming = array->is_infinite && dim == 0;
         int buffer_size = buffer_info.dimension_size[dim];
 
         if (buffer_size == 1)
@@ -526,20 +525,7 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 
         expression_ptr i = buffer_index[dim];
 
-        bool may_wrap = false;
-        if (dim_is_streaming)
-        {
-            may_wrap = true;
-            // FIXME: this doesn't take into account accesses in prologue
-            //may_wrap = m_current_stmt->streaming_needs_modulo;
-        }
-        else
-        {
-            int array_size = array->size[dim];
-            may_wrap = buffer_size < array_size;
-        }
-
-        if (may_wrap)
+        if (buffer_info.dimension_needs_wrapping[dim])
         {
             bool size_is_power_of_two =
                     buffer_size == (int)std::pow(2, (int)std::log2(buffer_size));

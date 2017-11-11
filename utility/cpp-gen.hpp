@@ -868,6 +868,11 @@ inline base_type_ptr pointer(base_type_ptr t)
     return std::make_shared<pointer_type>(t);
 }
 
+inline basic_type_ptr auto_type()
+{
+    return std::make_shared<basic_type>("auto");
+}
+
 inline basic_type_ptr float_type()
 {
     return std::make_shared<basic_type>("float");
@@ -898,6 +903,11 @@ inline type_ptr reference(base_type_ptr t)
 inline statement_ptr block(const vector<statement_ptr> & stmts)
 {
     return std::make_shared<block_statement>(stmts);
+}
+
+inline statement_ptr stmt(expression_ptr e)
+{
+    return std::make_shared<expr_statement>(e);
 }
 
 } // namespace cpp_gen

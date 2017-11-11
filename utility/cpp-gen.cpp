@@ -479,8 +479,10 @@ void call_expression::generate(cpp_gen::state & state, ostream & stream)
 
 void cast_expression::generate(cpp_gen::state & state, ostream & stream)
 {
-    type->generate(state, stream);
     stream << "(";
+    stream << "(";
+    type->generate(state, stream);
+    stream << ")";
     expr->generate(state, stream);
     stream << ")";
 }

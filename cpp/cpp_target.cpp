@@ -312,36 +312,83 @@ buffer_analysis(const polyhedral::model & model, const compiler::options & opt)
 
         buf.type = array->type;
 
-        if(array->is_infinite)
-        {
-            int flow_size = array->buffer_size[0];
-            buf.has_phase =
-                    array->period % flow_size  != 0;
-            buf.phase_period_offset = array->period;
-        }
-        else
-        {
-            buf.has_phase = false;
-        }
+        buf.period_offset = array->period;
+
+        // Compute buffer size
 
         for(int dim = 0; dim < array->buffer_size.size(); ++dim)
         {
-            int s = array->buffer_size[dim];
+            int size = array->buffer_size[dim];
 
-            if (opt.data_size_power_of_two && s > 1)
+            if (size <= 1)
             {
-                bool may_wrap =
-                        (array->is_infinite && dim == 0) ||
-                        (array->size[dim] > array->buffer_size[dim]);
-
-                if (may_wrap)
-                {
-                    // Round to the next power of two, to avoid modulo when indexing
-                    s = (int) pow(2, ceil(log2(s)));
-                }
+                buf.dimension_size.push_back(size);
+                buf.dimension_needs_wrapping.push_back(false);
+                continue;
             }
 
-            buf.dimension_size.push_back(s);
+            bool may_need_wrapping = false;
+
+            if (dim == 0 && array->is_infinite)
+            {
+                if (opt.buffer_data_shifting)
+                {
+                    int period_size = array->last_period_access - array->first_period_access + 1;
+                    int period_overlap_size = array->last_period_access
+                            - (array->first_period_access + array->period)
+                            + 1;
+
+                    if (period_overlap_size > 0)
+                    {
+                        // Keep it at shifting at most 10% of accessed items per period,
+                        // asymptotically.
+
+                        int num_periods = std::ceil(period_overlap_size / (0.1 * period_size));
+                        num_periods = max(1, num_periods);
+
+                        buf.data_shift.period_count = num_periods;
+                        buf.data_shift.size = period_overlap_size;
+                        buf.data_shift.source = array->first_period_access + num_periods * array->period;
+
+                        cout << "Data shift:"
+                             << " size = " << buf.data_shift.size
+                             << " source = " << buf.data_shift.source
+                             << " #periods = " << buf.data_shift.period_count
+                             << endl;
+
+                        buf.has_phase = true;
+                    }
+                    else
+                    {
+                        buf.data_shift.period_count = 1;
+                    }
+
+                    size = array->last_period_access
+                            + buf.data_shift.period_count * buf.period_offset
+                            + 1;
+                }
+                else
+                {
+                    may_need_wrapping = true;
+
+                    // Round to the next power of two, to avoid modulo when indexing
+                    if (opt.data_size_power_of_two)
+                        size = (int) pow(2, ceil(log2(size)));
+
+                    buf.has_phase = array->period % size != 0;
+                }
+            }
+            else
+            {
+                may_need_wrapping = array->size[dim] > size;
+
+                // Round to the next power of two, to avoid modulo when indexing
+                if (may_need_wrapping && opt.data_size_power_of_two)
+                    size = (int) pow(2, ceil(log2(size)));
+            }
+
+            buf.dimension_size.push_back(size);
+            buf.dimension_needs_wrapping.push_back(may_need_wrapping);
         }
 
         buf.size = volume(buf.dimension_size);
@@ -403,37 +450,87 @@ static void advance_buffers(const polyhedral::model & model,
                             name_mapper & namer,
                             bool init)
 {
+    assert_or_throw(!init);
+
     for (const auto & array : model.arrays)
     {
         const buffer & buf = buffers.at(array->name);
 
-        if (!buf.has_phase)
-            continue;
-
-        int offset = init ? 0 : buf.phase_period_offset;
-        int buffer_size = buf.dimension_size[0];
-
-        assert(buffer_size > 0);
-        bool size_is_power_of_two =
-                buffer_size == (int)std::pow(2, (int)std::log2(buffer_size));
-
-        auto phase = make_shared<id_expression>(namer(array->name + "_ph"));
-
-        auto next_phase = binop(op::add, phase, literal(offset));
-
-        if (size_is_power_of_two)
+        if (buf.has_phase)
         {
-            auto mask = literal(buffer_size-1);
-            next_phase = binop(op::bit_and, next_phase, mask);
-        }
-        else
-        {
-            next_phase = binop(op::rem, next_phase, literal(buffer_size));
-        }
+            cout << "Buffer " << buf.name << " has phase." << endl;
 
-        auto phase_change = binop(op::assign, phase, next_phase);
+            int buffer_size = buf.dimension_size[0];
 
-        ctx->add(phase_change);
+            auto phase = make_shared<id_expression>(namer(array->name + "_ph"));
+
+            if (buf.data_shift.size)
+            {
+                cout << "Buffer " << buf.name << " shifts data." << endl;
+
+                auto phase_change = binop(op::assign_add, phase, literal(buf.period_offset));
+                ctx->add(phase_change);
+
+                int max_phase = buf.data_shift.period_count * buf.period_offset;
+
+                auto shift_block = make_shared<block_statement>();
+
+                auto buf_ptr = make_id("d");
+
+                {
+                    auto buf_address = cast(pointer(type_for(buf.type)), make_id(buf.name));
+                    auto buf_ptr_decl = decl_expr(auto_type(), *buf_ptr, buf_address);
+                    shift_block->statements.push_back(stmt(buf_ptr_decl));
+                }
+                {
+                    auto extent = buf.dimension_size;
+                    extent[0] = 1;
+                    int factor = volume(extent);
+
+                    int source_address = buf.data_shift.source * factor;
+                    int end_address = (buf.data_shift.source + buf.data_shift.size) * factor;
+                    int dest_address = (buf.data_shift.source - buf.data_shift.period_count * buf.period_offset) * factor;
+
+                    auto source = binop(op::add, buf_ptr, literal(source_address));
+                    auto end = binop(op::add, buf_ptr, literal(end_address));
+                    auto dest = binop(op::add, buf_ptr, literal(dest_address));
+
+                    auto data_shift = call(make_id("std::copy"), { source, end, dest });
+                    shift_block->statements.push_back(stmt(data_shift));
+                }
+                {
+                    auto phase_reset = binop(op::assign, phase, literal(0));
+                    shift_block->statements.push_back(stmt(phase_reset));
+                }
+
+                auto time_to_shift = binop(op::greater_or_equal, phase, literal(max_phase));
+                auto conditional_shift = make_shared<if_statement>(time_to_shift, shift_block, nullptr);
+
+                ctx->add(conditional_shift);
+            }
+            else
+            {
+                auto next_phase = binop(op::add, phase, literal(buf.period_offset));
+
+                assert(buffer_size > 0);
+                bool size_is_power_of_two =
+                        buffer_size == (int)std::pow(2, (int)std::log2(buffer_size));
+
+                if (size_is_power_of_two)
+                {
+                    auto mask = literal(buffer_size-1);
+                    next_phase = binop(op::bit_and, next_phase, mask);
+                }
+                else
+                {
+                    next_phase = binop(op::rem, next_phase, literal(buffer_size));
+                }
+
+                auto phase_change = binop(op::assign, phase, next_phase);
+
+                ctx->add(phase_change);
+            }
+        }
     }
 }
 #if 0
