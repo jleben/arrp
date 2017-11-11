@@ -416,6 +416,29 @@ void storage_allocator::find_inter_period_dependency
              << (array->inter_period_dependency ? "true" : "false")
              << endl;
     }
+
+    if (array->is_infinite)
+    {
+        auto accessed_in_period = written_in_period | read_in_period;
+
+        auto i0 = array->domain.get_space().var(0);
+        auto min_i0 = accessed_in_period.minimum(i0);
+        auto max_i0 = accessed_in_period.maximum(i0);
+        assert_or_throw(min_i0.is_integer());
+        assert_or_throw(max_i0.is_integer());
+
+        array->first_period_access = min_i0.integer();
+        array->last_period_access = max_i0.integer();
+
+        if (verbose<storage_allocator>::enabled())
+        {
+            cout << ".. Period access range: ("
+                 << array->first_period_access
+                 << ", "
+                 << array->last_period_access
+                 << ")" << endl;
+        }
+    }
 }
 
 }

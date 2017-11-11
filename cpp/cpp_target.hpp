@@ -40,10 +40,22 @@ struct buffer
 {
     string name;
     primitive_type type;
-    bool has_phase;
-    int phase_period_offset;
+    int period_offset = 0;
+
+    bool has_phase = false;
+
+    struct
+    {
+        int source = 0;
+        int size = 0;
+        int period_count = 0;
+    }
+    data_shift;
+
     bool on_stack;
     vector<int> dimension_size;
+    vector<bool> dimension_needs_wrapping;
+
     int size;
 };
 

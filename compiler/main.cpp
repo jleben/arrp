@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
 
-    args.add_option({"classic-storage", "", "", "Input and output singular elements."},
+    args.add_option({"classic-storage", "", "", "Use unmodified successive modulo technique."},
                     new switch_option(&opt.classic_storage_allocation, true));
 
     args.add_option({"parallel", "", "", "Generate parallelized code, if possible."},
@@ -175,6 +175,8 @@ int main(int argc, char *argv[])
     args.add_option({"avoid-modulo-bitmask", "", "", "Avoid modulo in array indexing by extending"
                      " array size to power of two and using bitmasking instead."},
                     new switch_option(&opt.data_size_power_of_two, true));
+    args.add_option({"avoid-modulo-datashift", "", "", "Avoid modulo by shifting data in buffers."},
+                    new switch_option(&opt.buffer_data_shifting, true));
 
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");
