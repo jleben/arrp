@@ -31,6 +31,7 @@ add_library(arrp-lib STATIC
   ../cpp/cpp_from_polyhedral.cpp
   ../cpp/cpp_from_isl.cpp
   ../cpp/name_mapper.cpp
+  ../cpp/collect_names.cpp
   arg_parser.cpp
   compiler.cpp
 )

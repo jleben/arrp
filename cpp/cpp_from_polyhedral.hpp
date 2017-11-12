@@ -28,13 +28,16 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../common/functional_model.hpp"
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
+#include <tuple>
 
 namespace stream {
 namespace cpp_gen {
 
 using std::vector;
 using std::unordered_map;
+using std::unordered_set;
 using std::string;
 
 class cpp_from_polyhedral
@@ -72,6 +75,9 @@ private:
     index_type mapped_index( const index_type & index,
                              const polyhedral::affine_matrix &,
                              builder * );
+
+    std::tuple<expression_ptr,int>
+    move_loop_invariant_code(expression_ptr, builder *);
 
     polyhedral::model m_model;
     unordered_map<string,buffer> m_buffers;

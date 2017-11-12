@@ -1,4 +1,5 @@
 #include "cpp_from_polyhedral.hpp"
+#include "collect_names.hpp"
 #include "../common/error.hpp"
 
 using namespace std;
@@ -550,6 +551,21 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
     if (compressed_index.empty())
         return buffer;
 
+    // Loop-invariant code motion
+
+    for (auto & i : compressed_index)
+    {
+        int level = 0;
+        tie(i, level) = move_loop_invariant_code(i, ctx);
+
+        if (level > 0 && verbose<cpp_target>::enabled())
+        {
+            cout << "Access to array " << array->name
+                 << ": Loop invariant address moved out " << level << " level(s)."
+                 << endl;
+        }
+    }
+
     auto buffer_elem = make_shared<array_access_expression>(buffer, compressed_index);
 
     return buffer_elem;
@@ -605,6 +621,47 @@ cpp_from_polyhedral::mapped_index
     }
 
     return target_index;
+}
+
+std::tuple<expression_ptr,int>
+cpp_from_polyhedral::move_loop_invariant_code(expression_ptr e, builder * ctx)
+{
+    if (!ctx->block_count())
+        return { e, 0 };
+
+    unordered_set<string> names;
+    bool is_complex = collect_names(e, names);
+
+    if (!is_complex)
+        return { e, 0 };
+
+    int dest_level = ctx->block_count() - 1;
+
+    if (!names.empty())
+    {
+        for (int level = 0; level < ctx->block_count(); ++level)
+        {
+            auto & block = ctx->block(level);
+            if (!block.induction_var.empty() && names.find(block.induction_var) != names.end())
+            {
+                dest_level = level;
+                break;
+            }
+        }
+    }
+
+    if (dest_level > 0 && dest_level < ctx->block_count())
+    {
+        auto tmp_name = ctx->new_var_id();
+        // FIXME: Use "auto" type.
+        auto tmp_decl = decl_expr(int_type(), tmp_name, e);
+
+        ctx->block(dest_level).stmts->push_back(make_shared<expr_statement>(tmp_decl));
+
+        e = make_id(tmp_name);
+    }
+
+    return { e, dest_level };
 }
 
 }

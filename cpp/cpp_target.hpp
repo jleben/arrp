@@ -59,8 +59,8 @@ struct buffer
     int size;
 };
 
-struct renaming {}; // For verbose output
-
+// For verbose output
+struct cpp_target {};
 
 inline basic_type_ptr type_for(primitive_type pt)
 {

@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
     verbose_out->add_topic<polyhedral::ast_gen>("ph-ast-gen");
     verbose_out->add_topic<polyhedral::storage_allocator>("storage-alloc");
     verbose_out->add_topic<polyhedral::storage_output>("storage");
-    verbose_out->add_topic<cpp_gen::renaming>("renaming");
+    verbose_out->add_topic<cpp_gen::cpp_target>("cpp");
     verbose_out->add_topic<io_latency>("latency");
 
     args.add_option({"verbose", "v", "<topic>", "Enable verbose output for <topic>."}, verbose_out);

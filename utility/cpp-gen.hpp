@@ -35,6 +35,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <unordered_map>
 #include <initializer_list>
 #include <complex>
+#include <deque>
 
 namespace stream {
 namespace cpp_gen {
@@ -45,6 +46,7 @@ using std::ostream;
 using std::unordered_map;
 using std::ostringstream;
 using std::stack;
+using std::deque;
 
 enum indentation_type
 {
@@ -766,6 +768,16 @@ public:
 class builder
 {
 public:
+    using block_ptr = vector<statement_ptr>*;
+
+    struct block_info
+    {
+        block_info(vector<statement_ptr>* stmts): stmts(stmts) {}
+
+        vector<statement_ptr> * stmts;
+        string induction_var;
+    };
+
     builder(module *m): m_module(m) {}
 
     void set_current_function(func_signature *f) { m_func = f; }
@@ -774,30 +786,35 @@ public:
     void set_current_function(func_def *f)
     {
         m_func = f->signature.get();
-        m_blocks = stack<vector<statement_ptr>*>();
-        m_blocks.push(&f->body.statements);
+        m_blocks.clear();
+        m_blocks.push_front(&f->body.statements);
     }
 
     void push(block_statement & block)
     {
-        m_blocks.push(&block.statements);
+        m_blocks.push_front(&block.statements);
     }
 
-    void push(vector<statement_ptr> *block)
+    void push(vector<statement_ptr> * statements)
     {
-        m_blocks.push(block);
+        m_blocks.push_front(statements);
     }
 
     void pop()
     {
-        m_blocks.pop();
+        m_blocks.pop_front();
     }
 
-    void add(statement_ptr stmt) { m_blocks.top()->push_back(stmt); }
+    int block_count() { return m_blocks.size(); }
+
+    block_info & block(int level) { return m_blocks[level]; }
+
+    void add(statement_ptr stmt) { m_blocks.front().stmts->push_back(stmt); }
 
     void add(expression_ptr expr) { add(std::make_shared<expr_statement>(expr)); }
 
     string new_var_id() { return m_module->next_id("v"); }
+
     expression_ptr new_var(type_ptr t, string & id)
     {
         id = new_var_id();
@@ -806,9 +823,10 @@ public:
     }
 
 private:
+
     cpp_gen::module * m_module;
     func_signature *m_func;
-    stack<vector<statement_ptr>*> m_blocks;
+    deque<block_info> m_blocks;
 };
 
 // Helpers
