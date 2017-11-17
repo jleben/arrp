@@ -458,7 +458,7 @@ static void advance_buffers(const polyhedral::model & model,
 
         if (buf.has_phase)
         {
-            cout << "Buffer " << buf.name << " has phase." << endl;
+            //cout << "Buffer " << buf.name << " has phase." << endl;
 
             int buffer_size = buf.dimension_size[0];
 
@@ -466,7 +466,7 @@ static void advance_buffers(const polyhedral::model & model,
 
             if (buf.data_shift.size)
             {
-                cout << "Buffer " << buf.name << " shifts data." << endl;
+                //cout << "Buffer " << buf.name << " shifts data." << endl;
 
                 auto phase_change = binop(op::assign_add, phase, literal(buf.period_offset));
                 ctx->add(phase_change);
