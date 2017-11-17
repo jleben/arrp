@@ -553,16 +553,19 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 
     // Loop-invariant code motion
 
-    for (auto & i : compressed_index)
+    if (m_move_loop_invariant_code)
     {
-        int level = 0;
-        tie(i, level) = move_loop_invariant_code(i, ctx);
-
-        if (level > 0 && verbose<cpp_target>::enabled())
+        for (auto & i : compressed_index)
         {
-            cout << "Access to array " << array->name
-                 << ": Loop invariant address moved out " << level << " level(s)."
-                 << endl;
+            int level = 0;
+            tie(i, level) = move_loop_invariant_code(i, ctx);
+
+            if (level > 0 && verbose<cpp_target>::enabled())
+            {
+                cout << "Access to array " << array->name
+                     << ": Loop invariant address moved out " << level << " level(s)."
+                     << endl;
+            }
         }
     }
 

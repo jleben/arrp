@@ -188,7 +188,7 @@ ast_isl ast_gen::generate()
     {
         if (verbose<ast_gen>::enabled())
             cout << endl << "** Building AST for period." << endl;
-        m_allow_parallel_for = m_options.parallel;
+        m_allow_parallel_for = m_options.parallel | m_options.vectorize;
         output.period =
                 isl_ast_build_node_from_schedule(build, m_schedule.period_tree.copy());
     }
@@ -205,8 +205,6 @@ isl_id * ast_gen::before_for(isl_ast_build *builder)
 
     auto id = ast_node_info::create_on_id(m_model.context);
 
-    auto info = ast_node_info::get_from_id(id);
-
     if (!m_allow_parallel_for)
     {
         if (verbose<ast_gen>::enabled())
@@ -216,6 +214,8 @@ isl_id * ast_gen::before_for(isl_ast_build *builder)
 
     if (verbose<ast_gen>::enabled())
         cout << "-- Attempting to parallelize for loop.." << endl;
+
+    auto info = ast_node_info::get_from_id(id);
 
     // Determine if loop is parallelizable
 
@@ -231,7 +231,12 @@ isl_id * ast_gen::before_for(isl_ast_build *builder)
 
     // Mark loop as parallel if parallelizable and not nested in another parallel loop.
 
-    if (m_in_parallel_for)
+    if (!m_options.parallel)
+    {
+        if (verbose<ast_gen>::enabled())
+            cout << "   Explicit parallelization not enabled." << endl;
+    }
+    else if (m_in_parallel_for)
     {
         if (verbose<ast_gen>::enabled())
             cout << "   Already in parallel for." << endl;
@@ -263,7 +268,7 @@ isl_ast_node * ast_gen::after_for(isl_ast_node *node, isl_ast_build * builder)
 
     // Mark loop vectorized if parallelizable and deepest.
 
-    if (is_deepest_loop && info->is_parallelizable)
+    if (m_options.vectorize && is_deepest_loop && info->is_parallelizable)
     {
         if (verbose<ast_gen>::enabled())
             cout << "-- Loop vectorized." << endl;

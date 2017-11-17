@@ -37,6 +37,7 @@ public:
     {
         bool separate_loops = false;
         bool parallel = false;
+        bool vectorize = false;
     };
 
     ast_gen(model &, schedule &, const options &);

@@ -282,6 +282,7 @@ result::code compile_module
                 polyhedral::ast_gen::options ast_opts;
                 ast_opts.separate_loops = opts.separate_loops;
                 ast_opts.parallel = opts.parallel;
+                ast_opts.vectorize = opts.vectorize;
 
                 polyhedral::ast_gen ast_gen(ph_model, schedule, ast_opts);
 

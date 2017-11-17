@@ -58,6 +58,7 @@ public:
                             builder*);
 
     void set_in_period(bool flag) { m_in_period = flag; }
+    void set_move_loop_invariant_code(bool flag) { m_move_loop_invariant_code = flag; }
 
     expression_ptr generate_buffer_phase(const string & id, builder *);
 
@@ -82,6 +83,7 @@ private:
     polyhedral::model m_model;
     unordered_map<string,buffer> m_buffers;
     bool m_in_period = false;
+    bool m_move_loop_invariant_code = false;
     polyhedral::statement * m_current_stmt = nullptr;
     name_mapper & m_name_mapper;
 };

@@ -61,9 +61,11 @@ struct options
     bool ordered_io = true;
 
     bool parallel = false;
+    bool vectorize = false;
 
     bool classic_storage_allocation = false;
     bool buffer_data_shifting = false;
+    bool loop_invariant_code_motion = false;
 
     int data_alignment = 0;
     bool data_size_power_of_two = false;

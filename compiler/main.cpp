@@ -168,6 +168,8 @@ int main(int argc, char *argv[])
 
     args.add_option({"parallel", "", "", "Generate parallelized code, if possible."},
                     new switch_option(&opt.parallel, true));
+    args.add_option({"vector", "", "", "Generate explicitly vectorized code, if possible."},
+                    new switch_option(&opt.vectorize, true));
 
     args.add_option({"align-data", "", "<bytes>", "Alignment requirement of data."},
                     new int_option(&opt.data_alignment));
@@ -177,6 +179,8 @@ int main(int argc, char *argv[])
                     new switch_option(&opt.data_size_power_of_two, true));
     args.add_option({"avoid-modulo-datashift", "", "", "Avoid modulo by shifting data in buffers."},
                     new switch_option(&opt.buffer_data_shifting, true));
+    args.add_option({"move-loop-invariant-code", "", "", ""},
+                    new switch_option(&opt.loop_invariant_code_motion, true));
 
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");
