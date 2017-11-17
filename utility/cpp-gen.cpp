@@ -624,9 +624,13 @@ void if_statement::generate(cpp_gen::state & state, ostream & stream)
 
 void for_statement::generate(cpp_gen::state & state, ostream & stream)
 {
-    if (is_parallel)
+    if (is_parallel || is_vector)
     {
-        stream << "#pragma omp parallel for";
+        stream << "#pragma omp";
+        if (is_parallel)
+            stream << " parallel for";
+        if (is_vector)
+            stream << " simd";
         state.new_line(stream);
     }
 

@@ -196,7 +196,8 @@ void cpp_from_isl::process_for(isl_ast_node *node)
 
     if (info)
     {
-        for_stmt->is_parallel = info->is_parallel_for;
+        for_stmt->is_parallel = info->is_parallel;
+        for_stmt->is_vector = info->is_vector;
     }
 
     m_ctx->add(for_stmt);

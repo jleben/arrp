@@ -72,6 +72,9 @@ private:
 
     bool m_allow_parallel_for = false;
     bool m_in_parallel_for = false;
+
+    int m_deepest_loop = 0;
+    int m_current_loop = 0;
 };
 
 

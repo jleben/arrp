@@ -311,7 +311,9 @@ public:
 
 struct ast_node_info
 {
-    bool is_parallel_for = false;
+    bool is_parallelizable = false;
+    bool is_parallel = false;
+    bool is_vector = false;
 
     static ast_node_info * get_from_id(isl_id * id)
     {

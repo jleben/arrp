@@ -724,6 +724,7 @@ public:
     expression_ptr update;
     statement_ptr body;
     bool is_parallel = false;
+    bool is_vector = false;
     void generate(state &, ostream &);
 };
 
