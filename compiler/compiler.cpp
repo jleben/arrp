@@ -36,6 +36,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 //#include "../polyhedral/modulo_avoidance.hpp"
 #include "../polyhedral/isl_ast_gen.hpp"
 #include "../cpp/cpp_target.hpp"
+#include "report.hpp"
 
 #include <isl-cpp/printer.hpp>
 #include <isl-cpp/utility.hpp>
@@ -382,35 +383,44 @@ result::code compile_module
         return result::semantic_error;
     }*/
 
+    if (!arrp::report().empty())
+    {
+        cout << arrp::report().dump(4) << endl;
+    }
+
     return result::ok;
 }
 
 void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
 {
-    cout << endl << "== Buffer sizes ==" << endl;
+    arrp::json shapes;
+    arrp::json sizes;
+
+    int total_mem = 0;
+
     for (const auto & array : arrays)
     {
-        cout << array->name << ": ";
-        cout << "[ ";
-        for (auto b : array->buffer_size)
-        {
-            cout << b << " ";
-        }
-        cout << "]";
+        shapes[array->name] = array->buffer_size;
+
         int flat_size = 0;
         if (!array->buffer_size.empty())
             flat_size = std::accumulate(array->buffer_size.begin(),
                                         array->buffer_size.end(),
                                         1, std::multiplies<int>());
-        cout << " = " << flat_size;
-        cout << endl;
+
+        sizes[array->name] = flat_size;
+
+        total_mem += flat_size * cpp_gen::size_for(array->type);
     }
+
+    arrp::report()["buffer-shapes"] = shapes;
+    arrp::report()["buffer-sizes"] = sizes;
+    arrp::report()["memory"] = total_mem;
 }
 
 void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule)
 {
-    if (verbose<io_latency>::enabled())
-        cerr << "-- Latencies:" << endl;
+    arrp::json report;
 
     isl::space sched_space(nullptr);
     schedule.full.for_each([&](const isl::map & m){
@@ -430,8 +440,7 @@ void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & s
         {
             if (!in.statement->is_infinite)
             {
-                if (verbose<io_latency>::enabled())
-                    cerr << in.name << ": Not a stream." << endl;
+                report[in.name] = "not a stream";
                 continue;
             }
 
@@ -456,15 +465,13 @@ void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & s
             {
                 in.latency = -1;
 
-                if (verbose<io_latency>::enabled())
-                    cerr << in.name << ": Infinite." << endl;
+                report[in.name] = "infinite";
             }
             else if (max_latency.is_integer())
             {
                 in.latency = max_latency.integer();
 
-                if (verbose<io_latency>::enabled())
-                    cerr << in.name << ": " << max_latency.integer() << endl;
+                report[in.name] = max_latency.integer();
             }
             else
             {
@@ -472,6 +479,9 @@ void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & s
             }
         }
     }
+
+    if (verbose<io_latency>::enabled())
+        arrp::report()["latencies"] = report;
 }
 
 } // namespace compiler

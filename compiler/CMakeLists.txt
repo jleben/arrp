@@ -33,6 +33,7 @@ add_library(arrp-lib STATIC
   ../cpp/name_mapper.cpp
   ../cpp/collect_names.cpp
   arg_parser.cpp
+  report.cpp
   compiler.cpp
 )
 
