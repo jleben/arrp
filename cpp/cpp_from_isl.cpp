@@ -384,6 +384,14 @@ expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
         expr = binop(op::div, args[0], args[1]);
         break;
     }
+    case isl_ast_op_cond:
+    case isl_ast_op_select:
+    {
+        // FIXME: More efficient isl_ast_op_select?
+        assert_or_throw(args.size() == 3);
+        expr = make_shared<if_expression>(args[0], args[1], args[2]);
+        break;
+    }
     case isl_ast_op_or_else:
         // not implemented
     case isl_ast_op_and_then:
@@ -391,10 +399,6 @@ expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
     case isl_ast_op_fdiv_q:
         // Not implemented
         // Result of integer division, rounded towards negative infinity.
-    case isl_ast_op_cond:
-        // Not implemented.
-    case isl_ast_op_select:
-        // Not implemented.
     case isl_ast_op_access:
         // Not implemented
     case isl_ast_op_member:

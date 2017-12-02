@@ -457,11 +457,13 @@ void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
 
 void if_expression::generate(cpp_gen::state & state, ostream & stream)
 {
+    stream << "(";
     condition->generate(state, stream);
     stream << " ? ";
     true_expr->generate(state, stream);
     stream << " : ";
     false_expr->generate(state, stream);
+    stream << ")";
 }
 
 void call_expression::generate(cpp_gen::state & state, ostream & stream)
