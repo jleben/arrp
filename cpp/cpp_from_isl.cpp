@@ -384,6 +384,14 @@ expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
         expr = binop(op::div, args[0], args[1]);
         break;
     }
+    case isl_ast_op_fdiv_q:
+    {
+        // Result of integer division, rounded towards negative infinity.
+        throw error("Integer division rounded towards negative infinity: Some tests with this have been incorrect in the past.");
+        assert_or_throw(args.size() == 2);
+        expr = call(make_id("arrp::floor_div"), { args[0], args[1] });
+        break;
+    }
     case isl_ast_op_cond:
     case isl_ast_op_select:
     {
@@ -396,9 +404,6 @@ expression_ptr cpp_from_isl::process_op(isl_ast_expr * ast_op)
         // not implemented
     case isl_ast_op_and_then:
         // not implemented
-    case isl_ast_op_fdiv_q:
-        // Not implemented
-        // Result of integer division, rounded towards negative infinity.
     case isl_ast_op_access:
         // Not implemented
     case isl_ast_op_member:

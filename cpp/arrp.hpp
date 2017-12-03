@@ -43,4 +43,11 @@ struct data_traits<stream_type<E>>
     }
 };
 
+inline
+int floor_div(int a, int b)
+{
+    int d = a / b;
+    return d - ((d < 0) & (d * b != a));
+}
+
 }
