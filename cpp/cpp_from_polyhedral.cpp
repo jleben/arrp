@@ -630,13 +630,13 @@ std::tuple<expression_ptr,int>
 cpp_from_polyhedral::move_loop_invariant_code(expression_ptr e, builder * ctx)
 {
     if (!ctx->block_count())
-        return { e, 0 };
+        return make_tuple(e, 0);
 
     unordered_set<string> names;
     bool is_complex = collect_names(e, names);
 
     if (!is_complex)
-        return { e, 0 };
+        return make_tuple(e, 0);
 
     int dest_level = ctx->block_count() - 1;
 
@@ -664,7 +664,7 @@ cpp_from_polyhedral::move_loop_invariant_code(expression_ptr e, builder * ctx)
         e = make_id(tmp_name);
     }
 
-    return { e, dest_level };
+    return make_tuple(e, dest_level);
 }
 
 }
