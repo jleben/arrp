@@ -61,7 +61,7 @@ include_directories(extra)
 # Subdirs
 
 add_subdirectory(extra/isl-cpp)
-add_subdirectory(extra/json++)
+#add_subdirectory(extra/json++)
 add_subdirectory(frontend)
 add_subdirectory(utility)
 add_subdirectory(compiler)

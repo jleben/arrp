@@ -52,7 +52,7 @@ endif()
 endif()
 
 # NOTE: gmp needed by isl
-target_link_libraries( arrp-lib ${ISL_LIBRARY} isl-cpp json gmp m)
+target_link_libraries( arrp-lib ${ISL_LIBRARY} isl-cpp gmp m)
 
 # Executable
 
