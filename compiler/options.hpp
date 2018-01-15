@@ -37,7 +37,7 @@ struct options
     //string meta_output_filename;
 
     struct {
-        bool enabled;
+        bool enabled = false;
         string nmspace;
         string filename;
     } cpp;
