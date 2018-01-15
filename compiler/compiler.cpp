@@ -295,13 +295,6 @@ result::code compile_module
             polyhedral::storage_allocator storage_alloc( ph_model, opts.classic_storage_allocation );
             storage_alloc.allocate(schedule);
 
-            // Print buffers
-
-            if (verbose<polyhedral::storage_output>::enabled())
-            {
-                print_buffer_sizes(ph_model.arrays);
-            }
-
             compute_io_latencies(ph_model, schedule);
 
             // Modulo avoidance
@@ -389,33 +382,6 @@ result::code compile_module
     }
 
     return result::ok;
-}
-
-void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> & arrays)
-{
-    arrp::json shapes;
-    arrp::json sizes;
-
-    int total_mem = 0;
-
-    for (const auto & array : arrays)
-    {
-        shapes[array->name] = array->buffer_size;
-
-        int flat_size = 0;
-        if (!array->buffer_size.empty())
-            flat_size = std::accumulate(array->buffer_size.begin(),
-                                        array->buffer_size.end(),
-                                        1, std::multiplies<int>());
-
-        sizes[array->name] = flat_size;
-
-        total_mem += flat_size * cpp_gen::size_for(array->type);
-    }
-
-    arrp::report()["buffer-shapes"] = shapes;
-    arrp::report()["buffer-sizes"] = sizes;
-    arrp::report()["memory"] = total_mem;
 }
 
 void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule)

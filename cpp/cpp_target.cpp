@@ -23,6 +23,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "cpp_from_polyhedral.hpp"
 #include "cpp_from_isl.hpp"
 #include "../utility/cpp-gen.hpp"
+#include "../compiler/report.hpp"
+#include "../polyhedral/storage_alloc.hpp"
 
 #include <unordered_map>
 #include <algorithm>
@@ -340,8 +342,12 @@ buffer_analysis(const polyhedral::model & model, const compiler::options & opt)
 
                     if (period_overlap_size > 0)
                     {
-                        // Keep it at shifting at most 10% of accessed items per period,
-                        // asymptotically.
+                        // Shift at most 10% of accessed items per period, asymptotically.
+
+                        // to_shift = overlap
+                        // shifted_per_period = to_shift / num_periods
+                        // num_periods = to_shift / shifted_per_period
+                        //             = overlap / shifted_per_period
 
                         int num_periods = std::ceil(period_overlap_size / (0.1 * period_size));
                         num_periods = max(1, num_periods);
@@ -350,13 +356,15 @@ buffer_analysis(const polyhedral::model & model, const compiler::options & opt)
                         buf.data_shift.size = period_overlap_size;
                         buf.data_shift.source = array->first_period_access + num_periods * array->period;
 
-                        cout << "Data shift:"
-                             << " size = " << buf.data_shift.size
-                             << " source = " << buf.data_shift.source
-                             << " #periods = " << buf.data_shift.period_count
-                             << endl;
-
                         buf.has_phase = true;
+
+                        if (verbose<polyhedral::storage_output>::enabled())
+                        {
+                            auto & out = arrp::report()["storage"][array->name]["shift"];
+                            out["size"] = buf.data_shift.size;
+                            out["source"] = buf.data_shift.source;
+                            out["period-count"] = buf.data_shift.period_count;
+                        }
                     }
                     else
                     {
@@ -439,6 +447,7 @@ buffer_analysis(const polyhedral::model & model, const compiler::options & opt)
         buffer & b = buffers.at(array->name);
         b.on_stack = false;
     }
+
 
     return buffers;
 }
@@ -631,6 +640,38 @@ void add_output_getter_func(cpp_gen::module &module, namespace_node & nmspc,
     nmspc.members.push_back(func);
 }
 #endif
+
+static void report_buffer_sizes(const unordered_map<string,buffer> & buffers)
+{
+    auto & out = arrp::report()["storage"];
+
+    arrp::json shapes;
+    arrp::json sizes;
+
+    int total_mem = 0;
+
+    for (const auto & entry : buffers)
+    {
+        const auto & buffer = entry.second;
+        const auto & shape = buffer.dimension_size;
+        shapes[buffer.name] = shape;
+
+        int flat_size = 0;
+        if (!shape.empty())
+            flat_size = std::accumulate(shape.begin(),
+                                        shape.end(),
+                                        1, std::multiplies<int>());
+
+        sizes[buffer.name] = flat_size;
+
+        out[buffer.name]["shape"] = shape;
+
+        total_mem += flat_size * cpp_gen::size_for(buffer.type);
+    }
+
+    out["memory"] = total_mem;
+}
+
 void generate(const string & name,
               const polyhedral::model & model,
               const polyhedral::ast_isl & ast,
@@ -638,6 +679,11 @@ void generate(const string & name,
               const compiler::options & opt)
 {
     unordered_map<string,buffer> buffers = buffer_analysis(model, opt);
+
+    if (verbose<polyhedral::storage_output>::enabled())
+    {
+        report_buffer_sizes(buffers);
+    }
 
     cpp_gen::name_mapper name_mapper;
     module m;
