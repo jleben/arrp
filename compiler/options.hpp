@@ -61,6 +61,7 @@ struct options
     bool ordered_io = true;
 
     bool parallel = false;
+    int parallel_dim = -1;
     bool vectorize = false;
 
     bool classic_storage_allocation = false;

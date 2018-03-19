@@ -168,6 +168,8 @@ int main(int argc, char *argv[])
 
     args.add_option({"parallel", "", "", "Generate parallelized code, if possible."},
                     new switch_option(&opt.parallel, true));
+    args.add_option({"parallel-dim", "", "<dim>", "Parallelize exclusively dimension <dim> of period, if possible."},
+                    new int_option(&opt.parallel_dim));
     args.add_option({"vector", "", "", "Generate explicitly vectorized code, if possible."},
                     new switch_option(&opt.vectorize, true));
 

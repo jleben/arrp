@@ -26,6 +26,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <isl/ast_build.h>
 #include <isl/id.h>
+#include <stack>
 
 namespace stream {
 namespace polyhedral {
@@ -37,6 +38,7 @@ public:
     {
         bool separate_loops = false;
         bool parallel = false;
+        int parallel_dim = -1;
         bool vectorize = false;
     };
 
@@ -45,7 +47,10 @@ public:
     ast_isl generate();
 
 private:
+
     isl::union_map compute_order();
+
+    isl_ast_build * set_loop_iterators(isl_ast_build *, int count, int parallel_loop);
 
     static isl_id * invoke_before_for
     (isl_ast_build *build, void *user)
@@ -72,10 +77,11 @@ private:
     isl::union_map m_order;
 
     bool m_allow_parallel_for = false;
-    bool m_in_parallel_for = false;
+    int m_parallel_loop_id = 0;
 
     int m_deepest_loop = 0;
     int m_current_loop = 0;
+    int m_num_parallelizable_loops = 0;
 };
 
 

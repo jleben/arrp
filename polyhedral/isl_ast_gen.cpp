@@ -113,6 +113,37 @@ isl::union_map ast_gen::compute_order()
     return order;
 }
 
+isl_ast_build * ast_gen::set_loop_iterators(isl_ast_build * ast, int count, int parallel_loop)
+{
+    auto ctx = isl_ast_build_get_ctx(ast);
+
+    isl_id_list * ids = isl_id_list_alloc(ctx, count);
+
+    for(int i = 0; i < count; ++i)
+    {
+        auto name = string("c") + to_string(i);
+
+        if (verbose<ast_gen>::enabled())
+            cout << "Adding iterator: " << name << endl;
+
+        void * data = nullptr;
+        if (i == parallel_loop)
+        {
+            if (verbose<ast_gen>::enabled())
+                cout << "(parallel)" << endl;
+            data = &m_parallel_loop_id;
+        }
+
+        auto id = isl_id_alloc(ctx, name.c_str(), data);
+
+        ids = isl_id_list_add(ids, id);
+    }
+
+    ast = isl_ast_build_set_iterators(ast, ids);
+
+    return ast;
+}
+
 ast_isl ast_gen::generate()
 {
     auto ctx = m_model.context;
@@ -188,7 +219,18 @@ ast_isl ast_gen::generate()
     {
         if (verbose<ast_gen>::enabled())
             cout << endl << "** Building AST for period." << endl;
+
         m_allow_parallel_for = m_options.parallel | m_options.vectorize;
+
+        int num_sched_dim = 0;
+
+        m_schedule.period.for_each([&](const isl::map & m){
+            num_sched_dim = m.get_space().dimension(isl::space::output);
+            return false;
+        });
+
+        build = set_loop_iterators(build, num_sched_dim, m_options.parallel_dim);
+
         output.period =
                 isl_ast_build_node_from_schedule(build, m_schedule.period_tree.copy());
     }
@@ -200,6 +242,9 @@ ast_isl ast_gen::generate()
 
 isl_id * ast_gen::before_for(isl_ast_build *builder)
 {
+    if (verbose<ast_gen>::enabled())
+        cout << "-- Before for" << endl;
+
     ++m_current_loop;
     m_deepest_loop = m_current_loop;
 
@@ -213,7 +258,7 @@ isl_id * ast_gen::before_for(isl_ast_build *builder)
     }
 
     if (verbose<ast_gen>::enabled())
-        cout << "-- Attempting to parallelize for loop.." << endl;
+        cout << "-- Determining if loop is parallelizable.." << endl;
 
     auto info = ast_node_info::get_from_id(id);
 
@@ -227,44 +272,82 @@ isl_id * ast_gen::before_for(isl_ast_build *builder)
         return id;
     }
 
-    info->is_parallelizable = is_parallel;
+    info->is_parallelizable = true;
 
-    // Mark loop as parallel if parallelizable and not nested in another parallel loop.
-
-    if (!m_options.parallel)
-    {
-        if (verbose<ast_gen>::enabled())
-            cout << "   Explicit parallelization not enabled." << endl;
-    }
-    else if (m_in_parallel_for)
-    {
-        if (verbose<ast_gen>::enabled())
-            cout << "   Already in parallel for." << endl;
-    }
-    else
-    {
-        if (verbose<ast_gen>::enabled())
-            cout << "   Parallelized." << endl;
-
-        store_parallel_accesses_for_current_dimension(builder);
-
-        info->is_parallel = true;
-
-        m_in_parallel_for = true;
-    }
+    ++m_num_parallelizable_loops;
 
     return id;
 }
 
 isl_ast_node * ast_gen::after_for(isl_ast_node *node, isl_ast_build * builder)
 {
+    if (verbose<ast_gen>::enabled())
+        cout << "-- After for" << endl;
+
     bool is_deepest_loop = m_deepest_loop == m_current_loop;
 
-    --m_current_loop;
+    bool is_requested_parallel = false;
+
+    {
+        auto iter_expr = isl_ast_node_for_get_iterator(node);
+        auto id = isl_ast_expr_get_id(iter_expr);
+        if (verbose<ast_gen>::enabled())
+            cout << "   Loop iter: " << isl_id_get_name(id) << endl;
+        auto data = isl_id_get_user(id);
+        if (data == &m_parallel_loop_id)
+        {
+            if (verbose<ast_gen>::enabled())
+                cout << "   Requested as parallel" << endl;
+            is_requested_parallel = true;
+        }
+        id = isl_id_free(id);
+        isl_ast_expr_free(iter_expr);
+    }
 
     auto id = isl_ast_node_get_annotation(node);
 
     auto info = ast_node_info::get_from_id(id);
+
+    // Mark loop parallel if parallelizable and
+    // either requested by user or outermost parallizable.
+
+    if (!m_options.parallel)
+    {
+        if (verbose<ast_gen>::enabled())
+            cout << "   Explicit parallelization not enabled." << endl;
+    }
+    else if (!info->is_parallelizable)
+    {
+        if (verbose<ast_gen>::enabled())
+            cout << "   Not parallelizable." << endl;
+    }
+    else if (m_options.parallel_dim < 0)
+    {
+        if (m_num_parallelizable_loops != 1)
+        {
+            if (verbose<ast_gen>::enabled())
+                cout << "   Not the outermost parallelizable loop." << endl;
+        }
+        else
+        {
+            info->is_parallel = true;
+        }
+    }
+    else
+    {
+        if (!is_requested_parallel)
+        {
+            if (verbose<ast_gen>::enabled())
+                cout << "   Not the requested parallel loop." << endl;
+        }
+        else
+        {
+            if (verbose<ast_gen>::enabled())
+                cout << "   Parallelized." << endl;
+
+            info->is_parallel = true;
+        }
+    }
 
     // Mark loop vectorized if parallelizable and deepest.
 
@@ -274,16 +357,17 @@ isl_ast_node * ast_gen::after_for(isl_ast_node *node, isl_ast_build * builder)
             cout << "-- Loop vectorized." << endl;
 
         info->is_vector = true;
-
-        // Store parallel accesses if not yet stored.
-        if (!info->is_parallel)
-        {
-            store_parallel_accesses_for_current_dimension(builder);
-        }
     }
 
-    if (info->is_parallel)
-        m_in_parallel_for = false;
+    if (info->is_parallel || info->is_vector)
+    {
+        store_parallel_accesses_for_current_dimension(builder);
+    }
+
+    if (info->is_parallelizable)
+        --m_num_parallelizable_loops;
+
+    --m_current_loop;
 
     id = isl_id_free(id);
 
