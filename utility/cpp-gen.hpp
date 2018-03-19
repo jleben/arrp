@@ -788,29 +788,33 @@ public:
     {
         m_func = f->signature.get();
         m_blocks.clear();
-        m_blocks.push_front(&f->body.statements);
+        m_blocks.push_back(&f->body.statements);
     }
 
     void push(block_statement & block)
     {
-        m_blocks.push_front(&block.statements);
+        m_blocks.push_back(&block.statements);
     }
 
     void push(vector<statement_ptr> * statements)
     {
-        m_blocks.push_front(statements);
+        m_blocks.push_back(statements);
     }
 
     void pop()
     {
-        m_blocks.pop_front();
+        m_blocks.pop_back();
     }
 
     int block_count() { return m_blocks.size(); }
 
+    int current_block_level() { return int(m_blocks.size()) - 1; }
+
+    block_info & current_block() { return m_blocks.back(); }
+
     block_info & block(int level) { return m_blocks[level]; }
 
-    void add(statement_ptr stmt) { m_blocks.front().stmts->push_back(stmt); }
+    void add(statement_ptr stmt) { current_block().stmts->push_back(stmt); }
 
     void add(expression_ptr expr) { add(std::make_shared<expr_statement>(expr)); }
 

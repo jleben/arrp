@@ -555,16 +555,13 @@ expression_ptr cpp_from_polyhedral::generate_buffer_access
 
     if (m_move_loop_invariant_code)
     {
-        for (auto & i : compressed_index)
+        for (auto & dim_index : compressed_index)
         {
-            int level = 0;
-            tie(i, level) = move_loop_invariant_code(i, ctx);
+            auto lim = move_loop_invariant_code(dim_index, ctx);
 
-            if (level > 0 && verbose<cpp_target>::enabled())
+            if (lim.highest_level < ctx->current_block_level() && lim.is_profitable)
             {
-                cout << "Access to array " << array->name
-                     << ": Loop invariant address moved out " << level << " level(s)."
-                     << endl;
+                dim_index = move_code(dim_index, lim.highest_level, ctx);
             }
         }
     }
@@ -626,45 +623,99 @@ cpp_from_polyhedral::mapped_index
     return target_index;
 }
 
-std::tuple<expression_ptr,int>
+cpp_from_polyhedral::loop_invariant_motion
 cpp_from_polyhedral::move_loop_invariant_code(expression_ptr e, builder * ctx)
 {
-    if (!ctx->block_count())
-        return make_tuple(e, 0);
+    // FIXME: We support only a limited set of expression types
 
-    unordered_set<string> names;
-    bool is_complex = collect_names(e, names);
+    loop_invariant_motion lim;
 
-    if (!is_complex)
-        return make_tuple(e, 0);
-
-    int dest_level = ctx->block_count() - 1;
-
-    if (!names.empty())
+    if (auto id = dynamic_pointer_cast<id_expression>(e))
     {
-        for (int level = 0; level < ctx->block_count(); ++level)
+        lim.is_profitable = false;
+
+        for (int level = 1; level < ctx->block_count(); ++level)
         {
             auto & block = ctx->block(level);
-            if (!block.induction_var.empty() && names.find(block.induction_var) != names.end())
+            if (!block.induction_var.empty() && block.induction_var == id->name)
             {
-                dest_level = level;
+                lim.highest_level = level;
                 break;
             }
         }
     }
-
-    if (dest_level > 0 && dest_level < ctx->block_count())
+    else if (auto unop = dynamic_pointer_cast<un_op_expression>(e))
     {
-        auto tmp_name = ctx->new_var_id();
-        // FIXME: Use "auto" type.
-        auto tmp_decl = decl_expr(int_type(), tmp_name, e);
+        lim.is_profitable = true;
 
-        ctx->block(dest_level).stmts->push_back(make_shared<expr_statement>(tmp_decl));
+        auto lim_rhs = move_loop_invariant_code(unop->rhs, ctx);
 
-        e = make_id(tmp_name);
+        lim.highest_level = lim_rhs.highest_level;
+    }
+    else if (auto binop = dynamic_pointer_cast<bin_op_expression>(e))
+    {
+        lim.is_profitable = true;
+
+        auto lim_lhs = move_loop_invariant_code(binop->lhs, ctx);
+        auto lim_rhs = move_loop_invariant_code(binop->rhs, ctx);
+
+        lim.highest_level = std::max(lim_lhs.highest_level, lim_rhs.highest_level);
+
+        if (lim.highest_level > lim_lhs.highest_level && lim_lhs.is_profitable)
+            binop->lhs = move_code(binop->lhs, lim_lhs.highest_level, ctx);
+        if (lim.highest_level > lim_rhs.highest_level && lim_rhs.is_profitable)
+            binop->rhs = move_code(binop->rhs, lim_rhs.highest_level, ctx);
+    }
+    else if (auto call = dynamic_pointer_cast<call_expression>(e))
+    {
+        // FIXME: This assumes the call has no side effects (e.g. std::max)
+
+        lim.is_profitable = true;
+
+        vector<loop_invariant_motion> lim_args;
+
+        for (auto & arg : call->args)
+        {
+            auto lim_arg = move_loop_invariant_code(arg, ctx);
+            lim.highest_level = std::max(lim.highest_level, lim_arg.highest_level);
+            lim_args.push_back(lim_arg);
+        }
+
+        for (int i = 0; i < call->args.size(); ++i)
+        {
+            auto & lim_arg = lim_args[i];
+            auto & arg = call->args[i];
+            if (lim.highest_level > lim_arg.highest_level && lim_arg.is_profitable)
+                arg = move_code(arg, lim_arg.highest_level, ctx);
+        }
     }
 
-    return make_tuple(e, dest_level);
+    return lim;
+}
+
+expression_ptr cpp_from_polyhedral::move_code(expression_ptr e, int block_level, builder * ctx)
+{
+    if (block_level < 0 || block_level >= ctx->block_count())
+        return e;
+
+    // FIXME: We assume the expression has int type,
+    // since we only move array index expressions.
+
+    auto tmp_name = ctx->new_var_id();
+    // FIXME: Use "auto" type.
+    auto tmp_decl = decl_expr(int_type(), tmp_name, e);
+
+    ctx->block(block_level).stmts->push_back(make_shared<expr_statement>(tmp_decl));
+
+    if (verbose<cpp_target>::enabled())
+    {
+        cout << "Moved code to level " << block_level << ":" << endl;
+        cpp_gen::state s;
+        tmp_decl->generate(s, cout);
+        cout << endl;
+    }
+
+    return make_id(tmp_name);
 }
 
 }

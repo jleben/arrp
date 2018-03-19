@@ -182,7 +182,7 @@ void cpp_from_isl::process_for(isl_ast_node *node)
         vector<statement_ptr> stmts;
 
         m_ctx->push(&stmts);
-        m_ctx->block(0).induction_var = iter_id->name;
+        m_ctx->current_block().induction_var = iter_id->name;
 
         process_node(body_node);
 

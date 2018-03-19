@@ -77,8 +77,16 @@ private:
                              const polyhedral::affine_matrix &,
                              builder * );
 
-    std::tuple<expression_ptr,int>
+    struct loop_invariant_motion
+    {
+        bool is_profitable = false;
+        int highest_level = 0;
+    };
+
+    loop_invariant_motion
     move_loop_invariant_code(expression_ptr, builder *);
+
+    expression_ptr move_code(expression_ptr, int block_level, builder *);
 
     polyhedral::model m_model;
     unordered_map<string,buffer> m_buffers;
