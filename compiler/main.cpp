@@ -205,6 +205,9 @@ int main(int argc, char *argv[])
 
     args.add_option({"verbose", "v", "<topic>", "Enable verbose output for <topic>."}, verbose_out);
 
+    args.add_option({"report", "", "<file>", "Write report to <file>."},
+                    new string_option(&opt.report_file));
+
     try {
         args.parse(argc-1, argv+1);
     }

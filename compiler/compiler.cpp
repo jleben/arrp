@@ -379,7 +379,15 @@ result::code compile_module
 
     if (!arrp::report().empty())
     {
-        cout << arrp::report().dump(4) << endl;
+        ofstream out(opts.report_file);
+        if (!out.is_open())
+        {
+            cerr << "Warning: Failed to open report file: " << opts.report_file << endl;
+        }
+        else
+        {
+            out << arrp::report().dump(4) << endl;
+        }
     }
 
     return result::ok;
