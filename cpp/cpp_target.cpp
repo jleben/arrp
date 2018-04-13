@@ -30,21 +30,24 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <algorithm>
 #include <iostream>
 #include <cmath>
+#include <cstdint>
 
 using namespace std;
 
 namespace stream {
 namespace cpp_gen {
 
-static int volume( const vector<int> & extent )
+template <typename T>
+static int64_t volume( const vector<T> & extent )
 {
     if (extent.empty())
         return 0;
-    int v = 1;
-    for(int e : extent)
-        v *= e;
+    int64_t v = 1;
+    for(auto & e : extent)
+        v *= int64_t(e);
     return v;
 }
+
 #if 0
 func_sig_ptr input_func_sig(inline_mode inlined)
 {
@@ -419,16 +422,17 @@ buffer_analysis(const polyhedral::model & model, const compiler::options & opt)
 
     std::sort(buffers_on_stack.begin(), buffers_on_stack.end(), buffer_size_is_smaller);
 
-    int stack_size = 0;
+    int64_t stack_size = 0;
 
     for(int idx = 0; idx < buffers_on_stack.size(); ++idx)
     {
         polyhedral::array *array = buffers_on_stack[idx];
         buffer & b = buffers.at(array->name);
 
-        int elem_size = size_for(array->type);
+        int64_t elem_size = size_for(array->type);
 
-        int mem_size = b.size * elem_size;
+        int64_t mem_size = b.size * elem_size;
+
         // FIXME: use user option for max stack size
         if (stack_size + mem_size < 1024)
         {
@@ -494,11 +498,11 @@ static void advance_buffers(const polyhedral::model & model,
                 {
                     auto extent = buf.dimension_size;
                     extent[0] = 1;
-                    int factor = volume(extent);
+                    int64_t factor = volume(extent);
 
-                    int source_address = buf.data_shift.source * factor;
-                    int end_address = (buf.data_shift.source + buf.data_shift.size) * factor;
-                    int dest_address = (buf.data_shift.source - buf.data_shift.period_count * buf.period_offset) * factor;
+                    int64_t source_address = buf.data_shift.source * factor;
+                    int64_t end_address = (buf.data_shift.source + buf.data_shift.size) * factor;
+                    int64_t dest_address = (buf.data_shift.source - buf.data_shift.period_count * buf.period_offset) * factor;
 
                     auto source = binop(op::add, buf_ptr, literal(source_address));
                     auto end = binop(op::add, buf_ptr, literal(end_address));
@@ -648,7 +652,7 @@ static void report_buffer_sizes(const unordered_map<string,buffer> & buffers)
     arrp::json shapes;
     arrp::json sizes;
 
-    int total_mem = 0;
+    int64_t total_mem = 0;
 
     for (const auto & entry : buffers)
     {
@@ -656,17 +660,13 @@ static void report_buffer_sizes(const unordered_map<string,buffer> & buffers)
         const auto & shape = buffer.dimension_size;
         shapes[buffer.name] = shape;
 
-        int flat_size = 0;
-        if (!shape.empty())
-            flat_size = std::accumulate(shape.begin(),
-                                        shape.end(),
-                                        1, std::multiplies<int>());
+        int64_t flat_size = volume(shape);
 
         sizes[buffer.name] = flat_size;
 
         out[buffer.name]["shape"] = shape;
 
-        total_mem += flat_size * cpp_gen::size_for(buffer.type);
+        total_mem += flat_size * size_t(cpp_gen::size_for(buffer.type));
     }
 
     out["memory"] = total_mem;

@@ -28,6 +28,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstdint>
 
 namespace stream {
 namespace cpp_gen {
@@ -56,7 +57,7 @@ struct buffer
     vector<int> dimension_size;
     vector<bool> dimension_needs_wrapping;
 
-    int size;
+    int64_t size;
 };
 
 // For verbose output
