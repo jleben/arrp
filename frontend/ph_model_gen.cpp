@@ -287,6 +287,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     if (atomic)
     {
         domain = array->domain;
+        domain.set_name(stmt_name);
     }
     else
     {
@@ -317,7 +318,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     vector<expr_ptr> ar_index;
     if (atomic)
     {
-        for (int i = 0; i < ar_index.size(); ++i)
+        for (int i = 0; i < array->domain.dimensions(); ++i)
             ar_index.push_back(make_shared<ph::iterator_read>(i));
     }
     else if (array->is_infinite)
