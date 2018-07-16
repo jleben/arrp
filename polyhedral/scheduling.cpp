@@ -617,6 +617,8 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
     domain_node = isl_schedule_node_free(domain_node);
 }
 
+// Modifies and returns 'node' to represent the schedule of tiles,
+// while inserting a new child node representing the intra-tile schedule.
 isl_schedule_node * scheduler::tile(isl_schedule_node * node, const options & opt)
 {
     if (opt.tile_size.empty())
@@ -758,7 +760,12 @@ isl_schedule_node * scheduler::add_periodic_tiling_dimension
 
     if (period_dir.empty())
     {
-        // Find first infinite tiling dimension.
+        // User has not requested any particular direction.
+        // Find first scheduling hyperplane with a non-zero projection
+        // on the ray.
+        // If the schedule was tiled, this only searches the tile
+        // hyperplanes.
+
         int dim = 0;
         for (; dim < band_size; ++dim)
         {
@@ -778,6 +785,12 @@ isl_schedule_node * scheduler::add_periodic_tiling_dimension
     }
     else
     {
+        // User has requested a particular direction.
+        // The direction is interpreted as a function of
+        // the original schedule hyperplanes.
+        // In particular: it operates on indices before
+        // the transformation by 'ensure_tile_parallelism'.
+
         // Validate selected direction.
 
         if (period_dir.size() > band_size)
