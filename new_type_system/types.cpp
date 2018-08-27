@@ -166,7 +166,7 @@ bool is_contained(const type_var_ptr & v, const type_ptr & t)
 using type_var_map = unordered_map<type_var_ptr, type_var_ptr>;
 
 static
-type_ptr recursive_copy(type_var_map & vars, type_ptr type)
+type_ptr recursive_instance(type_var_map & vars, type_ptr type)
 {
     type = follow(type);
 
@@ -203,7 +203,7 @@ type_ptr recursive_copy(type_var_map & vars, type_ptr type)
         auto new_cons = shared(new type_cons(cons->kind));
         for (auto & arg : cons->arguments)
         {
-            new_cons->arguments.push_back(recursive_copy(vars, arg));
+            new_cons->arguments.push_back(recursive_instance(vars, arg));
         }
         return new_cons;
     }
@@ -213,10 +213,10 @@ type_ptr recursive_copy(type_var_map & vars, type_ptr type)
     }
 }
 
-type_ptr copy(const type_ptr & type)
+type_ptr instance(const type_ptr & type)
 {
     type_var_map map;
-    return recursive_copy(map, type);
+    return recursive_instance(map, type);
 }
 
 void type_constructor::print(ostream & out, const vector<type_ptr> & arguments)

@@ -103,7 +103,8 @@ type_ptr unify(const type_ptr &, const type_ptr &);
 type_ptr follow(const type_ptr &);
 type_ptr collapse(const type_ptr &);
 
-type_ptr copy(const type_ptr &);
+// Duplicates universal variables and clones the rest
+type_ptr instance(const type_ptr &);
 
 bool is_contained(const type_var_ptr &, const type_ptr &);
 
