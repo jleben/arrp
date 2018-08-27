@@ -4,6 +4,7 @@ include_directories(../common)
 add_library(arrp-lib STATIC
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
+  ../new_type_system/types.cpp
   ../common/primitives.cpp
   ../common/func_types.cpp
   ../common/func_model_printer.cpp
