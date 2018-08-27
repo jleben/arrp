@@ -24,8 +24,9 @@ type_ptr unify_collapsed(const type_ptr & a, const type_ptr & b)
         if (auto b_var = dynamic_pointer_cast<type_var>(b))
         {
             auto result_var = shared(new type_var);
-            result_var->constraints.insert(a_var->constraints.begin(), a_var->constraints.end());
-            result_var->constraints.insert(b_var->constraints.begin(), b_var->constraints.end());
+            result_var->constraints = a_var->constraints;
+            result_var->constraints.insert(result_var->constraints.end(),
+                                           b_var->constraints.begin(), b_var->constraints.end());
             a_var->constraints.clear();
             b_var->constraints.clear();
 
@@ -41,9 +42,41 @@ type_ptr unify_collapsed(const type_ptr & a, const type_ptr & b)
         }
         else
         {
+            type_ptr u = b;
+
+            for (auto & constraint : a_var->constraints)
+            {
+                // FIXME: Picking an instance could be ambiguous
+                // (result dependent on order of unifications)
+                // if instanes overlap (parts of different instances are equal).
+                // We should enforce a set of unambiguous instances.
+
+                const auto & cls = constraint.first;
+                auto & args = constraint.second;
+                bool satisfied = false;
+                for (const auto & instantiator : cls->instances)
+                {
+                    auto instance = instantiator(args);
+                    try
+                    {
+                        u = unify(instance, u);
+                        satisfied = true;
+                        break;
+                    }
+                    catch (type_error &) {}
+                }
+
+                if (!satisfied)
+                {
+                    ostringstream msg;
+                    msg << "Constraint " << cls << " not satisfied by " << *u << ".";
+                    throw type_error(msg.str());
+                }
+            }
+
             a_var->constraints.clear();
-            a_var->value = b;
-            return b;
+            a_var->value = u;
+            return u;
         }
     }
     else if (auto a_cons = dynamic_pointer_cast<type_cons>(a))
@@ -225,7 +258,10 @@ ostream & operator<<(ostream & out, const type_var & v)
     {
         if (!v.constraints.empty())
         {
-            out << printable(v.constraints, ", ");
+            vector<string> names;
+            for (const auto & c : v.constraints)
+                names.push_back(c.first->name);
+            out << printable(names, ", ");
             out << " => ";
         }
         out << "<" << &v << ">";

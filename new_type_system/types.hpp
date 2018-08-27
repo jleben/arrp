@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <utility>
 
 namespace arrp {
 
@@ -15,6 +16,7 @@ using std::ostream;
 using std::unordered_set;
 using std::vector;
 using std::string;
+using std::pair;
 
 template <typename T>
 inline
@@ -49,12 +51,14 @@ public:
     virtual ~type() {}
 };
 
+using type_constraint = pair<type_class_ptr, vector<type_ptr>>;
+
 class type_var : public type
 {
 public:
     type_var() {}
 
-    unordered_set<type_class_ptr> constraints;
+    vector<type_constraint> constraints;
     type_ptr value;
     bool is_universal = false;
 };
@@ -87,15 +91,11 @@ class type_class
 public:
     type_class(const string & name): name(name) {}
 
-    struct instance
-    {
-        vector<type_ptr> args;
-        type_ptr type;
-    };
-
     string name;
-    using instantiator = std::function<instance()>;
-    vector<instantiator> members;
+    // Returns a type constructed using a list of class variables
+    // A variable constrained with this class must unfy with the returned class instance.
+    using instantiator = std::function<type_ptr(const vector<type_ptr> &)>;
+    vector<instantiator> instances;
 };
 
 type_ptr unify(const type_ptr &, const type_ptr &);
