@@ -5,6 +5,8 @@ add_library(arrp-lib STATIC
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../new_type_system/types.cpp
+  ../new_type_system/built_in_types.cpp
+  ../new_type_system/type_check.cpp
   ../common/primitives.cpp
   ../common/func_types.cpp
   ../common/func_model_printer.cpp
