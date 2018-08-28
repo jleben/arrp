@@ -2,11 +2,12 @@
 include_directories(../common)
 
 add_library(arrp-lib STATIC
-  ../utility/debug.cpp
-  ../utility/cpp-gen.cpp
+  ../frontend/topo_sort.cpp
   ../new_type_system/types.cpp
   ../new_type_system/built_in_types.cpp
   ../new_type_system/type_check.cpp
+  ../utility/debug.cpp
+  ../utility/cpp-gen.cpp
   ../common/primitives.cpp
   ../common/func_types.cpp
   ../common/func_model_printer.cpp

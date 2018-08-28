@@ -27,6 +27,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/driver.hpp"
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/reference_analysis.hpp"
+#include "../frontend/topo_sort.hpp"
 #include "../frontend/type_check.hpp"
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
@@ -151,6 +152,21 @@ result::code compile_module
             functional::reference_analysis refs;
             refs.process(ids);
         }
+
+        functional::scope top_scope;
+
+        {
+            for (auto id : ids)
+                top_scope.ids.push_back(id);
+
+            arrp::topological_sort sort;
+            sort.process(top_scope);
+
+            arrp::topology_printer printer;
+            printer.visit_scope(top_scope);
+        }
+
+        return result::ok;
 
         unordered_set<functional::id_ptr> array_ids;
 
