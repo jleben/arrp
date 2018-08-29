@@ -33,6 +33,14 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <unordered_set>
 #include <complex>
 
+namespace arrp {
+
+class type;
+using type_ptr = std::shared_ptr<type>;
+
+}
+
+
 namespace stream {
 namespace functional {
 
@@ -75,7 +83,7 @@ public:
     virtual ~expression() {}
     location_type location;
     type_ptr type;
-
+    arrp::type_ptr new_type;
 };
 typedef std::shared_ptr<expression> expr_ptr;
 

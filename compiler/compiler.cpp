@@ -32,6 +32,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/array_reduction.hpp"
 #include "../frontend/array_transpose.hpp"
 #include "../frontend/ph_model_gen.hpp"
+#include "../new_type_system/type_check.hpp"
 #include "../polyhedral/scheduling.hpp"
 #include "../polyhedral/storage_alloc.hpp"
 //#include "../polyhedral/modulo_avoidance.hpp"
@@ -164,6 +165,16 @@ result::code compile_module
 
             arrp::topology_printer printer;
             printer.visit_scope(top_scope);
+        }
+
+        {
+            arrp::built_in_types builtins;
+
+            arrp::type_checker type_check(&builtins);
+            type_check.process(top_scope);
+
+            arrp::type_printer printer;
+            printer.print(top_scope);
         }
 
         return result::ok;

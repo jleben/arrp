@@ -75,6 +75,7 @@ public:
     virtual void print(ostream & out, const vector<type_ptr> & arguments);
 };
 
+// Type construction (application of constructor to arguments)
 class type_cons : public type
 {
 public:

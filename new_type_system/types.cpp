@@ -8,17 +8,13 @@ using namespace std;
 
 namespace arrp {
 
-static type_ptr unify_collapsed(const type_ptr & a, const type_ptr & b);
-
 type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
 {
-    type_ptr a = collapse(a_raw);
-    type_ptr b = collapse(b_raw);
-    return unify_collapsed(a,b);
-}
+    type_ptr a = follow(a_raw);
+    type_ptr b = follow(b_raw);
 
-type_ptr unify_collapsed(const type_ptr & a, const type_ptr & b)
-{
+    cout << "Unifying " << *a << " and " << *b << " ..." << endl;
+
     if (auto a_var = dynamic_pointer_cast<type_var>(a))
     {
         if (auto b_var = dynamic_pointer_cast<type_var>(b))
@@ -27,11 +23,13 @@ type_ptr unify_collapsed(const type_ptr & a, const type_ptr & b)
             result_var->constraints = a_var->constraints;
             result_var->constraints.insert(result_var->constraints.end(),
                                            b_var->constraints.begin(), b_var->constraints.end());
+            result_var->is_universal = a_var->is_universal || b_var->is_universal;
             a_var->constraints.clear();
             b_var->constraints.clear();
 
             a_var->value = b_var->value = result_var;
 
+            cout << "Unified to " << *result_var << endl;
             return result_var;
         }
         else if (is_contained(a_var, b))
@@ -76,6 +74,9 @@ type_ptr unify_collapsed(const type_ptr & a, const type_ptr & b)
 
             a_var->constraints.clear();
             a_var->value = u;
+
+            cout << "Unified to " << *u << endl;
+
             return u;
         }
     }
@@ -84,7 +85,7 @@ type_ptr unify_collapsed(const type_ptr & a, const type_ptr & b)
         if (auto b_var = dynamic_pointer_cast<type_var>(b))
         {
             // Already handled above
-            return unify_collapsed(b, a);
+            return unify(b, a);
         }
         else if (auto b_cons = dynamic_pointer_cast<type_cons>(b))
         {
@@ -98,10 +99,12 @@ type_ptr unify_collapsed(const type_ptr & a, const type_ptr & b)
 
             for (int i = 0; i < (int)a_cons->arguments.size(); ++i)
             {
-                auto unified_arg = unify_collapsed(a_cons->arguments[i], b_cons->arguments[i]);
+                auto unified_arg = unify(a_cons->arguments[i], b_cons->arguments[i]);
                 a_cons->arguments[i] = unified_arg;
                 b_cons->arguments[i] = unified_arg;
             }
+
+            cout << "Unified to " << *a_cons << endl;
 
             return a_cons;
         }

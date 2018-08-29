@@ -28,8 +28,45 @@ public:
     void process(const scope &);
 
 private:
+    using context_type = stream::context<var_ptr, type_ptr>;
+    using type_var_map = unordered_map<type_var_ptr, type_var_ptr>;
+
+    void do_process_scope(const scope &);
+    virtual type_ptr visit(const expr_ptr & expr) override;
+    virtual type_ptr visit_ref(const shared_ptr<reference> &) override;
+    virtual type_ptr visit_bool(const shared_ptr<bool_const> &) override;
+    virtual type_ptr visit_int(const shared_ptr<int_const> &) override;
+    virtual type_ptr visit_real(const shared_ptr<real_const> &) override;
+    virtual type_ptr visit_complex(const shared_ptr<complex_const> &) override;
+    virtual type_ptr visit_infinity(const shared_ptr<infinity> &) override;
+    virtual type_ptr visit_primitive(const shared_ptr<primitive> &prim) override;
+    virtual type_ptr visit_func(const shared_ptr<function> &) override;
+    virtual type_ptr visit_func_app(const shared_ptr<func_app> &app) override;
+
+    type_ptr instance(const type_ptr &);
+    type_ptr recursive_instance(type_ptr, type_var_map &, bool universal);
+
     built_in_types * m_builtin;
+    context_type m_context;
     stream::functional::printer m_printer;
+
+    unordered_set<id_ptr> m_done_ids;
+
+    using bound_type_stack = stream::stack_adapter<std::deque<type_ptr>>;
+    bound_type_stack m_bound_types;
+};
+
+class type_printer : stream::functional::visitor<void>
+{
+public:
+    void print(scope &);
+private:
+    virtual void visit_func(const shared_ptr<function> &) override;
+    virtual void visit_array(const shared_ptr<array> &) override;
+    void print(const type_ptr &);
+    string indent() { return string(m_indent * 2, ' '); }
+    int m_indent = 0;
+    unordered_map<type_var_ptr, int> m_var_names;
 };
 
 }
