@@ -95,7 +95,7 @@ public:
     string name;
     // Returns a type constructed using a list of class variables
     // A variable constrained with this class must unfy with the returned class instance.
-    using instantiator = std::function<type_ptr(const vector<type_ptr> &)>;
+    using instantiator = std::function<vector<type_ptr>()>;
     vector<instantiator> instances;
 };
 
@@ -103,9 +103,6 @@ type_ptr unify(const type_ptr &, const type_ptr &);
 
 type_ptr follow(const type_ptr &);
 type_ptr collapse(const type_ptr &);
-
-// Duplicates universal variables and clones the rest
-type_ptr instance(const type_ptr &);
 
 bool is_contained(const type_var_ptr &, const type_ptr &);
 

@@ -1,8 +1,12 @@
 #pragma once
 
 #include "types.hpp"
+#include "../common/primitives.hpp"
+#include <unordered_map>
 
 namespace arrp {
+
+using std::unordered_map;
 
 class built_in_types
 {
@@ -14,6 +18,7 @@ public:
 
     type_cons_ptr array(type_ptr elem);
     type_cons_ptr function(type_ptr param, type_ptr result);
+    type_cons_ptr function(const vector<type_ptr> & params, type_ptr result);
 
     type_cons_ptr infinity() { return m_infinity; }
     type_cons_ptr boolean() { return m_boolean; }
@@ -29,6 +34,8 @@ public:
     type_class_ptr complex() { return m_complex; }
     type_class_ptr numeric() { return m_numeric; }
     type_class_ptr indexable() { return m_indexable; }
+
+    type_ptr primitive_op(stream::primitive_op);
 
 private:
     type_constructor_ptr m_array_cons;
@@ -48,6 +55,8 @@ private:
     type_class_ptr m_complex;
     type_class_ptr m_numeric;
     type_class_ptr m_indexable;
+
+    unordered_map<stream::primitive_op, type_ptr> m_primitive_ops;
 };
 
 }

@@ -40,6 +40,8 @@ type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
         }
         else
         {
+            a_var->value = b;
+
             type_ptr u = b;
 
             for (auto & constraint : a_var->constraints)
@@ -54,10 +56,16 @@ type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
                 bool satisfied = false;
                 for (const auto & instantiator : cls->instances)
                 {
-                    auto instance = instantiator(args);
+                    auto instance = instantiator();
+                    if (args.size() != instance.size())
+                        throw stream::error("Unexpected: Constraint parameter count"
+                                            " does not match class instance parameter count.");
                     try
                     {
-                        u = unify(instance, u);
+                        for (int i = 0; i < args.size(); ++i)
+                        {
+                            unify(args[i], instance[i]);
+                        }
                         satisfied = true;
                         break;
                     }
@@ -73,11 +81,10 @@ type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
             }
 
             a_var->constraints.clear();
-            a_var->value = u;
 
-            cout << "Unified to " << *u << endl;
+            cout << "Unified to " << *b << endl;
 
-            return u;
+            return b;
         }
     }
     else if (auto a_cons = dynamic_pointer_cast<type_cons>(a))
@@ -133,7 +140,9 @@ type_ptr collapse(const type_ptr & t)
         if (v->value)
             return collapse(v->value);
         else
+        {
             return v;
+        }
     }
     else if (auto cons = dynamic_pointer_cast<type_cons>(t))
     {
@@ -164,62 +173,6 @@ bool is_contained(const type_var_ptr & v, const type_ptr & t)
     {
         return v == t;
     }
-}
-
-using type_var_map = unordered_map<type_var_ptr, type_var_ptr>;
-
-static
-type_ptr recursive_instance(type_var_map & vars, type_ptr type)
-{
-    type = follow(type);
-
-    if (auto var = dynamic_pointer_cast<type_var>(type))
-    {
-        {
-            auto instance_pos = vars.find(var);
-            if (instance_pos != vars.end())
-            {
-                cout << "Reusing already copied var " << var << endl;
-                return instance_pos->second;
-            }
-        }
-
-        if (var->is_universal)
-        {
-            cout << "Copying universal var " << var << endl;
-
-            auto instance = shared(new type_var);
-            instance->constraints = var->constraints;
-
-            vars.emplace(var, instance);
-
-            return instance;
-        }
-        else
-        {
-            cout << "Reusing non-universal var " << var << endl;
-            return var;
-        }
-    }
-    else if (auto cons = dynamic_pointer_cast<type_cons>(type))
-    {
-        auto new_cons = shared(new type_cons(cons->kind));
-        for (auto & arg : cons->arguments)
-        {
-            new_cons->arguments.push_back(recursive_instance(vars, arg));
-        }
-        return new_cons;
-    }
-    else
-    {
-        throw stream::error("Unexpected kind of type.");
-    }
-}
-
-type_ptr instance(const type_ptr & type)
-{
-    type_var_map map;
-    return recursive_instance(map, type);
 }
 
 void type_constructor::print(ostream & out, const vector<type_ptr> & arguments)
@@ -253,19 +206,33 @@ ostream & operator<<(ostream & out, const type & t)
 
 ostream & operator<<(ostream & out, const type_var & v)
 {
+    static bool in_constraint = false;
+
     if (v.value)
     {
-        out << "<" << &v << "> = " << *v.value;
+        out << *v.value;
+        //out << "<" << &v << "> = " << *v.value;
     }
     else
     {
-        if (!v.constraints.empty())
+        if (!v.constraints.empty() && !in_constraint)
         {
+            in_constraint = true;
             vector<string> names;
-            for (const auto & c : v.constraints)
-                names.push_back(c.first->name);
+            for (int i = 0; i < v.constraints.size(); ++i)
+            {
+                if (i > 0)
+                    out << ", ";
+                auto & c = v.constraints[i];
+                out << c.first->name;
+                for (const auto & arg : c.second)
+                {
+                    out << " " << *arg;
+                }
+            }
             out << printable(names, ", ");
             out << " => ";
+            in_constraint = false;
         }
         out << "<" << &v << ">";
     }

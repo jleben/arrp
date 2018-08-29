@@ -107,6 +107,24 @@ type_ptr type_checker::visit_infinity(const shared_ptr<infinity> &)
 
 type_ptr type_checker::visit_primitive(const shared_ptr<primitive> &prim)
 {
+    using stream::primitive_op;
+
+    vector<type_ptr> operand_types;
+    for (const auto & op : prim->operands)
+    {
+        auto t = visit(op);
+        operand_types.push_back(t);
+    }
+
+    auto result = shared(new type_var);
+    auto required_func = m_builtin->function(operand_types, result);
+    auto actual_func = instance(m_builtin->primitive_op(prim->kind));
+
+    unify(required_func, actual_func);
+
+    return collapse(result);
+
+#if 0
     type_ptr u(new type_var);
     for (auto & op : prim->operands)
     {
@@ -114,6 +132,7 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> &prim)
         u = unify(u, op_type);
     }
     return u;
+#endif
 }
 
 type_ptr type_checker::visit_func(const shared_ptr<stream::functional::function> & func)
@@ -227,18 +246,28 @@ type_ptr type_checker::recursive_instance(type_ptr type, type_var_map & map, boo
         {
             cout << "Copying universal var " << var << endl;
 
+            // FIXME: Variables in constraints should be changed to the new variables
             auto instance = shared(new type_var);
-            instance->constraints = var->constraints;
 
+            instance->constraints = var->constraints;
             map.emplace(var, instance);
 
-            return instance;
+            var = instance;
         }
         else
         {
             cout << "Reusing non-universal var " << var << endl;
-            return var;
         }
+
+        for (auto & constraint : var->constraints)
+        {
+            for (auto & arg : constraint.second)
+            {
+                arg = recursive_instance(arg, map, universal);
+            }
+        }
+
+        return var;
     }
     else
     {
