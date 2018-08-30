@@ -66,17 +66,19 @@ built_in_types::built_in_types()
     m_complex->instances.push_back(simple_class_instance(m_complex64));
 
     m_numeric = shared(new type_class("Numeric", m_integral->instances | m_real->instances | m_complex->instances));
-    //m_integral->superclasses.push_back(m_numeric);
-    //m_real->superclasses.push_back(m_numeric);
-    //m_complex->superclasses.push_back(m_numeric);
 
-#if 0
     m_indexable = shared(new type_class("Indexable"));
-    //m_numeric->superclasses.push_back(m_indexable);
-    m_indexable->instances.push_back([=](const vector<type_ptr> & args){
-        return array(args.front());
+    for (const auto & t : { m_integer32, m_integer64, m_real32, m_real64, m_complex32, m_complex64 })
+    {
+        m_indexable->instances.push_back([=](){
+            return vector<type_ptr>{ t, t };
+        });
+    };
+    m_indexable->instances.push_back([=](){
+        auto elem = shared(new type_var);
+        auto a = array(elem);
+        return vector<type_ptr>{ a, elem };
     });
-#endif
 
     {
         using stream::primitive_op;

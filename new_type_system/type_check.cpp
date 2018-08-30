@@ -206,6 +206,37 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> &app)
     return result;
 }
 
+type_ptr type_checker::visit_array(const shared_ptr<stream::functional::array> & arr)
+{
+    auto t = m_builtin->array(m_builtin->integer32());
+    cout << "Array: " << t << endl;
+    return t;
+}
+
+type_ptr type_checker::visit_array_app(const shared_ptr<stream::functional::array_app> & app)
+{
+    //return shared(new type_var);
+
+    vector<type_ptr> args;
+    for (auto & arg : app->args)
+    {
+        args.push_back(visit(arg));
+    }
+
+    auto a = visit(app->object);
+    auto e = shared(new type_var);
+
+    cout << "Array application: " << a << "[" << printable(args, ", ") << "]" << endl;
+
+    auto c = add_constraint(m_builtin->indexable(), { a, e });
+
+    satisfy({ c });
+
+    cout << "Array application result: " << with_constraints(e) << endl;
+
+    return e;
+}
+
 type_ptr type_checker::recursive_instance
 (type_ptr type, type_var_map & vmap, type_constr_map & cmap, bool universal = false)
 {

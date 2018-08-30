@@ -49,6 +49,8 @@ class type
 {
 public:
     virtual ~type() {}
+protected:
+    type() {}
 };
 
 class type_constraint
@@ -121,6 +123,7 @@ type_ptr unify(const type_ptr &, const type_ptr &,
                unordered_set<type_constraint_ptr> &);
 void unify_and_satisfy_constraints(const type_ptr &, const type_ptr &);
 void satisfy(unordered_set<type_constraint_ptr>);
+
 type_ptr follow(const type_ptr &);
 type_ptr collapse(const type_ptr &);
 bool is_contained(const type_var_ptr &, const type_ptr &);

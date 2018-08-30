@@ -43,6 +43,8 @@ private:
     virtual type_ptr visit_primitive(const shared_ptr<primitive> &prim) override;
     virtual type_ptr visit_func(const shared_ptr<function> &) override;
     virtual type_ptr visit_func_app(const shared_ptr<func_app> &app) override;
+    virtual type_ptr visit_array(const shared_ptr<array> & arr) override;
+    virtual type_ptr visit_array_app(const shared_ptr<array_app> & app) override;
 
     // Duplicates universal variables and clones the rest
     type_ptr instance(const type_ptr &);

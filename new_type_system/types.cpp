@@ -178,7 +178,7 @@ static bool matches_constraint(const type_ptr & actual, const type_ptr & require
 
     if (actual_cons && required_cons)
     {
-        if (actual_cons != required_cons)
+        if (actual_cons->kind != required_cons->kind)
             return false;
 
         for (int i = 0; i < actual_cons->arguments.size(); ++i)
@@ -238,13 +238,17 @@ static bool satisfy(const type_constraint_ptr & c,
     {
         auto instance = instantiator();
 
+        cout << "Candidate instance: " << printable(instance, ", ") << endl;
+
         if (instance.size() != c->params.size())
             throw stream::error("Parameter count mismatch between type constraint and class instance.");
 
         bool is_matching = true;
         for (int i = 0; i < c->params.size(); ++i)
         {
-            is_matching &= matches_constraint(c->params[i], instance[i]);
+            bool ok = matches_constraint(c->params[i], instance[i]);
+            is_matching &= ok;
+            //cout << "Matching: " << c->params[i] << " and " << instance[i] << ": " << ok << endl;
         }
 
         if (is_matching)
@@ -256,8 +260,11 @@ static bool satisfy(const type_constraint_ptr & c,
                 return false;
             }
             matching_instance = instance;
+            break;
         }
     }
+
+    cout << "Matching instance: " << printable(matching_instance, ", ") << endl;
 
     if (matching_instance.empty())
     {
