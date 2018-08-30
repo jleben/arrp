@@ -117,4 +117,14 @@ inline ostream & operator<<(ostream & out, const type_ptr & t)
     return out;
 }
 
+struct printable_type_with_constraints { type_ptr t; };
+
+inline
+printable_type_with_constraints with_constraints(type_ptr t)
+{
+    return { t };
+}
+
+ostream & operator<<(ostream & out, const printable_type_with_constraints &);
+
 }

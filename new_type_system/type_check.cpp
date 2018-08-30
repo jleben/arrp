@@ -285,7 +285,7 @@ void type_printer::print(scope & s)
 {
     for (const auto & id : s.ids)
     {
-        cout << indent() << id->name << " : " << *id->expr->new_type << endl;
+        cout << indent() << id->name << " : " << with_constraints(id->expr->new_type) << endl;
         ++m_indent;
         visit(id->expr);
         --m_indent;

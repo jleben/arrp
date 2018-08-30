@@ -186,6 +186,42 @@ void type_constructor::print(ostream & out, const vector<type_ptr> & arguments)
     }
 }
 
+static
+void collect_constraints(const type & t, unordered_set<const type_constraint*> & constraints)
+{
+    if (auto v = dynamic_cast<const type_var*>(&t))
+    {
+        for (auto & c : v->constraints)
+            constraints.insert(&c);
+    }
+    else if (auto c = dynamic_cast<const type_cons*>(&t))
+    {
+        for (auto & arg : c->arguments)
+            collect_constraints(*arg, constraints);
+    }
+}
+
+ostream & operator<<(ostream & out, const type_var & v)
+{
+    if (v.value)
+    {
+        out << v.value;
+        //out << "<" << &v << "> = " << *v.value;
+    }
+    else
+    {
+        out << "<" << &v << ">";
+    }
+
+    return out;
+}
+
+ostream & operator<<(ostream & out, const type_cons & t)
+{
+    t.kind->print(out, t.arguments);
+    return out;
+}
+
 ostream & operator<<(ostream & out, const type & t)
 {
     if (auto v = dynamic_cast<const type_var*>(&t))
@@ -204,45 +240,32 @@ ostream & operator<<(ostream & out, const type & t)
     return out;
 }
 
-ostream & operator<<(ostream & out, const type_var & v)
+ostream & operator<<(ostream & out, const printable_type_with_constraints & type_with_constraints)
 {
-    static bool in_constraint = false;
+    const auto & t = type_with_constraints.t;
 
-    if (v.value)
+    unordered_set<const type_constraint*> constraints;
+    collect_constraints(*t, constraints);
+
+    if (!constraints.empty())
     {
-        out << *v.value;
-        //out << "<" << &v << "> = " << *v.value;
-    }
-    else
-    {
-        if (!v.constraints.empty() && !in_constraint)
+        int i = 0;
+        for (auto * c : constraints)
         {
-            in_constraint = true;
-            vector<string> names;
-            for (int i = 0; i < v.constraints.size(); ++i)
+            if (i > 0)
+                out << ", ";
+            ++i;
+            out << c->first->name;
+            for (const auto & arg : c->second)
             {
-                if (i > 0)
-                    out << ", ";
-                auto & c = v.constraints[i];
-                out << c.first->name;
-                for (const auto & arg : c.second)
-                {
-                    out << " " << *arg;
-                }
+                out << " " << arg;
             }
-            out << printable(names, ", ");
-            out << " => ";
-            in_constraint = false;
         }
-        out << "<" << &v << ">";
+        out << " => ";
     }
 
-    return out;
-}
+    out << t;
 
-ostream & operator<<(ostream & out, const type_cons & t)
-{
-    t.kind->print(out, t.arguments);
     return out;
 }
 
