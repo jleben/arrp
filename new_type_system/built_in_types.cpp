@@ -65,10 +65,7 @@ built_in_types::built_in_types()
     m_complex->instances.push_back(simple_class_instance(m_complex32));
     m_complex->instances.push_back(simple_class_instance(m_complex64));
 
-    m_numeric = shared(new type_class("Numeric"));
-    m_numeric->instances.insert(m_numeric->instances.end(), m_integral->instances.begin(), m_integral->instances.end());
-    m_numeric->instances.insert(m_numeric->instances.end(), m_real->instances.begin(), m_real->instances.end());
-    m_numeric->instances.insert(m_numeric->instances.end(), m_complex->instances.begin(), m_complex->instances.end());
+    m_numeric = shared(new type_class("Numeric", m_integral->instances | m_real->instances | m_complex->instances));
     //m_integral->superclasses.push_back(m_numeric);
     //m_real->superclasses.push_back(m_numeric);
     //m_complex->superclasses.push_back(m_numeric);

@@ -95,18 +95,27 @@ public:
     vector<type_ptr> arguments;
 };
 
-
 class type_class
 {
 public:
+    using instantiator = std::function<vector<type_ptr>()>;
+
     type_class(const string & name): name(name) {}
+    type_class(const string & name, vector<instantiator> inst): name(name), instances(inst) {}
 
     string name;
-    // Returns a type constructed using a list of class variables
-    // A variable constrained with this class must unfy with the returned class instance.
-    using instantiator = std::function<vector<type_ptr>()>;
     vector<instantiator> instances;
 };
+
+inline
+vector<type_class::instantiator> operator|
+(const vector<type_class::instantiator> & a, const vector<type_class::instantiator> & b)
+{
+    vector<type_class::instantiator> c;
+    c.insert(c.end(), a.begin(), a.end());
+    c.insert(c.end(), b.begin(), b.end());
+    return c;
+}
 
 type_ptr unify(const type_ptr &, const type_ptr &,
                unordered_set<type_constraint_ptr> &);
