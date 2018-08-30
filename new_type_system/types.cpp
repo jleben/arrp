@@ -31,7 +31,15 @@ type_constraint_ptr add_constraint(type_class_ptr klass, const vector<type_ptr> 
     return constraint;
 }
 
-type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
+void unify_and_satisfy_constraints(const type_ptr & a, const type_ptr & b)
+{
+    unordered_set<type_constraint_ptr> affected_constraints;
+    unify(a, b, affected_constraints);
+    satisfy(affected_constraints);
+}
+
+type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw,
+               unordered_set<type_constraint_ptr> & affected_constraints)
 {
     type_ptr a = follow(a_raw);
     type_ptr b = follow(b_raw);
@@ -63,45 +71,7 @@ type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
         else
         {
             a_var->value = b;
-
-            type_ptr u = b;
-
-            for (auto & constraint : a_var->constraints)
-            {
-                // FIXME: Picking an instance could be ambiguous
-                // (result dependent on order of unifications)
-                // if instanes overlap (parts of different instances are equal).
-                // We should enforce a set of unambiguous instances.
-
-                const auto & cls = constraint->klass;
-                auto & args = constraint->params;
-                bool satisfied = false;
-                for (const auto & instantiator : cls->instances)
-                {
-                    auto instance = instantiator();
-                    if (args.size() != instance.size())
-                        throw stream::error("Unexpected: Constraint parameter count"
-                                            " does not match class instance parameter count.");
-                    try
-                    {
-                        for (int i = 0; i < args.size(); ++i)
-                        {
-                            unify(args[i], instance[i]);
-                        }
-                        satisfied = true;
-                        break;
-                    }
-                    catch (type_error &) {}
-                }
-
-                if (!satisfied)
-                {
-                    ostringstream msg;
-                    msg << "Constraint " << cls << " not satisfied by " << *u << ".";
-                    throw type_error(msg.str());
-                }
-            }
-
+            affected_constraints.insert(a_var->constraints.begin(), a_var->constraints.end());
             a_var->constraints.clear();
 
             cout << "Unified to " << *b << endl;
@@ -114,7 +84,7 @@ type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
         if (auto b_var = dynamic_pointer_cast<type_var>(b))
         {
             // Already handled above
-            return unify(b, a);
+            return unify(b, a, affected_constraints);
         }
         else if (auto b_cons = dynamic_pointer_cast<type_cons>(b))
         {
@@ -128,7 +98,8 @@ type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
 
             for (int i = 0; i < (int)a_cons->arguments.size(); ++i)
             {
-                auto unified_arg = unify(a_cons->arguments[i], b_cons->arguments[i]);
+                auto unified_arg = unify(a_cons->arguments[i], b_cons->arguments[i],
+                                         affected_constraints);
                 a_cons->arguments[i] = unified_arg;
                 b_cons->arguments[i] = unified_arg;
             }
@@ -253,8 +224,11 @@ static void remove(const type_constraint_ptr & c)
 // although C2 and C3 are not equal.
 // However, in the next step, the unification of the instance with the
 // constraint would fail.
-static bool satisfy(const type_constraint_ptr & c)
+static bool satisfy(const type_constraint_ptr & c,
+                    unordered_set<type_constraint_ptr> & affected_constraints)
 {
+    cout << "Trying to satisfy: " << *c << endl;
+
     vector<type_ptr> matching_instance;
 
     for (const auto & instantiator : c->klass->instances)
@@ -275,6 +249,7 @@ static bool satisfy(const type_constraint_ptr & c)
             if (matching_instance.size())
             {
                 // Another instance already matched, so satisfaction is ambiguous.
+                cout << "Ambiguous." << endl;
                 return false;
             }
             matching_instance = instance;
@@ -282,33 +257,35 @@ static bool satisfy(const type_constraint_ptr & c)
     }
 
     if (matching_instance.empty())
-        throw type_error("Unsatisfied constraint: " + c->klass->name);
+    {
+        ostringstream msg;
+        msg << "Unsatisfied constraint: " << *c;
+        throw type_error(msg.str());
+    }
 
     for (int i = 0; i < c->params.size(); ++i)
     {
-        unify(c->params[i], matching_instance[i]);
+        unify(c->params[i], matching_instance[i], affected_constraints);
     }
+
+    cout << "Satisfied: " << *c << endl;
 
     remove(c);
 
     return true;
 }
 
-// Tries to satisfy all constraints involving the variable.
-void satisfy_constraints(const type_var_ptr & v)
+// Tries to satisfy the given constraints and as well as all other constraints
+// affected in the process.
+void satisfy(unordered_set<type_constraint_ptr> constraints)
 {
-    bool has_satisfied_constraints;
-
-    do
+    while(!constraints.empty())
     {
-        has_satisfied_constraints = false;
-
-        for (const auto & constraint : v->constraints)
-        {
-            has_satisfied_constraints |= satisfy(constraint);
-        }
+        auto & c = *constraints.begin();
+        bool is_satisfied = satisfy(c, constraints);
+        if (is_satisfied)
+            constraints.erase(c);
     }
-    while(has_satisfied_constraints);
 }
 
 void type_constructor::print(ostream & out, const vector<type_ptr> & arguments)
@@ -388,14 +365,9 @@ ostream & operator<<(ostream & out, const printable_type_with_constraints & type
         int i = 0;
         for (auto * c : constraints)
         {
-            if (i > 0)
-                out << ", ";
+            if (i > 0) out << ", ";
             ++i;
-            out << c->klass->name;
-            for (const auto & arg : c->params)
-            {
-                out << " " << arg;
-            }
+            out << *c;
         }
         out << " => ";
     }
@@ -408,6 +380,16 @@ ostream & operator<<(ostream & out, const printable_type_with_constraints & type
 ostream & operator<<(ostream & out, const type_class & c)
 {
     out << c.name;
+    return out;
+}
+
+ostream & operator <<(ostream & out, const type_constraint & c)
+{
+    out << c.klass->name;
+    for (const auto & param : c.params)
+    {
+        out << " " << param;
+    }
     return out;
 }
 

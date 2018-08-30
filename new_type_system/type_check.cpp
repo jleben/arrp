@@ -1,4 +1,5 @@
 #include "type_check.hpp"
+#include "../utility/printing.hpp"
 
 #include <iostream>
 
@@ -43,7 +44,7 @@ void type_checker::do_process_scope(const arrp::scope & scope)
 
         auto binding = m_context.find(id);
         auto id_type = binding.value();
-        unify(id_type, expr_type);
+        unify_and_satisfy_constraints(id_type, expr_type);
     }
 }
 
@@ -120,7 +121,7 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> &prim)
     auto required_func = m_builtin->function(operand_types, result);
     auto actual_func = instance(m_builtin->primitive_op(prim->kind));
 
-    unify(required_func, actual_func);
+    unify_and_satisfy_constraints(required_func, actual_func);
 
     return collapse(result);
 
@@ -182,26 +183,24 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> &app)
     m_printer.print(app, cout);
     cout << endl;
 
-    auto result_t = visit(app->object);
-
+    vector<type_ptr> args;
     for (auto & arg : app->args)
     {
-        auto arg_t = visit(arg);
-
-        cout << "Applying: " << *result_t << "(" << *arg_t << ")" << endl;
-
-        auto expected_func_t = m_builtin->function(arg_t, type_ptr(new type_var));
-
-        cout << "Expected: " << *expected_func_t << endl;
-
-        unify(result_t, expected_func_t);
-
-        result_t = expected_func_t->arguments[1];
+        args.push_back(visit(arg));
     }
 
-    cout << "Result: " << *result_t << endl;
+    auto f = visit(app->object);
 
-    return result_t;
+    cout << "Applying: " << f << "(" << printable(args, ", ") << ")" << endl;
+
+    auto result = shared(new type_var);
+    auto f_expected = m_builtin->function(args, result);
+
+    unify_and_satisfy_constraints(f_expected, f);
+
+    cout << "Application result: " << result << endl;
+
+    return result;
 }
 
 type_ptr type_checker::recursive_instance

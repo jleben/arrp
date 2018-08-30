@@ -108,11 +108,13 @@ public:
     vector<instantiator> instances;
 };
 
-type_ptr unify(const type_ptr &, const type_ptr &);
+type_ptr unify(const type_ptr &, const type_ptr &,
+               unordered_set<type_constraint_ptr> &);
+void unify_and_satisfy_constraints(const type_ptr &, const type_ptr &);
+void satisfy(unordered_set<type_constraint_ptr>);
 type_ptr follow(const type_ptr &);
 type_ptr collapse(const type_ptr &);
 bool is_contained(const type_var_ptr &, const type_ptr &);
-void satisfy_constraints(const type_var_ptr &);
 
 ostream & operator<<(ostream & out, const type &);
 ostream & operator<<(ostream & out, const type_var & v);
@@ -134,5 +136,7 @@ printable_type_with_constraints with_constraints(type_ptr t)
 }
 
 ostream & operator<<(ostream & out, const printable_type_with_constraints &);
+
+ostream & operator <<(ostream & out, const type_constraint &);
 
 }
