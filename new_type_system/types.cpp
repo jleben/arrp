@@ -197,6 +197,120 @@ bool is_contained(const type_var_ptr & v, const type_ptr & t)
     }
 }
 
+static bool matches_constraint(const type_ptr & actual, const type_ptr & required)
+{
+    auto actual_cons = dynamic_pointer_cast<type_cons>(follow(actual));
+    auto required_cons = dynamic_pointer_cast<type_cons>(follow(required));
+
+    if (actual_cons && required_cons)
+    {
+        if (actual_cons != required_cons)
+            return false;
+
+        for (int i = 0; i < actual_cons->arguments.size(); ++i)
+        {
+            if (!matches_constraint(actual_cons->arguments[i], required_cons->arguments[i]))
+                return false;
+        }
+
+        return true;
+    }
+    else
+    {
+        return true;
+    }
+}
+
+static void remove(const type_constraint_ptr &constraint, const type_ptr & t)
+{
+    if (auto v = dynamic_pointer_cast<type_var>(t))
+    {
+        v->constraints.erase(constraint);
+    }
+    else if (auto c = dynamic_pointer_cast<type_cons>(t))
+    {
+        for (const auto & arg : c->arguments)
+            remove(constraint, arg);
+    }
+}
+
+static void remove(const type_constraint_ptr & c)
+{
+    for (auto & param : c->params)
+    {
+        remove(c, param);
+    }
+}
+
+// Returns true if the constraint was satisfied by exactly one instance.
+// Returns false if the constraint satisfaction is ambiguous.
+// Throws type_error if the constraint can not be satisfied.
+// If the constraint is satisfied, it is removed.
+//
+// When selecting an instance, only type constructors are compared and
+// not their arguments!
+// So e.g. constraint params (C1 C2 C3) would match instance (C1 a a)
+// although C2 and C3 are not equal.
+// However, in the next step, the unification of the instance with the
+// constraint would fail.
+static bool satisfy(const type_constraint_ptr & c)
+{
+    vector<type_ptr> matching_instance;
+
+    for (const auto & instantiator : c->klass->instances)
+    {
+        auto instance = instantiator();
+
+        if (instance.size() != c->params.size())
+            throw stream::error("Parameter count mismatch between type constraint and class instance.");
+
+        bool is_matching = true;
+        for (int i = 0; i < c->params.size(); ++i)
+        {
+            is_matching &= matches_constraint(c->params[i], instance[i]);
+        }
+
+        if (is_matching)
+        {
+            if (matching_instance.size())
+            {
+                // Another instance already matched, so satisfaction is ambiguous.
+                return false;
+            }
+            matching_instance = instance;
+        }
+    }
+
+    if (matching_instance.empty())
+        throw type_error("Unsatisfied constraint: " + c->klass->name);
+
+    for (int i = 0; i < c->params.size(); ++i)
+    {
+        unify(c->params[i], matching_instance[i]);
+    }
+
+    remove(c);
+
+    return true;
+}
+
+// Tries to satisfy all constraints involving the variable.
+void satisfy_constraints(const type_var_ptr & v)
+{
+    bool has_satisfied_constraints;
+
+    do
+    {
+        has_satisfied_constraints = false;
+
+        for (const auto & constraint : v->constraints)
+        {
+            has_satisfied_constraints |= satisfy(constraint);
+        }
+    }
+    while(has_satisfied_constraints);
+}
+
 void type_constructor::print(ostream & out, const vector<type_ptr> & arguments)
 {
     out << name;
