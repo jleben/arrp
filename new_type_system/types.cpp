@@ -33,6 +33,9 @@ type_constraint_ptr add_constraint(type_class_ptr klass, const vector<type_ptr> 
 
 void unify_and_satisfy_constraints(const type_ptr & a, const type_ptr & b)
 {
+    // FIXME: Some constraints may become equivalent after unification.
+    // Remove them.
+
     unordered_set<type_constraint_ptr> affected_constraints;
     unify(a, b, affected_constraints);
     satisfy(affected_constraints);
@@ -300,17 +303,19 @@ void type_constructor::print(ostream & out, const vector<type_ptr> & arguments)
 }
 
 static
-void collect_constraints(const type & t, unordered_set<const type_constraint*> & constraints)
+void collect_constraints(type_ptr t, unordered_set<const type_constraint*> & constraints)
 {
-    if (auto v = dynamic_cast<const type_var*>(&t))
+    t = follow(t);
+
+    if (auto v = dynamic_cast<const type_var*>(t.get()))
     {
         for (auto & c : v->constraints)
             constraints.insert(c.get());
     }
-    else if (auto c = dynamic_cast<const type_cons*>(&t))
+    else if (auto c = dynamic_cast<const type_cons*>(t.get()))
     {
         for (auto & arg : c->arguments)
-            collect_constraints(*arg, constraints);
+            collect_constraints(arg, constraints);
     }
 }
 
@@ -358,7 +363,7 @@ ostream & operator<<(ostream & out, const printable_type_with_constraints & type
     const auto & t = type_with_constraints.t;
 
     unordered_set<const type_constraint*> constraints;
-    collect_constraints(*t, constraints);
+    collect_constraints(t, constraints);
 
     if (!constraints.empty())
     {

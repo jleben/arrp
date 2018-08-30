@@ -119,8 +119,11 @@ type_ptr type_checker::visit_primitive(const shared_ptr<primitive> &prim)
 
     auto result = shared(new type_var);
     auto required_func = m_builtin->function(operand_types, result);
+
+    cout << "Instantiating primitive op: " << prim->kind << endl;
     auto actual_func = instance(m_builtin->primitive_op(prim->kind));
 
+    cout << "Unifying primitive op: " << prim->kind << endl;
     unify_and_satisfy_constraints(required_func, actual_func);
 
     return collapse(result);
@@ -227,7 +230,7 @@ type_ptr type_checker::recursive_instance
             auto instance_pos = vmap.find(var);
             if (instance_pos != vmap.end())
             {
-                cout << "Reusing already copied var " << var << endl;
+                cout << "Reusing already copied var " << instance_pos->second << endl;
                 return instance_pos->second;
             }
         }
@@ -244,33 +247,36 @@ type_ptr type_checker::recursive_instance
 
         if (can_copy)
         {
-            cout << "Copying universal var " << var << endl;
-
             auto instance = shared(new type_var);
             vmap.emplace(var, instance);
+
+            cout << "Copied universal var " << var << " to " << instance << endl;
 
             for (const auto & c : var->constraints)
             {
                 type_constraint_ptr c2;
                 if (cmap.find(c) != cmap.end())
                 {
-                    cout << "Reusing copied constraint: " << c->klass << endl;
+                    cout << "Reusing copied constraint: " << *c << endl;
                     c2 = cmap[c];
                 }
                 else
                 {
-                    cout << "Copying constraint: " << c->klass << endl;
+                    cout << "Copying constraint: " << *c << "..." << endl;
                     c2 = shared(new type_constraint { *c });
                     cmap.emplace(c, c2);
                 }
 
                 instance->constraints.insert(c2);
 
+                // Substitute variables in new constraint
                 for (auto & param : c2->params)
                 {
                     param = recursive_instance(param, vmap, cmap, universal);
                 }
             }
+
+            cout << "New var: " << with_constraints(instance) << endl;
 
             return instance;
         }
