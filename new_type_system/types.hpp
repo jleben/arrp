@@ -51,14 +51,23 @@ public:
     virtual ~type() {}
 };
 
-using type_constraint = pair<type_class_ptr, vector<type_ptr>>;
+class type_constraint
+{
+public:
+    type_class_ptr klass;
+    vector<type_ptr> params;
+};
+
+using type_constraint_ptr = std::shared_ptr<type_constraint>;
+
+type_constraint_ptr add_constraint(type_class_ptr, const vector<type_ptr> & params);
 
 class type_var : public type
 {
 public:
     type_var() {}
 
-    vector<type_constraint> constraints;
+    unordered_set<type_constraint_ptr> constraints;
     type_ptr value;
     bool is_universal = false;
 };

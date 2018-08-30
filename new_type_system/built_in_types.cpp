@@ -85,7 +85,8 @@ built_in_types::built_in_types()
         using stream::primitive_op;
 
         auto var = shared(new type_var);
-        var->constraints.push_back(type_constraint(m_numeric, { var }));
+        add_constraint(m_numeric, { var });
+
         auto f = function({ var, var }, var);
         m_primitive_ops[primitive_op::add] = f;
         m_primitive_ops[primitive_op::multiply] = f;

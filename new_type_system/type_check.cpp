@@ -204,7 +204,8 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> &app)
     return result_t;
 }
 
-type_ptr type_checker::recursive_instance(type_ptr type, type_var_map & map, bool universal = false)
+type_ptr type_checker::recursive_instance
+(type_ptr type, type_var_map & vmap, type_constr_map & cmap, bool universal = false)
 {
     type = follow(type);
 
@@ -215,7 +216,7 @@ type_ptr type_checker::recursive_instance(type_ptr type, type_var_map & map, boo
         auto new_cons = shared(new type_cons(cons->kind));
         for (auto & arg : cons->arguments)
         {
-            auto instance = recursive_instance(arg, map, children_universal);
+            auto instance = recursive_instance(arg, vmap, cmap, children_universal);
             new_cons->arguments.push_back(instance);
         }
 
@@ -224,8 +225,8 @@ type_ptr type_checker::recursive_instance(type_ptr type, type_var_map & map, boo
     else if (auto var = dynamic_pointer_cast<type_var>(type))
     {
         {
-            auto instance_pos = map.find(var);
-            if (instance_pos != map.end())
+            auto instance_pos = vmap.find(var);
+            if (instance_pos != vmap.end())
             {
                 cout << "Reusing already copied var " << var << endl;
                 return instance_pos->second;
@@ -246,28 +247,39 @@ type_ptr type_checker::recursive_instance(type_ptr type, type_var_map & map, boo
         {
             cout << "Copying universal var " << var << endl;
 
-            // FIXME: Variables in constraints should be changed to the new variables
             auto instance = shared(new type_var);
+            vmap.emplace(var, instance);
 
-            instance->constraints = var->constraints;
-            map.emplace(var, instance);
+            for (const auto & c : var->constraints)
+            {
+                type_constraint_ptr c2;
+                if (cmap.find(c) != cmap.end())
+                {
+                    cout << "Reusing copied constraint: " << c->klass << endl;
+                    c2 = cmap[c];
+                }
+                else
+                {
+                    cout << "Copying constraint: " << c->klass << endl;
+                    c2 = shared(new type_constraint { *c });
+                    cmap.emplace(c, c2);
+                }
 
-            var = instance;
+                instance->constraints.insert(c2);
+
+                for (auto & param : c2->params)
+                {
+                    param = recursive_instance(param, vmap, cmap, universal);
+                }
+            }
+
+            return instance;
         }
         else
         {
             cout << "Reusing non-universal var " << var << endl;
+            return var;
         }
-
-        for (auto & constraint : var->constraints)
-        {
-            for (auto & arg : constraint.second)
-            {
-                arg = recursive_instance(arg, map, universal);
-            }
-        }
-
-        return var;
     }
     else
     {
@@ -277,8 +289,9 @@ type_ptr type_checker::recursive_instance(type_ptr type, type_var_map & map, boo
 
 type_ptr type_checker::instance(const type_ptr & type)
 {
-    type_var_map map;
-    return recursive_instance(type, map, false);
+    type_var_map vmap;
+    type_constr_map cmap;
+    return recursive_instance(type, vmap, cmap, false);
 }
 
 void type_printer::print(scope & s)

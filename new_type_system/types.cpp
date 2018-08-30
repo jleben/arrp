@@ -8,6 +8,29 @@ using namespace std;
 
 namespace arrp {
 
+static void add_constraint(const type_constraint_ptr & c, const type_ptr & t)
+{
+    if (auto v = dynamic_pointer_cast<type_var>(t))
+    {
+        v->constraints.insert(c);
+    }
+    else if (auto cons = dynamic_pointer_cast<type_cons>(t))
+    {
+        for (auto & arg : cons->arguments)
+        {
+            add_constraint(c, arg);
+        }
+    }
+}
+
+type_constraint_ptr add_constraint(type_class_ptr klass, const vector<type_ptr> & params)
+{
+    auto constraint = shared(new type_constraint { klass, params });
+    for (auto & param : params)
+        add_constraint(constraint, param);
+    return constraint;
+}
+
 type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
 {
     type_ptr a = follow(a_raw);
@@ -21,8 +44,7 @@ type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
         {
             auto result_var = shared(new type_var);
             result_var->constraints = a_var->constraints;
-            result_var->constraints.insert(result_var->constraints.end(),
-                                           b_var->constraints.begin(), b_var->constraints.end());
+            result_var->constraints.insert(b_var->constraints.begin(), b_var->constraints.end());
             result_var->is_universal = a_var->is_universal || b_var->is_universal;
             a_var->constraints.clear();
             b_var->constraints.clear();
@@ -51,8 +73,8 @@ type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw)
                 // if instanes overlap (parts of different instances are equal).
                 // We should enforce a set of unambiguous instances.
 
-                const auto & cls = constraint.first;
-                auto & args = constraint.second;
+                const auto & cls = constraint->klass;
+                auto & args = constraint->params;
                 bool satisfied = false;
                 for (const auto & instantiator : cls->instances)
                 {
@@ -192,7 +214,7 @@ void collect_constraints(const type & t, unordered_set<const type_constraint*> &
     if (auto v = dynamic_cast<const type_var*>(&t))
     {
         for (auto & c : v->constraints)
-            constraints.insert(&c);
+            constraints.insert(c.get());
     }
     else if (auto c = dynamic_cast<const type_cons*>(&t))
     {
@@ -255,8 +277,8 @@ ostream & operator<<(ostream & out, const printable_type_with_constraints & type
             if (i > 0)
                 out << ", ";
             ++i;
-            out << c->first->name;
-            for (const auto & arg : c->second)
+            out << c->klass->name;
+            for (const auto & arg : c->params)
             {
                 out << " " << arg;
             }

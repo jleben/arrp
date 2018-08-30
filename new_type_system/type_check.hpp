@@ -30,6 +30,7 @@ public:
 private:
     using context_type = stream::context<var_ptr, type_ptr>;
     using type_var_map = unordered_map<type_var_ptr, type_var_ptr>;
+    using type_constr_map = unordered_map<type_constraint_ptr, type_constraint_ptr>;
 
     void do_process_scope(const scope &);
     virtual type_ptr visit(const expr_ptr & expr) override;
@@ -45,7 +46,7 @@ private:
 
     // Duplicates universal variables and clones the rest
     type_ptr instance(const type_ptr &);
-    type_ptr recursive_instance(type_ptr, type_var_map &, bool universal);
+    type_ptr recursive_instance(type_ptr, type_var_map &, type_constr_map &, bool universal);
 
     built_in_types * m_builtin;
     context_type m_context;
