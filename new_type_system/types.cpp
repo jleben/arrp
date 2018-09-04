@@ -261,7 +261,6 @@ static bool satisfy(const type_constraint_ptr & c,
                 return false;
             }
             matching_instance = instance;
-            break;
         }
     }
 
@@ -296,6 +295,8 @@ void satisfy(unordered_set<type_constraint_ptr> constraints)
         bool is_satisfied = satisfy(c, constraints);
         if (is_satisfied)
             constraints.erase(c);
+        else
+            break;
     }
 }
 
