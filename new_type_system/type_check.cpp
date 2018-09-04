@@ -208,8 +208,56 @@ type_ptr type_checker::visit_func_app(const shared_ptr<func_app> &app)
 
 type_ptr type_checker::visit_array(const shared_ptr<stream::functional::array> & arr)
 {
-    auto t = m_builtin->array(m_builtin->integer32());
-    cout << "Array: " << t << endl;
+    context_type::scope_holder type_scope(m_context);
+
+    vector<type_ptr> sizes;
+
+    for (auto & var : arr->vars)
+    {
+        type_ptr size;
+        if (var->range)
+        {
+            // FIXME: Should be a constant, so it should be reduced immediately.
+            size = visit(var->range);
+            if (size != m_builtin->integer32() && size != m_builtin->infinity())
+                throw type_error("Array size is not an integer or infinity.");
+        }
+        else
+        {
+            size = m_builtin->infinity();
+        }
+
+        sizes.push_back(size);
+
+        m_context.bind(var, size);
+    }
+
+    type_ptr value = visit(arr->expr);
+    auto value_constraint = add_constraint(m_builtin->scalar(), { value });
+
+    auto t = m_builtin->array(sizes, value);
+    cout << "Array: " << *t << endl;
+
+    satisfy({ value_constraint });
+
+    return t;
+}
+
+type_ptr type_checker::visit_array_patterns(const shared_ptr<array_patterns> & ap)
+{
+    type_ptr t = shared(new type_var);
+
+    for(const auto & pattern : ap->patterns)
+    {
+        if (pattern.domains)
+        {
+            auto d = visit(pattern.domains);
+            t = unify_and_satisfy_constraints(t, d);
+        }
+        auto e = visit(pattern.expr);
+        t = unify_and_satisfy_constraints(t, e);
+    }
+
     return t;
 }
 

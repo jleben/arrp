@@ -121,7 +121,7 @@ vector<type_class::instantiator> operator|
 
 type_ptr unify(const type_ptr &, const type_ptr &,
                unordered_set<type_constraint_ptr> &);
-void unify_and_satisfy_constraints(const type_ptr &, const type_ptr &);
+type_ptr unify_and_satisfy_constraints(const type_ptr &, const type_ptr &);
 void satisfy(unordered_set<type_constraint_ptr>);
 
 type_ptr follow(const type_ptr &);

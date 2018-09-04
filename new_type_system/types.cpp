@@ -31,14 +31,15 @@ type_constraint_ptr add_constraint(type_class_ptr klass, const vector<type_ptr> 
     return constraint;
 }
 
-void unify_and_satisfy_constraints(const type_ptr & a, const type_ptr & b)
+type_ptr unify_and_satisfy_constraints(const type_ptr & a, const type_ptr & b)
 {
     // FIXME: Some constraints may become equivalent after unification.
     // Remove them.
 
     unordered_set<type_constraint_ptr> affected_constraints;
-    unify(a, b, affected_constraints);
+    auto t = unify(a, b, affected_constraints);
     satisfy(affected_constraints);
+    return follow(t);
 }
 
 type_ptr unify(const type_ptr & a_raw, const type_ptr & b_raw,

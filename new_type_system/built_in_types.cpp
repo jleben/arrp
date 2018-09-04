@@ -11,8 +11,8 @@ struct array_type_constructor : type_constructor
 
     void print(ostream & out, const vector<type_ptr> & arguments) override
     {
-        assert(arguments.size() == 1);
-        out << "[" << arguments[0] << "]";
+        assert(arguments.size() == 2);
+        out << "[" << arguments[0] << ":" << arguments[1] << "]";
     }
 };
 
@@ -67,8 +67,11 @@ built_in_types::built_in_types()
 
     m_numeric = shared(new type_class("Numeric", m_integral->instances | m_real->instances | m_complex->instances));
 
+    m_scalar = shared(new type_class("Numeric", m_numeric->instances));
+    m_scalar->instances.push_back(simple_class_instance(m_boolean));
+
     m_indexable = shared(new type_class("Indexable"));
-    for (const auto & t : { m_integer32, m_integer64, m_real32, m_real64, m_complex32, m_complex64 })
+    for (const auto & t : { m_boolean, m_integer32, m_integer64, m_real32, m_real64, m_complex32, m_complex64 })
     {
         m_indexable->instances.push_back([=](){
             return vector<type_ptr>{ t, t };
@@ -76,9 +79,13 @@ built_in_types::built_in_types()
     };
     m_indexable->instances.push_back([=](){
         auto elem = shared(new type_var);
-        auto a = array(elem);
+        auto a = array(type_ptr(new type_var), elem);
         return vector<type_ptr>{ a, elem };
     });
+
+    m_array_size = shared(new type_class("ArraySize"));
+    m_array_size->instances.push_back(simple_class_instance(integer64()));
+    m_array_size->instances.push_back(simple_class_instance(infinity()));
 
     {
         using stream::primitive_op;
@@ -93,9 +100,40 @@ built_in_types::built_in_types()
     }
 }
 
-type_cons_ptr built_in_types::array(type_ptr elem)
+type_cons_ptr built_in_types::array(type_ptr size, type_ptr elem)
 {
-    return shared(new type_cons(m_array_cons, { elem }));
+    return shared(new type_cons(m_array_cons, { size, elem }));
+}
+
+type_cons_ptr built_in_types::array(const vector<type_ptr> & sizes, type_ptr elem)
+{
+    type_cons_ptr first;
+    type_cons_ptr last;
+
+    for (const auto & size : sizes)
+    {
+        auto a = array(size, type_ptr());
+        if (!first)
+            first = a;
+        if (last)
+            last->arguments[1] = a;
+        last = a;
+    }
+
+    if (last)
+        last->arguments[1] = elem;
+
+    return first;
+}
+
+type_cons_ptr built_in_types::finite_array(type_ptr elem)
+{
+    return shared(new type_cons(m_array_cons, { integer64(), elem }));
+}
+
+type_cons_ptr built_in_types::infinite_array(type_ptr elem)
+{
+    return shared(new type_cons(m_array_cons, { infinity(), elem }));
 }
 
 type_cons_ptr built_in_types::function(type_ptr param, type_ptr result)
