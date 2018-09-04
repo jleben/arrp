@@ -1,5 +1,6 @@
 #include "type_check.hpp"
 #include "../utility/printing.hpp"
+#include "../frontend/linear_expr_gen.hpp"
 
 #include <iostream>
 
@@ -75,9 +76,16 @@ type_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
             throw stream::error("Unexpected: referenced id has no bound type.");
         return instance(binding.value());
     }
+    else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
+    {
+        auto binding = m_context.find(avar);
+        if (!binding)
+            throw stream::error("Unexpected: referenced array variable has no bound type.");
+        return binding.value();
+    }
     else
     {
-        throw stream::error("To do.");
+        throw stream::error("Unexpected reference type.");
     }
 }
 
@@ -233,7 +241,7 @@ type_ptr type_checker::visit_array(const shared_ptr<stream::functional::array> &
     }
 
     type_ptr value = visit(arr->expr);
-    auto value_constraint = add_constraint(m_builtin->scalar(), { value });
+    auto value_constraint = add_constraint(m_builtin->indexable(), { value, type_ptr(new type_var) });
 
     auto t = m_builtin->array(sizes, value);
     cout << "Array: " << *t << endl;
@@ -255,6 +263,26 @@ type_ptr type_checker::visit_array_patterns(const shared_ptr<array_patterns> & a
             t = unify_and_satisfy_constraints(t, d);
         }
         auto e = visit(pattern.expr);
+        t = unify_and_satisfy_constraints(t, e);
+    }
+
+    return t;
+}
+
+type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
+{
+    type_ptr t = shared(new type_var);
+
+    for(auto & c : cexpr->cases)
+    {
+        auto & domain = c.first;
+        auto & expr = c.second;
+
+        // FIXME: Implement boolean operators
+        // visit(domain);
+        stream::functional::ensure_affine_integer_constraint(domain);
+
+        auto e = visit(expr);
         t = unify_and_satisfy_constraints(t, e);
     }
 

@@ -45,6 +45,7 @@ private:
     virtual type_ptr visit_func_app(const shared_ptr<func_app> &app) override;
     virtual type_ptr visit_array(const shared_ptr<array> & arr) override;
     virtual type_ptr visit_array_patterns(const shared_ptr<array_patterns> & ap) override;
+    virtual type_ptr visit_cases(const shared_ptr<case_expr> & cexpr) override;
     virtual type_ptr visit_array_app(const shared_ptr<array_app> & app) override;
 
     // Duplicates universal variables and clones the rest
