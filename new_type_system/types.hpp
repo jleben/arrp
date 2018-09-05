@@ -62,6 +62,7 @@ public:
 
 using type_constraint_ptr = std::shared_ptr<type_constraint>;
 
+type_constraint_ptr add_constraint(type_class_ptr, const type_ptr & param);
 type_constraint_ptr add_constraint(type_class_ptr, const vector<type_ptr> & params);
 
 class type_var : public type

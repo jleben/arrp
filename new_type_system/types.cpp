@@ -23,6 +23,11 @@ static void add_constraint(const type_constraint_ptr & c, const type_ptr & t)
     }
 }
 
+type_constraint_ptr add_constraint(type_class_ptr klass, const type_ptr & param)
+{
+    return add_constraint(klass, vector<type_ptr>{ param });
+}
+
 type_constraint_ptr add_constraint(type_class_ptr klass, const vector<type_ptr> & params)
 {
     auto constraint = shared(new type_constraint { klass, params });

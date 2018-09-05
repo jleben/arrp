@@ -278,8 +278,7 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
         auto & domain = c.first;
         auto & expr = c.second;
 
-        // FIXME: Implement boolean operators
-        // visit(domain);
+        visit(domain);
         stream::functional::ensure_affine_integer_constraint(domain);
 
         auto e = visit(expr);

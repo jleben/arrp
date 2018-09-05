@@ -67,8 +67,12 @@ built_in_types::built_in_types()
 
     m_numeric = shared(new type_class("Numeric", m_integral->instances | m_real->instances | m_complex->instances));
 
-    m_scalar = shared(new type_class("Numeric", m_numeric->instances));
-    m_scalar->instances.push_back(simple_class_instance(m_boolean));
+    m_divisible = shared(new type_class("Divisible", m_real->instances | m_complex->instances ));
+
+    m_scalar = shared(new type_class("Scalar",  m_integral->instances | m_real->instances));
+
+    m_elementary = shared(new type_class("Elementary", m_integral->instances | m_real->instances | m_complex->instances));
+    m_elementary->instances.push_back(simple_class_instance(m_boolean));
 
     m_indexable = shared(new type_class("Indexable"));
     for (const auto & t : { m_boolean, m_integer32, m_integer64, m_real32, m_real64, m_complex32, m_complex64 })
@@ -87,16 +91,98 @@ built_in_types::built_in_types()
     m_array_size->instances.push_back(simple_class_instance(integer64()));
     m_array_size->instances.push_back(simple_class_instance(infinity()));
 
+    using stream::primitive_op;
     {
-        using stream::primitive_op;
-
-        auto var = shared(new type_var);
-        add_constraint(m_numeric, { var });
-
-        auto f = function({ var, var }, var);
+        auto f = binary_op(m_numeric);
         m_primitive_ops[primitive_op::add] = f;
         m_primitive_ops[primitive_op::multiply] = f;
         m_primitive_ops[primitive_op::subtract] = f;
+    }
+    {
+        m_primitive_ops[primitive_op::divide] = binary_op(m_divisible);
+    }
+    {
+        auto f = binary_op(m_integral);
+        m_primitive_ops[primitive_op::divide_integer] = f;
+        m_primitive_ops[primitive_op::modulo] = f;
+    }
+    {
+        m_primitive_ops[primitive_op::raise] = binary_op(m_scalar);
+    }
+    {
+        auto f = unary_op(m_divisible);
+        m_primitive_ops[primitive_op::exp] = f;
+        m_primitive_ops[primitive_op::log] = f;
+        m_primitive_ops[primitive_op::log10] = f;
+        m_primitive_ops[primitive_op::sin] = f;
+        m_primitive_ops[primitive_op::cos] = f;
+        m_primitive_ops[primitive_op::tan] = f;
+        m_primitive_ops[primitive_op::asin] = f;
+        m_primitive_ops[primitive_op::acos] = f;
+        m_primitive_ops[primitive_op::atan] = f;
+        m_primitive_ops[primitive_op::sqrt] = f;
+    }
+    {
+        m_primitive_ops[primitive_op::log2] = unary_op(m_real);
+    }
+    {
+        m_primitive_ops[primitive_op::exp2] = unary_op(m_scalar);
+    }
+    {
+        auto f = unary_op(m_scalar);
+        m_primitive_ops[primitive_op::floor] = f;
+        m_primitive_ops[primitive_op::ceil] = f;
+        m_primitive_ops[primitive_op::abs] = f;
+    }
+    {
+        auto f = binary_op(m_scalar);
+        m_primitive_ops[primitive_op::min] = f;
+        m_primitive_ops[primitive_op::max] = f;
+    }
+    {
+        // FIXME: real, imag
+    }
+    {
+        auto s = shared(new type_var);
+        add_constraint(m_scalar, s);
+
+        m_primitive_ops[primitive_op::to_integer] = function(s, m_integer32);
+        m_primitive_ops[primitive_op::to_real32] = function(s, m_real32);
+        m_primitive_ops[primitive_op::to_real64] = function(s, m_real64);
+    }
+    {
+        auto n = shared(new type_var);
+        add_constraint(m_numeric, n);
+
+        m_primitive_ops[primitive_op::to_complex32] = function(n, m_complex32);
+        m_primitive_ops[primitive_op::to_complex64] = function(n, m_complex64);
+    }
+    {
+        auto e = shared(new type_var);
+        add_constraint(m_elementary, e);
+        auto f = function({ e, e }, m_boolean);
+        m_primitive_ops[primitive_op::compare_eq] = f;
+        m_primitive_ops[primitive_op::compare_neq] = f;
+    }
+    {
+        auto s = shared(new type_var);
+        add_constraint(m_scalar, s);
+        auto f = function({ s, s }, m_boolean);
+        m_primitive_ops[primitive_op::compare_l] = f;
+        m_primitive_ops[primitive_op::compare_g] = f;
+        m_primitive_ops[primitive_op::compare_leq] = f;
+        m_primitive_ops[primitive_op::compare_geq] = f;
+    }
+    {
+        auto f = function({ m_boolean, m_boolean }, m_boolean);
+        m_primitive_ops[primitive_op::logic_and] = f;
+        m_primitive_ops[primitive_op::logic_or] = f;
+    }
+    {
+        auto e = shared(new type_var);
+        add_constraint(m_elementary, e);
+        auto f = function({ m_boolean, e, e }, e);
+        m_primitive_ops[primitive_op::conditional] = f;
     }
 }
 
@@ -160,6 +246,20 @@ type_cons_ptr built_in_types::function(const vector<type_ptr> & params, type_ptr
         last->arguments[1] = result;
 
     return first;
+}
+
+type_ptr built_in_types::unary_op(type_class_ptr klass)
+{
+    auto var = shared(new type_var);
+    add_constraint(klass, var);
+    return function(var, var);
+}
+
+type_ptr built_in_types::binary_op(type_class_ptr klass)
+{
+    auto var = shared(new type_var);
+    add_constraint(klass, var);
+    return function({ var, var }, var);
 }
 
 type_ptr built_in_types::primitive_op(stream::primitive_op kind)

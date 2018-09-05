@@ -44,6 +44,9 @@ public:
     type_ptr primitive_op(stream::primitive_op);
 
 private:
+    type_ptr unary_op(type_class_ptr);
+    type_ptr binary_op(type_class_ptr);
+
     type_constructor_ptr m_array_cons;
     type_constructor_ptr m_func_cons;
 
@@ -60,7 +63,9 @@ private:
     type_class_ptr m_real;
     type_class_ptr m_complex;
     type_class_ptr m_numeric;
+    type_class_ptr m_divisible;
     type_class_ptr m_scalar;
+    type_class_ptr m_elementary;
     type_class_ptr m_indexable;
     type_class_ptr m_array_size;
 
