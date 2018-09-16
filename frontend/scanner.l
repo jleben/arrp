@@ -64,6 +64,12 @@ blank [ \t]
 "not" { return parser::token::LOGIC_NOT; }
 "or" { return parser::token::LOGIC_OR; }
 "and" { return parser::token::LOGIC_AND; }
+".not" { return parser::token::BIT_NOT; }
+".and" { return parser::token::BIT_AND; }
+".or" { return parser::token::BIT_OR; }
+".xor" { return parser::token::BIT_XOR; }
+".<<" { return parser::token::BIT_SHIFT_LEFT; }
+".>>" { return parser::token::BIT_SHIFT_RIGHT; }
 "if" { return parser::token::IF; }
 "then" { return parser::token::THEN; }
 "else" { return parser::token::ELSE; }

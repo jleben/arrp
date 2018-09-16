@@ -34,13 +34,17 @@
 %right ELSE
 %left LOGIC_OR
 %left LOGIC_AND
+%left BIT_OR
+%left BIT_XOR
+%left BIT_AND
 %left EQ NEQ LESS MORE LESS_EQ MORE_EQ
+%left BIT_SHIFT_LEFT BIT_SHIFT_RIGHT
 %left PLUSPLUS
 %left '+' '-'
 %left '*' '/' INT_DIV '%'
 %left '^'
 %left DOTDOT
-%right LOGIC_NOT
+%right LOGIC_NOT BIT_NOT
 %right UMINUS '#'
 %right '.'
 // FIXME: review precedence and association
@@ -266,6 +270,9 @@ expr:
   LOGIC_NOT expr
   { $$ = make_list( primitive, @$, {make_const(@1,op_type::negate), $2} ); }
   |
+  BIT_NOT expr
+  { $$ = make_list( primitive, @$, {make_const(@1,op_type::bitwise_not), $2} ); }
+  |
   expr LOGIC_OR expr
   { $$ = make_list( primitive, @$, {make_const(@2,op_type::logic_or), $1, $3} ); }
   |
@@ -313,6 +320,21 @@ expr:
   |
   expr '^' expr
   { $$ = make_list( primitive, @$, {make_const(@2,op_type::raise), $1, $3} ); }
+  |
+  expr BIT_AND expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::bitwise_and), $1, $3} ); }
+  |
+  expr BIT_OR expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::bitwise_or), $1, $3} ); }
+  |
+  expr BIT_XOR expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::bitwise_xor), $1, $3} ); }
+  |
+  expr BIT_SHIFT_LEFT expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::bitwise_lshift), $1, $3} ); }
+  |
+  expr BIT_SHIFT_RIGHT expr
+  { $$ = make_list( primitive, @$, {make_const(@2,op_type::bitwise_rshift), $1, $3} ); }
   |
   '(' expr ')'
   { $$ = $2; }

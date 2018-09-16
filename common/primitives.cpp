@@ -46,6 +46,18 @@ string name_of_primitive( primitive_op op )
         return ":";
     case primitive_op::modulo:
         return "%";
+    case primitive_op::bitwise_not:
+        return ".not";
+    case primitive_op::bitwise_and:
+        return ".and";
+    case primitive_op::bitwise_or:
+        return ".or";
+    case primitive_op::bitwise_xor:
+        return ".xor";
+    case primitive_op::bitwise_lshift:
+        return ".<<";
+    case primitive_op::bitwise_rshift:
+        return ".>>";
     case primitive_op::raise:
         return "^";
     case primitive_op::exp:
@@ -160,6 +172,18 @@ vector<prim_op_overload> overloads(primitive_op op)
             { pt::real64, pt::real64, pt::integer }
         };
     case primitive_op::modulo:
+        return {
+            { pt::integer, pt::integer, pt::integer }
+        };
+    case primitive_op::bitwise_not:
+        return {
+            { pt::integer, pt::integer }
+        };
+    case primitive_op::bitwise_and:
+    case primitive_op::bitwise_or:
+    case primitive_op::bitwise_xor:
+    case primitive_op::bitwise_lshift:
+    case primitive_op::bitwise_rshift:
         return {
             { pt::integer, pt::integer, pt::integer }
         };

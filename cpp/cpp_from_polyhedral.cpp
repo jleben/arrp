@@ -300,6 +300,18 @@ expression_ptr cpp_from_polyhedral::generate_primitive
             throw error("Unexpected.");
         }
     }
+    case primitive_op::bitwise_not:
+        return make_shared<un_op_expression>(op::bit_neg, operands[0]);
+    case primitive_op::bitwise_and:
+        return make_shared<bin_op_expression>(op::bit_and, operands[0], operands[1]);
+    case primitive_op::bitwise_or:
+        return make_shared<bin_op_expression>(op::bit_or, operands[0], operands[1]);
+    case primitive_op::bitwise_xor:
+        return make_shared<bin_op_expression>(op::bit_xor, operands[0], operands[1]);
+    case primitive_op::bitwise_lshift:
+        return make_shared<bin_op_expression>(op::bit_left, operands[0], operands[1]);
+    case primitive_op::bitwise_rshift:
+        return make_shared<bin_op_expression>(op::bit_right, operands[0], operands[1]);
     case primitive_op::compare_g:
         return make_shared<bin_op_expression>(op::greater, operands[0], operands[1]);
     case primitive_op::compare_geq:
