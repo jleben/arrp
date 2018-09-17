@@ -114,7 +114,8 @@ type_checker::type_checker(name_provider & nmp):
     m_trace("trace"),
     m_name_provider(nmp),
     m_copier(m_ids, nmp),
-    m_var_sub(m_copier)
+    m_var_sub(m_copier),
+    m_affine(m_copier)
 {
     m_trace.set_enabled(false);
 }
@@ -810,8 +811,7 @@ expr_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
         auto & expr = c.second;
 
         domain = visit(domain);
-
-        ensure_affine_integer_constraint(domain);
+        domain = m_affine.ensure_contraint(domain);
 
         expr = visit(expr);
 
@@ -993,7 +993,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
                 auto & expr = c.second;
 
                 domain = visit(domain);
-                ensure_affine_integer_constraint(domain);
+                domain = m_affine.ensure_contraint(domain);
 
                 expr = visit(expr);
                 process_type(expr);
@@ -1136,6 +1136,8 @@ expr_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
             throw type_error("Array argument is not an integer.",
                                arg.location);
         }
+
+        arg = m_affine.ensure_expression(arg);
 
         if (arg_idx >= object_size.size())
             continue;

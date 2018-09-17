@@ -112,57 +112,68 @@ linear_set::constraint to_linear_constraint(expr_ptr expr)
     }
 }
 
-enum affine_expr_type
-{
-    affine_constant,
-    affine_variable
-};
-
-static
-affine_expr_type get_affine_expr_type(expr_ptr expr)
+tuple<expr_ptr, affine_integer_expression_check::affine_expr_type>
+affine_integer_expression_check::ensure_expression_get_type(expr_ptr expr)
 {
     if (auto cint = dynamic_pointer_cast<int_const>(expr))
     {
-        return affine_constant;
+        return { expr, affine_constant };
     }
     else if (auto ref = dynamic_pointer_cast<reference>(expr))
     {
         if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
-            return affine_variable;
+        {
+            return { expr, affine_variable };
+        }
+        else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+        {
+            if (!id->is_recursive)
+                return ensure_expression_get_type(m_copier.copy(id->expr));
+        }
     }
     else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
+        vector<affine_expr_type> types;
+        types.reserve(op->operands.size());
+
+        for (auto & operand : op->operands)
+        {
+            affine_expr_type type;
+            std::tie(operand, type) = ensure_expression_get_type(operand);
+            types.push_back(type);
+        }
+
         switch(op->kind)
         {
         case primitive_op::add:
         case primitive_op::subtract:
         {
-            auto lhs = get_affine_expr_type(op->operands[0]);
-            auto rhs = get_affine_expr_type(op->operands[1]);
+            auto lhs = types[0];
+            auto rhs = types[1];
             if (lhs == affine_constant && rhs == affine_constant)
-                return affine_constant;
-            return affine_variable;
+                return { expr, affine_constant };
+            return { expr, affine_variable };
             break;
         }
         case primitive_op::multiply:
         {
-            auto lhs = get_affine_expr_type(op->operands[0]);
-            auto rhs = get_affine_expr_type(op->operands[1]);
+            auto lhs = types[0];
+            auto rhs = types[1];
             if (lhs == affine_constant && rhs == affine_constant)
-                return affine_constant;
+                return { expr, affine_constant };
             if (lhs == affine_constant || rhs == affine_constant)
-                return affine_variable;
+                return { expr, affine_variable };
             break;
         }
         case primitive_op::divide_integer:
         case primitive_op::modulo:
         {
-            auto lhs = get_affine_expr_type(op->operands[0]);
-            auto rhs = get_affine_expr_type(op->operands[1]);
+            auto lhs = types[0];
+            auto rhs = types[1];
             if (lhs == affine_constant && rhs == affine_constant)
-                return affine_constant;
+                return { expr, affine_constant };
             if (rhs == affine_constant)
-                return affine_variable;
+                return { expr, affine_variable };
             break;
         }
         default:
@@ -173,12 +184,14 @@ affine_expr_type get_affine_expr_type(expr_ptr expr)
     throw source_error("Not an affine integer expression.", expr->location);
 }
 
-void ensure_affine_integer_expression(expr_ptr expr)
+expr_ptr affine_integer_expression_check::ensure_expression(expr_ptr expr)
 {
-    get_affine_expr_type(expr);
+    auto [e, t] = ensure_expression_get_type(expr);
+    std::ignore = t;
+    return e;
 }
 
-void ensure_affine_integer_constraint(expr_ptr expr)
+expr_ptr affine_integer_expression_check::ensure_contraint(expr_ptr expr)
 {
     if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
@@ -192,23 +205,23 @@ void ensure_affine_integer_constraint(expr_ptr expr)
         case primitive_op::compare_geq:
         {
             assert(op->operands.size() == 2);
-            ensure_affine_integer_expression(op->operands[0]);
-            ensure_affine_integer_expression(op->operands[1]);
-            return;
+            op->operands[0] = ensure_expression(op->operands[0]);
+            op->operands[1] = ensure_expression(op->operands[1]);
+            return expr;
         }
         case primitive_op::negate:
         {
             assert(op->operands.size() == 1);
-            ensure_affine_integer_constraint(op->operands[0]);
-            return;
+            op->operands[0] = ensure_contraint(op->operands[0]);
+            return expr;
         }
         case primitive_op::logic_and:
         case primitive_op::logic_or:
         {
             assert(op->operands.size() == 2);
-            ensure_affine_integer_constraint(op->operands[0]);
-            ensure_affine_integer_constraint(op->operands[1]);
-            return;
+            op->operands[0] = ensure_contraint(op->operands[0]);
+            op->operands[1] = ensure_contraint(op->operands[1]);
+            return expr;
         }
         default:
             break;

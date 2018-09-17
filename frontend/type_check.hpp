@@ -7,6 +7,7 @@
 #include "name_provider.hpp"
 #include "func_copy.hpp"
 #include "array_bounding.hpp"
+#include "linear_expr_gen.hpp"
 
 #include <stack>
 #include <unordered_set>
@@ -107,6 +108,7 @@ private:
     copier m_copier;
     func_var_sub m_var_sub;
     array_bounding m_array_bounding;
+    affine_integer_expression_check m_affine;
 };
 
 }
