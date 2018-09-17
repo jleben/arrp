@@ -13,6 +13,11 @@ namespace functional {
 using std::deque;
 using std::unordered_set;
 
+// Goal: Mark recursive IDs.
+
+// Set identifier::is_recursive to true if identifier
+// is part of a reference loop.
+
 class reference_analysis : public functional::visitor<void>
 {
 public:
