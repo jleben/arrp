@@ -129,7 +129,7 @@ void array_inflate::process(const unordered_set<id_ptr> & ids)
         involved_ids = info.free;
         involved_ids.insert(info.source);
 
-        // Expand involved ids to closure under reference relations,
+        // Expand set of involved ids to closure under reference relations,
         // with the exception of the source of the free variable.
 
         close_under_references(involved_ids, { info.source });
@@ -178,6 +178,35 @@ void array_inflate::close_under_references
     }
 }
 
+static
+int array_size(const expr_ptr & var_range)
+{
+    if (auto c = dynamic_pointer_cast<int_const>(var_range))
+    {
+        return c->value;
+    }
+    else
+    {
+       return array_var::unconstrained;
+    }
+}
+
+static
+type_ptr inflate_type(const type_ptr & t, const array_var_ptr & var)
+{
+    array_size_vec size = { array_size(var->range) };
+    if(t->is_array())
+    {
+        const auto * nested_arr_type = t->array();
+        size.insert(size.end(), nested_arr_type->size.begin(), nested_arr_type->size.end());
+        return make_shared<array_type>(size, nested_arr_type->element);
+    }
+    else
+    {
+        return make_shared<array_type>(size, t->scalar()->primitive);
+    }
+}
+
 void array_inflate::inflate(const id_ptr & id)
 {
     if (id != m_inflation.var_info.source)
@@ -192,6 +221,7 @@ void array_inflate::inflate(const id_ptr & id)
         auto v = make_shared<array_var>("z", m_inflation.var->range, location_type());
         arr->vars = { v };
         arr->expr = id->expr;
+        arr->type = inflate_type(arr->expr->type, v);
 
         m_inflation.substitute_var = v;
 
@@ -238,6 +268,11 @@ expr_ptr array_inflate::visit_ref(const shared_ptr<reference> & e)
         auto arg = make_shared<reference>(m_inflation.substitute_var);
         app->object = e;
         app->args = { expr_slot(arg) };
+
+        app->type = e->type;
+        arg->type = make_shared<scalar_type>(stream::primitive_type::integer);
+        e->type = inflate_type(e->type, m_inflation.substitute_var);
+
         return app;
     }
     else if (auto v = dynamic_pointer_cast<array_var>(e->var))
@@ -251,7 +286,7 @@ expr_ptr array_inflate::visit_ref(const shared_ptr<reference> & e)
 
         cout << "Replacing free variable reference." << endl;
 
-        return make_shared<reference>(m_inflation.substitute_var);
+        return make_shared<reference>(m_inflation.substitute_var, location_type(), e->type);
     }
 
     return e;
