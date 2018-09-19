@@ -1,0 +1,11 @@
+
+## When 'x' is inflated (due to use of 'j'),
+## its reference should be updated in 'y' which should also be inflated.
+
+f(j) = x where {
+    x :: [~]int;
+    x = [~: 0 -> j; i -> y[i-1]];
+    y = [~: i -> x[i]];
+};
+
+main = [3: j -> f(j)]

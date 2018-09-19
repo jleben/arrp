@@ -125,22 +125,27 @@ expr_ptr equal(expr_ptr a, expr_ptr b)
 
 
 array_reducer::array_reducer(name_provider & nmp):
-    m_declared_vars("declared var"),
     m_name_provider(nmp),
     m_copier(m_processed_ids, nmp),
     m_sub(m_copier, m_printer)
 {
-    m_declared_vars.set_enabled(verbose<array_reducer>::enabled());
-
     m_printer.set_print_scopes(false);
     m_printer.set_print_var_address(true);
 }
 
-id_ptr array_reducer::process(id_ptr id)
+unordered_set<id_ptr> array_reducer::process(const unordered_set<id_ptr> & ids)
 {
-    bool was_processed = m_processed_ids.find(id) != m_processed_ids.end();
-    if (was_processed)
-        return id;
+    m_processed_ids.clear();
+
+    for (auto & id : ids)
+        process(id);
+
+    return m_processed_ids;
+}
+
+void array_reducer::process(id_ptr id)
+{
+    m_processed_ids.insert(id);
 
     if (verbose<array_reducer>::enabled())
     {
@@ -148,11 +153,6 @@ id_ptr array_reducer::process(id_ptr id)
         m_printer.print(id, cout);
         cout << endl;
     }
-
-    m_processed_ids.insert(id);
-
-    m_declared_vars.push(nullptr);
-    m_unbound_vars.emplace();
 
     id->expr = eta_expand(reduce(id->expr));
 
@@ -163,6 +163,7 @@ id_ptr array_reducer::process(id_ptr id)
         cout << endl;
     }
 
+#if 0
     auto & unbound_vars = m_unbound_vars.top();
 
     if (!unbound_vars.empty())
@@ -283,18 +284,7 @@ id_ptr array_reducer::process(id_ptr id)
 
         id = new_id;
     }
-
-    m_unbound_vars.pop();
-    m_declared_vars.pop();
-
-    if (verbose<array_reducer>::enabled())
-    {
-        cout << "Storing final id: " << id << endl;
-    }
-
-    m_final_ids.insert(id);
-
-    return id;
+#endif
 }
 
 expr_ptr array_reducer::reduce(expr_ptr expr)
@@ -337,10 +327,6 @@ expr_ptr array_reducer::reduce(expr_ptr expr)
     {
         return reduce(op);
     }
-    else if (auto ref = dynamic_pointer_cast<reference>(expr))
-    {
-        return reduce(ref);
-    }
 
     return expr;
 }
@@ -350,13 +336,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array> arr)
     for (auto & var : arr->vars)
     {
         var->range = reduce(var->range);
-    }
-
-    decl_var_stacker declared_vars(m_declared_vars);
-
-    for (auto & var : arr->vars)
-    {
-        declared_vars.push(var);
     }
 
     if (auto patterns = dynamic_pointer_cast<array_patterns>(arr->expr.expr))
@@ -601,12 +580,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<primitive> op)
 
     // Create vars for result array
 
-    decl_var_stacker decl_vars(m_declared_vars);
-
     arr->vars = make_array_vars(result_arr_type->size);
-
-    for (auto & var : arr->vars)
-        decl_vars.push(var);
 
     // Reduce arrays in operands:
 
@@ -656,13 +630,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
 
     // Create vars for result array
 
-    decl_var_stacker decl_vars(m_declared_vars);
-
     arr->vars = make_array_vars(result_arr_type->size);
-
-    for (auto & var : arr->vars)
-        decl_vars.push(var);
-
     assert(arr->vars.size());
 
     auto domains = make_shared<case_expr>();
@@ -880,13 +848,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
     {
         arr = make_shared<array>();
         arr->type = result_arr_type;
-
-        decl_var_stacker decl_vars(m_declared_vars);
-
         arr->vars = make_array_vars(result_arr_type->size);
-
-        for (auto & var : arr->vars)
-            decl_vars.push(var);
 
         for (auto & c : cexpr->cases)
         {
@@ -950,55 +912,6 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
         new_case_expr->type = cexpr->type;
         return new_case_expr;
     }
-}
-
-expr_ptr array_reducer::reduce(std::shared_ptr<reference> ref)
-{
-    if (auto id = dynamic_pointer_cast<identifier>(ref->var))
-    {
-        process(id);
-
-        // Is there a substitution for references to this id?
-        auto sub_it = m_id_sub.find(id);
-        if (sub_it != m_id_sub.end())
-        {
-            auto sub = m_copier.copy(sub_it->second);
-
-            if (verbose<array_reducer>::enabled())
-            {
-                cout << "Substituting expanded id: "
-                     << id << " -> "; m_printer.print(sub, cout);
-                cout << endl;
-            }
-
-            // Reduce to detect free vars
-            return reduce(sub);
-        }
-    }
-    else if (auto var = dynamic_pointer_cast<array_var>(ref->var))
-    {
-        assert(!m_unbound_vars.empty());
-        bool is_bound = false;
-        for (auto v = m_declared_vars.rbegin();
-             v != m_declared_vars.rend() && *v != nullptr; ++v)
-        {
-            if (*v == var)
-            {
-                is_bound = true;
-                break;
-            }
-        }
-
-        if (!is_bound)
-        {
-            m_unbound_vars.top().insert(var);
-            if (verbose<array_reducer>::enabled())
-            {
-                cout << "Free var: " << var << endl;
-            }
-        }
-    }
-    return ref;
 }
 
 vector<int> array_reducer::array_size(expr_ptr expr)

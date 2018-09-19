@@ -1,0 +1,10 @@
+
+## When 'y' is inflated (due to use of 'j'),
+## its reference should be updated in the lambda lifted array on the right of the summation.
+
+f(j) = y where {
+    y :: [~]int;
+    y = [~: i -> j] + [~: 0 -> 0; i -> y[i-1]];
+};
+
+main = [3: j -> f(j)]

@@ -28,7 +28,9 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/reference_analysis.hpp"
 #include "../frontend/type_check.hpp"
+#include "../frontend/collect_ids.hpp"
 #include "../frontend/array_reduction.hpp"
+#include "../frontend/array_inflate.hpp"
 #include "../frontend/array_transpose.hpp"
 #include "../frontend/ph_model_gen.hpp"
 #include "../polyhedral/scheduling.hpp"
@@ -185,13 +187,64 @@ result::code compile_module
         }
 
         {
+            arrp::collect_ids collect_ids;
+            array_ids = collect_ids.collect(main_id);
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "-- Filtered ids:" << endl;
+                functional::printer printer;
+                printer.set_print_scopes(false);
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+            }
+        }
+
+        {
             functional::array_reducer reducer(func_name_provider);
-            main_id = reducer.process(main_id);
-            array_ids = reducer.ids();
+            array_ids = reducer.process(array_ids);
 
             if (verbose<functional::model>::enabled())
             {
                 cout << "-- Reduced arrays:" << endl;
+                functional::printer printer;
+                printer.set_print_scopes(false);
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+            }
+        }
+
+        {
+            arrp::array_inflate inflater;
+            inflater.process(array_ids);
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "-- Inflated arrays:" << endl;
+                functional::printer printer;
+                printer.set_print_scopes(false);
+                for (const auto & id : array_ids)
+                {
+                    printer.print(id, cout);
+                    cout << endl;
+                }
+            }
+        }
+
+        // Reduce arrays again after inflating
+        {
+            functional::array_reducer reducer(func_name_provider);
+            array_ids = reducer.process(array_ids);
+
+            if (verbose<functional::model>::enabled())
+            {
+                cout << "-- Reduced arrays 2:" << endl;
                 functional::printer printer;
                 printer.set_print_scopes(false);
                 for (const auto & id : array_ids)
