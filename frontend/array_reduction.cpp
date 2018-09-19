@@ -1049,7 +1049,10 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args
                 m_sub.vars.bind(arr->vars[i], args[i]);
             }
 
-            result = m_sub(arr->expr);
+            // Run substitution on arr rather than arr->expr
+            // to include array's nested ids.
+            m_sub(arr);
+            result = arr->expr;
         }
 
         if (arr->vars.size() > args.size())
