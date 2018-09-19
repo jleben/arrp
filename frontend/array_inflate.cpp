@@ -124,6 +124,9 @@ void array_inflate::process(const unordered_set<id_ptr> & ids)
         auto & var = free_var.first;
         auto & info = free_var.second;
 
+        if (info.free.empty())
+            continue;
+
         // Start with involved ids equal to those with the free variable and the source
         unordered_set<id_ptr> involved_ids;
         involved_ids = info.free;

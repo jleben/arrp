@@ -1128,12 +1128,9 @@ expr_ptr array_reducer::lambda_lift(expr_ptr e, const string & name)
 {
     auto unique_name = m_name_provider.new_name(name);
     auto id = make_shared<identifier>(unique_name, e, location_type());
+    m_processed_ids.insert(id);
 
     auto ref = make_ref(id);
-    // Process id and detect free vars in substitution,
-    // by reducing the reference:
-    ref = reduce(ref);
-
     return ref;
 }
 
