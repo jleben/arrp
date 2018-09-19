@@ -522,12 +522,10 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
     {
         for (auto & range_node : ranges_node->as_list()->elements)
         {
-            string name = string("i") + to_string(ar->vars.size());
-
             expr_ptr range = do_expr(range_node);
 
             auto var = make_shared<array_var>
-                    (name, range, location_in_module(range_node->location));
+                    (range, location_in_module(range_node->location));
 
             ar->vars.push_back(var);
         }
@@ -570,9 +568,8 @@ generator::do_array_pattern(ast::node_ptr root)
     {
         for (int i = 0; i < (int)index_nodes->as_list()->elements.size(); ++i)
         {
-            string name = string("i") + to_string(i);
             auto var = make_shared<array_var>
-                    (name, nullptr, location_type());
+                    (nullptr, location_type());
             ar->vars.push_back(var);
         }
     }

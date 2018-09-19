@@ -72,9 +72,6 @@ private:
 
     isl::context m_isl_ctx;
 
-    string new_var_name();
-    int var_count = 0;
-
     unordered_set<id_ptr> m_processed_ids;
 
     printer m_printer;

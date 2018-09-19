@@ -104,10 +104,10 @@ void array_inflate::process(const unordered_set<id_ptr> & ids)
 
     for (auto & [v, info] : m_free_vars)
     {
-        cout << "Free var: " << v->name << " | source: " << info.source->name
+        cout << "Free var: " << v << " | source: " << info.source
              << " | in: ";
         for (auto & id : info.free)
-            cout << id->name << " ";
+            cout << id << " ";
         cout << endl;
     }
 
@@ -220,8 +220,7 @@ void array_inflate::inflate(const id_ptr & id)
         // Apply this variable to references of other ids that are also being inflated.
 
         auto arr = make_shared<stream::functional::array>();
-        // FIXME: Pick a unique name for new variable. (Really needed?)
-        auto v = make_shared<array_var>("z", m_inflation.var->range, location_type());
+        auto v = make_shared<array_var>(m_inflation.var->range, location_type());
         arr->vars = { v };
         arr->expr = id->expr;
         arr->type = inflate_type(arr->expr->type, v);

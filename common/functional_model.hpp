@@ -233,15 +233,19 @@ class array_var : public var
 {
 public:
     enum { unconstrained = -1 };
-    array_var() {}
-    array_var(const string & name, expr_ptr range,
-              const location_type & loc):
-        var(name, loc), range(range) {}
-    array_var(const string & name, expr_slot range,
-              const location_type & loc):
-        var(name, loc), range(range) {}
+
+    array_var(expr_ptr range, const location_type & loc):
+        var(new_name(), loc), range(range) {}
+
     // Range can be null, meaning it has to be inferred.
     expr_slot range;
+
+    static string new_name()
+    {
+        static int count = 0;
+        ++count;
+        return string("i") + std::to_string(count);
+    }
 };
 typedef std::shared_ptr<array_var> array_var_ptr;
 

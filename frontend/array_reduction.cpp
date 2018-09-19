@@ -726,7 +726,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                 expr_ptr self = make_shared<array_self_ref>(arr, location_type(), arr->type);
 
                 auto v = make_shared<array_var>
-                        (new_var_name(), arr_op->vars[0]->range,
+                        (arr_op->vars[0]->range,
                         location_type());
 
                 expr_ptr arg = make_shared<primitive>
@@ -961,7 +961,7 @@ vector<array_var_ptr> array_reducer::make_array_vars(const array_size_vec & size
             range = make_shared<infinity>();
         else
             range = make_shared<int_const>(dim_size, location_type(), make_int_type());
-        auto v = make_shared<array_var>(new_var_name(), range, location_type());
+        auto v = make_shared<array_var>(range, location_type());
         vars.push_back(v);
     }
 
@@ -1135,14 +1135,6 @@ expr_ptr array_reducer::lambda_lift(expr_ptr e, const string & name)
 
     auto ref = make_ref(id);
     return ref;
-}
-
-string array_reducer::new_var_name()
-{
-    ++var_count;
-    ostringstream text;
-    text << "_v" << var_count;
-    return text.str();
 }
 
 expr_ptr array_ref_sub::visit_ref(const shared_ptr<reference> & ref)

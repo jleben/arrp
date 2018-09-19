@@ -148,7 +148,7 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
 
     for (auto & var : arr->vars)
     {
-        auto new_var = make_shared<array_var>(var->name, copy(var->range), var->location);
+        auto new_var = make_shared<array_var>(copy(var->range), var->location);
         new_var->range.location = var->range.location;
 
         new_arr->vars.push_back(new_var);
