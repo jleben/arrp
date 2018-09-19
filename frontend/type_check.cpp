@@ -1137,7 +1137,17 @@ expr_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
                                arg.location);
         }
 
-        arg = m_affine.ensure_expression(arg);
+        try
+        {
+            // If it is an affine expression, make sure it's flattened
+            // (identifiers substituted with their values)
+            arg = m_affine.ensure_expression(arg);
+        }
+        catch(source_error &)
+        {
+            // No problem if it's not an affine expression
+            // (we will overestimate the range later).
+        }
 
         if (arg_idx >= object_size.size())
             continue;
