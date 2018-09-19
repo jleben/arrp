@@ -9,6 +9,14 @@ using namespace stream::functional;
 using std::unordered_set;
 using std::unordered_map;
 
+// Finish lambda-lifting expressions with free array variables.
+// For each free variable "i" in a named expression "n = e",
+// wrap the expression into an array "n = [i -> e]", thus binding the variable.
+// Then, also update references to the expression "n" by applying a new
+// variable to them: "n[i]".
+// If "i" in the updated reference "n[i]" is again unbounded,
+// repeate the procedure for the named expression containing the reference.
+
 class array_inflate : public rewriter_base
 {
 public:
