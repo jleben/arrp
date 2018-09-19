@@ -233,6 +233,11 @@ public:
         }
     }
 
+    virtual void visit_local_id(const id_ptr & id)
+    {
+        visit(id->expr);
+    }
+
     virtual void visit_int(const shared_ptr<int_const> &)
     {}
     virtual void visit_real(const shared_ptr<real_const> &)
@@ -280,7 +285,7 @@ public:
         }
 
         for(auto & id : arr->scope.ids)
-            visit(id->expr);
+            visit_local_id(id);
 
         visit(arr->expr);
     }
@@ -314,9 +319,7 @@ public:
     virtual void visit_func(const shared_ptr<function> & func)
     {
         for(auto & id : func->scope.ids)
-        {
-            visit(id->expr);
-        }
+            visit_local_id(id);
 
         visit(func->expr);
     }
@@ -343,6 +346,11 @@ public:
             return visitor::visit(expr);
         else
             return expr;
+    }
+
+    virtual void visit_local_id(const id_ptr & id)
+    {
+        id->expr = visit(id->expr);
     }
 
     virtual expr_ptr visit_int(const shared_ptr<int_const> & e) override
@@ -411,7 +419,7 @@ public:
         }
 
         for(auto & id : arr->scope.ids)
-            id->expr = visit(id->expr);
+            visit_local_id(id);
 
         arr->expr = visit(arr->expr);
         return arr;
@@ -450,7 +458,7 @@ public:
     virtual expr_ptr visit_func(const shared_ptr<function> & func) override
     {
         for(auto & id : func->scope.ids)
-            id->expr = visit(id->expr);
+            visit_local_id(id);
 
         func->expr = visit(func->expr);
         return func;

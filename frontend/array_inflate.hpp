@@ -28,6 +28,7 @@ private:
 
     void inflate(const id_ptr & id);
     virtual expr_ptr visit_ref(const shared_ptr<reference> & e) override;
+    virtual void visit_local_id(const id_ptr &) override {} // Ignore
 
     array_var_info_set m_free_vars;
     array_reference_set m_references;

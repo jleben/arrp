@@ -20,6 +20,7 @@ add_library(arrp-lib STATIC
   ../frontend/array_to_isl.cpp
   ../frontend/array_bounding.cpp
   ../frontend/array_reduction.cpp
+  ../frontend/array_inflate.cpp
   ../frontend/array_transpose.cpp
   ../frontend/ph_model_gen.cpp
   ../polyhedral/utility.cpp
