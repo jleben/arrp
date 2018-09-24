@@ -235,6 +235,7 @@ public:
 
     virtual void visit_local_id(const id_ptr & id)
     {
+        visit(id->type_expr);
         visit(id->expr);
     }
 
@@ -350,6 +351,7 @@ public:
 
     virtual void visit_local_id(const id_ptr & id)
     {
+        id->type_expr = visit(id->type_expr);
         id->expr = visit(id->expr);
     }
 
