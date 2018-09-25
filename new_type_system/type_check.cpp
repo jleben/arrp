@@ -279,6 +279,7 @@ type_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
         auto & expr = c.second;
 
         visit(domain);
+        // FIXME: Port fix from master to inline references in affine expressions
         stream::functional::ensure_affine_integer_constraint(domain);
 
         auto e = visit(expr);
