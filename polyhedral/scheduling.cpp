@@ -479,6 +479,31 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
             }
         }
 
+        // Permute schedule dimensions (intra-tile schedule if tiling)
+
+        if (!opt.intra_tile_permutation.empty())
+        {
+            bool is_tiling = !opt.tile_size.empty();
+
+            auto node = infinite_node;
+            if (is_tiling)
+                node = isl_schedule_node_child(node, 0);
+
+            node = permute_dimensions(node, opt.intra_tile_permutation);
+
+            if (is_tiling)
+                node = isl_schedule_node_parent(node);
+
+            infinite_node = node;
+
+            if (verbose<scheduler>::enabled())
+            {
+                cout << "Permuted schedule:" << endl;
+                isl_printer_print_schedule_node(m_printer.get(), infinite_node);
+                cout << endl;
+            }
+        }
+
         // Add periodic tiling dimension
 
         {
@@ -696,6 +721,54 @@ isl_schedule_node * scheduler::ensure_tile_parallelism(isl_schedule_node * node,
 
     // Get the replacement band again
 
+    node = isl_schedule_node_parent(node);
+
+    return node;
+}
+
+// Permute dimensions of the given band node.
+// Only permutations up to band size are used.
+// If size of permutation is smaller than band size,
+// the remaining band dimension are unchanged.
+
+// Precisely: Given a permutation (i0, i1, ... i_n) and band (0, 1, ... m),
+// the result is (k0, k1, ... k_m) where
+// k_x = i_x if x < n and x < m,
+// k_x = x otherwise.
+isl_schedule_node * scheduler::permute_dimensions(isl_schedule_node * node, const vector<int> & permutation)
+{
+    assert_or_throw(isl_schedule_node_get_type(node) == isl_schedule_node_band);
+
+    isl::space band_space = isl_schedule_node_band_get_space(node);
+    int band_size = band_space.dimension(isl::space::variable);
+    auto band_func = isl_schedule_node_band_get_partial_schedule(node);
+
+    int permuted_dim_count = std::min(band_size, int(permutation.size()));
+
+    // Extract dimensions used in permutation from the band
+    vector<isl_union_pw_aff*> dim_funcs(permuted_dim_count);
+    for (int i = 0; i < permuted_dim_count; ++i)
+    {
+        int j = permutation[i];
+        assert_or_throw(j < band_size);
+        dim_funcs[i] = isl_multi_union_pw_aff_get_union_pw_aff(band_func, j);
+    }
+
+    // Store permuted dimensions back into the band
+    for (int i = 0; i < permuted_dim_count; ++i)
+    {
+        band_func = isl_multi_union_pw_aff_set_union_pw_aff(band_func, i, dim_funcs[i]);
+    }
+
+    // Insert permuted band
+    node = isl_schedule_node_insert_partial_schedule(node, band_func);
+
+    // Delete original band that has become a child of the permuted band
+    node = isl_schedule_node_child(node, 0);
+    node = isl_schedule_node_delete(node);
+
+    // 'node' is now a child of the deleted node,
+    // so move one level up to the permuted band.
     node = isl_schedule_node_parent(node);
 
     return node;

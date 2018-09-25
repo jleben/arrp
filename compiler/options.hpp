@@ -49,6 +49,7 @@ struct options
       bool cluster = true;
       vector<int> tile_size;
       bool tile_parallelism = false;
+      vector<int> intra_tile_permutation;
       vector<int> periodic_tile_direction;
       int period_offset = 0;
       int period_scale = 1;
