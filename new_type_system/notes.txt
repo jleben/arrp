@@ -1,0 +1,28 @@
+
+# Outline:
+
+Type check
+- TO DO: Primitive operations on arrays
+
+Reduce functions:
+- Copy function definition
+- Unify types of formal parameters with actual parameters
+- Replace references to formal parameters with actual parameter expressions
+
+Get actual array sizes
+- Reduce array size expressions. They should be constant, non-recursive.
+
+Make sure array sizes are compatible
+- Check that cases in array definitions have equal sizes
+- Check the primitive operation arguments have qual sizes
+- (Optional) Detect out-of-bounds accesses.
+- (Optional) Automatically limit array size by infering maximum from array applications.
+
+Continue as usual with array reduction ...
+
+
+# Questions
+
+How to type check primitive operations on arrays?
+
+If all operations apply to arrays just as well as primitive types, should we even have the array type?
