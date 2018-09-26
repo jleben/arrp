@@ -16,13 +16,15 @@ int main(int argc, char * argv[])
     float duration_sec = 1.f;
     //int block_size;
     int sample_rate = 48000;
+    string input_path = "input.wav";
     string output_path = "output.wav";
 
     Arguments::Parser parser;
     parser.add_option("-dur", duration_sec);
     //parser.add_option("-block", block_size);
     parser.add_option("-sr", sample_rate);
-    parser.add_option("-o", output_path);
+    parser.add_option("-in", input_path);
+    parser.add_option("-out", output_path);
     parser.parse(argc, argv);
 
     int64_t duration_frames = duration_sec * sample_rate;
@@ -32,16 +34,15 @@ int main(int argc, char * argv[])
          << endl;
 
     auto p = new program_type;
-    p->io = new interface_type(sample_rate, output_path);
+    p->io = new interface_type(sample_rate, input_path, output_path);
 
     p->prelude();
-
     //printf("Count: %ld Duration: %f\n", p->io->output_count(), p->io->output_count() / float(sample_rate));
 
     while(p->io->output_count() < duration_frames)
     {
-        //printf("Count: %ld Duration: %f\n", p->io->output_count(), p->io->output_count() / float(sample_rate));
         p->period();
+        //printf("Count: %ld Duration: %f\n", p->io->output_count(), p->io->output_count() / float(sample_rate));
     }
 
     delete p->io;
