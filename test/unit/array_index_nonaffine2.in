@@ -1,0 +1,20 @@
+
+a = [~: i -> i];
+
+## 'log(i)' is not affine, so 'i' should literally go over all its values.
+## 'max(0, min(5, ...)) + i' is affine though.
+
+main = [~: i -> a[max(0, min(10, i*i)) + i]];
+
+##? [~]int
+##? 0
+##? 2
+##? 6
+##? 12
+##? 14
+##? 15
+##? 16
+##? 17
+##? 18
+##? 19
+##? 20

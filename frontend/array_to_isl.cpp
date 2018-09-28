@@ -1,6 +1,8 @@
 #include "array_to_isl.hpp"
 #include "error.hpp"
 
+#include <isl-cpp/constraint.hpp>
+
 using namespace std;
 
 namespace stream {

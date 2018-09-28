@@ -1,0 +1,22 @@
+
+a = [10: i -> i];
+
+## 'i*i' is not affine, so 'i' should literally go over all its values.
+main = [~: i -> a[min(i*i,5)]];
+
+##? [~]int
+##? 0
+##? 1
+##? 4
+##? 5
+##? 5
+##? 5
+##? 5
+##? 5
+##? 5
+##? 5
+##? 5
+##? 5
+##? 5
+##? 5
+##? 5

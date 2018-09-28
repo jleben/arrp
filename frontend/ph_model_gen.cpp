@@ -633,6 +633,19 @@ polyhedral::stmt_ptr polyhedral_gen::make_stmt
     return stmt;
 }
 
+expr_ptr polyhedral_gen::visit(const expr_ptr &expr)
+{
+    if (m_nonaffine_array_args.count(expr))
+    {
+        revertable<bool> guard(m_in_affine_array_arg, false);
+        return rewriter_base::visit(expr);
+    }
+    else
+    {
+        return rewriter_base::visit(expr);
+    }
+}
+
 expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
 {
     if (auto av = dynamic_pointer_cast<array_var>(ref->var))
@@ -642,7 +655,7 @@ expr_ptr polyhedral_gen::visit_ref(const shared_ptr<reference> & ref)
 
         assert(av->range);
 
-        if (!m_in_affine_array_application && dynamic_pointer_cast<infinity>(av->range.expr))
+        if (!m_in_affine_array_arg && dynamic_pointer_cast<infinity>(av->range.expr))
         {
             if (my_verbose_out::enabled())
             {
@@ -705,28 +718,73 @@ expr_ptr polyhedral_gen::visit_array_app
     read_expr->type = type_for(result_size, arr->type);
 
     {
-        auto space = isl::space::from(m_space_map->space, arr->domain.get_space());
-        space_map sm_rel(space, m_space_map->vars);
+        // In case of non-affine expressions, we over-estimate the set of accessed array indices.
+        // This is achieved by representing unknown values as parameters.
+        // The values may be bounded using "min" and "max" expressions,
+        // and therefore array arguments are piecewise expression.
 
-        auto m = isl::basic_map::universe(space);
+        // Build ISL expressions for array arguments
 
-        assert(app->args.size() <= space.dimension(isl::space::output));
+        piecewise_affine_expr_builder builder(m_space_map->space, m_space_map->vars);
+
+        vector<isl::piecewise_expression> args;
         for (int a = 0; a < app->args.size(); ++a)
         {
-            bool is_affine;
-
-            try {
-                auto e = to_affine_expr(app->args[a], sm_rel);
-                m.add_constraint(space.out(a) == e);
-                is_affine = true;
-            } catch (...) {
-                is_affine = false;
-            }
-
-            revertable<bool> guard(m_in_affine_array_application, is_affine);
-
-            read_expr->indexes.push_back(visit(app->args[a]));
+            args.push_back(builder.build(app->args[a]));
+            //cout << "Arg expression: ";
+            //isl_printer_print_pw_aff(m_isl_printer.get(), args.back().get());
+            //cout << endl;
         }
+
+        m_nonaffine_array_args.insert(builder.nnonaffine().begin(), builder.nnonaffine().end());
+
+        for (auto & a : app->args)
+        {
+            revertable<bool> guard(m_in_affine_array_arg, true);
+            read_expr->indexes.push_back(visit(a));
+        }
+
+        for (auto & a : args)
+            a = isl_pw_aff_align_params(a.copy(), builder.space().copy());
+
+        // Combine the arguments into a multi-expression
+
+        auto range_space = isl::space(m_isl_ctx, isl::set_tuple(args.size()));
+        range_space = isl_space_align_params(range_space.copy(), builder.space().copy());
+
+        auto relation_space = isl::space::from(builder.space(), range_space);
+
+        auto * range_expr = isl_multi_pw_aff_zero(relation_space.copy());
+        for (int i = 0; i < args.size(); ++i)
+            range_expr = isl_multi_pw_aff_set_pw_aff(range_expr, i, args[i].copy());
+
+        // Turn the multi-expression into a map
+
+        isl::map m = isl_map_from_multi_pw_aff(range_expr);
+
+        //cout << "Access map with params: ";
+        //m_isl_printer.print(m);
+        //cout << endl;
+
+        // Project out parameters
+
+        int nparam = m.get_space().dimension(isl::space::parameter);
+        m.project_out_dimensions(isl::space::parameter, 0, nparam);
+        m.coalesce();
+
+        // Add remaining array dimensions without arguments
+
+        int n_extra_dim = arr->domain.dimensions() - args.size();
+        if (n_extra_dim > 0)
+            m.add_dimensions(isl::space::output, n_extra_dim);
+
+        // Set proper array id
+
+        m.set_id(isl::space::output, arr->domain.id());
+
+        //cout << "Access map without params: ";
+        //m_isl_printer.print(m);
+        //cout << endl;
 
         read_expr->map = m;
     }
@@ -863,11 +921,11 @@ isl::set polyhedral_gen::to_affine_set(expr_ptr e, const space_map & s)
     throw source_error("Not a linear constraint.", e->location);
 }
 
-isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & s)
+isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & sm)
 {
     if (auto c = dynamic_pointer_cast<constant<int>>(e))
     {
-        return isl::expression::value(s.local_space, c->value);
+        return sm.space.val(c->value);
     }
     else if (auto ref = dynamic_pointer_cast<reference>(e))
     {
@@ -875,70 +933,184 @@ isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & s)
         if (!avar)
             throw source_error("Invalid type of variable in affine expression.",
                                ref->location);
-        int dim = s.index_of(avar);
+        int dim = sm.index_of(avar);
         if (dim < 0)
             throw error("Free variable in affine expression.");
 
-        if (s.local_space.is_set_space())
-        {
-            return isl::expression::variable(s.local_space, isl::space::variable, dim);
-        }
-        else
-        {
-            return isl::expression::variable(s.local_space, isl::space::input, dim);
-        }
+        return sm.space.var(dim);
     }
     else if (auto iter = dynamic_pointer_cast<ph::iterator_read>(e))
     {
         int dim = iter->index;
-
-        if (s.local_space.is_set_space())
-        {
-            return isl::expression::variable(s.local_space, isl::space::variable, dim);
-        }
-        else
-        {
-            return isl::expression::variable(s.local_space, isl::space::input, dim);
-        }
+        return sm.space.var(dim);
     }
     else if (auto op = dynamic_pointer_cast<primitive>(e))
     {
+        vector<isl::expression> args;
+        args.reserve(op->operands.size());
+        for (auto & arg : op->operands)
+            args.push_back(to_affine_expr(arg, sm));
+
         switch(op->kind)
         {
         case primitive_op::add:
-            return (to_affine_expr(op->operands[0],s) + to_affine_expr(op->operands[1],s));
+            return (args[0] + args[1]);
         case primitive_op::subtract:
-            return (to_affine_expr(op->operands[0],s) - to_affine_expr(op->operands[1],s));
+            return (args[0] - args[1]);
         case primitive_op::negate:
-            return (-to_affine_expr(op->operands[0],s));
+            return (-args[0]);
         case primitive_op::multiply:
         {
-            auto lhs = to_affine_expr(op->operands[0],s);
-            auto rhs = to_affine_expr(op->operands[1],s);
+            auto lhs = args[0];
+            auto rhs = args[1];
             if (lhs.is_constant())
                 return lhs.constant() * rhs;
             else if (rhs.is_constant())
                 return lhs * rhs.constant();
+            break;
         }
         case primitive_op::divide_integer:
         {
-            auto lhs = to_affine_expr(op->operands[0],s);
-            auto rhs = to_affine_expr(op->operands[1],s);
+            auto lhs = args[0];
+            auto rhs = args[1];
             if (rhs.is_constant())
                 return isl::floor(lhs / rhs.constant());
+            break;
         }
         case primitive_op::modulo:
         {
-            auto lhs = to_affine_expr(op->operands[0],s);
-            auto rhs = to_affine_expr(op->operands[1],s);
+            auto lhs = args[0];
+            auto rhs = args[1];
             if (rhs.is_constant())
                 return lhs % rhs.constant();
+            break;
         }
-        default:;
+        default:
+            break;
         }
     }
 
     throw error("Not an integer affine expression.");
+}
+
+isl::piecewise_expression piecewise_affine_expr_builder::build(expr_ptr e)
+{
+    if (auto c = dynamic_pointer_cast<constant<int>>(e))
+    {
+        auto e = m_space.val(c->value);
+        return isl_pw_aff_from_aff(e.copy());
+    }
+    else if (auto ref = dynamic_pointer_cast<reference>(e))
+    {
+        auto avar = dynamic_pointer_cast<array_var>(ref->var);
+        if (!avar)
+            throw source_error("Invalid type of variable in affine expression.",
+                               ref->location);
+        int dim = index_of(avar);
+        if (dim < 0)
+            throw error("Free variable in affine expression.");
+
+        auto e = m_space.var(dim);
+        return isl_pw_aff_from_aff(e.copy());
+    }
+    else if (auto iter = dynamic_pointer_cast<ph::iterator_read>(e))
+    {
+        int dim = iter->index;
+        auto e = m_space.var(dim);
+        return isl_pw_aff_from_aff(e.copy());
+    }
+    else if (auto op = dynamic_pointer_cast<primitive>(e))
+    {
+        vector<isl::piecewise_expression> args;
+
+        auto build_args = [&]()
+        {
+            args.reserve(op->operands.size());
+            for (auto & arg : op->operands)
+                args.push_back(build(arg));
+
+            if (args.size() > 1)
+            {
+                // Expand common space to contain params of all args
+                for (auto & arg : args)
+                    m_space = isl::align_params(m_space, isl_pw_aff_get_space(arg.get()));
+
+                // Expand params in each arg to match the common space
+                for (auto & arg : args)
+                    arg = isl_pw_aff_align_params(arg.copy(), m_space.copy());
+            }
+        };
+
+        switch(op->kind)
+        {
+        case primitive_op::add:
+        {
+            build_args();
+            return isl_pw_aff_add(args[0].copy(), args[1].copy());
+        }
+        case primitive_op::subtract:
+        {
+            build_args();
+            return isl_pw_aff_sub(args[0].copy(), args[1].copy());
+        }
+        case primitive_op::negate:
+        {
+            build_args();
+            return isl_pw_aff_neg(args[0].copy());
+        }
+        case primitive_op::multiply:
+        {
+            build_args();
+            auto & lhs = args[0];
+            auto & rhs = args[1];
+            if (isl_pw_aff_is_cst(lhs.get()) || isl_pw_aff_is_cst(rhs.get()))
+                return isl_pw_aff_mul(lhs.copy(), rhs.copy());
+            break;
+        }
+        case primitive_op::divide_integer:
+        {
+            build_args();
+            auto & lhs = args[0];
+            auto & rhs = args[1];
+            if (isl_pw_aff_is_cst(rhs.get()))
+                return isl_pw_aff_floor(isl_pw_aff_div(lhs.copy(), rhs.copy()));
+            break;
+        }
+        case primitive_op::modulo:
+        {
+            build_args();
+            auto lhs = args[0];
+            auto rhs = args[1].plain_continuous();
+            if (rhs.is_valid() && rhs.is_constant())
+                return isl_pw_aff_mod_val(lhs.copy(), rhs.constant().copy());
+            break;
+        }
+        case primitive_op::max:
+        {
+            build_args();
+            return isl_pw_aff_max(args[0].copy(), args[1].copy());
+        }
+        case primitive_op::min:
+        {
+            build_args();
+            return isl_pw_aff_min(args[0].copy(), args[1].copy());
+        }
+        default:
+            break;
+        }
+    }
+
+    // This expression is not affine. Represent it with a new parameter.
+
+    m_nonaffine.insert(e);
+
+    //cout << "Creating a new parameter. Expression type = " << typeid(*e).name() << endl;
+
+    int i = m_space.dimension(isl::space::parameter);
+    m_space.add_dimensions(isl::space::parameter, 1);
+    m_space.set_name(isl::space::parameter, i, string("p") + to_string(i));
+    auto p = m_space.param(i);
+    return isl_pw_aff_from_aff(p.copy());
 }
 
 // NOTE: This only works for custom-made access,
@@ -963,19 +1135,21 @@ shared_ptr<polyhedral::array_access> polyhedral_gen::access
              array->size.end());
     access->type = type_for(result_size, array->type);
 
-    auto space = isl::space::from(stmt->domain.get_space(), array->domain.get_space());
-    auto m = isl::basic_map::universe(space);
+    auto space = isl::space::from(stmt->domain.get_space(), array->domain.get_space()).wrapped();
+    auto m = isl::basic_set::universe(space);
 
     {
+        int num_in = stmt->domain.dimensions();
         space_map sm(space, {});
         for (int i = 0; i < indexes.size(); ++i)
         {
             auto e = to_affine_expr(indexes[i], sm);
-            m.add_constraint(space.out(i) == e);
+            auto c = space.var(num_in + i) == e;
+            m.add_constraint(c);
         }
     }
 
-    access->map = m;
+    access->map = m.unwrapped();
 
     stmt->array_accesses.push_back(access);
 

@@ -39,6 +39,7 @@ public:
 private:
     struct space_map
     {
+        // Requires a set space
         space_map(isl::space & s,
                   const vector<array_var_ptr> & v):
             space(s), local_space(s), vars(v) {}
@@ -79,6 +80,7 @@ private:
     (const polyhedral::stmt_ptr &, const polyhedral::array_ptr &, const vector<expr_ptr> index,
      bool read, bool write);
 
+    expr_ptr visit(const expr_ptr &expr) override;
     expr_ptr visit_ref(const shared_ptr<reference> & e) override;
     expr_ptr visit_array_app(const shared_ptr<array_app> & app) override;
     expr_ptr visit_func_app(const shared_ptr<func_app> &app) override;
@@ -92,11 +94,44 @@ private:
     polyhedral::stmt_ptr m_current_stmt;
     space_map * m_space_map = nullptr;
 
-    bool m_in_affine_array_application = false;
+    unordered_set<expr_ptr> m_nonaffine_array_args;
+    bool m_in_affine_array_arg = false;
 
     polyhedral::array_ptr m_time_array;
     vector<polyhedral::stmt_ptr> m_time_stmts;
     bool m_time_array_needed = false;
+};
+
+
+struct piecewise_affine_expr_builder
+{
+    piecewise_affine_expr_builder(isl::space domain, const vector<array_var_ptr> & vars):
+        m_space(domain), m_vars(vars)
+    {}
+
+    isl::piecewise_expression build(expr_ptr);
+
+    isl::space space() const { return m_space; }
+    const vector<array_var_ptr> & vars() { return m_vars; }
+
+    const unordered_set<expr_ptr> & nnonaffine() { return m_nonaffine; }
+
+    int index_of(array_var_ptr var) const
+    {
+        int i;
+        for(i=0; i<m_vars.size(); ++i)
+        {
+            if (m_vars[i] == var)
+                return i;
+        }
+        return -1;
+    }
+
+private:
+    isl::space m_space;
+    const vector<array_var_ptr> & m_vars;
+
+    unordered_set<expr_ptr> m_nonaffine;
 };
 
 }

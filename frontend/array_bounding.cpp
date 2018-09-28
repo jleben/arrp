@@ -3,6 +3,7 @@
 #include "../utility/debug.hpp"
 
 #include <algorithm>
+#include <isl-cpp/constraint.hpp>
 
 using namespace std;
 
