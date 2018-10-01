@@ -286,6 +286,8 @@ expr_ptr type_checker::do_apply
         arg = visit(arg);
 
         atomic_expr_check is_atomic;
+        // No need to lambda-lift functions, since each reference to
+        // an argument inside this function is replaced by a copy of the argument.
         if (var->ref_count > 1 && !is_atomic(arg) && !arg->type->is_function())
         {
             if (verbose<type_checker>::enabled())
@@ -529,7 +531,7 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
                 if (verbose<type_checker>::enabled())
                 {
                     cout << "Reference to id " << id->name
-                         << " is an external function call - using a copy of the call instead."
+                         << " is an external function - using a copy of the function instead."
                          << endl;
                 }
                 return m_copier.copy(ext);
