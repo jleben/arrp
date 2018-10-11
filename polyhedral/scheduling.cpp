@@ -834,10 +834,10 @@ isl_schedule_node * scheduler::add_periodic_tiling_dimension
     if (period_dir.empty())
     {
         // User has not requested any particular direction.
-        // Find first scheduling hyperplane with a non-zero projection
+        // Find first scheduling direction with a non-zero projection
         // on the ray.
-        // If the schedule was tiled, this only searches the tile
-        // hyperplanes.
+        // If the schedule was tiled, this only searches the inter-tile
+        // dimensions.
 
         int dim = 0;
         for (; dim < band_size; ++dim)
@@ -859,10 +859,9 @@ isl_schedule_node * scheduler::add_periodic_tiling_dimension
     else
     {
         // User has requested a particular direction.
-        // The direction is interpreted as a function of
-        // the original schedule hyperplanes.
-        // In particular: it operates on indices before
-        // the transformation by 'ensure_tile_parallelism'.
+        // The direction is interpreted in the space of
+        // the inter-tile schedule (or intra-tile schedule of not tiled),
+        // but before the transformation by 'ensure_tile_parallelism'.
 
         // Validate selected direction.
 
@@ -909,7 +908,15 @@ isl_schedule_node * scheduler::add_periodic_tiling_dimension
             throw error("Selected periodic tiling direction is perpendicular to infinite direction of schedule.");
 #endif
 
-        // Create abstract expression p = k0 * floor(i0/tile0) + ... k_n * floor(i_n/tile_n)
+        // Create abstract expression
+        // p = k0 * t0 * floor(i0/t0) + ... + k_n * t_n * floor(i_n/t_n) where
+        // <k0, k1, ...> is the user-specified period direction,
+        // <t0, t1, ...> is the tile size, and
+        // <i0, i1, ...> is an index in the original schedule space.
+
+        // Note that t * floor(i/t) recreates an inter-tile index
+        // before ensure_tile_parallelism was applied.
+
         // Note: if not tiling, the tile size will be 1, with no effect.
 
         isl::local_space local_band_space(band_space);
@@ -920,7 +927,7 @@ isl_schedule_node * scheduler::add_periodic_tiling_dimension
         {
             auto coef = period_dir[i];
             int tile_size = i < opt.tile_size.size() ? opt.tile_size[i] : 1;
-            auto tile_index = isl::floor(local_band_space(isl::space::variable, i) / tile_size);
+            auto tile_index = tile_size * isl::floor(local_band_space(isl::space::variable, i) / tile_size);
             period_func = period_func + coef * tile_index;
         }
 
