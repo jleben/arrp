@@ -545,7 +545,7 @@ scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & 
           {
             auto space = m.get_space();
             auto mp = m;
-            mp.add_constraint(space.out(periodic_tiling.dim) < periodic_tiling.offset);
+            mp.add_constraint(space.out(0) < periodic_tiling.offset);
             prologue_dom |= mp.domain();
             //cout << "Adding prologue domain: ";
             //m_printer.print(mp.domain()); cout << endl;
@@ -953,10 +953,9 @@ scheduler::find_periodic_tiling(const vector<access_info> & access_infos, const 
     if (verbose<scheduler>::enabled())
         cout << endl << "Finding periodic tiling." << endl;
 
-    // FIXME: Periodic tiling dimension is found earlier,
-    // no point in storing it into "periodic_tiling":
+    const int period_index_dimension = 0;
+
     tiling periodic_tiling;
-    periodic_tiling.dim = 0;
     periodic_tiling.offset = 0;
     periodic_tiling.size = 1;
 
@@ -966,14 +965,14 @@ scheduler::find_periodic_tiling(const vector<access_info> & access_infos, const 
         if (access.time_period.empty())
             continue;
 
-        int access_period = access.time_period[periodic_tiling.dim];
+        int access_period = access.time_period[period_index_dimension];
         periodic_tiling.size = lcm(periodic_tiling.size, access_period);
     }
 
     // Find common period onset
     for (auto & access : access_infos)
     {
-        int onset = find_period_onset(access, periodic_tiling.dim);
+        int onset = find_period_onset(access, period_index_dimension);
         periodic_tiling.offset = max(periodic_tiling.offset, onset);
     }
 
@@ -990,7 +989,6 @@ scheduler::find_periodic_tiling(const vector<access_info> & access_infos, const 
     if (verbose<scheduler>::enabled())
     {
         cout << "Periodic tiling:" << endl;
-        cout << "Dimension = " << periodic_tiling.dim << endl;
         cout << "Offset = " << periodic_tiling.offset << endl;
         cout << "Size = " << periodic_tiling.size << endl;
     }
@@ -1148,6 +1146,8 @@ int scheduler::find_period_onset(const access_info & info, int tiling_dim)
 void scheduler::assign_inter_tile_access_offsets
 (const tiling & periodic_tiling, const vector<access_info> & analysis)
 {
+    const int period_index_dimension = 0;
+
     for (auto & access : analysis)
     {
         if (access.time_period.empty())
@@ -1162,7 +1162,7 @@ void scheduler::assign_inter_tile_access_offsets
                 throw error("Access has unexpected infinite direction in data space.");
         }
 
-        int periods_per_tile = periodic_tiling.size / access.time_period[periodic_tiling.dim];
+        int periods_per_tile = periodic_tiling.size / access.time_period[period_index_dimension];
         int offset = access.data_offset[0] * periods_per_tile;
 
         auto array = access.array;

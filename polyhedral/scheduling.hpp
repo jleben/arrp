@@ -154,7 +154,6 @@ private:
 
     struct tiling
     {
-        int dim;
         int offset;
         int size;
     };
