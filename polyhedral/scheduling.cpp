@@ -1014,8 +1014,14 @@ scheduler::analyze_access_schedules(const isl::union_map & schedule)
             auto array = access->array;
             auto a = access->map.in_domain(stmt->domain).in_range(array->domain);
 
-            if (verbose<scheduler>::enabled()) {
-                cout << ".. Access: "; m_printer.print(a); cout << endl;
+            if (verbose<scheduler>::enabled())
+            {
+                cout << ".. Access";
+                if (access->reading) cout << ", read";
+                if (access->writing) cout << ", write";
+                cout << ": ";
+                m_printer.print(a);
+                cout << endl;
             }
 
             isl::union_map s = a;
@@ -1027,6 +1033,9 @@ scheduler::analyze_access_schedules(const isl::union_map & schedule)
                     if (verbose<scheduler>::enabled())
                     {
                         cout << "... Access schedule: "; m_printer.print(access_schedule); cout << endl;
+                        cout << "... Access schedule flat: ";
+                        m_printer.print(access_schedule.wrapped().lifted().flattened());
+                        cout << endl;
                     }
 
                     access_info info;
