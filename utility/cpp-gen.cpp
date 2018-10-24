@@ -257,7 +257,8 @@ void id_expression::generate(cpp_gen::state & state, ostream & stream)
     stream << name;
 }
 
-
+// Each expressions gets a precedence value < 0,
+// so -1 is the highest precedence.
 static unordered_map<int, int> op_precedence_map()
 {
     vector< vector<op> > rank =
@@ -295,7 +296,7 @@ static unordered_map<int, int> op_precedence_map()
     {
         auto & ops = rank[r];
         for(auto & op : ops)
-            m[static_cast<int>(op)] = r + 1;
+            m[static_cast<int>(op)] = -(r + 1);
     }
 
     return m;
@@ -321,8 +322,13 @@ static int precedence(expression_ptr expr)
     {
         return precedence(op::array_subscript);
     }
+    else if (dynamic_cast<cast_expression*>(expr.get()))
+    {
+        return precedence(op::cast);
+    }
     else
     {
+        // Return the highest precedence.
         return 0;
     }
 }
@@ -410,49 +416,73 @@ static string op_text(cpp_gen::op op_type)
     }
 }
 
-void un_op_expression::generate(cpp_gen::state & state, ostream & stream)
+// The following two functions determine whether a leftmost or rightmost
+// subexpression inside another expression should be wrapped in parenthesis.
+// This is only a safe approximation.
+// In reality, it also depends on the structure of sub-expression -
+// - the order of operators and operands in it.
+
+static
+bool should_wrap_rhs_subexpr(const op & expr, const expression_ptr & sub_expr)
 {
-    bool wrap_rhs = false;
-    if (dynamic_cast<bin_op_expression*>(rhs.get()))
-        wrap_rhs = false;
-    else if(precedence(op) < precedence(rhs))
-        wrap_rhs = true;
+    return precedence(sub_expr) <= precedence(expr);
+}
 
-    stream << op_text(op);
+static
+bool should_wrap_lhs_subexpr(const op & expr, const expression_ptr & sub_expr)
+{
+    return precedence(sub_expr) < precedence(expr);
+}
 
-    if (wrap_rhs)
+enum sub_expr_pos
+{
+    left_sub_expr,
+    middle_subexpr,
+    right_sub_expr
+};
+
+static
+void generate_subexpr
+(const op & expr, const expression_ptr & sub_expr, sub_expr_pos pos,
+ cpp_gen::state & state, ostream & stream)
+{
+    bool wrap = false;
+
+    switch(pos)
+    {
+    case left_sub_expr:
+        wrap = should_wrap_lhs_subexpr(expr, sub_expr);
+        break;
+    case right_sub_expr:
+        wrap = should_wrap_rhs_subexpr(expr, sub_expr);
+        break;
+    default:
+        wrap = false;
+    }
+
+    if (wrap)
         stream << "(";
-    rhs->generate(state, stream);
-    if (wrap_rhs)
+
+    sub_expr->generate(state, stream);
+
+    if (wrap)
         stream << ")";
 }
 
+void un_op_expression::generate(cpp_gen::state & state, ostream & stream)
+{
+    stream << op_text(op);
+
+    generate_subexpr(op, rhs, right_sub_expr, state, stream);
+}
 
 void bin_op_expression::generate(cpp_gen::state & state, ostream & stream)
 {
-    bool wrap_lhs = false;
-    if (precedence(op) < precedence(lhs))
-            wrap_lhs = true;
-
-    bool wrap_rhs = false;
-    if (dynamic_cast<un_op_expression*>(rhs.get()))
-        wrap_rhs = false;
-    else if (precedence(op) <= precedence(rhs))
-        wrap_rhs = true;
-
-    if (wrap_lhs)
-        stream << "(";
-    lhs->generate(state, stream);
-    if (wrap_lhs)
-        stream << ")";
+    generate_subexpr(op, lhs, left_sub_expr, state, stream);
 
     stream << op_text(op);
 
-    if (wrap_rhs)
-        stream << "(";
-    rhs->generate(state, stream);
-    if (wrap_rhs)
-        stream << ")";
+    generate_subexpr(op, rhs, right_sub_expr, state, stream);
 }
 
 void if_expression::generate(cpp_gen::state & state, ostream & stream)
@@ -468,7 +498,8 @@ void if_expression::generate(cpp_gen::state & state, ostream & stream)
 
 void call_expression::generate(cpp_gen::state & state, ostream & stream)
 {
-    callee->generate(state, stream);
+    generate_subexpr(op::function_call, callee, left_sub_expr, state, stream);
+
     stream << "(";
     for (unsigned int a = 0; a < args.size(); ++a)
     {
@@ -482,24 +513,15 @@ void call_expression::generate(cpp_gen::state & state, ostream & stream)
 void cast_expression::generate(cpp_gen::state & state, ostream & stream)
 {
     stream << "(";
-    stream << "(";
     type->generate(state, stream);
     stream << ")";
-    expr->generate(state, stream);
-    stream << ")";
+
+    generate_subexpr(op::cast, expr, right_sub_expr, state, stream);
 }
 
 void array_access_expression::generate(cpp_gen::state & state, ostream & stream)
 {
-    bool wrap = false;
-    if (precedence(op::array_subscript) < precedence(id))
-        wrap = true;
-
-    if (wrap)
-        stream << "(";
-    id->generate(state, stream);
-    if (wrap)
-        stream << ")";
+    generate_subexpr(op::array_subscript, id, left_sub_expr, state, stream);
 
     for(auto i : index)
     {

@@ -1,0 +1,17 @@
+
+## Due to the division, this generates a cast in C++: ((double)(i % 4)) / 1.
+## We are testing the relative precedence of cast and remainder operators.
+
+main = [10: i -> (i % 4) / 1]
+
+##? [10]real64
+##? 0
+##? 1
+##? 2
+##? 3
+##? 0
+##? 1
+##? 2
+##? 3
+##? 0
+##? 1
