@@ -96,6 +96,6 @@ file name and the "--cpp" option::
     arrp <input file> --cpp
 
 Further information about the usage of the generated C++ code is available
-in the `Arrp documentation <http://45.76.245.51/doc/target-cpp>`_.
+in the `Arrp documentation <http://arrp-lang.info/doc/target-cpp>`_.
 
-.. _Arrp website: http://45.76.245.51/play
+.. _Arrp website: http://arrp-lang.info
