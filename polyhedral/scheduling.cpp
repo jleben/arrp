@@ -991,6 +991,17 @@ scheduler::find_periodic_tiling(const vector<access_info> & access_infos, const 
         cout << "Periodic tiling:" << endl;
         cout << "Offset = " << periodic_tiling.offset << endl;
         cout << "Size = " << periodic_tiling.size << endl;
+
+        if (!opt.tile_size.empty())
+        {
+            // FIXME: This should be computed somewhere else,
+            // at the source of offset/size information.
+            // NOTE: To make it obvious when the division is not integer,
+            // we do it in floating point.
+            cout << "In tile indices:" << endl;
+            cout << "Offset = " << periodic_tiling.offset << endl;
+            cout << "Size = " << (double(periodic_tiling.size) / opt.tile_size[0]) << endl;
+        }
     }
 
     return periodic_tiling;
