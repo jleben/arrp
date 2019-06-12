@@ -121,6 +121,11 @@ result::code compile_module
             ids = fgen.generate(parser.modules());
         }
 
+        {
+            functional::reference_analysis refs;
+            refs.process(ids);
+        }
+
         if (verbose<functional::model>::enabled())
         {
             functional::printer printer;
@@ -131,8 +136,6 @@ result::code compile_module
                 cout << endl;
             }
         }
-
-        return result::ok;
 
         functional::id_ptr main_id;
 
@@ -151,10 +154,7 @@ result::code compile_module
             throw source_error(msg, code_location(main_module));
         }
 
-        {
-            functional::reference_analysis refs;
-            refs.process(ids);
-        }
+        return result::ok;
 
         unordered_set<functional::id_ptr> array_ids;
 

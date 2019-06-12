@@ -49,24 +49,10 @@ void reference_analysis::visit_ref(const shared_ptr<reference> & ref)
     }
 }
 
-void reference_analysis::visit_array(const shared_ptr<array> & arr)
+void reference_analysis::visit_scope(const shared_ptr<scope_expr> & scope)
 {
-    for (auto & var : arr->vars)
-    {
-        if (var->range)
-            visit(var->range);
-    }
-
-    process(arr->scope.ids);
-
-    visit(arr->expr);
-}
-
-void reference_analysis::visit_func(const shared_ptr<function> & func)
-{
-    process(func->scope.ids);
-
-    visit(func->expr);
+    process(scope->local.ids);
+    visit(scope->value);
 }
 
 }

@@ -28,8 +28,7 @@ public:
 
 private:
     virtual void visit_ref(const shared_ptr<reference> &) override;
-    virtual void visit_array(const shared_ptr<array> & arr) override;
-    virtual void visit_func(const shared_ptr<function> & func) override;
+    virtual void visit_scope(const shared_ptr<scope_expr> &) override;
 
     using visited_id_stack_t = stack_adapter<deque<id_ptr>>;
 

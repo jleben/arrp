@@ -15,6 +15,10 @@ printer::printer()
 void printer::print(id_ptr id, ostream & out)
 {
     out << id->name;
+    if (id->is_recursive)
+    {
+        out << "@";
+    }
     if (id->type_expr)
     {
         out << " :: ";
