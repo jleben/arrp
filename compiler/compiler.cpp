@@ -132,6 +132,8 @@ result::code compile_module
             }
         }
 
+        return result::ok;
+
         functional::id_ptr main_id;
 
         {

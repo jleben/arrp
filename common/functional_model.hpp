@@ -123,6 +123,16 @@ public:
     vector<id_ptr> ids;
 };
 
+class scope_expr : public expression
+{
+public:
+    scope_expr() {}
+    scope_expr(const expr_slot & e): value(e) {}
+
+    scope local;
+    expr_slot value;
+};
+
 template <typename T>
 class constant : public expression
 {

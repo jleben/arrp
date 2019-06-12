@@ -130,6 +130,7 @@ public:
     virtual R visit_type_name(const shared_ptr<type_name_expr> &) { return R(); }
     virtual R visit_array_type(const shared_ptr<array_type_expr> &) { return R(); }
     virtual R visit_func_type(const shared_ptr<func_type_expr> &) { return R(); }
+    virtual R visit_scope(const shared_ptr<scope_expr> &) { return R(); }
 };
 
 template<>
@@ -226,6 +227,10 @@ public:
         else if (auto func_type = dynamic_pointer_cast<func_type_expr>(expr))
         {
             visit_func_type(func_type);
+        }
+        else if (auto scope = dynamic_pointer_cast<scope_expr>(expr))
+        {
+            visit_scope(scope);
         }
         else
         {
@@ -335,6 +340,13 @@ public:
         for (auto & param : ft->params)
             visit(param);
         visit(ft->result);
+    }
+    virtual void visit_scope(const shared_ptr<scope_expr> & scope)
+    {
+        for(auto & id : scope->local.ids)
+            visit_local_id(id);
+
+        visit(scope->value);
     }
 };
 
@@ -486,6 +498,13 @@ public:
             param = visit(param);
         ft->result = visit(ft->result);
         return ft;
+    }
+    virtual expr_ptr visit_scope(const shared_ptr<scope_expr> & scope) override
+    {
+        for(auto & id : scope->local.ids)
+            visit_local_id(id);
+
+        return visit(scope->value);
     }
 };
 

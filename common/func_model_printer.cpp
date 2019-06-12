@@ -140,7 +140,7 @@ void printer::print(expr_ptr expr, ostream & out)
         print(ar->expr, out);
         if (m_print_scopes && ar->scope.ids.size())
         {
-            out << " where ";
+            out << " (where) ";
             int i = 0;
             for(const auto & id : ar->scope.ids)
             {
@@ -234,7 +234,7 @@ void printer::print(expr_ptr expr, ostream & out)
         print(func->expr, out);
         if (m_print_scopes && func->scope.ids.size())
         {
-            out << " where ";
+            out << " (where) ";
             int i = 0;
             for(const auto & id : func->scope.ids)
             {
@@ -279,6 +279,29 @@ void printer::print(expr_ptr expr, ostream & out)
             out << " -> ";
         }
         print(func_type->result, out);
+    }
+    else if (auto scope = dynamic_pointer_cast<scope_expr>(expr))
+    {
+        bool print_local_ids = m_print_scopes && scope->local.ids.size();
+
+        if (print_local_ids)
+            out << "{ ";
+
+        print(scope->value, out);
+
+        if (print_local_ids)
+        {
+            out << " where ";
+            int i = 0;
+            for(const auto & id : scope->local.ids)
+            {
+                if (i++ > 0)
+                    out << ", ";
+                print(id, out);
+            }
+
+            out << " }";
+        }
     }
     else
     {

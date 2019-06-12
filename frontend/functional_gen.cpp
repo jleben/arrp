@@ -79,8 +79,7 @@ generator::generate(module * mod)
         throw module_error("Invalid AST root.", ast->location);
     }
 
-    functional::scope func_scope;
-    m_scope_stack.push(&func_scope);
+    vector<id_ptr> ids;
 
     {
         context_type::scope_holder scope(m_context);
@@ -89,25 +88,30 @@ generator::generate(module * mod)
 
         if (declarations)
         {
-            do_mutually_recursive_declarations(declarations->as_list()->elements);
+            ids = do_mutually_recursive_declarations(declarations->as_list()->elements);
         }
     }
-
-    m_scope_stack.pop();
-
-    vector<id_ptr> ids(func_scope.ids.begin(), func_scope.ids.end());
 
     return ids;
 }
 
-void generator::do_mutually_recursive_declarations(const vector<ast::node_ptr> & nodes)
+vector<id_ptr> generator::do_mutually_recursive_declarations(const vector<ast::node_ptr> & nodes)
 {
+    vector<id_ptr> unique_ids;
     vector<id_ptr> ids;
 
     for (auto & node : nodes)
     {
-        auto id = make_id_for_declaration(node);
+        //id_ptr id;
+        //bool is_new;
+        auto [id, id_is_new] = make_id_for_declaration(node);
         ids.push_back(id);
+        if (id_is_new)
+        {
+            unique_ids.push_back(id);
+            if (verbose<generator>::enabled())
+                cerr << "-- Stored new id: " << id->name << endl;
+        }
     }
 
     auto id_it = ids.begin();
@@ -115,20 +119,15 @@ void generator::do_mutually_recursive_declarations(const vector<ast::node_ptr> &
 
     for(; node_it != nodes.end(); ++node_it, ++id_it)
     {
+        if (verbose<generator>::enabled())
+            cerr << "-- Processing declaration for id: " << (*id_it)->name << endl;
         apply_declaration(*id_it, *node_it);
     }
+
+    return unique_ids;
 }
 
-id_ptr generator::do_binding(ast::node_ptr root)
-{
-    auto id = make_id_for_declaration(root);
-
-    apply_declaration(id, root);
-
-    return id;
-}
-
-id_ptr generator::make_id_for_declaration(ast::node_ptr node)
+tuple<id_ptr, bool> generator::make_id_for_declaration(ast::node_ptr node)
 {
     // Note: Assuming that all declarations are a list with name as first element
 
@@ -137,18 +136,30 @@ id_ptr generator::make_id_for_declaration(ast::node_ptr node)
 
     id_ptr id;
 
+    // If ID already exists in context, abort.
+    // This is to support type declarations.
+    // In case of multiple type or value declarations for same ID,
+    // we fail later in 'apply_declaration'.
     {
         auto item = m_context.find(name);
         if (item &&
             item.scope() == m_context.current_scope() &&
             (id = dynamic_pointer_cast<identifier>(item.value())))
         {
-            return id;
+            if (verbose<generator>::enabled())
+                cerr << "-- Not making identifier - it already exists: " << id->name << endl;
+
+            return {id, false};
         }
     }
 
     id = make_shared<identifier>(qualified_name(name),
                                  location_in_module(name_node->location));
+
+    if (verbose<generator>::enabled())
+    {
+        cerr << "-- Made an identifier: " << id->name << endl;
+    }
 
     // Bind name for reference resolution
 
@@ -158,15 +169,7 @@ id_ptr generator::make_id_for_declaration(ast::node_ptr node)
         throw module_error(e.what(), name_node->location);
     }
 
-    // Store name in current scope
-
-    if (verbose<generator>::enabled())
-        cout << "Storing id " << id->name << endl;
-
-    assert(!m_scope_stack.empty());
-    m_scope_stack.top()->ids.push_back(id);
-
-    return id;
+    return {id, true};
 }
 
 void generator::apply_declaration(id_ptr id, ast::node_ptr root)
@@ -382,11 +385,16 @@ expr_ptr generator::do_binding_expr(ast::node_ptr root)
 {
     context_type::scope_holder scope(m_context);
 
-    auto id = do_binding(root);
+    auto [id, is_new] = make_id_for_declaration(root);
+    assert_or_throw(is_new);
+    apply_declaration(id, root);
 
-    auto ref = make_shared<reference>(id, location_in_module(root->location));
+    auto e = make_shared<scope_expr>();
+    e->location = location_in_module(root->location);
+    e->local.ids.push_back(id);
+    e->value = make_shared<reference>(id, e->location);
 
-    return ref;
+    return e;
 }
 
 expr_ptr generator::do_local_scope(ast::node_ptr root)
@@ -394,11 +402,15 @@ expr_ptr generator::do_local_scope(ast::node_ptr root)
     auto decls_node = root->as_list()->elements[0];
     auto expr_node = root->as_list()->elements[1];
 
+    auto e = make_shared<scope_expr>();
+    e->location = location_in_module(root->location);
+
     context_type::scope_holder scope(m_context);
 
-    do_mutually_recursive_declarations(decls_node->as_list()->elements);
+    e->local.ids = do_mutually_recursive_declarations(decls_node->as_list()->elements);
+    e->value = do_expr(expr_node);
 
-    return do_expr(expr_node);
+    return e;
 }
 
 expr_ptr generator::do_lambda(ast::node_ptr root)
@@ -429,7 +441,6 @@ expr_ptr generator::make_func(ast::node_ptr params_node, ast::node_ptr expr_node
     assert(!params.empty());
 
     auto func = make_shared<function>(params, nullptr, location_in_module(loc));
-    m_scope_stack.push(&func->scope);
 
     {
         context_type::scope_holder scope(m_context);
@@ -445,8 +456,6 @@ expr_ptr generator::make_func(ast::node_ptr params_node, ast::node_ptr expr_node
 
         func->expr = expr_slot(do_expr(expr_node));
     }
-
-    m_scope_stack.pop();
 
     return func;
 }
@@ -530,8 +539,6 @@ expr_ptr generator::do_array_def(ast::node_ptr root)
             ar->vars.push_back(var);
         }
     }
-
-    stacker<scope*> scope_stacker(&ar->scope, m_scope_stack);
 
     ar->expr = do_array_patterns(patterns_node);
 
@@ -750,8 +757,6 @@ expr_ptr generator::do_func_comp(ast::node_ptr root)
 
     auto func = make_shared<function>(params, nullptr, location_in_module(root->location));
     {
-        auto stacker = stack_scoped(&func->scope, m_scope_stack);
-
         left = do_expr(left_node);
         right = do_expr(right_node);
     }

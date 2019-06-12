@@ -32,6 +32,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <stack>
 #include <unordered_map>
 #include <string>
+#include <tuple>
 
 namespace stream {
 namespace functional {
@@ -39,6 +40,7 @@ namespace functional {
 using std::string;
 using std::stack;
 using std::unordered_map;
+using std::tuple;
 
 class generator
 {
@@ -51,9 +53,8 @@ private:
     context_type m_context;
 
 private:
-    void do_mutually_recursive_declarations(const vector<ast::node_ptr> &);
-    id_ptr do_binding(ast::node_ptr);
-    id_ptr make_id_for_declaration(ast::node_ptr);
+    vector<id_ptr> do_mutually_recursive_declarations(const vector<ast::node_ptr> &);
+    tuple<id_ptr, bool> make_id_for_declaration(ast::node_ptr);
     void apply_declaration(id_ptr, ast::node_ptr);
 
     expr_ptr do_expr(ast::node_ptr);
@@ -104,7 +105,6 @@ private:
     module * m_current_module = nullptr;
 
     stack<array_ptr> m_array_stack;
-    stack<scope*> m_scope_stack; // Not used for lookup here
 
     typedef stack_adapter<deque<string>> name_stack_t;
     name_stack_t m_name_stack;

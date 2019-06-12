@@ -321,5 +321,37 @@ expr_ptr copier::visit_func_type(const shared_ptr<func_type_expr> & e)
     return r;
 }
 
+expr_ptr copier::visit_scope(const shared_ptr<scope_expr> & e)
+{
+    auto r = make_shared<scope_expr>(expr_slot());
+    r->location = e->location;
+    r->type = e->type;
+
+    context_type::scope_holder scope(m_copy_context);
+
+    for(auto & id : e->local.ids)
+    {
+        auto new_name = m_name_provider.new_name(id->name);
+        auto new_id = make_shared<identifier>(new_name, id->expr, id->location);
+        new_id->type_expr = copy(id->type_expr);
+        new_id->explicit_type = id->explicit_type;
+        new_id->is_recursive = id->is_recursive;
+        r->local.ids.push_back(new_id);
+
+        m_copy_context.bind(id, new_id);
+    }
+
+    // Do the copying after binding all new ids,
+    // to support mutual recursion
+    for(auto & id : r->local.ids)
+    {
+        id->expr = copy(id->expr);
+    }
+
+    r->value = copy(e->value);
+
+    return r;
+}
+
 }
 }
