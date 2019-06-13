@@ -12,6 +12,16 @@ printer::printer()
 
 }
 
+void printer::print(const scope & s, ostream & out)
+{
+    using namespace std;
+    for (const auto & id : s.ids)
+    {
+        print(id, out);
+        out << endl;
+    }
+}
+
 void printer::print(id_ptr id, ostream & out)
 {
     out << id->name;

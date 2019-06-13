@@ -11,7 +11,9 @@ void scope_cleanup::clean(fn::scope & scope, fn::id_ptr id)
     for (auto & id : scope.ids)
         id->ref_count = 0;
 
+    id->ref_count = 1;
     m_used_ids.insert(id);
+
     visit_local_id(id);
 
     clean(scope);

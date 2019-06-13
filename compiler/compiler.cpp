@@ -28,6 +28,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/reference_analysis.hpp"
 #include "../frontend/func_reduction.hpp"
+#include "../frontend/folding.hpp"
 #include "../frontend/scope_cleanup.hpp"
 #include "../frontend/type_check.hpp"
 #include "../frontend/collect_ids.hpp"
@@ -165,12 +166,12 @@ result::code compile_module
             func_reducer.reduce(main_id);
         }
 
+        functional::scope scope;
+        scope.ids = ids;
+
         {
             arrp::scope_cleanup cleanup;
-            functional::scope scope;
-            scope.ids = ids;
             cleanup.clean(scope, main_id);
-            ids = scope.ids;
         }
 
         if (verbose<functional::model>::enabled())
@@ -178,11 +179,24 @@ result::code compile_module
             cerr << "-- Reduced functions:" << endl;
             functional::printer printer;
             printer.set_print_scopes(true);
-            for (const auto & id : ids)
-            {
-                printer.print(id, cout);
-                cout << endl;
-            }
+            printer.print(scope, cerr);
+            cerr << "--" << endl;
+        }
+
+        {
+            arrp::folding folding(func_name_provider);
+            folding.process(main_id);
+
+            arrp::scope_cleanup cleanup;
+            cleanup.clean(scope, main_id);
+        }
+
+        if (verbose<functional::model>::enabled())
+        {
+            cerr << "-- Reduced functions:" << endl;
+            functional::printer printer;
+            printer.set_print_scopes(true);
+            printer.print(scope, cerr);
             cerr << "--" << endl;
         }
 

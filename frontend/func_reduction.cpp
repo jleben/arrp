@@ -169,7 +169,7 @@ fn::expr_ptr func_reduction::apply(shared_ptr<fn::function> f,
             auto & var = f->vars[i];
             auto & arg = args[first_arg_idx + i];
 
-            // Lambda lift argument (turn it into an identifier).
+            // Turn argument into identifier.
             auto name = m_name_provider.new_name(var->qualified_name);
             auto id = make_shared<identifier>(name, arg, var->location);
             scope_e->local.ids.push_back(id);

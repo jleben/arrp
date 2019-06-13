@@ -41,6 +41,7 @@ class printer
 {
 public:
     printer();
+    void print(const scope & s, ostream & out);
     void print(id_ptr id, ostream &);
     void print(expr_ptr expr, ostream &);
     void print(const linexpr & expr, ostream &);
