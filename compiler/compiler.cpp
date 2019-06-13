@@ -28,6 +28,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../frontend/functional_gen.hpp"
 #include "../frontend/reference_analysis.hpp"
 #include "../frontend/func_reduction.hpp"
+#include "../frontend/scope_cleanup.hpp"
 #include "../frontend/type_check.hpp"
 #include "../frontend/collect_ids.hpp"
 #include "../frontend/array_reduction.hpp"
@@ -157,30 +158,38 @@ result::code compile_module
             throw source_error(msg, code_location(main_module));
         }
 
-        unordered_set<functional::id_ptr> array_ids;
-
         functional::name_provider func_name_provider(':');
 
         {
             arrp::func_reduction func_reducer(func_name_provider);
-
             func_reducer.reduce(main_id);
+        }
 
-            if (verbose<functional::model>::enabled())
+        {
+            arrp::scope_cleanup cleanup;
+            functional::scope scope;
+            scope.ids = ids;
+            cleanup.clean(scope, main_id);
+            ids = scope.ids;
+        }
+
+        if (verbose<functional::model>::enabled())
+        {
+            cerr << "-- Reduced functions:" << endl;
+            functional::printer printer;
+            printer.set_print_scopes(true);
+            for (const auto & id : ids)
             {
-                cerr << "-- Reduced functions:" << endl;
-                functional::printer printer;
-                printer.set_print_scopes(true);
-                for (const auto & id : ids)
-                {
-                    printer.print(id, cout);
-                    cout << endl;
-                }
-                cerr << "--" << endl;
+                printer.print(id, cout);
+                cout << endl;
             }
+            cerr << "--" << endl;
         }
 
         return result::ok;
+
+
+        unordered_set<functional::id_ptr> array_ids;
 
         {
             functional::type_checker type_checker(func_name_provider);

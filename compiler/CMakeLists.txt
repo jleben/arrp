@@ -13,6 +13,7 @@ add_library(arrp-lib STATIC
   ../frontend/module_parser.cpp
   ../frontend/prim_reduction.cpp
   ../frontend/functional_gen.cpp
+  ../frontend/scope_cleanup.cpp
   ../frontend/func_copy.cpp
   ../frontend/reference_analysis.cpp
   ../frontend/func_reduction.cpp
