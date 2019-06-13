@@ -11,6 +11,10 @@ namespace fn = stream::functional;
 using std::shared_ptr;
 using fn::id_ptr;
 
+// Purpose:
+// - Remove unused IDs.
+// - Fix ID reference counts.
+
 class scope_cleanup : public fn::visitor<void>
 {
 public:
