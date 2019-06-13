@@ -1,4 +1,5 @@
 #include "folding.hpp"
+#include "prim_reduction.hpp"
 
 #include "func_copy.hpp"
 
@@ -86,6 +87,16 @@ expr_ptr folding::visit_scope(const shared_ptr<fn::scope_expr> & scope)
         scope->local.ids = remaining_ids;
         return scope;
     }
+}
+
+expr_ptr folding::visit_primitive(const shared_ptr<fn::primitive> & primitive)
+{
+    for(auto & operand : primitive->operands)
+    {
+        operand = visit(operand);
+    }
+
+    return fn::reduce_primitive(primitive);
 }
 
 }

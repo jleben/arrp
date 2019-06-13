@@ -27,6 +27,8 @@ public:
 private:
     expr_ptr visit_ref(const shared_ptr<fn::reference> &) override;
     expr_ptr visit_scope(const shared_ptr<fn::scope_expr> &) override;
+    expr_ptr visit_primitive(const shared_ptr<fn::primitive> &) override;
+
     expr_ptr cleanup(scope &);
 
     name_provider m_name_provider;
