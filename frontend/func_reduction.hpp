@@ -34,6 +34,7 @@ private:
     fn::expr_ptr apply(shared_ptr<fn::function> f,
                        const vector<fn::expr_ptr> & args,
                        int pos);
+    static fn::expr_ptr try_expose_function(fn::expr_ptr e);
 
     fn::name_provider & m_name_provider;
     std::unordered_set<id_ptr> m_visited_ids;

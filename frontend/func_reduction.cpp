@@ -107,6 +107,10 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
     {
         cerr << "Remaining args = " << (app->args.size() - applied_arg_count) << endl;
 
+        object = try_expose_function(object);
+
+        cerr << "Applying: "; m_printer.print(object, cerr); cerr << endl;
+
         if (auto f = dynamic_pointer_cast<function>(object))
         {
             object = apply(f, arg_exprs, applied_arg_count);
@@ -158,12 +162,24 @@ fn::expr_ptr func_reduction::apply(shared_ptr<fn::function> f,
     {
         func_var_sub::context_type::scope_holder local_ctx(sub.m_context);
 
+        auto scope_e = make_shared<scope_expr>();
+
         for (int i = 0; i < applied_arg_count; ++i)
         {
-            sub.m_context.bind(f->vars[i], args[first_arg_idx + i]);
+            auto & var = f->vars[i];
+            auto & arg = args[first_arg_idx + i];
+
+            // Lambda lift argument (turn it into an identifier).
+            auto name = m_name_provider.new_name(var->qualified_name);
+            auto id = make_shared<identifier>(name, arg, var->location);
+            scope_e->local.ids.push_back(id);
+
+            auto ref = make_shared<reference>(id, location_type());
+            sub.m_context.bind(var, ref);
         }
 
-        f->expr = sub(f->expr);
+         scope_e->value = sub(f->expr);
+         f->expr = scope_e;
     }
 
     if (f->vars.size() > applied_arg_count)
@@ -210,5 +226,23 @@ fn::expr_ptr func_reduction::visit_ref(const shared_ptr<fn::reference> & ref)
     return ref;
 }
 
+
+fn::expr_ptr func_reduction::try_expose_function(fn::expr_ptr e)
+{
+    auto sub_expr = e;
+
+    while(auto scope = dynamic_pointer_cast<scope_expr>(sub_expr))
+    {
+        if (auto f = dynamic_pointer_cast<function>(scope->value.expr))
+        {
+            scope->value = f->expr;
+            f->expr = e;
+            return f;
+        }
+        sub_expr = scope->value;
+    }
+
+    return e;
+}
 
 }
