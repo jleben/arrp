@@ -126,24 +126,40 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
         }
     }
 
+    // Revisit to do reductions enabled by function variable substitutions.
+    object = visit(object);
+
     int remaining_args = app->args.size() - applied_arg_count;
 
     if (remaining_args > 0)
     {
-        if (auto e = dynamic_pointer_cast<external>(app->object.expr))
+        bool ok = false;
+
+        if (auto e = dynamic_pointer_cast<external>(object))
         {
-            app->object = object;
-            app->args = vector<expr_slot>(app->args.begin() + applied_arg_count,
-                                          app->args.end());
+            ok = true;
             cerr << "Terminating application at external function." << endl;
-            return app;
         }
-        else
+        else if (auto ref = dynamic_pointer_cast<reference>(object))
+        {
+            if (dynamic_pointer_cast<func_var>(ref->var))
+            {
+                ok = true;
+                cerr << "Terminating application at function variable." << endl;
+            }
+        }
+
+        if (!ok)
         {
             ostringstream msg;
             msg << "Can not apply remaining " << remaining_args << " arguments.";
             throw source_error(msg.str(), app->location);
         }
+
+        app->object = object;
+        app->args = vector<expr_slot>(app->args.begin() + applied_arg_count,
+                                      app->args.end());
+        return app;
     }
 
     return object;
@@ -226,6 +242,21 @@ fn::expr_ptr func_reduction::visit_ref(const shared_ptr<fn::reference> & ref)
     return ref;
 }
 
+fn::expr_ptr func_reduction::visit_scope(const shared_ptr<fn::scope_expr> & scope)
+{
+    auto result = rewriter_base::visit_scope(scope);
+    assert_or_throw(result == scope);
+
+    // Remove local ids from visited ids, so they can be revisited when
+    // further function variables are substituted.
+
+    for (auto & id : scope->local.ids)
+    {
+        m_visited_ids.erase(id);
+    }
+
+    return result;
+}
 
 fn::expr_ptr func_reduction::try_expose_function(fn::expr_ptr e)
 {

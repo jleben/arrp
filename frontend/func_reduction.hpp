@@ -31,6 +31,7 @@ public:
 private:
     fn::expr_ptr visit_func_app(const shared_ptr<fn::func_app> &) override;
     fn::expr_ptr visit_ref(const shared_ptr<fn::reference> &) override;
+    fn::expr_ptr visit_scope(const shared_ptr<fn::scope_expr> &) override;
     fn::expr_ptr apply(shared_ptr<fn::function> f,
                        const vector<fn::expr_ptr> & args,
                        int pos);
