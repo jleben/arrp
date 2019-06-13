@@ -103,6 +103,10 @@ public:
         {
             return visit_func_type(func_type);
         }
+        else if (auto scope = dynamic_pointer_cast<scope_expr>(expr))
+        {
+            return visit_scope(scope);
+        }
         else
         {
             throw error("Unexpected expression type");
@@ -504,7 +508,8 @@ public:
         for(auto & id : scope->local.ids)
             visit_local_id(id);
 
-        return visit(scope->value);
+        scope->value = visit(scope->value);
+        return scope;
     }
 };
 

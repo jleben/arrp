@@ -15,6 +15,7 @@ add_library(arrp-lib STATIC
   ../frontend/functional_gen.cpp
   ../frontend/func_copy.cpp
   ../frontend/reference_analysis.cpp
+  ../frontend/func_reduction.cpp
   ../frontend/type_check.cpp
   ../frontend/linear_expr_gen.cpp
   ../frontend/array_to_isl.cpp
