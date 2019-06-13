@@ -71,7 +71,7 @@ void func_reduction::reduce(fn::id_ptr id)
     cerr << "Reducing ID: " << id << endl;
 
     id->type_expr = visit(id->type_expr);
-    id->expr = visit(id->expr);
+    id->expr = try_expose_function(visit(id->expr));
 
     cerr << "Reduced ID:";
     m_printer.print(id, cerr);
@@ -88,7 +88,6 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
 
     for (auto & arg : app->args)
     {
-        // FIXME: Turn argument into local identifier if not a simple reference.
         arg = visit(arg);
     }
 
@@ -135,17 +134,20 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
     {
         bool ok = false;
 
-        if (auto e = dynamic_pointer_cast<external>(object))
-        {
-            ok = true;
-            cerr << "Terminating application at external function." << endl;
-        }
-        else if (auto ref = dynamic_pointer_cast<reference>(object))
+        if (auto ref = dynamic_pointer_cast<reference>(object))
         {
             if (dynamic_pointer_cast<func_var>(ref->var))
             {
                 ok = true;
                 cerr << "Terminating application at function variable." << endl;
+            }
+            else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+            {
+                if (dynamic_pointer_cast<external>(id->expr.expr))
+                {
+                    ok = true;
+                    cerr << "Terminating application at external function." << endl;
+                }
             }
         }
 
