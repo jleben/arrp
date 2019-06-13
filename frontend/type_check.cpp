@@ -114,15 +114,14 @@ type_checker::type_checker(name_provider & nmp):
     m_trace("trace"),
     m_name_provider(nmp),
     m_copier(m_ids, nmp),
-    m_var_sub(m_copier),
     m_affine(m_copier)
 {
     m_trace.set_enabled(false);
 }
 
-void type_checker::process(const vector<id_ptr> & ids)
+void type_checker::process(scope & sc)
 {
-    for (auto id : ids)
+    for (auto id : sc.ids)
         process(id);
 }
 
@@ -130,6 +129,7 @@ void type_checker::process(id_ptr id)
 {
     process_explicit_type(id);
 
+    // Return if already processed
     if (id->expr->type)
         return;
 
@@ -232,207 +232,6 @@ void type_checker::process_explicit_type(id_ptr id)
     }
 }
 
-expr_ptr type_checker::apply
-(expr_ptr e, const vector<expr_ptr> & args, const location_type & loc)
-{
-    if (verbose<type_checker>::enabled())
-    {
-        cout << "+ Function application at: " << loc << endl;
-    }
-
-    auto arg_it = args.begin();
-    std::shared_ptr<function> f;
-    while((f = dynamic_pointer_cast<function>(e)) && arg_it != args.end())
-    {
-        vector<expr_ptr> applied_args;
-        while(arg_it != args.end() && applied_args.size() < f->vars.size())
-            applied_args.push_back(*arg_it++);
-
-        e = do_apply(f, applied_args, loc);
-    }
-    if (arg_it != args.end())
-    {
-        ostringstream msg;
-        msg << "Too many arguments in function application. "
-            << (arg_it - args.begin()) << "expected." << endl;
-        throw type_error(msg.str(), loc);
-    }
-
-    if (verbose<type_checker>::enabled())
-    {
-        cout << "- Function application at: " << loc << endl;
-    }
-
-    return e;
-}
-
-expr_ptr type_checker::do_apply
-(shared_ptr<function> func,
- const vector<expr_ptr> & args,
- const location_type & loc)
-{
-    assert_or_throw(func->vars.size() >= args.size());
-
-    printer p;
-
-    reduce_context_type::scope_holder scope(m_var_sub.m_context);
-
-    // Prepare arguments
-
-    for (int i = 0; i < args.size(); ++i)
-    {
-        auto & var = func->vars[i];
-        auto arg = args[i];
-        arg = visit(arg);
-
-        atomic_expr_check is_atomic;
-        // No need to lambda-lift functions, since each reference to
-        // an argument inside this function is replaced by a copy of the argument.
-        if (var->ref_count > 1 && !is_atomic(arg) && !arg->type->is_function())
-        {
-            if (verbose<type_checker>::enabled())
-            {
-                cout << "Lambda-lifting arg " << i << " = ";
-                p.print(arg, cout);
-                cout << endl;
-            }
-            arg = lambda_lift(arg, var->qualified_name);
-        }
-
-        if (verbose<type_checker>::enabled())
-        {
-            cout << "+ bound var " << var << " = ";
-            p.print(arg, cout);
-            cout << endl;
-        }
-        m_var_sub.m_context.bind(var, arg);
-    }
-
-    // Remember if this is a partial application
-
-    bool is_partial_app = func->vars.size() > args.size();
-
-    // Reduce
-
-    m_trace.push(loc);
-
-    // Substitute
-
-    m_var_sub(func);
-
-    // Reduce
-
-    if (!is_partial_app)
-    {
-        if (verbose<type_checker>::enabled())
-        {
-            cout << "Pushing scope of applied function:";
-            cout << " (" << &func->scope << ")";
-            cout << endl;
-        }
-
-        m_scope_stack.push(&func->scope);
-
-        {
-            auto id_copies = func->scope.ids;
-            for (auto id : id_copies)
-                process(id);
-        }
-
-        func->expr = visit(func->expr);
-
-        if (verbose<type_checker>::enabled())
-        {
-            cout << "Popping scope of applied function:";
-            cout << " (" << &func->scope << ")";
-            cout << endl;
-        }
-
-        m_scope_stack.pop();
-    }
-
-    m_trace.pop();
-
-    if (is_partial_app)
-    {
-        // Return partially applied function
-
-        vector<func_var_ptr> remaining_vars
-                (func->vars.begin() + args.size(),
-                 func->vars.end());
-
-        func->vars = remaining_vars;
-
-        return func;
-    }
-    else
-    {
-        // Add ids to enclosing scope, if any.
-
-        if (!m_scope_stack.empty())
-        {
-            auto & parent_ids = m_scope_stack.top()->ids;
-            auto & ids = func->scope.ids;
-            parent_ids.insert(parent_ids.end(), ids.begin(), ids.end());
-        }
-
-        // Return function expression
-
-        return func->expr;
-    }
-}
-
-expr_ptr type_checker::apply_external(const shared_ptr<func_app> & app)
-{
-    auto func_type = dynamic_pointer_cast<function_type>(app->object->type);
-    if (!func_type)
-        throw type_error("Not a function.", app->object.location);
-
-    auto & args = app->args;
-
-    for (auto & arg : args)
-    {
-        arg = visit(arg);
-
-        // FIXME: Why is lambda-lifting done here?
-        // Maybe it should be done in array reduction instead?
-        // Also, the primitive check should consider external calls primitive.
-        primitive_expr_check is_primitive;
-        if (!is_primitive(arg))
-            arg = lambda_lift(arg, "_tmp");
-    }
-
-    if (args.size() != func_type->param_count())
-    {
-        ostringstream msg;
-        msg << "Wrong number of arguments in function application: "
-            << func_type->param_count() << " expected, "
-            << args.size() << " given.";
-        throw type_error(msg.str(), app->location);
-    }
-
-    for (int p = 0; p < func_type->param_count(); ++p)
-    {
-        assert(func_type->params[p]);
-        const auto & pt = *func_type->params[p];
-        const auto & at = *args[p]->type;
-        bool ok = at <= pt;
-        if (!ok)
-        {
-            ostringstream msg;
-            msg << "Argument type mismatch:"
-                << " expected " << pt
-                << " but given " << at;
-            throw type_error(msg.str(), args[p].location);
-        }
-    }
-
-    assert(func_type->value);
-    app->type = func_type->value;
-
-    return app;
-}
-
 expr_ptr type_checker::visit(const expr_ptr & expr)
 {
     if (expr && (m_force_revisit || !expr->type))
@@ -499,9 +298,9 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
             }
             else if (id->is_recursive)
             {
+                // FIXME: Implement recursive inference.
                 throw type_error("Recursion requires explicit_type.", id->location);
-
-                process(id);
+                //process(id);
             }
             else
             {
@@ -509,35 +308,7 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
             }
         }
 
-        if (auto func = dynamic_pointer_cast<function>(id->expr.expr))
-        {
-            if (id->is_recursive)
-            {
-                throw type_error("Recursive use of function not allowed.",
-                                      id->location);
-            }
-            if (verbose<type_checker>::enabled())
-            {
-                cout << "Reference to id " << id->name
-                     << " is a function - using a copy of the function intead."
-                     << endl;
-            }
-            return m_copier.copy(func);
-        }
-        else if (auto ext = dynamic_pointer_cast<external>(id->expr.expr))
-        {
-            if (!ext->is_input)
-            {
-                if (verbose<type_checker>::enabled())
-                {
-                    cout << "Reference to id " << id->name
-                         << " is an external function - using a copy of the function instead."
-                         << endl;
-                }
-                return m_copier.copy(ext);
-            }
-        }
-        else if (is_constant(id->expr))
+        if (is_constant(id->expr))
         {
             if (verbose<type_checker>::enabled())
             {
@@ -545,6 +316,7 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
                      << " is constant - using the value instead."
                      << endl;
             }
+            // FIXME: Should this expression be copied?
             return id->expr;
         }
 
@@ -880,14 +652,6 @@ expr_ptr type_checker::visit_array(const shared_ptr<array> & arr)
     }
 
     {
-        auto scope_stacker = stack_scoped(&arr->scope, m_scope_stack);
-
-        {
-            auto id_copies = arr->scope.ids;
-            for (auto id : id_copies)
-                process(id);
-        }
-
         process_array(arr);
 
         if (arr->is_recursive)
@@ -1018,7 +782,8 @@ void type_checker::process_array(const shared_ptr<array> & arr)
 
     // Limit array size
 
-    m_array_bounding.bound(arr);
+    // FIXME: Array bounding disabled to enable type inference for recursive ids.
+    // m_array_bounding.bound(arr);
 
     // Extract array size from range of array variables
 
@@ -1394,97 +1159,65 @@ expr_ptr type_checker::visit_func_type(const shared_ptr<func_type_expr> & e)
 
 expr_ptr type_checker::visit_func(const shared_ptr<function> & func)
 {
-    // FIXME: Imprecise function type:
-    func->type = make_shared<function_type>(func->vars.size());
-    return func;
+    throw source_error("Unexpected function.", func->location);
 }
 
 expr_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
 {
     app->object = visit(app->object);
 
-    expr_ptr result;
-
-    if (auto func = dynamic_pointer_cast<function>(app->object.expr))
-    {
-        // convert vector of slots to vector of expressions
-        vector<expr_ptr> args;
-        for (auto & arg : app->args)
-            args.push_back(arg);
-
-        result = apply(func, args, app->location);
-    }
-    else if (auto ext = dynamic_pointer_cast<external>(app->object.expr))
-    {
-        result = apply_external(app);
-    }
-    else
-    {
+    auto func_type = dynamic_pointer_cast<function_type>(app->object->type);
+    if (!func_type)
         throw type_error("Not a function.", app->object.location);
+
+    auto & args = app->args;
+
+    for (auto & arg : args)
+    {
+        arg = visit(arg);
     }
 
-    return result;
+    if (args.size() != func_type->param_count())
+    {
+        ostringstream msg;
+        msg << "Wrong number of arguments in function application: "
+            << func_type->param_count() << " expected, "
+            << args.size() << " given.";
+        throw type_error(msg.str(), app->location);
+    }
+
+    for (int p = 0; p < func_type->param_count(); ++p)
+    {
+        assert(func_type->params[p]);
+        const auto & pt = *func_type->params[p];
+        const auto & at = *args[p]->type;
+        // FIXME: I'm not sure the following is good for external.
+        // An external may accept a scalar subtype, but not an array subtype.
+        bool ok = at <= pt;
+        if (!ok)
+        {
+            ostringstream msg;
+            msg << "Argument type mismatch:"
+                << " expected " << pt
+                << " but given " << at;
+            throw type_error(msg.str(), args[p].location);
+        }
+    }
+
+    assert(func_type->value);
+    app->type = func_type->value;
+
+    return app;
 }
 
-expr_ptr type_checker::lambda_lift(expr_ptr e, const string & name)
+expr_ptr type_checker::visit_scope(const shared_ptr<scope_expr> &scope)
 {
-    auto id_name = m_name_provider.new_name(name);
-    auto id = make_shared<identifier>(id_name, e, location_type());
-    m_ids.insert(id);
-    if (m_scope_stack.size())
-    {
-        m_scope_stack.top()->ids.push_back(id);
-        if (verbose<type_checker>::enabled())
-        {
-            cout << "Stored lambda-lifted expression with id " << id_name
-                 << " into enclosing function scope."
-                 << " (" << m_scope_stack.top() << ")"
-                 << endl;
-        }
-    }
-    else
-    {
-        if (verbose<type_checker>::enabled())
-        {
-            cout << "No enclosing function scope for lambda-lifted expression with id "
-                 << id_name
-                 << endl;
-        }
-    }
+    for (auto & id : scope->local.ids)
+        process(id);
 
-    auto ref = make_shared<reference>(id, e->location);
-    ref->type = e->type;
-
-    return ref;
-}
-
-expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
-{
-    printer p;
-
-    if (auto fv = dynamic_pointer_cast<func_var>(ref->var))
-    {
-        auto binding = m_context.find(fv);
-        if (binding)
-        {
-            if (verbose<type_checker>::enabled())
-            {
-                cout << "Substituting a reference to var " << fv << " = ";
-                p.print(binding.value(), cout);
-                cout << endl;
-            }
-            return m_copier.copy(binding.value());
-        }
-        else
-        {
-            if (verbose<type_checker>::enabled())
-            {
-                cout << "No substitution for reference to var " << fv << endl;
-            }
-        }
-    }
-
-    return ref;
+    scope->value = visit(scope->value);
+    scope->type = scope->value->type;
+    return scope;
 }
 
 }

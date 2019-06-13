@@ -31,7 +31,12 @@ void printer::print(id_ptr id, ostream & out)
         out << "@";
     out << "}";
 
-    if (id->type_expr)
+    if (id->expr->type)
+    {
+        out << " :: ";
+        out << *id->expr->type;
+    }
+    else if (id->type_expr)
     {
         out << " :: ";
         out << '\'';

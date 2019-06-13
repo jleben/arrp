@@ -18,26 +18,6 @@ namespace functional {
 using std::stack;
 using std::unordered_set;
 
-class func_var_sub : public rewriter_base
-{
-public:
-    using context_type = context<var_ptr, expr_ptr>;
-
-    func_var_sub(copier & c): m_copier(c) {}
-
-    expr_ptr operator()(const expr_ptr & e)
-    {
-        return visit(e);
-    }
-
-    expr_ptr visit_ref(const shared_ptr<reference> & e) override;
-
-    context_type m_context;
-
-private:
-    copier & m_copier;
-};
-
 class type_checker : public rewriter_base
 {
     // FIXME: when array vars are passed as function arguments,
@@ -49,16 +29,13 @@ public:
 
     unordered_set<id_ptr> & ids() { return m_ids; }
 
-    void process(const vector<id_ptr> & ids);
+    // This may add ids into the scope:
+    void process(scope &);
 
 private:
     void process(id_ptr);
     void process_explicit_type(id_ptr);
 
-    expr_ptr apply(expr_ptr e, const vector<expr_ptr> & args,
-                   const location_type &);
-    expr_ptr do_apply(shared_ptr<function>, const vector<expr_ptr> & args,
-                      const location_type &);
     expr_ptr apply_external(const shared_ptr<func_app> &);
 
     expr_ptr visit(const expr_ptr & expr) override;
@@ -85,6 +62,7 @@ private:
     expr_ptr visit_func_type(const shared_ptr<func_type_expr> &) override;
     expr_ptr visit_func(const shared_ptr<function> & func) override;
     expr_ptr visit_func_app(const shared_ptr<func_app> & app) override;
+    expr_ptr visit_scope(const shared_ptr<scope_expr> &scope) override;
     expr_ptr lambda_lift(expr_ptr, const string & name);
 
     source_error
@@ -93,20 +71,16 @@ private:
         return source_error(msg, loc, m_trace);
     }
 
-    using reduce_context_type = context<var_ptr, expr_ptr>;
     using processing_id_stack_type = stack_adapter<deque<id_ptr>>;
 
     tracing_stack<location_type> m_trace;
     processing_id_stack_type m_processing_ids;
-    stack<scope*> m_scope_stack;
-    stack<array_ptr> m_array_copy_stack;
     bool m_force_revisit = false;
 
     unordered_set<id_ptr> m_ids;
 
     name_provider & m_name_provider;
     copier m_copier;
-    func_var_sub m_var_sub;
     array_bounding m_array_bounding;
     affine_integer_expression_check m_affine;
 };

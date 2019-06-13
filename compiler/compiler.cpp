@@ -183,6 +183,11 @@ result::code compile_module
             cerr << "--" << endl;
         }
 
+        if (dynamic_pointer_cast<functional::function>(main_id))
+        {
+            throw source_error("main must not be a function.", main_id->location);
+        }
+
         {
             arrp::folding folding(func_name_provider);
             folding.process(main_id);
@@ -193,37 +198,31 @@ result::code compile_module
 
         if (verbose<functional::model>::enabled())
         {
-            cerr << "-- Reduced functions:" << endl;
+            cerr << "-- Folded:" << endl;
             functional::printer printer;
             printer.set_print_scopes(true);
             printer.print(scope, cerr);
             cerr << "--" << endl;
         }
 
-        return result::ok;
-
-
         unordered_set<functional::id_ptr> array_ids;
 
         {
             functional::type_checker type_checker(func_name_provider);
-
-            type_checker.process(ids);
-
+            type_checker.process(scope);
             array_ids = type_checker.ids();
-
-            if (verbose<functional::model>::enabled())
-            {
-                cout << "-- Reduced functions:" << endl;
-                functional::printer printer;
-                printer.set_print_scopes(false);
-                for (const auto & id : array_ids)
-                {
-                    printer.print(id, cout);
-                    cout << endl;
-                }
-            }
         }
+
+        if (verbose<functional::model>::enabled())
+        {
+            cerr << "-- Typed:" << endl;
+            functional::printer printer;
+            printer.set_print_scopes(false);
+            printer.print(scope, cerr);
+        }
+
+        return result::ok;
+
 
         if (main_id->expr->type->is_function())
         {
