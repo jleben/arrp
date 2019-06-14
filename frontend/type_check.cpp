@@ -121,24 +121,32 @@ type_checker::type_checker(name_provider & nmp):
 
 void type_checker::process(scope & sc)
 {
-    for (auto id : sc.ids)
+    if (verbose<type_checker>::enabled())
+        cout << "--- Type check pass 1 ---" << endl;
+
+    m_processed_ids.clear();
+
+    for (auto & id : sc.ids)
+        process(id);
+
+    if (verbose<type_checker>::enabled())
+        cout << "--- Type check pass 2 ---" << endl;
+
+    m_processed_ids.clear();
+
+    for (auto & id : sc.ids)
         process(id);
 }
 
 void type_checker::process(id_ptr id)
 {
-    process_explicit_type(id);
-
-    // Return if already processed
-    if (id->expr->type)
-        return;
-
-    if (!id->expr)
-        return;
-
-    if (verbose<type_checker>::enabled())
+    if (m_processed_ids.count(id))
     {
-        cout << "Processing id " << id->name << endl;
+        if (verbose<type_checker>::enabled())
+        {
+            cout << "Id already processed: " << id->name << endl;
+        }
+        return;
     }
 
     bool is_visiting =
@@ -154,10 +162,28 @@ void type_checker::process(id_ptr id)
         return;
     }
 
+    process_explicit_type(id);
+
+    if (!id->expr)
+    {
+        if (verbose<type_checker>::enabled())
+            cout << "Id has no expression: " << id->name << endl;
+        return;
+    }
+
+    if (verbose<type_checker>::enabled())
+    {
+        cout << "Processing id " << id->name << endl;
+    }
+
     auto processing_id_token = stack_scoped(id, m_processing_ids);
 
     id->expr = visit(id->expr);
 
+    m_processed_ids.insert(id);
+
+    // FIXME: When type is not fully inferred, it will not match explicit type.
+    // FIXME: In second pass, compare previous and current type.
     if (id->explicit_type && *id->explicit_type != *id->expr->type)
     {
         ostringstream msg;
@@ -196,7 +222,7 @@ void type_checker::process_explicit_type(id_ptr id)
     {
         cout << "Processing explicit type for id " << id->name << endl;
     }
-
+#if 0
     bool is_visiting =
             std::find(m_processing_ids.begin(), m_processing_ids.end(), id)
             != m_processing_ids.end();
@@ -211,7 +237,7 @@ void type_checker::process_explicit_type(id_ptr id)
     }
 
     auto processing_id_token = stack_scoped(id, m_processing_ids);
-
+#endif
     id->type_expr = visit(id->type_expr);
 
     auto meta_type = id->type_expr->type;
@@ -234,10 +260,27 @@ void type_checker::process_explicit_type(id_ptr id)
 
 expr_ptr type_checker::visit(const expr_ptr & expr)
 {
+    // FIXME: Is this OK?
+    if (!expr)
+        return expr;
+
+    if (false)
+    {
+        auto p = expr.get();
+        if (m_processed_refs.count(p))
+        {
+            throw error("Double processing.");
+        }
+        m_processed_refs.insert(p);
+    }
+
+    return visitor<expr_ptr>::visit(expr);
+#if 0
     if (expr && (m_force_revisit || !expr->type))
         return visitor<expr_ptr>::visit(expr);
 
     return expr;
+#endif
 }
 
 expr_ptr type_checker::visit_int(const shared_ptr<int_const> & expr)
@@ -272,6 +315,8 @@ expr_ptr type_checker::visit_infinity(const shared_ptr<infinity> & expr)
 
 expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
+    cerr << "Reference: " << ref->var->name << " = " << ref.get() << endl;
+
     printer p;
 
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
@@ -282,7 +327,12 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
                                ref->location);
         }
 
-        process_explicit_type(id);
+        if (verbose<type_checker>::enabled())
+        {
+            cerr << "Referenced id: " << id->name << endl;
+        }
+
+        process(id);
 
         if (id->explicit_type)
         {
@@ -290,22 +340,25 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
         }
         else
         {
-            process(id);
-
             if (id->expr->type)
             {
                 ref->type = id->expr->type;
             }
             else if (id->is_recursive)
             {
-                // FIXME: Implement recursive inference.
-                throw type_error("Recursion requires explicit_type.", id->location);
-                //process(id);
+                ref->type = make_shared<scalar_type>(primitive_type::undefined);
             }
             else
             {
                 throw error("Id has no inferred or explicit type.");
             }
+        }
+
+        if (verbose<type_checker>::enabled())
+        {
+            cout <<  "Using this type for referenced id: "
+                  << id->name << " :: " << *ref->type
+                  << endl;
         }
 
         if (is_constant(id->expr))
@@ -317,6 +370,8 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
                      << endl;
             }
             // FIXME: Should this expression be copied?
+            // FIXME: The id may not have been processed yet,
+            // so the expression may have no type.
             return id->expr;
         }
 
@@ -335,10 +390,13 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
     }
 }
 
-expr_ptr type_checker::visit_primitive(const shared_ptr<primitive> & source_prim)
+expr_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 {
+    // FIXME: This seems redundant. Maybe it was useful when type checker did beta reduction...
+#if 0
     auto prim = dynamic_pointer_cast<primitive>(rewriter_base::visit_primitive(source_prim));
     assert(prim);
+#endif
 
     for (auto & operand : prim->operands)
     {
@@ -646,6 +704,7 @@ expr_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 
 expr_ptr type_checker::visit_array(const shared_ptr<array> & arr)
 {
+    // FIXME: var range is also visited in process_array. Remove this?
     for (auto & var : arr->vars)
     {
         var->range = visit(var->range);
@@ -653,7 +712,7 @@ expr_ptr type_checker::visit_array(const shared_ptr<array> & arr)
 
     {
         process_array(arr);
-
+#if 0
         if (arr->is_recursive)
         {
             if (verbose<type_checker>::enabled())
@@ -671,6 +730,7 @@ expr_ptr type_checker::visit_array(const shared_ptr<array> & arr)
                                       arr->location);
             }
         }
+#endif
     }
 
     return arr;
@@ -681,7 +741,11 @@ void type_checker::process_array(const shared_ptr<array> & arr)
     for (auto & var : arr->vars)
     {
         if (!var->range)
-            continue;
+        {
+            // FIXME: This is instead of array bounding.
+            var->range = make_shared<infinity>();
+            //continue;
+        }
 
         var->range = visit(var->range);
 

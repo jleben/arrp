@@ -75,6 +75,9 @@ private:
 
     tracing_stack<location_type> m_trace;
     processing_id_stack_type m_processing_ids;
+    unordered_set<id_ptr> m_processed_ids;
+    unordered_set<void*> m_processed_refs;
+
     bool m_force_revisit = false;
 
     unordered_set<id_ptr> m_ids;
