@@ -31,6 +31,7 @@ public:
     virtual bool is_function() const { return false; }
     virtual bool is_data() const { return false; }
     virtual bool is_meta() const { return false; }
+    virtual bool is_undefined() const { return false; }
 
     virtual bool operator==(const type & other) const = 0;
     virtual bool operator<=(const type & other) const { return *this == other; }
@@ -51,6 +52,7 @@ public:
 
     bool is_scalar() const override { return true; }
     bool is_data() const override { return primitive != primitive_type::infinity; }
+    bool is_undefined() const override { return primitive == primitive_type::undefined; }
 
     virtual bool operator==(const type & t) const override
     {
@@ -99,6 +101,10 @@ public:
     void print(ostream &) const override;
     bool is_array() const override { return true; }
     bool is_data() const override { return element != primitive_type::infinity; }
+    bool is_undefined() const override
+    {
+        return element == primitive_type::undefined;
+    }
     bool is_infinite() const
     {
         for (auto & s : size)
@@ -145,6 +151,17 @@ public:
     void print(ostream &) const override;
 
     bool is_function() const override { return true; }
+    bool is_undefined() const override
+    {
+        bool result = false;
+
+        for (auto & param : params)
+            result |= param->is_undefined();
+
+        result |= value->is_undefined();
+
+        return result;
+    }
 
     int param_count() const { return (int) params.size(); }
 

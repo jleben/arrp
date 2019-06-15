@@ -65,6 +65,8 @@ private:
     expr_ptr visit_scope(const shared_ptr<scope_expr> &scope) override;
     expr_ptr lambda_lift(expr_ptr, const string & name);
 
+    void assign(expr_ptr, type_ptr);
+
     source_error
     type_error(const string & msg, const location_type & loc)
     {
@@ -73,6 +75,7 @@ private:
 
     using processing_id_stack_type = stack_adapter<deque<id_ptr>>;
 
+    int m_pass = 0;
     tracing_stack<location_type> m_trace;
     processing_id_stack_type m_processing_ids;
     unordered_set<id_ptr> m_processed_ids;

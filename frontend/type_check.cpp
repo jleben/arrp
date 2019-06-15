@@ -121,21 +121,37 @@ type_checker::type_checker(name_provider & nmp):
 
 void type_checker::process(scope & sc)
 {
-    if (verbose<type_checker>::enabled())
-        cout << "--- Type check pass 1 ---" << endl;
+    int pass_count = 3;
+    for (m_pass = 1; m_pass <= pass_count; ++m_pass)
+    {
+        if (verbose<type_checker>::enabled())
+            cout << "--- Type check pass " << m_pass << " ---" << endl;
 
-    m_processed_ids.clear();
+        m_processed_ids.clear();
 
-    for (auto & id : sc.ids)
-        process(id);
+        for (auto & id : sc.ids)
+            process(id);
+    }
+}
 
-    if (verbose<type_checker>::enabled())
-        cout << "--- Type check pass 2 ---" << endl;
+void type_checker::assign(expr_ptr e, type_ptr t)
+{
+    if (m_pass < 3)
+    {
+        e->type = t;
+    }
+    else
+    {
+        if (!e->type || e->type->is_undefined())
+        {
+            throw type_error("Type could not be completely inferred.", e->location);
+        }
 
-    m_processed_ids.clear();
-
-    for (auto & id : sc.ids)
-        process(id);
+        if (*e->type != *t)
+        {
+            throw type_error("No type satisfying the constraints.", e->location);
+        }
+    }
 }
 
 void type_checker::process(id_ptr id)
@@ -285,31 +301,31 @@ expr_ptr type_checker::visit(const expr_ptr & expr)
 
 expr_ptr type_checker::visit_int(const shared_ptr<int_const> & expr)
 {
-    expr->type = make_shared<scalar_type>(primitive_type::integer);
+    assign(expr, make_shared<scalar_type>(primitive_type::integer));
     return expr;
 }
 
 expr_ptr type_checker::visit_real(const shared_ptr<real_const> & expr)
 {
-    expr->type = make_shared<scalar_type>(primitive_type::real64);
+    assign(expr, make_shared<scalar_type>(primitive_type::real64));
     return expr;
 }
 
 expr_ptr type_checker::visit_complex(const shared_ptr<complex_const> & expr)
 {
-    expr->type = make_shared<scalar_type>(primitive_type::complex64);
+    assign(expr, make_shared<scalar_type>(primitive_type::complex64));
     return expr;
 }
 
 expr_ptr type_checker::visit_bool(const shared_ptr<bool_const> & expr)
 {
-    expr->type = make_shared<scalar_type>(primitive_type::boolean);
+    assign(expr, make_shared<scalar_type>(primitive_type::boolean));
     return expr;
 }
 
 expr_ptr type_checker::visit_infinity(const shared_ptr<infinity> & expr)
 {
-    expr->type = type::infinity();
+    assign(expr, type::infinity());
     return expr;
 }
 
@@ -336,17 +352,17 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 
         if (id->explicit_type)
         {
-            ref->type = id->explicit_type;
+            assign(ref, id->explicit_type);
         }
         else
         {
             if (id->expr->type)
             {
-                ref->type = id->expr->type;
+                assign(ref, id->expr->type);
             }
             else if (id->is_recursive)
             {
-                ref->type = make_shared<scalar_type>(primitive_type::undefined);
+                assign(ref, make_shared<scalar_type>(primitive_type::undefined));
             }
             else
             {
@@ -381,7 +397,7 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
-        ref->type = make_shared<scalar_type>(primitive_type::integer);
+        assign(ref, make_shared<scalar_type>(primitive_type::integer));
         return ref;
     }
     else
@@ -464,11 +480,11 @@ expr_ptr type_checker::visit_primitive(const shared_ptr<primitive> & prim)
 
     if (common_size.empty())
     {
-        prim->type = make_shared<scalar_type>(result_elem_type);
+        assign(prim, make_shared<scalar_type>(result_elem_type));
     }
     else
     {
-        prim->type = make_shared<array_type>(common_size, result_elem_type);
+        assign(prim, make_shared<array_type>(common_size, result_elem_type));
     }
 
     return prim;
@@ -565,7 +581,7 @@ expr_ptr type_checker::process_array_concat(const shared_ptr<operation> & op)
     result_size.insert(result_size.end(),
                        common_elem_size.begin(), common_elem_size.end());
 
-    op->type = make_shared<array_type>(result_size, result_elem_type);
+    assign(op, make_shared<array_type>(result_size, result_elem_type));
 
     return op;
 }
@@ -627,7 +643,7 @@ expr_ptr type_checker::process_array_enum(const shared_ptr<operation> & op)
     result_size.insert(result_size.end(),
                        common_elem_size.begin(), common_elem_size.end());
 
-    op->type = make_shared<array_type>(result_size, result_elem_type);
+    assign(op, make_shared<array_type>(result_size, result_elem_type));
 
     return op;
 }
@@ -692,11 +708,11 @@ expr_ptr type_checker::visit_cases(const shared_ptr<case_expr> & cexpr)
 
     if (common_size.empty())
     {
-        cexpr->type = make_shared<scalar_type>(result_elem_type);
+        assign(cexpr, make_shared<scalar_type>(result_elem_type));
     }
     else
     {
-        cexpr->type = make_shared<array_type>(common_size, result_elem_type);
+        assign(cexpr, make_shared<array_type>(common_size, result_elem_type));
     }
 
     return cexpr;
@@ -776,7 +792,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
 
     auto process_type = [&](expr_slot & e)
     {
-        auto & type = e->type;
+        const auto & type = e->type;
 
         if (!type->is_data())
         {
@@ -842,7 +858,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
         throw type_error("Incompatible types.", arr->location);
     }
 
-    patterns->type = type_for(common_subdom_size, result_elem_type);
+    assign(patterns, type_for(common_subdom_size, result_elem_type));
 
     // Limit array size
 
@@ -865,7 +881,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
 
     size.insert(size.end(), common_subdom_size.begin(), common_subdom_size.end());
 
-    arr->type = make_shared<array_type>(size, result_elem_type);
+    assign(arr, make_shared<array_type>(size, result_elem_type));
 }
 
 expr_ptr type_checker::visit_array_patterns(const shared_ptr<array_patterns> &)
@@ -885,7 +901,7 @@ expr_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
             cout << mention(self->location)
                  << "Self reference using known array type: "
                  << *arr->type << endl;
-        self->type = arr->type;
+        assign(self, arr->type);
         return self;
     }
 
@@ -906,7 +922,7 @@ expr_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
         cout << mention(self->location)
              << "Self reference synthesized type: " << *result << endl;
 
-    self->type = result;
+    assign(self, result);
     return self;
 }
 
@@ -1014,13 +1030,13 @@ expr_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
 
     if (object_size.size() <= app->args.size())
     {
-        app->type = make_shared<scalar_type>(elem_type);
+        assign(app, make_shared<scalar_type>(elem_type));
     }
     else
     {
         vector<int> remaining_size(object_size.begin() + app->args.size(),
                                    object_size.end());
-        app->type = make_shared<array_type>(remaining_size, elem_type);
+        assign(app, make_shared<array_type>(remaining_size, elem_type));
     }
 
     return app;
@@ -1129,7 +1145,7 @@ expr_ptr type_checker::visit_external(const shared_ptr<external> & ext)
         }
     }
 
-    ext->type = type;
+    assign(ext, type);
 
     return ext;
 }
@@ -1269,7 +1285,7 @@ expr_ptr type_checker::visit_func_app(const shared_ptr<func_app> & app)
     }
 
     assert(func_type->value);
-    app->type = func_type->value;
+    assign(app, func_type->value);
 
     return app;
 }
@@ -1280,7 +1296,8 @@ expr_ptr type_checker::visit_scope(const shared_ptr<scope_expr> &scope)
         process(id);
 
     scope->value = visit(scope->value);
-    scope->type = scope->value->type;
+
+    assign(scope, scope->value->type);
     return scope;
 }
 
