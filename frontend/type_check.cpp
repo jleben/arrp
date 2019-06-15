@@ -329,8 +329,6 @@ expr_ptr type_checker::visit_infinity(const shared_ptr<infinity> & expr)
 
 expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 {
-    cerr << "Reference: " << ref->var->name << " = " << ref.get() << endl;
-
     printer p;
 
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
@@ -343,7 +341,7 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
 
         if (verbose<type_checker>::enabled())
         {
-            cerr << "Referenced id: " << id->name << endl;
+            cout << "Referenced id: " << id->name << endl;
         }
 
         process(id);
