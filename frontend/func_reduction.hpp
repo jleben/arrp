@@ -24,6 +24,8 @@ using std::vector;
 class func_reduction : public fn::rewriter_base
 {
 public:
+    static bool verbose();
+
     func_reduction(fn::name_provider &);
 
     void reduce(fn::id_ptr id);

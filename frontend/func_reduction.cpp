@@ -40,7 +40,7 @@ expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
         auto binding = m_context.find(fv);
         if (binding)
         {
-            //if (verbose<type_checker>::enabled())
+            if (func_reduction::verbose())
             {
                 cout << "Substituting a reference to var " << fv << " = ";
                 p.print(binding.value(), cout);
@@ -50,7 +50,7 @@ expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
         }
         else
         {
-            //if (verbose<type_checker>::enabled())
+            if (func_reduction::verbose())
             {
                 cout << "No substitution for reference to var " << fv << endl;
             }
@@ -58,6 +58,11 @@ expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
     }
 
     return ref;
+}
+
+bool func_reduction::verbose()
+{
+    return stream::verbose<func_reduction>::enabled();
 }
 
 func_reduction::func_reduction(fn::name_provider & nm):
@@ -68,21 +73,28 @@ func_reduction::func_reduction(fn::name_provider & nm):
 
 void func_reduction::reduce(fn::id_ptr id)
 {
-    cerr << "Reducing ID: " << id << endl;
+    if (verbose())
+        cout << "Reducing ID: " << id << endl;
 
     id->type_expr = visit(id->type_expr);
     id->expr = try_expose_function(visit(id->expr));
 
-    cerr << "Reduced ID:";
-    m_printer.print(id, cerr);
-    cerr << endl;
+    if (verbose())
+    {
+        cout << "Reduced ID:";
+        m_printer.print(id, cout);
+        cout << endl;
+    }
 }
 
 fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app)
 {
-    cerr << "Application (Raw): ";
-    m_printer.print(app, cerr);
-    cerr << endl;
+    if (verbose())
+    {
+        cout << "Application (Raw): ";
+        m_printer.print(app, cout);
+        cout << endl;
+    }
 
     app->object = visit(app->object);
 
@@ -91,9 +103,12 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
         arg = visit(arg);
     }
 
-    cerr << "Application (Reduced): ";
-    m_printer.print(app, cerr);
-    cerr << endl;
+    if (verbose())
+    {
+        cout << "Application (Reduced): ";
+        m_printer.print(app, cout);
+        cout << endl;
+    }
 
     vector<expr_ptr> arg_exprs;
     for (auto & slot : app->args)
@@ -104,20 +119,27 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
     int applied_arg_count = 0;
     while(applied_arg_count < app->args.size())
     {
-        cerr << "Remaining args = " << (app->args.size() - applied_arg_count) << endl;
+        if (verbose())
+            cout << "Remaining args = " << (app->args.size() - applied_arg_count) << endl;
 
         object = try_expose_function(object);
 
-        cerr << "Applying: "; m_printer.print(object, cerr); cerr << endl;
+        if (verbose())
+        {
+            cout << "Applying: "; m_printer.print(object, cout); cout << endl;
+        }
 
         if (auto f = dynamic_pointer_cast<function>(object))
         {
             object = apply(f, arg_exprs, applied_arg_count);
             applied_arg_count += f->vars.size();
 
-            cerr << "Applied = ";
-            m_printer.print(object, cerr);
-            cerr << endl;
+            if (verbose())
+            {
+                cout << "Applied = ";
+                m_printer.print(object, cout);
+                cout << endl;
+            }
         }
         else
         {
@@ -139,14 +161,16 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
             if (dynamic_pointer_cast<func_var>(ref->var))
             {
                 ok = true;
-                cerr << "Terminating application at function variable." << endl;
+                if (verbose())
+                    cout << "Terminating application at function variable." << endl;
             }
             else if (auto id = dynamic_pointer_cast<identifier>(ref->var))
             {
                 if (dynamic_pointer_cast<external>(id->expr.expr))
                 {
                     ok = true;
-                    cerr << "Terminating application at external function." << endl;
+                    if (verbose())
+                        cout << "Terminating application at external function." << endl;
                 }
             }
         }
@@ -233,10 +257,13 @@ fn::expr_ptr func_reduction::visit_ref(const shared_ptr<fn::reference> & ref)
             copier copy(ids, m_name_provider);
             auto f2 =  copy.copy(f);
 
-            cerr << "Returning a copy of function instead of its name: "
-                 << id->name << " => ";
-            m_printer.print(f2, cerr);
-            cerr << endl;
+            if (verbose())
+            {
+                cout << "Returning a copy of function instead of its name: "
+                     << id->name << " => ";
+                m_printer.print(f2, cout);
+                cout << endl;
+            }
             return f2;
         }
     }

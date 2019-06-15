@@ -42,6 +42,12 @@ using namespace std;
 using namespace stream;
 using namespace stream::compiler;
 
+namespace arrp {
+
+class func_reduction;
+
+}
+
 namespace stream {
 namespace compiler {
 
@@ -192,6 +198,7 @@ int main(int argc, char *argv[])
     verbose_out->add_topic<ast::output>("ast");
     verbose_out->add_topic<functional::model>("func-model");
     verbose_out->add_topic<functional::generator>("func-model-gen");
+    verbose_out->add_topic<arrp::func_reduction>("func-reduction");
     verbose_out->add_topic<functional::type_checker>("type-check");
     verbose_out->add_topic<functional::array_reducer>("array-reduction");
     verbose_out->add_topic<arrp::array_inflate>("array-inflate");
