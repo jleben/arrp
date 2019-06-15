@@ -198,9 +198,7 @@ void type_checker::process(id_ptr id)
 
     m_processed_ids.insert(id);
 
-    // FIXME: When type is not fully inferred, it will not match explicit type.
-    // FIXME: In second pass, compare previous and current type.
-    if (id->explicit_type && *id->explicit_type != *id->expr->type)
+    if (m_pass >= 3 && id->explicit_type && *id->explicit_type != *id->expr->type)
     {
         ostringstream msg;
         msg << "Explicit type "
