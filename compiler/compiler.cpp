@@ -221,17 +221,6 @@ result::code compile_module
             printer.print(scope, cerr);
         }
 
-        return result::ok;
-
-
-        if (main_id->expr->type->is_function())
-        {
-            cerr << "Functions not supported in output. "
-                 << "All functions must be fully applied."
-                 << endl;
-            return result::semantic_error;
-        }
-
         {
             arrp::collect_ids collect_ids;
             array_ids = collect_ids.collect(main_id);
@@ -252,6 +241,9 @@ result::code compile_module
         {
             functional::array_reducer reducer(func_name_provider);
             array_ids = reducer.process(array_ids);
+
+            arrp::collect_ids collect_ids;
+            array_ids = collect_ids.collect(main_id);
 
             if (verbose<functional::model>::enabled())
             {
