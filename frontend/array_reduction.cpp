@@ -418,9 +418,16 @@ expr_ptr array_reducer::reduce(std::shared_ptr<func_app> app)
         app->object = ext;
     }
 
-    // FIXME: Turn complex arguments to external calls into local ids.
     for(auto & arg : app->args)
+    {
         arg = reduce(arg);
+
+        // Turn complex arguments to external calls into local ids.
+        if (dynamic_pointer_cast<array>(arg.expr))
+        {
+            arg = make_local_id(arg, "_tmp");
+        }
+    }
 
     return app;
 }
@@ -1021,6 +1028,23 @@ expr_ptr array_reducer::lambda_lift(expr_ptr e, const string & name)
 
     auto ref = make_ref(id);
     return ref;
+}
+
+expr_ptr array_reducer::make_local_id(expr_ptr e, const string & name)
+{
+    auto unique_name = m_name_provider.new_name(name);
+    auto id = make_shared<identifier>(unique_name, e, location_type());
+    m_processed_ids.insert(id);
+
+    auto ref = make_ref(id);
+    return ref;
+
+    auto scope = make_shared<scope_expr>();
+    scope->local.ids.push_back(id);
+    scope->value = ref;
+    scope->type = scope->value->type;
+
+    return scope;
 }
 
 expr_ptr array_ref_sub::visit_ref(const shared_ptr<reference> & ref)

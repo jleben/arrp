@@ -69,6 +69,7 @@ private:
     expr_ptr substitute(expr_ptr);
     expr_ptr eta_expand(expr_ptr);
     expr_ptr lambda_lift(expr_ptr, const string & name);
+    expr_ptr make_local_id(expr_ptr, const string & name);
 
     isl::context m_isl_ctx;
 
