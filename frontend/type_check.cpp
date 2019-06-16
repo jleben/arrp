@@ -381,9 +381,6 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
                      << " is constant - using the value instead."
                      << endl;
             }
-            // FIXME: Should this expression be copied?
-            // FIXME: The id may not have been processed yet,
-            // so the expression may have no type.
             return id->expr;
         }
 
