@@ -408,10 +408,17 @@ expr_ptr array_reducer::reduce(std::shared_ptr<array_app> app)
 
 expr_ptr array_reducer::reduce(std::shared_ptr<func_app> app)
 {
-    // FIXME: Turn complex arguments to external calls into local ids.
-    // FIXME: Turn reference to external id into external expression itself.
-    app->object = reduce(app->object);
+    // At first pass, app->object can only be a reference to an external id.
+    // We inline the external.
 
+    if (auto ref = dynamic_pointer_cast<reference>(app->object.expr))
+    {
+        auto id = dynamic_pointer_cast<identifier>(ref->var);
+        auto ext = dynamic_pointer_cast<external>(id->expr.expr);
+        app->object = ext;
+    }
+
+    // FIXME: Turn complex arguments to external calls into local ids.
     for(auto & arg : app->args)
         arg = reduce(arg);
 
