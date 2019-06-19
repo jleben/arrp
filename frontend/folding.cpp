@@ -66,7 +66,7 @@ expr_ptr folding::visit_ref(const shared_ptr<fn::reference> & ref)
 
 expr_ptr folding::visit_scope(const shared_ptr<fn::scope_expr> & scope)
 {
-    // We should remove all folded IDs to increase chance of folding this expression.
+    // We remove all folded IDs to increase chance of folding this expression.
     // A scope expression with remaining non-foldable IDs will not be folded itself.
 
     scope->value = visit(scope->value);

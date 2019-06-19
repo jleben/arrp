@@ -166,12 +166,12 @@ result::code compile_module
             func_reducer.reduce(main_id);
         }
 
-        functional::scope scope;
-        scope.ids = ids;
+        functional::scope global_scope;
+        global_scope.ids = ids;
 
         {
             arrp::scope_cleanup cleanup;
-            cleanup.clean(scope, main_id);
+            cleanup.clean(global_scope, main_id);
         }
 
         if (verbose<functional::model>::enabled())
@@ -179,7 +179,7 @@ result::code compile_module
             cerr << "-- Reduced functions:" << endl;
             functional::printer printer;
             printer.set_print_scopes(true);
-            printer.print(scope, cerr);
+            printer.print(global_scope, cout);
             cerr << "--" << endl;
         }
 
@@ -193,7 +193,7 @@ result::code compile_module
             folding.process(main_id);
 
             arrp::scope_cleanup cleanup;
-            cleanup.clean(scope, main_id);
+            cleanup.clean(global_scope, main_id);
         }
 
         if (verbose<functional::model>::enabled())
@@ -201,7 +201,7 @@ result::code compile_module
             cerr << "-- Folded:" << endl;
             functional::printer printer;
             printer.set_print_scopes(true);
-            printer.print(scope, cerr);
+            printer.print(global_scope, cout);
             cerr << "--" << endl;
         }
 
@@ -209,34 +209,39 @@ result::code compile_module
 
         {
             functional::type_checker type_checker(func_name_provider);
-            type_checker.process(scope);
+            type_checker.process(global_scope);
             array_ids = type_checker.ids();
+
+            // Type check does some folding, so we should clean up scopes
+            arrp::scope_cleanup cleanup;
+            cleanup.clean(global_scope, main_id);
         }
 
         if (verbose<functional::model>::enabled())
         {
             cerr << "-- Typed:" << endl;
             functional::printer printer;
-            printer.set_print_scopes(false);
-            printer.print(scope, cerr);
+            printer.set_print_scopes(true);
+            printer.print(global_scope, cout);
         }
 
+        // Convert all local ids to global ids
         {
-            arrp::collect_ids collect_ids;
-            array_ids = collect_ids.collect(main_id);
+            arrp::lift_local_ids lift_local_ids(global_scope);
+
+            arrp::array_inflate inflater;
+            inflater.process(global_scope);
 
             if (verbose<functional::model>::enabled())
             {
-                cout << "-- Filtered ids:" << endl;
+                cout << "-- Lifted local ids:" << endl;
                 functional::printer printer;
-                printer.set_print_scopes(false);
-                for (const auto & id : array_ids)
-                {
-                    printer.print(id, cout);
-                    cout << endl;
-                }
+                printer.set_print_scopes(true);
+                printer.print(global_scope, cout);
             }
         }
+
+        return result::ok;
 
         {
             functional::array_reducer reducer(func_name_provider);
@@ -248,23 +253,6 @@ result::code compile_module
             if (verbose<functional::model>::enabled())
             {
                 cout << "-- Reduced arrays:" << endl;
-                functional::printer printer;
-                printer.set_print_scopes(false);
-                for (const auto & id : array_ids)
-                {
-                    printer.print(id, cout);
-                    cout << endl;
-                }
-            }
-        }
-
-        {
-            arrp::array_inflate inflater;
-            inflater.process(array_ids);
-
-            if (verbose<functional::model>::enabled())
-            {
-                cout << "-- Inflated arrays:" << endl;
                 functional::printer printer;
                 printer.set_print_scopes(false);
                 for (const auto & id : array_ids)

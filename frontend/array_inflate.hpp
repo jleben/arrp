@@ -29,6 +29,7 @@ public:
     using array_var_info_set = unordered_map<array_var_ptr, array_var_info>;
     using array_reference_set = unordered_map<id_ptr, unordered_set<id_ptr>>;
 
+    void process(const scope &);
     void process(const unordered_set<id_ptr> & ids);
 
 private:
@@ -49,6 +50,15 @@ private:
         array_var_info var_info;
     }
     m_inflation;
+};
+
+class lift_local_ids : rewriter_base
+{
+public:
+    lift_local_ids(scope & global);
+private:
+    virtual expr_ptr visit_scope(const shared_ptr<scope_expr> & scope) override;
+    scope & m_global;
 };
 
 }

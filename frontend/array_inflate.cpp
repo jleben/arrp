@@ -11,6 +11,27 @@ namespace arrp {
 
 using stream::verbose;
 
+lift_local_ids::lift_local_ids(scope & global):
+    m_global(global)
+{
+    auto ids = global.ids;
+    for (auto & id : ids)
+    {
+        visit_local_id(id);
+    }
+}
+
+expr_ptr lift_local_ids::visit_scope(const shared_ptr<scope_expr> & scope)
+{
+    for(auto & id : scope->local.ids)
+    {
+        m_global.ids.push_back(id);
+        visit_local_id(id);
+    }
+
+    return visit(scope->value);
+}
+
 // Generates set { <a, { b : a referenced in b }> } with a and b some IDs.
 class analyze_references : public visitor<void>
 {
@@ -91,6 +112,12 @@ private:
     info_set m_info;
     id_ptr m_current_id;
 };
+
+void array_inflate::process(const scope & global)
+{
+    unordered_set<id_ptr> ids(global.ids.begin(), global.ids.end());
+    process(ids);
+}
 
 void array_inflate::process(const unordered_set<id_ptr> & ids)
 {
