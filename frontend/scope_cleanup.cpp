@@ -30,27 +30,34 @@ void scope_cleanup::clean(fn::scope & e)
     e.ids = remaining;
 }
 
-void scope_cleanup::visit_scope(const shared_ptr<fn::scope_expr> & scope)
+expr_ptr scope_cleanup::visit_scope(const shared_ptr<fn::scope_expr> & scope)
 {
     for (auto & id : scope->local.ids)
         id->ref_count = 0;
 
     visit(scope->value);
     clean(scope->local);
+
+    if (scope->local.ids.empty())
+        return scope->value;
+    else
+        return scope;
 }
 
-void scope_cleanup::visit_ref(const shared_ptr<fn::reference> & ref)
+expr_ptr scope_cleanup::visit_ref(const shared_ptr<fn::reference> & ref)
 {
     if (auto id = dynamic_pointer_cast<identifier>(ref->var))
     {
         ++id->ref_count;
 
         if (m_used_ids.count(id))
-            return;
+            return ref;
 
         m_used_ids.insert(id);
         visit_local_id(id);
     }
+
+    return ref;
 }
 
 }
