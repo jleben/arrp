@@ -303,22 +303,23 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto scope = dynamic_pointer_cast<scope_expr>(expr))
     {
-        bool print_local_ids = m_print_scopes && scope->local.ids.size();
-
-        if (print_local_ids)
+        if (m_print_scopes)
             out << "{ ";
 
         print(scope->value, out);
 
-        if (print_local_ids)
+        if (m_print_scopes)
         {
-            out << " where ";
-            int i = 0;
-            for(const auto & id : scope->local.ids)
+            if (scope->local.ids.size())
             {
-                if (i++ > 0)
-                    out << ", ";
-                print(id, out);
+                out << " where ";
+                int i = 0;
+                for(const auto & id : scope->local.ids)
+                {
+                    if (i++ > 0)
+                        out << ", ";
+                    print(id, out);
+                }
             }
 
             out << " }";
