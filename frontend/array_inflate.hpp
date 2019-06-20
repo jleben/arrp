@@ -61,4 +61,8 @@ private:
     scope & m_global;
 };
 
+int array_size(const array_var_ptr & var);
+type_ptr inflate_type(const type_ptr & t, const array_var_ptr & var);
+type_ptr inflate_type(const type_ptr & t, const array_size_vec & size);
+
 }

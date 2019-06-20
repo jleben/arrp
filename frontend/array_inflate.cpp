@@ -217,10 +217,9 @@ void array_inflate::close_under_references
     }
 }
 
-static
-int array_size(const expr_ptr & var_range)
+int array_size(const array_var_ptr & var)
 {
-    if (auto c = dynamic_pointer_cast<int_const>(var_range))
+    if (auto c = dynamic_pointer_cast<int_const>(var->range.expr))
     {
         return c->value;
     }
@@ -230,19 +229,24 @@ int array_size(const expr_ptr & var_range)
     }
 }
 
-static
 type_ptr inflate_type(const type_ptr & t, const array_var_ptr & var)
 {
-    array_size_vec size = { array_size(var->range) };
+    return inflate_type(t, { array_size(var) });
+}
+
+type_ptr inflate_type(const type_ptr & t, const array_size_vec & size)
+{
+    array_size_vec new_size = size;
+
     if(t->is_array())
     {
         const auto * nested_arr_type = t->array();
-        size.insert(size.end(), nested_arr_type->size.begin(), nested_arr_type->size.end());
-        return make_shared<array_type>(size, nested_arr_type->element);
+        new_size.insert(new_size.end(), nested_arr_type->size.begin(), nested_arr_type->size.end());
+        return make_shared<array_type>(new_size, nested_arr_type->element);
     }
     else
     {
-        return make_shared<array_type>(size, t->scalar()->primitive);
+        return make_shared<array_type>(new_size, t->scalar()->primitive);
     }
 }
 

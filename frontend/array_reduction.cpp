@@ -1,4 +1,5 @@
 #include "array_reduction.hpp"
+#include "array_inflate.hpp"
 #include "linear_expr_gen.hpp"
 #include "prim_reduction.hpp"
 #include "error.hpp"
@@ -123,6 +124,40 @@ expr_ptr equal(expr_ptr a, expr_ptr b)
     return r;
 }
 
+class free_array_vars : private visitor<void>
+{
+public:
+    free_array_vars(expr_ptr e)
+    {
+        visit(e);
+    }
+
+    const unordered_set<array_var_ptr> & result() const { return m_free_vars; }
+
+    void visit_array(const shared_ptr<stream::functional::array> & arr) override
+    {
+        for (auto & var : arr->vars)
+            m_bound_vars.insert(var);
+
+        visitor::visit_array(arr);
+
+        for (auto & var : arr->vars)
+            m_bound_vars.erase(var);
+    }
+
+    virtual void visit_ref(const shared_ptr<reference> & ref) override
+    {
+        if (auto v = dynamic_pointer_cast<array_var>(ref->var))
+        {
+            if (!m_bound_vars.count(v))
+                m_free_vars.insert(v);
+        }
+    }
+
+private:
+    unordered_set<array_var_ptr> m_free_vars;
+    unordered_set<array_var_ptr> m_bound_vars;
+};
 
 array_reducer::array_reducer(name_provider & nmp):
     m_name_provider(nmp),
@@ -422,10 +457,10 @@ expr_ptr array_reducer::reduce(std::shared_ptr<func_app> app)
     {
         arg = reduce(arg);
 
-        // Turn complex arguments to external calls into local ids.
+        // Lift complex arguments to external calls.
         if (dynamic_pointer_cast<array>(arg.expr))
         {
-            arg = make_local_id(arg, "_tmp");
+            arg = lambda_lift(arg, "_tmp");
         }
     }
 
@@ -722,6 +757,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<case_expr> cexpr)
 
         if (dynamic_pointer_cast<array>(part.expr))
         {
+            // FIXME: I think part.expr should be the body of array instead.
             must_lambda_lift =
                     dynamic_pointer_cast<func_app>(part.expr) &&
                     part->type->is_array();
@@ -943,7 +979,7 @@ expr_ptr array_reducer::apply(expr_ptr expr, const vector<expr_ptr> & given_args
             }
 
             // Run substitution on arr rather than arr->expr
-            // to include array's nested ids.
+            // to include array's local ids.
             m_sub(arr);
             result = arr->expr;
         }
@@ -1022,29 +1058,42 @@ expr_ptr array_reducer::eta_expand(expr_ptr expr)
 
 expr_ptr array_reducer::lambda_lift(expr_ptr e, const string & name)
 {
+    // Find free array variables in e
+    free_array_vars free_vars(e);
+
+    // Make array a = [i,j,... -> e] where i,j,... are free variables in e.
+    auto arr = make_shared<stream::functional::array>();
+    array_ref_sub var_sub(m_copier, m_printer);
+    array_ref_sub::var_map::scope_holder sub_scope(var_sub.vars);
+    array_size_vec extra_dims;
+    for (auto & v : free_vars.result())
+    {
+        // Make a new variable with range equal to free variable.
+        auto v2 = make_shared<array_var>(v->range, location_type());
+        arr->vars.push_back(v2);
+        extra_dims.push_back(arrp::array_size(v));
+
+        // Substitute free variable with the new variable.
+        var_sub.vars.bind(v, make_ref(v2));
+    }
+    arr->expr = var_sub(e);
+    arr->type = arrp::inflate_type(arr->expr->type, extra_dims);
+
+    // Make new global id n = a;
     auto unique_name = m_name_provider.new_name(name);
-    auto id = make_shared<identifier>(unique_name, e, location_type());
+    auto id = make_shared<identifier>(unique_name, arr, location_type());
     m_processed_ids.insert(id);
+    id->expr = reduce(id->expr);
 
+    // Make expression n[i,j,...] and return it instead of e.
     auto ref = make_ref(id);
-    return ref;
-}
+    auto app = make_shared<array_app>();
+    app->object = ref;
+    for (auto & v : free_vars.result())
+        app->args.push_back(expr_slot(make_ref(v)));
+    app->type = e->type;
 
-expr_ptr array_reducer::make_local_id(expr_ptr e, const string & name)
-{
-    auto unique_name = m_name_provider.new_name(name);
-    auto id = make_shared<identifier>(unique_name, e, location_type());
-    m_processed_ids.insert(id);
-
-    auto ref = make_ref(id);
-    return ref;
-
-    auto scope = make_shared<scope_expr>();
-    scope->local.ids.push_back(id);
-    scope->value = ref;
-    scope->type = scope->value->type;
-
-    return scope;
+    return app;
 }
 
 expr_ptr array_ref_sub::visit_ref(const shared_ptr<reference> & ref)
