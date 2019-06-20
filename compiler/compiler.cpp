@@ -236,8 +236,6 @@ result::code compile_module
             }
         }
 
-        return result::ok;
-
         {
             functional::array_reducer reducer(func_name_provider);
             array_ids = reducer.process(array_ids);
@@ -248,23 +246,6 @@ result::code compile_module
             if (verbose<functional::model>::enabled())
             {
                 cout << "-- Reduced arrays:" << endl;
-                functional::printer printer;
-                for (const auto & id : array_ids)
-                {
-                    printer.print(id, cout);
-                    cout << endl;
-                }
-            }
-        }
-
-        // Reduce arrays again after inflating
-        {
-            functional::array_reducer reducer(func_name_provider);
-            array_ids = reducer.process(array_ids);
-
-            if (verbose<functional::model>::enabled())
-            {
-                cout << "-- Reduced arrays 2:" << endl;
                 functional::printer printer;
                 for (const auto & id : array_ids)
                 {
