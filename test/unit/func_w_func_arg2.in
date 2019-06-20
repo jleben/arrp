@@ -1,0 +1,6 @@
+f(x) = x + 1;
+g(a) = h(3) where h = a;
+main = g(f);
+
+##? int
+##? 4
