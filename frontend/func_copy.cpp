@@ -156,20 +156,6 @@ expr_ptr copier::visit_array(const shared_ptr<array> & arr)
         m_copy_context.bind(var, new_var);
     }
 
-    for(auto & id : arr->scope.ids)
-    {
-        auto new_name = m_name_provider.new_name(id->name);
-        auto new_id = make_shared<identifier>(new_name, id->location);
-        new_id->type_expr = copy(id->type_expr);
-        new_id->explicit_type = id->explicit_type;
-        new_id->is_recursive = id->is_recursive;
-        m_copy_context.bind(id, new_id);
-
-        new_id->expr = copy(id->expr);
-
-        new_arr->scope.ids.push_back(new_id);
-    }
-
     new_arr->expr = copy(arr->expr);
 
     return new_arr;
@@ -236,25 +222,6 @@ expr_ptr copier::visit_func(const shared_ptr<function> & func)
         auto new_var = make_shared<func_var>(*var);
         new_func->vars.push_back(new_var);
         m_copy_context.bind(var, new_var);
-    }
-
-    for(auto & id : func->scope.ids)
-    {
-        auto new_name = m_name_provider.new_name(id->name);
-        auto new_id = make_shared<identifier>(new_name, id->expr, id->location);
-        new_id->type_expr = copy(id->type_expr);
-        new_id->explicit_type = id->explicit_type;
-        new_id->is_recursive = id->is_recursive;
-        new_func->scope.ids.push_back(new_id);
-
-        m_copy_context.bind(id, new_id);
-    }
-
-    // Do the copying after binding all new ids,
-    // to support mutual recursion
-    for(auto & id : new_func->scope.ids)
-    {
-        id->expr = copy(id->expr);
     }
 
     new_func->expr = copy(func->expr);

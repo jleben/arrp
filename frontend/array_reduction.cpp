@@ -294,8 +294,6 @@ expr_ptr array_reducer::reduce
     auto subdomains = make_shared<case_expr>();
     subdomains->type = ap->type;
 
-    array_ref_sub::var_map::scope_holder scope(m_sub.vars);
-
     // D* (prev. domain)
     expr_ptr previous_domain = empty_set();
 
@@ -361,19 +359,6 @@ expr_ptr array_reducer::reduce
         // D* = D* | D
         previous_domain = unite(previous_domain, pattern_constraint);
     }
-
-    // Subtitute vars in local ids
-
-    if (verbose<array_reducer>::enabled())
-        cout << "Substituting vars in local ids..." << endl;
-    for (auto & id : ar->scope.ids)
-    {
-        if (verbose<array_reducer>::enabled())
-            cout << ".. Local id: " << id << endl;
-        id->expr = m_sub(id->expr);
-    }
-    if (verbose<array_reducer>::enabled())
-        cout << ".. Done substituting vars in local ids." << endl;
 
     // If only one subdomain, and it has no constraints,
     // return its expression.

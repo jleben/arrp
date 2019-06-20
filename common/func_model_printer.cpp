@@ -159,17 +159,6 @@ void printer::print(expr_ptr expr, ostream & out)
         }
         out << ": ";
         print(ar->expr, out);
-        if (ar->scope.ids.size())
-        {
-            out << " (where) ";
-            int i = 0;
-            for(const auto & id : ar->scope.ids)
-            {
-                if (i++ > 0)
-                    out << ", ";
-                print(id, out);
-            }
-        }
         out << "]";
     }
     else if (auto p = dynamic_pointer_cast<array_patterns>(expr))
@@ -253,17 +242,6 @@ void printer::print(expr_ptr expr, ostream & out)
         };
         out << " -> ";
         print(func->expr, out);
-        if (func->scope.ids.size())
-        {
-            out << " (where) ";
-            int i = 0;
-            for(const auto & id : func->scope.ids)
-            {
-                if (i++ > 0)
-                    out << ", ";
-                print(id, out);
-            }
-        }
         out << "\\";
     }
     else if (auto ext = dynamic_pointer_cast<external>(expr))

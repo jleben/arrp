@@ -64,6 +64,7 @@ private:
     void visit_array(const shared_ptr<array> &) override;
     void visit_cases(const shared_ptr<case_expr> &) override;
     void visit_array_app(const shared_ptr<array_app> &) override;
+    // FIXME: visit_scope
 
     isl::set current_domain();
     stacker<isl::set, std::stack<isl::set>> push_domain(const isl::set & d);

@@ -294,9 +294,6 @@ public:
                 visit(var->range);
         }
 
-        for(auto & id : arr->scope.ids)
-            visit_local_id(id);
-
         visit(arr->expr);
     }
     virtual void visit_array_patterns(const shared_ptr<array_patterns> & ap)
@@ -328,9 +325,6 @@ public:
     }
     virtual void visit_func(const shared_ptr<function> & func)
     {
-        for(auto & id : func->scope.ids)
-            visit_local_id(id);
-
         visit(func->expr);
     }
     virtual void visit_type_name(const shared_ptr<type_name_expr> &) {}
@@ -436,9 +430,6 @@ public:
                 var->range = visit(var->range);
         }
 
-        for(auto & id : arr->scope.ids)
-            visit_local_id(id);
-
         arr->expr = visit(arr->expr);
         return arr;
     }
@@ -475,9 +466,6 @@ public:
     }
     virtual expr_ptr visit_func(const shared_ptr<function> & func) override
     {
-        for(auto & id : func->scope.ids)
-            visit_local_id(id);
-
         func->expr = visit(func->expr);
         return func;
     }

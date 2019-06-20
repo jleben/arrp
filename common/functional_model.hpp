@@ -262,7 +262,6 @@ typedef std::shared_ptr<array_var> array_var_ptr;
 class array : public expression
 {
 public:
-    functional::scope scope;
     vector<array_var_ptr> vars;
     expr_slot expr;
     bool is_recursive = false;
@@ -353,7 +352,6 @@ public:
     function(const vector<func_var_ptr> & v, expr_ptr e, const location_type & loc):
         expression(loc), vars(v), expr(e) {}
     vector<func_var_ptr> vars;
-    functional::scope scope;
     expr_slot expr;
 };
 
