@@ -85,11 +85,23 @@ void func_reduction::reduce(fn::id_ptr id)
     }
 }
 
+fn::expr_ptr func_reduction::visit_func(const shared_ptr<fn::function> & f)
+{
+    // We wait never visit function bodies.
+    // A function must be fully applied for its body to be further reduced.
+    return f;
+}
+
 fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app)
 {
+    static int last_tag = 0;
+
+    ++last_tag;
+    int tag = last_tag;
+
     if (verbose())
     {
-        cout << "Application (Raw): ";
+        cout << tag << " Application (Raw): ";
         m_printer.print(app, cout);
         cout << endl;
     }
@@ -103,7 +115,7 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
 
     if (verbose())
     {
-        cout << "Application (Reduced): ";
+        cout << tag << " Application (Reduced): ";
         m_printer.print(app, cout);
         cout << endl;
     }
@@ -114,43 +126,53 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
 
     expr_ptr object = app->object;
 
-    int applied_arg_count = 0;
-    while(applied_arg_count < app->args.size())
+    int remaining_arg_count = app->args.size();
+    auto * remaining_args = arg_exprs.data();
+    while(remaining_arg_count > 0)
     {
         if (verbose())
-            cout << "Remaining args = " << (app->args.size() - applied_arg_count) << endl;
+            cout << tag << " Remaining args = " << remaining_arg_count << endl;
 
         object = try_expose_function(object);
 
         if (verbose())
         {
-            cout << "Applying: "; m_printer.print(object, cout); cout << endl;
+            cout << tag << " Trying to apply: "; m_printer.print(object, cout); cout << endl;
         }
 
         if (auto f = dynamic_pointer_cast<function>(object))
         {
-            object = apply(f, arg_exprs, applied_arg_count);
-            applied_arg_count += f->vars.size();
+            int applied_arg_count = std::min(int(f->vars.size()), remaining_arg_count);
+            object = apply(f, remaining_args, applied_arg_count);
+            remaining_args += applied_arg_count;
+            remaining_arg_count -= applied_arg_count;
 
             if (verbose())
             {
-                cout << "Applied = ";
+                cout << tag << " About to reduce applied object:";
+                m_printer.print(object, cout);
+                cout << endl;
+            }
+
+            // Revisit to do reductions enabled by function variable substitutions.
+            object = visit(object);
+
+            if (verbose())
+            {
+                cout << tag << " Applied and reduced object:";
                 m_printer.print(object, cout);
                 cout << endl;
             }
         }
         else
         {
+            if (verbose())
+                cout << tag << " Not a function." << endl;
             break;
         }
     }
 
-    // Revisit to do reductions enabled by function variable substitutions.
-    object = visit(object);
-
-    int remaining_args = app->args.size() - applied_arg_count;
-
-    if (remaining_args > 0)
+    if (remaining_arg_count > 0)
     {
         bool ok = false;
 
@@ -176,13 +198,13 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
         if (!ok)
         {
             ostringstream msg;
-            msg << "Can not apply remaining " << remaining_args << " arguments.";
+            msg << "Can not apply remaining " << remaining_arg_count << " arguments.";
             throw source_error(msg.str(), app->location);
         }
 
         app->object = object;
-        app->args = vector<expr_slot>(app->args.begin() + applied_arg_count,
-                                      app->args.end());
+        app->args = vector<expr_slot>(remaining_args,
+                                      remaining_args + remaining_arg_count);
         return app;
     }
 
@@ -190,46 +212,59 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
 }
 
 fn::expr_ptr func_reduction::apply(shared_ptr<fn::function> f,
-                                   const vector<fn::expr_ptr> & args,
-                                   int first_arg_idx)
+                                   fn::expr_ptr* args,
+                                   int applied_arg_count)
 {
     unordered_set<id_ptr> ids;
     copier copy(ids, m_name_provider);
     func_var_sub sub(copy);
 
-    int applied_arg_count = std::min(f->vars.size(), args.size() - first_arg_idx);
+    assert_or_throw(applied_arg_count <= int(f->vars.size()));
+
+    auto new_expr = f->expr;
 
     {
         func_var_sub::context_type::scope_holder local_ctx(sub.m_context);
 
         auto scope_e = make_shared<scope_expr>();
 
+        // Turn each applied argument into identifier,
+        // if it is not already a reference.
         for (int i = 0; i < applied_arg_count; ++i)
         {
             auto & var = f->vars[i];
-            auto & arg = args[first_arg_idx + i];
+            auto arg = args[i];
 
-            // Turn argument into identifier.
-            auto name = m_name_provider.new_name(var->qualified_name);
-            auto id = make_shared<identifier>(name, arg, var->location);
-            scope_e->local.ids.push_back(id);
+            if (!dynamic_pointer_cast<reference>(arg))
+            {
+                auto name = m_name_provider.new_name(var->qualified_name);
+                auto id = make_shared<identifier>(name, arg, var->location);
+                scope_e->local.ids.push_back(id);
+                auto ref = make_shared<reference>(id, location_type());
+                arg = ref;
+            }
 
-            auto ref = make_shared<reference>(id, location_type());
-            sub.m_context.bind(var, ref);
+            sub.m_context.bind(var, arg);
         }
 
-         scope_e->value = sub(f->expr);
-         f->expr = scope_e;
+        new_expr = sub(new_expr);
+
+        if (scope_e->local.ids.size())
+        {
+            scope_e->value = new_expr;
+            new_expr = scope_e;
+        }
     }
 
     if (f->vars.size() > applied_arg_count)
     {
+        f->expr = new_expr;
         f->vars = vector<func_var_ptr>(f->vars.begin() + applied_arg_count, f->vars.end());
         return f;
     }
     else
     {
-        return f->expr;
+        return new_expr;
     }
 }
 
