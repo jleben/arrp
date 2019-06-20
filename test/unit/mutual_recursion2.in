@@ -1,7 +1,6 @@
  
 main = a + b where
 {
-    a :: [~]int;
     a = [0 -> 0; i -> 2*b[i-1]];
     b = [i -> a[i] + 1];
 };
