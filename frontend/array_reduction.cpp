@@ -164,7 +164,6 @@ array_reducer::array_reducer(name_provider & nmp):
     m_copier(m_processed_ids, nmp),
     m_sub(m_copier, m_printer)
 {
-    m_printer.set_print_scopes(false);
     m_printer.set_print_var_address(true);
 }
 

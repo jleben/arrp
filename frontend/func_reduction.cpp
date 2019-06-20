@@ -33,7 +33,6 @@ private:
 expr_ptr func_var_sub::visit_ref(const shared_ptr<reference> & ref)
 {
     printer p;
-    p.set_print_scopes(true);
 
     if (auto fv = dynamic_pointer_cast<func_var>(ref->var))
     {
@@ -68,7 +67,6 @@ bool func_reduction::verbose()
 func_reduction::func_reduction(fn::name_provider & nm):
     m_name_provider(nm)
 {
-    m_printer.set_print_scopes(true);
 }
 
 void func_reduction::reduce(fn::id_ptr id)
