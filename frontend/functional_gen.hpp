@@ -54,6 +54,7 @@ private:
 
 private:
     vector<id_ptr> do_mutually_recursive_declarations(const vector<ast::node_ptr> &);
+    vector<ast::node_ptr> process_array_element_declarations(const vector<ast::node_ptr> &);
     tuple<id_ptr, bool> make_id_for_declaration(ast::node_ptr);
     void apply_declaration(id_ptr, ast::node_ptr);
 

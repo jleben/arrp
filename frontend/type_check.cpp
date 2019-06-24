@@ -839,8 +839,11 @@ void type_checker::process_array(const shared_ptr<array> & arr)
             }
         }
 
-        pattern.expr = visit(pattern.expr);
-        process_type(pattern.expr);
+        if (pattern.expr)
+        {
+            pattern.expr = visit(pattern.expr);
+            process_type(pattern.expr);
+        }
     }
 
     primitive_type result_elem_type;

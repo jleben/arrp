@@ -302,7 +302,8 @@ public:
         {
             if (pattern.domains)
                 visit(pattern.domains);
-            visit(pattern.expr);
+            if (pattern.expr)
+                visit(pattern.expr);
         }
     }
     virtual void visit_array_app(const shared_ptr<array_app> & app)
@@ -439,7 +440,8 @@ public:
         {
             if (pattern.domains)
                 pattern.domains = visit(pattern.domains);
-            pattern.expr = visit(pattern.expr);
+            if (pattern.expr)
+                pattern.expr = visit(pattern.expr);
         }
         return ap;
     }

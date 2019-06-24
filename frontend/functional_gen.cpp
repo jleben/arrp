@@ -95,8 +95,10 @@ generator::generate(module * mod)
     return ids;
 }
 
-vector<id_ptr> generator::do_mutually_recursive_declarations(const vector<ast::node_ptr> & nodes)
+vector<id_ptr> generator::do_mutually_recursive_declarations(const vector<ast::node_ptr> & raw_nodes)
 {
+    auto nodes = process_array_element_declarations(raw_nodes);
+
     vector<id_ptr> unique_ids;
     vector<id_ptr> ids;
 
@@ -125,6 +127,49 @@ vector<id_ptr> generator::do_mutually_recursive_declarations(const vector<ast::n
     }
 
     return unique_ids;
+}
+
+// Collect all array_element_def { name, pattern } with the same name,
+// into a single node array_element_def { name, { pattern, pattern, ... } }.
+vector<ast::node_ptr>
+generator::process_array_element_declarations
+(const vector<ast::node_ptr> & input)
+{
+    vector<ast::node_ptr> output;
+
+    unordered_map<string, ast::node_ptr> array_pattern_map;
+
+    for (auto & decl : input)
+    {
+        if (decl->type == ast::array_element_def)
+        {
+            auto & name_node = decl->as_list()->elements[0];
+            auto & pattern_node = decl->as_list()->elements[1];
+
+            auto & patterns = array_pattern_map[name_node->as_leaf<string>()->value];
+            if (!patterns)
+                patterns = ast::make_list(name_node->location, {});
+
+            patterns->as_list()->elements.push_back(pattern_node);
+        }
+        else
+        {
+            output.push_back(decl);
+        }
+    }
+
+    for (auto & pattern_def : array_pattern_map)
+    {
+        auto & name = pattern_def.first;
+        auto & patterns_node = pattern_def.second;
+        auto & loc = patterns_node->location;
+
+        auto name_node = make_shared<ast::leaf_node<string>>(ast::identifier, loc, name);
+        auto decl_node = ast::make_list(ast::array_element_def, loc, { name_node, patterns_node });
+        output.push_back(decl_node);
+    }
+
+    return output;
 }
 
 tuple<id_ptr, bool> generator::make_id_for_declaration(ast::node_ptr node)
@@ -241,6 +286,27 @@ void generator::apply_declaration(id_ptr id, ast::node_ptr root)
             expr = do_expr(expr_node);
         }
         id->expr = expr_slot(expr);
+
+        break;
+    }
+    case ast::array_element_def:
+    {
+        if (id->expr)
+        {
+            throw source_error("Name already defined.",
+                               location_in_module(root->location));
+        }
+
+        auto & patterns_node = root->as_list()->elements[1];
+
+        shared_ptr<array> array_def = make_shared<array>();
+
+        {
+            stacker<array_ptr> ar_stacker(array_def, m_array_stack);
+            array_def->expr = do_array_patterns(patterns_node);
+        }
+
+        id->expr = array_def;
 
         break;
     }
@@ -636,7 +702,8 @@ generator::do_array_pattern(ast::node_ptr root)
     if (domains_node)
         pattern.domains = expr_slot(do_array_domains(domains_node));
 
-    pattern.expr = expr_slot(do_expr(universal_node));
+    if (universal_node)
+        pattern.expr = expr_slot(do_expr(universal_node));
 
     return pattern;
 }

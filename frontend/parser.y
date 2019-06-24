@@ -23,11 +23,11 @@
 %token INT REAL COMPLEX TRUE FALSE STRING
 %token ID QUALIFIED_ID
 %token IF THEN CASE THIS
-%token WHERE
 %token MODULE IMPORT AS INPUT EXTERNAL
 
 %left '='
 %left TYPE_EQ
+%left FOR
 %right LET IN
 %right WHERE
 %right RIGHT_ARROW
@@ -139,10 +139,11 @@ declaration_list:
 ;
 
 declaration:
-  external_decl | binding | id_type_decl
+  external_decl | nested_decl
 ;
 
-nested_decl: binding | id_type_decl
+nested_decl:
+  binding | id_type_decl
 ;
 
 nested_decl_list:
@@ -169,14 +170,30 @@ external_decl:
 
 
 binding:
+  id '=' expr
+  {
+    $$ = make_list( ast::binding, @$, {$1, nullptr, $3} );
+  }
+  |
   id '(' param_list ')' '=' expr
   {
     $$ = make_list( ast::binding, @$, {$1, $3, $6} );
   }
   |
-  id '=' expr
+  // We use the same structure as array_pattern
+  id '[' expr_list ']' '=' expr
   {
-    $$ = make_list( ast::binding, @$, {$1, nullptr, $3} );
+    auto pattern = make_list(@$, { $3, nullptr, $6 });
+    $$ = make_list( ast::array_element_def, @$, { $1, pattern });
+  }
+  |
+  // We use the same structure as array_pattern
+  id '[' expr_list ']' '=' expr FOR expr
+  {
+    auto domain = make_list(@$, { $8, $6 });
+    auto domains = make_list(@$, { domain });
+    auto pattern = make_list(@$, { $3, domains, nullptr });
+    $$ = make_list( ast::array_element_def, @$, { $1, pattern });
   }
 ;
 
@@ -421,6 +438,9 @@ array_pattern_list:
 array_pattern:
   expr_list RIGHT_ARROW expr
   { $$ = make_list( @$, { $1, nullptr, $3 } ); }
+  |
+  expr_list array_domain_list
+  { $$ = make_list( @$, { $1, $2, nullptr } ); }
   |
   expr_list array_domain_list '|' expr
   { $$ = make_list( @$, { $1, $2, $4 } ); }

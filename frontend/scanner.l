@@ -77,6 +77,7 @@ blank [ \t]
 "let" { return parser::token::LET; }
 "in" { return parser::token::IN; }
 "where" { return parser::token::WHERE; }
+"for" { return parser::token::FOR; }
 ".." { return parser::token::DOTDOT; }
 "++" { return parser::token::PLUSPLUS; }
 "true" {

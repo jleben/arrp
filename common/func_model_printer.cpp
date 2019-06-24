@@ -133,10 +133,10 @@ void printer::print(expr_ptr expr, ostream & out)
         for (auto & a_case : c->cases)
         {
             if (ci++ > 0)
-                out << ' ';
-            out << "| ";
+                out << " | ";
+            out << "(";
             print(a_case.first, out);
-            out << " -> ";
+            out << "): ";
             print(a_case.second, out);
         }
     }
@@ -179,16 +179,16 @@ void printer::print(expr_ptr expr, ostream & out)
                 else
                     out << '_';
             }
+            out << " -> ";
             if (pattern.domains)
             {
                 out << " ";
                 print(pattern.domains, out);
-                out << " | ";
-                print(pattern.expr, out);
+                if (pattern.expr)
+                    out << " | ";
             }
-            else
+            if (pattern.expr)
             {
-                out << " -> ";
                 print(pattern.expr, out);
             }
             out << ';';

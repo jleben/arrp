@@ -67,6 +67,7 @@ enum node_type
     external,
     id_type_decl,
     binding,
+    array_element_def,
 
     local_scope,
     lambda,

@@ -294,8 +294,8 @@ expr_ptr array_reducer::reduce
     auto subdomains = make_shared<case_expr>();
     subdomains->type = ap->type;
 
-    // D* (prev. domain)
-    expr_ptr previous_domain = empty_set();
+    // Cg (global constraint)
+    expr_ptr Cg = universe_set();
 
     for (auto & pattern : ap->patterns)
     {
@@ -304,8 +304,8 @@ expr_ptr array_reducer::reduce
 
         // Create pattern constraint expressions
 
-        // C (constraint)
-        expr_ptr pattern_constraint = universe_set();
+        // Cp (pattern constraint)
+        expr_ptr Cp = universe_set();
 
         {
             int dim_idx = 0;
@@ -318,46 +318,43 @@ expr_ptr array_reducer::reduce
                 {
                     auto v = make_ref(ar->vars[dim_idx]);
                     auto constraint = equal(v, make_int(index.value));
-                    pattern_constraint =
-                            intersect(pattern_constraint, constraint);
+                    Cp = intersect(Cp, constraint);
                 }
 
                 ++dim_idx;
             }
         }
 
-        // Create subdomain expressions
-        // D (domain) = !DD && C
-        expr_ptr pattern_domain =
-                intersect(negate(previous_domain), pattern_constraint);
-
-        // SD* (prev. sub-domain)
-        expr_ptr prev_case_domain = empty_set();
-
         if (pattern.domains)
         {
             auto cexpr = dynamic_pointer_cast<case_expr>(pattern.domains.expr);
             for (auto & c : cexpr->cases)
             {
-                // SC (sub-contraint)
-                auto dom = c.first;
-                // SD = !SD* && SC
-                dom = intersect(negate(prev_case_domain), dom);
-                // SD = SD && D
-                dom = intersect(pattern_domain, dom);
-                // SD* = SD* | SC
-                prev_case_domain = unite(prev_case_domain, c.first);
-                c.first = dom;
+                // Cs (this sub-domain constraint)
+                auto Cs = c.first;
+
+                // Ce = Cp && Cs (expression contraint)
+                auto Ce = intersect(Cp, Cs);
+
+                // D = Cg && Ce (expression domain)
+                auto D = intersect(Cg, Ce);
+                c.first = D;
+
                 subdomains->cases.push_back(c);
+
+                Cg = intersect(Cg, negate(Ce));
             }
         }
 
-        // SD = D && !SD*
-        auto last_case = intersect(pattern_domain, negate(prev_case_domain));
-        subdomains->cases.emplace_back(expr_slot(last_case), pattern.expr);
+        if (pattern.expr)
+        {
+            auto Ce = Cp;
 
-        // D* = D* | D
-        previous_domain = unite(previous_domain, pattern_constraint);
+            auto D = intersect(Cg, Ce);
+            subdomains->cases.emplace_back(expr_slot(D), pattern.expr);
+
+            Cg = intersect(Cg, negate(Ce));
+        }
     }
 
     // If only one subdomain, and it has no constraints,

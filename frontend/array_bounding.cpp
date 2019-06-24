@@ -160,7 +160,8 @@ void array_bounding::visit_array(const shared_ptr<array> & a)
         if (pattern.domains)
             visit(pattern.domains);
 
-        visit(pattern.expr);
+        if (pattern.expr)
+            visit(pattern.expr);
     }
 }
 
