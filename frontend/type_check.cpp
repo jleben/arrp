@@ -2,9 +2,12 @@
 #include "prim_reduction.hpp"
 #include "linear_expr_gen.hpp"
 #include "error.hpp"
+#include "array_to_isl.hpp"
 #include "../common/func_model_printer.hpp"
 #include "../utility/stacker.hpp"
 #include "../utility/debug.hpp"
+
+#include <isl-cpp/constraint.hpp>
 
 #include <iostream>
 #include <sstream>
@@ -747,13 +750,216 @@ expr_ptr type_checker::visit_array(const shared_ptr<array> & arr)
 
 void type_checker::process_array(const shared_ptr<array> & arr)
 {
+    auto var_stacker = stacker<array_var_ptr, array_var_stack_type>(m_array_var_stack);
+
+    for (auto & var : arr->vars)
+    {
+        var_stacker.push(var);
+    }
+
+    check_array_variables(arr);
+
+    // Create ISL model of variable bounds (including variables in context)
+
+    //isl::printer isl_printer(m_isl_ctx);
+
+    auto isl_context_domain = array_context_domain(arr);
+    auto isl_domain = isl_context_domain & array_var_bounds(arr);
+    auto isl_space = isl_domain.get_space();
+    int context_var_count = m_array_var_stack.size() - arr->vars.size();
+
+    // Process definitions of array values
+
+    vector<array_size_vec> elem_sizes;
+    vector<primitive_type> elem_types;
+
+    space_map isl_space_map(isl_space, vector<array_var_ptr>(m_array_var_stack.begin(), m_array_var_stack.end()));
+    auto isl_array_def_domain = isl::set(isl_space);
+
+    auto patterns = dynamic_pointer_cast<array_patterns>(arr->expr.expr);
+    for (auto & pattern : patterns->patterns)
+    {
+        auto isl_pattern_domain = isl_domain;
+
+        for (int i = 0; i < pattern.indexes.size(); ++i)
+        {
+            auto & index = pattern.indexes[i];
+            if (index.is_fixed)
+            {
+                isl_pattern_domain.add_constraint(isl_space.var(i + context_var_count) == index.value);
+            }
+        }
+
+#if 0
+        cout << "Pattern domain: ";
+        isl_printer.print(isl_pattern_domain);
+        cout << endl;
+#endif
+        if (pattern.domains)
+        {
+            auto cexpr = dynamic_pointer_cast<case_expr>(pattern.domains.expr);
+
+            for (auto & c : cexpr->cases)
+            {
+                auto & domain = c.first;
+                auto & expr = c.second;
+
+                domain = visit(domain);
+                domain = m_affine.ensure_contraint(domain);
+
+                auto isl_guard_domain = to_affine_set(domain, isl_space_map);
+                auto isl_expr_domain = (isl_pattern_domain & isl_guard_domain) - isl_array_def_domain;
+
+#if 0
+                cout << "Expression domain: ";
+                isl_printer.print(isl_expr_domain);
+                cout << endl;
+#endif
+                {
+                    auto stacked_domain = stack_scoped(isl_expr_domain, m_isl_array_domain_stack);
+                    process_array_value(expr, elem_sizes, elem_types);
+                }
+
+                isl_array_def_domain |= isl_expr_domain;
+            }
+        }
+
+        if (pattern.expr)
+        {
+            auto isl_expr_domain = isl_pattern_domain - isl_array_def_domain;
+
+#if 0
+            cout << "Expression domain: ";
+            isl_printer.print(isl_expr_domain);
+            cout << endl;
+#endif
+            {
+                auto stacked_domain = stack_scoped(isl_expr_domain, m_isl_array_domain_stack);
+                process_array_value(pattern.expr, elem_sizes, elem_types);
+            }
+
+            isl_array_def_domain |= isl_pattern_domain;
+        }
+    }
+
+#if 0
+    cout << "Union of array expression domains: ";
+    isl_printer.print(isl_array_def_domain);
+    cout << endl;
+#endif
+
+    // Compute result type
+
+    array_size_vec common_elem_size;
+
+    for (auto & size : elem_sizes)
+    {
+        try {
+            common_elem_size = common_array_size(common_elem_size, size);
+        } catch (no_type &) {
+            throw type_error("Incompatible element sizes.", arr->location);
+        }
+    }
+
+    primitive_type common_elem_type;
+
+    try {
+        common_elem_type = common_type(elem_types);
+    } catch (no_type &) {
+        throw type_error("Incompatible element types.", arr->location);
+    }
+
+    assign(patterns, type_for(common_elem_size, common_elem_type));
+
+    // Make sure defined array domain is rectangular and independent of the context,
+    // and store its bounds as range of array variables...
+
+    if (isl_array_def_domain.is_empty())
+    {
+        throw type_error("Inferred array domain is empty.", arr->location);
+    }
+
+    // For each array variable, if it has no explicit bound,
+    // assign one as the maximum value within known constraints.
+    for (int i = 0; i < arr->vars.size(); ++i)
+    {
+        auto & var = arr->vars[i];
+
+        if (!var->range)
+        {
+            isl::value max_index(nullptr);
+            try { max_index = isl_array_def_domain.maximum(isl_space.var(i + context_var_count)); }
+            catch (isl::error &)
+            {
+                throw error("Failed to infer array variable bound.");
+            }
+
+            if (max_index.is_integer())
+            {
+                var->range = make_shared<int_const>(max_index.integer() + 1);
+            }
+            else if (max_index.is_pos_infinity())
+            {
+                var->range = make_shared<infinity>();
+            }
+            else
+            {
+                throw error("Failed to infer array variable bound.");
+            }
+        }
+    }
+
+    // Extract array size from range of array variables
+
+    array_size_vec size;
+
+    for (auto & var : arr->vars)
+    {
+        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
+            size.push_back(c->value);
+        else
+            size.push_back(-1);
+    }
+
+    // Make sure domain is rectangular and independent of the context.
+    // This is somewhat complicated because index constraints may include
+    // variables from enclosing arrays.
+    // Solution:
+    // Let context constraints be C_ctx,
+    // Let C be local constraints
+    // Let C_max be rectangular hull of local constraints (max range for each variable)
+    // Check if C_Ctx & C = C_ctx & C_max
+
+    {
+        auto rect_domain = isl::set::universe(isl_space);
+        for (int i = 0; i < size.size(); ++i)
+        {
+            int j = i + context_var_count;
+            rect_domain.add_constraint(isl_space.var(j) >= 0);
+            if (size[i] >= 0)
+                rect_domain.add_constraint(isl_space.var(j) < int(size[i]));
+        }
+
+        if (not ((isl_context_domain & rect_domain) == isl_array_def_domain))
+        {
+            throw type_error("Part of array domain is undefined.", arr->location);
+        }
+    }
+
+    // Expand array space with common space of subdomains
+
+    size.insert(size.end(), common_elem_size.begin(), common_elem_size.end());
+
+    assign(arr, make_shared<array_type>(size, common_elem_type));
+}
+
+void type_checker::check_array_variables(const shared_ptr<array> & arr)
+{
     for (auto & var : arr->vars)
     {
         if (!var->range)
         {
-            // FIXME: This is instead of array bounding.
-            var->range = make_shared<infinity>();
-            //continue;
+            continue;
         }
 
         var->range = visit(var->range);
@@ -779,106 +985,80 @@ void type_checker::process_array(const shared_ptr<array> & arr)
             }
         }
     }
-
-    array_size_vec common_subdom_size;
-    vector<primitive_type> elem_types;
-
-    auto process_type = [&](expr_slot & e)
-    {
-        const auto & type = e->type;
-
-        if (!type->is_data())
-        {
-            throw type_error("Expression can not be used as data.", e.location);
-        }
-
-        if (dynamic_pointer_cast<function_type>(type))
-        {
-            throw type_error("Function not allowed here.", e.location);
-        }
-        else if (auto at = dynamic_pointer_cast<array_type>(type))
-        {
-            try {
-                common_subdom_size = common_array_size(common_subdom_size, at->size);
-            } catch (no_type &) {
-                ostringstream msg;
-                msg << "Size mismatch: "
-                    << at->size << " != " << common_subdom_size;
-                throw type_error(msg.str(), e.location);
-            }
-
-            elem_types.push_back(at->element);
-        }
-        else if (auto st = dynamic_pointer_cast<scalar_type>(type))
-        {
-            elem_types.push_back(st->primitive);
-        }
-        else
-        {
-            throw error("Unexpected type.");
-        }
-    };
-
-    auto patterns = dynamic_pointer_cast<array_patterns>(arr->expr.expr);
-    for (auto & pattern : patterns->patterns)
-    {
-        if (pattern.domains)
-        {
-            auto cexpr = dynamic_pointer_cast<case_expr>(pattern.domains.expr);
-
-            for (auto & c : cexpr->cases)
-            {
-                auto & domain = c.first;
-                auto & expr = c.second;
-
-                domain = visit(domain);
-                domain = m_affine.ensure_contraint(domain);
-
-                expr = visit(expr);
-                process_type(expr);
-            }
-        }
-
-        if (pattern.expr)
-        {
-            pattern.expr = visit(pattern.expr);
-            process_type(pattern.expr);
-        }
-    }
-
-    primitive_type result_elem_type;
-
-    try {
-        result_elem_type = common_type(elem_types);
-    } catch (no_type &) {
-        throw type_error("Incompatible types.", arr->location);
-    }
-
-    assign(patterns, type_for(common_subdom_size, result_elem_type));
-
-    // Limit array size
-
-    // FIXME: Array bounding disabled to enable type inference for recursive ids.
-    // m_array_bounding.bound(arr);
-
-    // Extract array size from range of array variables
-
-    array_size_vec size;
-
-    for (auto & var : arr->vars)
-    {
-        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
-            size.push_back(c->value);
-        else
-            size.push_back(-1);
-    }
-
-    // Expand array space with common space of subdomains
-
-    size.insert(size.end(), common_subdom_size.begin(), common_subdom_size.end());
-
-    assign(arr, make_shared<array_type>(size, result_elem_type));
 }
+
+void type_checker::process_array_value
+(expr_slot & e, vector<array_size_vec> & elem_sizes, vector<primitive_type> & elem_types)
+{
+    e = visit(e);
+
+    const auto & type = e->type;
+
+    if (!type->is_data())
+    {
+        throw type_error("Expression can not be used as data.", e.location);
+    }
+
+    if (dynamic_pointer_cast<function_type>(type))
+    {
+        throw type_error("Function not allowed here.", e.location);
+    }
+    else if (auto at = dynamic_pointer_cast<array_type>(type))
+    {
+        elem_sizes.push_back(at->size);
+        elem_types.push_back(at->element);
+    }
+    else if (auto st = dynamic_pointer_cast<scalar_type>(type))
+    {
+        elem_sizes.push_back(array_size_vec());
+        elem_types.push_back(st->primitive);
+    }
+    else
+    {
+        throw error("Unexpected type.");
+    }
+}
+
+isl::set type_checker::array_context_domain(const shared_ptr<array> & arr)
+{
+    if (m_isl_array_domain_stack.empty())
+    {
+        isl::space space(m_isl_ctx, isl::set_tuple(arr->vars.size()));
+        return isl::set::universe(space);
+    }
+    else
+    {
+        auto context = m_isl_array_domain_stack.top();
+        context.add_dimensions(isl::space::variable, arr->vars.size());
+        return context;
+    }
+}
+
+isl::set type_checker::array_var_bounds(const shared_ptr<array> & arr)
+{
+    isl::space space(m_isl_ctx, isl::set_tuple(m_array_var_stack.size()));
+    auto domain = isl::set::universe(space);
+
+    int context_size = m_array_var_stack.size() - arr->vars.size();
+
+    // Add explicit bounds:
+    for (int i = 0; i < arr->vars.size(); ++i)
+    {
+        auto & var = arr->vars[i];
+
+        int j = context_size + i;
+
+        domain.add_constraint(space.var(j) >= 0);
+
+        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
+        {
+            domain.add_constraint(space.var(j) < int(c->value));
+        }
+    }
+
+    return domain;
+}
+
 
 expr_ptr type_checker::visit_array_patterns(const shared_ptr<array_patterns> &)
 {

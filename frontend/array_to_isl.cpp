@@ -1,4 +1,5 @@
 #include "array_to_isl.hpp"
+#include "func_copy.hpp"
 #include "error.hpp"
 
 #include <isl-cpp/constraint.hpp>
@@ -80,6 +81,17 @@ isl::expression to_affine_expr(expr_ptr e, const space_map & s)
     }
     else if (auto ref = dynamic_pointer_cast<reference>(e))
     {
+        if (auto id = dynamic_pointer_cast<identifier>(ref->var))
+        {
+            if (!id->is_recursive)
+            {
+                unordered_set<id_ptr> dummy_id_set;
+                name_provider dummy_name_provider('.');
+                copier copy(dummy_id_set, dummy_name_provider);
+                return to_affine_expr(copy.copy(id->expr), s);
+            }
+        }
+
         auto avar = dynamic_pointer_cast<array_var>(ref->var);
         if (!avar)
             throw source_error("Invalid type of variable in affine expression.",

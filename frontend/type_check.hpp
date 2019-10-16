@@ -9,6 +9,8 @@
 #include "array_bounding.hpp"
 #include "linear_expr_gen.hpp"
 
+#include <isl-cpp/constraint.hpp>
+
 #include <stack>
 #include <unordered_set>
 
@@ -52,6 +54,11 @@ private:
     expr_ptr visit_cases(const shared_ptr<case_expr> & cexpr) override;
     expr_ptr visit_array(const shared_ptr<array> & arr) override;
     void process_array(const shared_ptr<array> & arr);
+    void check_array_variables(const shared_ptr<array> & arr);
+    void process_array_value
+    (expr_slot & e, vector<array_size_vec> & elem_sizes, vector<primitive_type> & elem_types);
+    isl::set array_context_domain(const shared_ptr<array> & arr);
+    isl::set array_var_bounds(const shared_ptr<array> & arr);
     expr_ptr visit_array_patterns(const shared_ptr<array_patterns> & ap) override;
     expr_ptr visit_array_self_ref(const shared_ptr<array_self_ref> &) override;
     expr_ptr visit_array_app(const shared_ptr<array_app> & app) override;
@@ -74,6 +81,7 @@ private:
     }
 
     using processing_id_stack_type = stack_adapter<deque<id_ptr>>;
+    using array_var_stack_type = stack_adapter<deque<array_var_ptr>>;
 
     int m_pass = 0;
     tracing_stack<location_type> m_trace;
@@ -89,6 +97,11 @@ private:
     copier m_copier;
     array_bounding m_array_bounding;
     affine_integer_expression_check m_affine;
+
+    isl::context m_isl_ctx;
+    std::stack<isl::set> m_isl_array_domain_stack;
+    array_var_stack_type m_array_var_stack;
+
 };
 
 }
