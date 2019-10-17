@@ -68,6 +68,7 @@ add_unit_test(linear_constraint_with_reified_subexpression linear_constraint_wit
 add_unit_test(mutual_recursion1 mutual_recursion1.in)
 add_unit_test(mutual_recursion2 mutual_recursion2.in)
 add_unit_test(mutual_recursion3 mutual_recursion3.in)
+add_unit_test(recursive_local_id recursive_local_id.arrp)
 add_unit_test(external0 external.in external.hpp)
 add_unit_test(external1 external1.in external.hpp)
 add_unit_test(external2 external2.in external.hpp)

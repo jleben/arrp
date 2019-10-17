@@ -1,0 +1,19 @@
+## Recursive local ID y is in the argument to 'g';
+## this argument is turned into a local id.
+## One bug visited y twice, recursively, and messed up
+## turning the argument into a local id.
+
+g(b) = b+2;
+
+main = y where {
+  y[0] = 0;
+  y[t] = g(y[t-1]+1);
+};
+
+##? [~]int
+##? 0
+##? 3
+##? 6
+##? 9
+##? 12
+##? 15

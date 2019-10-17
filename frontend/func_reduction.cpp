@@ -71,33 +71,42 @@ func_reduction::func_reduction(fn::name_provider & nm):
 
 void func_reduction::reduce(fn::id_ptr id)
 {
+    m_visited_ids.insert(id);
+
+    int tag = new_log_tag();
+
     if (verbose())
-        cout << "Reducing ID: " << id << endl;
+        cout << tag << " Reducing ID: " << id << endl;
 
     id->type_expr = visit(id->type_expr);
     id->expr = try_expose_function(visit(id->expr));
 
     if (verbose())
     {
-        cout << "Reduced ID:";
+        cout << tag << " Reduced ID:";
         m_printer.print(id, cout);
         cout << endl;
     }
 }
 
+void func_reduction::visit_local_id(const id_ptr & id)
+{
+    if (verbose())
+        cout << "Reducing local ID: " << id << endl;
+
+    reduce(id);
+}
+
 fn::expr_ptr func_reduction::visit_func(const shared_ptr<fn::function> & f)
 {
-    // We wait never visit function bodies.
+    // We never visit function bodies.
     // A function must be fully applied for its body to be further reduced.
     return f;
 }
 
 fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app)
 {
-    static int last_tag = 0;
-
-    ++last_tag;
-    int tag = last_tag;
+    int tag = new_log_tag();
 
     if (verbose())
     {
@@ -106,12 +115,8 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
         cout << endl;
     }
 
+    // We reduce the object so that we can expose it as a function.
     app->object = visit(app->object);
-
-    for (auto & arg : app->args)
-    {
-        arg = visit(arg);
-    }
 
     if (verbose())
     {
@@ -274,8 +279,6 @@ fn::expr_ptr func_reduction::visit_ref(const shared_ptr<fn::reference> & ref)
     {
         bool was_visited = m_visited_ids.count(id) > 0;
 
-        m_visited_ids.insert(id);
-
         if (!was_visited)
         {
             reduce(id);
@@ -308,15 +311,6 @@ fn::expr_ptr func_reduction::visit_scope(const shared_ptr<fn::scope_expr> & scop
 {
     auto result = rewriter_base::visit_scope(scope);
     assert_or_throw(result == scope);
-
-    // Remove local ids from visited ids, so they can be revisited when
-    // further function variables are substituted.
-
-    for (auto & id : scope->local.ids)
-    {
-        m_visited_ids.erase(id);
-    }
-
     return result;
 }
 

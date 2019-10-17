@@ -31,6 +31,7 @@ public:
     void reduce(fn::id_ptr id);
 
 private:
+    virtual void visit_local_id(const id_ptr & id) override;
     fn::expr_ptr visit_func(const shared_ptr<fn::function> &) override;
     fn::expr_ptr visit_func_app(const shared_ptr<fn::func_app> &) override;
     fn::expr_ptr visit_ref(const shared_ptr<fn::reference> &) override;
@@ -44,6 +45,9 @@ private:
     std::unordered_set<id_ptr> m_visited_ids;
 
     fn::printer m_printer;
+
+    int new_log_tag() { return ++m_log_tag; }
+    int m_log_tag = 0;
 };
 
 }
