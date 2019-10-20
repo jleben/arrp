@@ -167,11 +167,6 @@ int main(int argc, char *argv[])
     args.add_option({"ast-avoid-branch-in-loop", "", "", "Split loops to avoid branching inside."},
                     new switch_option(&opt.separate_loops));
 
-    args.add_option({"io-unordered", "", "", "Do not necessarily order input and output."},
-                    new switch_option(&opt.ordered_io, false));
-    args.add_option({"io-atomic", "", "", "Input and output singular elements."},
-                    new switch_option(&opt.atomic_io, true));
-
     args.add_option({"classic-storage", "", "", "Use unmodified successive modulo technique."},
                     new switch_option(&opt.classic_storage_allocation, true));
 
@@ -192,6 +187,16 @@ int main(int argc, char *argv[])
                     new switch_option(&opt.buffer_data_shifting, true));
     args.add_option({"move-loop-invariant-code", "", "", ""},
                     new switch_option(&opt.loop_invariant_code_motion, true));
+
+    args.add_option({"output", "o", "<file>", "Output file name."},
+                    new string_option(&opt.generic_io.filename));
+
+    args.add_option({"io-mode", "", "<text|raw>", "Input/output mode. Default = text."},
+                    new string_option(&opt.generic_io.mode));
+    args.add_option({"io-unordered", "", "", "Do not necessarily order input and output."},
+                    new switch_option(&opt.ordered_io, false));
+    args.add_option({"io-atomic", "", "", "Input and output singular elements."},
+                    new switch_option(&opt.atomic_io, true));
 
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<module_parser>("parsing");

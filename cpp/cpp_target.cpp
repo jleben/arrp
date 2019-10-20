@@ -697,7 +697,7 @@ void generate(const string & name,
     m.members.push_back(make_shared<include_dir>("algorithm"));
     m.members.push_back(make_shared<include_dir>("complex"));
     m.members.push_back(make_shared<include_dir>("unordered_map"));
-    m.members.push_back(make_shared<include_dir>("arrp.hpp"));
+    m.members.push_back(make_shared<include_dir>("arrp/arrp.hpp"));
 
     m.members.push_back(make_shared<using_decl>("namespace std"));
 

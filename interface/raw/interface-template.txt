@@ -1,0 +1,232 @@
+DECLARE_KERNEL
+
+#include <arrp/arguments/arguments.hpp>
+#include <iostream>
+#include <fstream>
+#include <unordered_map>
+#include <vector>
+#include <list>
+
+using namespace std;
+
+namespace arrp {
+
+class  Raw_IO
+{
+public:
+    Raw_IO():
+        inputs(INPUT_COUNT, nullptr),
+        outputs(OUTPUT_COUNT, nullptr)
+    {
+    }
+
+    void set_input(int index, istream * in)
+    {
+        inputs[index] = in;
+    }
+
+    void set_output(int index, ostream * out)
+    {
+        outputs[index] = out;
+    }
+
+    IO_FUNCTIONS
+
+private:
+
+    template <typename T>
+    void text_input(T & value, istream & stream)
+    {
+        stream >> value;
+    }
+
+    template <typename T>
+    void text_input(T * value, int64_t size, istream & stream)
+    {
+        for (int i = 0; i < size; ++i)
+            stream >> value[i];
+    }
+
+    template <typename T>
+    void text_output(T & value, ostream & stream)
+    {
+        stream << value << endl;
+    }
+
+    template <typename T>
+    void text_output(T * value, int64_t size, ostream & stream)
+    {
+        for (int i = 0; i < size; ++i)
+            stream << value[i] << endl;
+    }
+
+
+    template <typename T>
+    void binary_input(T & value, istream & stream)
+    {
+        stream >> value;
+    }
+
+    template <typename T>
+    void raw_input(T * value, int64_t size, istream & stream)
+    {
+        stream.read((char*)value, size * sizeof(T));
+    }
+
+    template <typename T>
+    void raw_output(T * value, int64_t size, ostream & stream)
+    {
+        stream.write((char*)value, size * sizeof(T));
+    }
+
+    vector<istream*> inputs;
+    vector<ostream*> outputs;
+};
+
+}
+
+void report_stream_error(ios& stream, const string & name)
+{
+    if (stream.bad() or stream.fail())
+    {
+        cerr << "Error: Transferring stream " << name << "." << endl;
+    }
+}
+
+using namespace arrp;
+
+int main(int argc, char *argv[])
+{
+    vector<string> input_names = INPUT_NAMES;
+    vector<string> output_names = OUTPUT_NAMES;
+
+    list<ifstream> input_files;
+    list<ofstream> output_files;
+
+    vector<istream*> inputs(input_names.size(), nullptr);
+    vector<ostream*> outputs(output_names.size(), nullptr);
+
+    if (input_names.size() == 1)
+        inputs.front() = &cin;
+    if (output_names.size() == 1)
+        outputs.front() = &cout;
+
+
+
+    unordered_map<string, string> input_file_names;
+    unordered_map<string, string> output_file_names;
+
+    bool print_help = false;
+
+    int64_t count = -1;
+
+    Arguments::Parser args;
+
+    args.add_switch("-h", print_help);
+    args.add_option("-n", count);
+
+    for (auto & name : input_names)
+    {
+       args.add_option("--" + name, input_file_names[name]);
+    }
+    for (auto & name : output_names)
+    {
+       args.add_option("--" + name, output_file_names[name]);
+    }
+
+    args.parse(argc, argv);
+
+    if (print_help)
+    {
+       args.print(cerr);
+       return 0;
+    }
+
+    Raw_IO io;
+
+    for (int i = 0; i < input_names.size(); ++i)
+    {
+        auto & name = input_names[i];
+        string & file_name = input_file_names[name];
+
+        if (file_name == "_")
+        {
+           inputs[i] = &cin;
+        }
+        else if (!file_name.empty())
+        {
+           input_files.emplace_back(file_name);
+           if (!input_files.back().is_open())
+           {
+               cerr << "Input file " << file_name << " could not be opened." << endl;
+               return 1;
+           }
+           inputs[i] = &input_files.back();
+        }
+
+        if (inputs[i] == nullptr)
+        {
+           cerr << "Input " << name << " not specified." << endl;
+           return 1;
+        }
+
+        io.set_input(i, inputs[i]);
+    }
+
+    for (int i = 0; i < output_names.size(); ++i)
+    {
+        auto & name = output_names[i];
+        string & file_name = output_file_names[name];
+
+        if (file_name == "_")
+        {
+           outputs[i] = &cout;
+        }
+        else if (!file_name.empty())
+        {
+           output_files.emplace_back(file_name);
+           if (!output_files.back().is_open())
+           {
+               cerr << "Output file " << file_name << " could not be opened." << endl;
+               return 1;
+           }
+           outputs[i] = &output_files.back();
+        }
+
+        if (outputs[i] == nullptr)
+        {
+           cerr << "Output " << name << " not specified." << endl;
+           return 1;
+        }
+
+        io.set_output(i, outputs[i]);
+    }
+
+    for (auto * stream : inputs)
+        stream->exceptions(std::ifstream::failbit | std::ifstream::badbit | std::ifstream::eofbit);
+
+    INSTANTIATE_KERNEL;
+
+    try
+    {
+    kernel.prelude();
+
+    auto remaining_periods = count;
+    while(count < 0 or remaining_periods)
+    {
+        --remaining_periods;
+        kernel.period();
+    }
+    }
+    catch(std::ios_base::failure &)
+    {
+        for (int i = 0; i < input_names.size(); ++i)
+            report_stream_error(*inputs[i], input_names[i]);
+        for (int i = 0; i < output_names.size(); ++i)
+            report_stream_error(*outputs[i], output_names[i]);
+    }
+
+    return 0;
+}
+
+

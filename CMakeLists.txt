@@ -71,3 +71,12 @@ add_subdirectory(utility)
 add_subdirectory(compiler)
 add_subdirectory(interface)
 add_subdirectory(test)
+
+# Install some files into build dir
+
+configure_file(cpp/arrp.hpp include/arrp/arrp.hpp COPYONLY)
+configure_file(extra/arguments/arguments.hpp include/arrp/arguments/arguments.hpp COPYONLY)
+
+
+install(FILES cpp/arrp.hpp DESTINATION include/arrp)
+install(FILES extra/arguments/arguments.hpp DESTINATION include/arrp/arguments)

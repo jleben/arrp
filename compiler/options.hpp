@@ -42,6 +42,11 @@ struct options
         string filename;
     } cpp;
 
+    struct {
+        string filename = "program";
+        string mode = "text";
+    } generic_io;
+
     vector<string> import_dirs;
     vector<string> import_extensions { "arrp" };
 
@@ -72,7 +77,7 @@ struct options
     int data_alignment = 0;
     bool data_size_power_of_two = false;
 
-    string report_file = "arrp-report.json";
+    string report_file;
 };
 
 }

@@ -42,6 +42,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../polyhedral/isl_ast_gen.hpp"
 #include "../cpp/cpp_target.hpp"
 #include "report.hpp"
+#include "../interface/raw/generator.h"
 
 #include <isl-cpp/printer.hpp>
 #include <isl-cpp/utility.hpp>
@@ -59,6 +60,7 @@ namespace stream {
 namespace compiler {
 
 void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & schedule);
+void report_io(const polyhedral::model & ph_model);
 
 result::code compile(const options & opts)
 {
@@ -379,15 +381,44 @@ result::code compile_module
                 }
             }
 
+            report_io(ph_model);
+
             // Generate C++ output
 
-            if (opts.cpp.enabled)
+            string tmp_dir = "/tmp/arrp/build";
             {
-                string file_base = opts.cpp.filename;
-                if (file_base.empty())
-                    file_base = main_module->name;
+                int status = system(("mkdir -p " + tmp_dir).c_str());
+                if (status != 0)
+                    throw error("Failed to create directory: " + tmp_dir);
+            }
 
-                string cpp_filename = file_base + ".cpp";
+            string cpp_filename;
+
+            //if (opts.cpp.enabled)
+            {
+                string namespace_name;
+
+                if (opts.cpp.enabled)
+                {
+                    string file_base = opts.cpp.filename;
+                    if (file_base.empty())
+                        file_base = main_module->name;
+
+                    cpp_filename = file_base + ".cpp";
+
+                    namespace_name = opts.cpp.nmspace;
+                    if (namespace_name.empty())
+                        namespace_name = main_module->name;
+                }
+                else
+                {
+                    cpp_filename = tmp_dir + "/kernel.cpp";
+                    namespace_name = "arrp_kernel";
+                }
+
+                arrp::report()["cpp"]["namespace"] = namespace_name;
+                arrp::report()["cpp"]["filename"] = cpp_filename;
+
                 ofstream cpp_file(cpp_filename);
                 if (!cpp_file.is_open())
                 {
@@ -396,9 +427,6 @@ result::code compile_module
                     return result::io_error;
                 }
 
-                string nmspace = opts.cpp.nmspace;
-                if (nmspace.empty())
-                    nmspace = main_module->name;
 #if 0
                 string hpp_filename = file_base + ".h";
                 ofstream hpp_file(hpp_filename);
@@ -410,7 +438,7 @@ result::code compile_module
                 }
 #endif
 
-                cpp_gen::generate(nmspace,
+                cpp_gen::generate(namespace_name,
                                   ph_model,
                                   ast,
                                   cpp_file,
@@ -430,7 +458,7 @@ result::code compile_module
         return result::semantic_error;
     }*/
 
-    if (!arrp::report().empty())
+    if (!opts.report_file.empty())
     {
         ofstream out(opts.report_file);
         if (!out.is_open())
@@ -441,6 +469,20 @@ result::code compile_module
         {
             out << arrp::report().dump(4) << endl;
         }
+    }
+
+    try
+    {
+        arrp::generic_io::options output_opt;
+        output_opt.output_file = opts.generic_io.filename;
+        output_opt.mode = opts.generic_io.mode;
+
+        arrp::generic_io::generate(output_opt, arrp::report());
+    }
+    catch (error & e)
+    {
+        cerr << "ERROR: " << e.what() << endl;
+        return result::generator_error;
     }
 
     return result::ok;
@@ -511,6 +553,58 @@ void compute_io_latencies(polyhedral::model & ph_model, polyhedral::schedule & s
     if (verbose<io_latency>::enabled())
         arrp::report()["latencies"] = report;
 }
+
+arrp::json io_channel_report(const polyhedral::io_channel & channel)
+{
+    // FIXME: Input order does not correspond to Arrp source.
+
+    arrp::json report;
+
+    report["name"] = channel.name;
+    report["is_stream"] = channel.array->is_infinite;
+
+    ostringstream type;
+    type << channel.array->type;
+    report["type"] = type.str();
+
+    int64_t size = 1;
+    for(auto & s : channel.array->size)
+    {
+        if (s >= 0)
+            size *= s;
+    }
+
+    report["size"] = size;
+
+    for(auto & s : channel.array->size)
+    {
+        if (s >= 0)
+            report["dimensions"].push_back(s);
+    }
+
+    return report;
+}
+
+void report_io(const polyhedral::model & ph_model)
+{
+    arrp::json inputs_report;
+
+    for (auto & in : ph_model.inputs)
+    {
+        inputs_report.push_back(io_channel_report(in));
+    }
+
+    arrp::json outputs_report;
+
+    for (auto & out : ph_model.outputs)
+    {
+        outputs_report.push_back(io_channel_report(out));
+    }
+
+    arrp::report()["inputs"] = inputs_report;
+    arrp::report()["outputs"] = outputs_report;
+}
+
 
 } // namespace compiler
 } // namespace stream
