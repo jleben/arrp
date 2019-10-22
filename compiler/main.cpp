@@ -35,6 +35,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../polyhedral/isl_ast_gen.hpp"
 #include "../polyhedral/storage_alloc.hpp"
 #include "../cpp/cpp_target.hpp"
+#include "../interface/raw/generator.h"
 
 #include <stdexcept>
 
@@ -218,6 +219,7 @@ int main(int argc, char *argv[])
     verbose_out->add_topic<polyhedral::storage_output>("storage");
     verbose_out->add_topic<cpp_gen::cpp_target>("cpp");
     verbose_out->add_topic<io_latency>("latency");
+    verbose_out->add_topic<arrp::generic_io::log>("exe");
 
     args.add_option({"verbose", "v", "<topic>", "Enable verbose output for <topic>."}, verbose_out);
 

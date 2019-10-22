@@ -3,10 +3,12 @@
 #include "../../extra/json/json.hpp"
 #include "../../extra/arguments/arguments.hpp"
 #include "../../utility/subprocess.hpp"
+#include "../../utility/debug.hpp"
 
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
+#include <cstdlib>
 
 using namespace std;
 using json = nlohmann::json;
@@ -165,8 +167,33 @@ void generate(const generic_io::options & options, const nlohmann::json & report
 
     // Compile C++
 
+    string cpp_compiler;
+
     {
-        string cmd = string("g++ ")
+        auto * CXX = getenv("CXX");
+        if (CXX)
+            cpp_compiler = CXX;
+        if (cpp_compiler.empty())
+        {
+            if (system("c++ --version 2>&1 > /dev/null") == 0)
+                cpp_compiler = "c++";
+        }
+        if (cpp_compiler.empty())
+        {
+            if (system("g++ --version 2>&1 > /dev/null") == 0)
+                cpp_compiler == "g++";
+        }
+        if (cpp_compiler.empty())
+        {
+            throw stream::error("Failed to find C++ compiler.");
+        }
+    }
+
+    if (stream::verbose<log>::enabled())
+        cerr << "Using C++ compiler: " << cpp_compiler << endl;
+
+    {
+        string cmd = cpp_compiler
                 + " -I. -I./include "
                 + main_cpp_file_name
                 + " -o " + options.output_file;

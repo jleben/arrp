@@ -7,6 +7,9 @@
 namespace arrp {
 namespace generic_io {
 
+// For the purpose of verbose output:
+struct log {};
+
 struct options
 {
     std::string output_file;
