@@ -394,7 +394,7 @@ result::code compile_module
 
             string cpp_filename;
 
-            //if (opts.cpp.enabled)
+            if (opts.cpp.enabled or !opts.generic_io.filename.empty())
             {
                 string namespace_name;
 
@@ -471,18 +471,21 @@ result::code compile_module
         }
     }
 
-    try
+    if (!opts.generic_io.filename.empty())
     {
-        arrp::generic_io::options output_opt;
-        output_opt.output_file = opts.generic_io.filename;
-        output_opt.mode = opts.generic_io.mode;
+        try
+        {
+            arrp::generic_io::options output_opt;
+            output_opt.output_file = opts.generic_io.filename;
+            output_opt.mode = opts.generic_io.mode;
 
-        arrp::generic_io::generate(output_opt, arrp::report());
-    }
-    catch (error & e)
-    {
-        cerr << "ERROR: " << e.what() << endl;
-        return result::generator_error;
+            arrp::generic_io::generate(output_opt, arrp::report());
+        }
+        catch (error & e)
+        {
+            cerr << "ERROR: " << e.what() << endl;
+            return result::generator_error;
+        }
     }
 
     return result::ok;

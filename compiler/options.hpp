@@ -43,7 +43,7 @@ struct options
     } cpp;
 
     struct {
-        string filename = "program";
+        string filename;
         string mode = "text";
     } generic_io;
 
