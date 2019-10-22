@@ -24,4 +24,4 @@ sed --in-place "s/@VERSION@/$version/" install/DEBIAN/control
 sed --in-place "s/@ARCHITECTURE@/$arch/" install/DEBIAN/control
 
 # Make package
-dpkg-deb --build install arrp.deb
+dpkg-deb --build install arrp_${version}_${arch}.deb
