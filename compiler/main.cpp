@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
     }
     catch (arguments::error & e)
     {
-        cerr << e.msg() << endl;
+        cerr << "Error: " << e.msg() << endl;
         return result::command_line_error;
     }
 

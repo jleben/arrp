@@ -87,7 +87,7 @@ public:
         void set_msg(const string & msg)
         {
             std::ostringstream text;
-            text << "streamc: error: " << msg;
+            text << msg;
             m_msg = text.str();
         }
         const string & msg() const { return m_msg; }
