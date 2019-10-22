@@ -1,0 +1,5 @@
+Package: arrp
+Version: @VERSION@
+Maintainer: Jakob Leben <jakob.leben@gmail.com>
+Description: Arrp language compiler
+Architecture: @ARCHITECTURE@
