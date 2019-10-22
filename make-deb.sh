@@ -15,7 +15,7 @@ arch=$(dpkg-architecture -q DEB_TARGET_ARCH)
 
 # Build contents
 mkdir -p install
-cmake -D CMAKE_INSTALL_PREFIX="$(pwd)/install/usr" "$src_dir"
+cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX="$(pwd)/install/usr" "$src_dir"
 make install
 
 # Fill in variables in the control file
