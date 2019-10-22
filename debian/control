@@ -1,5 +1,6 @@
 Package: arrp
 Version: @VERSION@
+Depends: libstdc++6, libgmp10
 Maintainer: Jakob Leben <jakob.leben@gmail.com>
 Description: Arrp language compiler
 Architecture: @ARCHITECTURE@
