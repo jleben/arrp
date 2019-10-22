@@ -1,0 +1,44 @@
+name: Build Debian package for release
+
+on:
+  release:
+    types: [published, prereleased]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container:
+        image: ubuntu:18.04
+
+    steps:
+    - uses: actions/checkout@v1
+    - uses: srt32/git-actions@v0.0.3
+      with:
+        args: "git submodule update --init --recursive"
+
+    - name: Install dependencies
+      run: |
+        apt-get update
+        apt-get -y install build-essential libtool autoconf git cmake python3 libgmp-dev dpkg-dev
+
+    - name: Build ISL
+      run: |
+        cd extra/isl
+        mkdir build
+        ./autogen.sh
+        ./configure --prefix=$(pwd)/build
+        make install
+
+    - name: Build Arrp compiler package
+      run: |
+        mkdir build
+        cd build
+        ../make-deb.sh ..
+
+    - name: Upload package
+      uses: skx/github-action-publish-binaries@release-0.9.1
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+          args: 'build/*.deb'
