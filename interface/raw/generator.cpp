@@ -204,6 +204,7 @@ void generate(const generic_io::options & options, const nlohmann::json & report
 
     {
         string cmd = cpp_compiler
+                + " -std=c++17"
                 + include_dirs
                 + " " + main_cpp_file_name
                 + " -o " + options.output_file;
