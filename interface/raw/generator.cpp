@@ -192,11 +192,25 @@ void generate(const generic_io::options & options, const nlohmann::json & report
     if (stream::verbose<log>::enabled())
         cerr << "Using C++ compiler: " << cpp_compiler << endl;
 
+    string include_dirs;
+
+    {
+        include_dirs += " -I.";
+
+        auto * ARRP_HOME = getenv("ARRP_HOME");
+        if (ARRP_HOME)
+            include_dirs += " -I" + string(ARRP_HOME) + "/include";
+    }
+
     {
         string cmd = cpp_compiler
-                + " -I. -I./include "
-                + main_cpp_file_name
+                + include_dirs
+                + " " + main_cpp_file_name
                 + " -o " + options.output_file;
+
+        if (stream::verbose<log>::enabled())
+            cerr << "Executing: " << cmd << endl;
+
         subprocess::run(cmd);
     }
 }
