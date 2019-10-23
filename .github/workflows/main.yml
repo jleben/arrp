@@ -1,11 +1,11 @@
-name: Build Debian package for release
+name: Build and upload release assets
 
 on:
   release:
     types: [published, prereleased]
 
 jobs:
-  build:
+  build-ubuntu:
 
     runs-on: ubuntu-latest
     container:
@@ -42,3 +42,39 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
           args: 'build/*.deb'
+
+  build-macos:
+
+    runs-on: macOS-latest
+
+    steps:
+
+    - uses: actions/checkout@v1
+
+    - name: Checkout submodules
+      run: |
+        git submodule update --init --recursive
+
+    - name: Install dependencies
+      run: |
+        brew install automake autoconf libtool gmp
+
+    - name: Build ISL
+      run: |
+        cd extra/isl
+        mkdir build
+        ./autogen.sh
+        ./configure --prefix=$(pwd)/build
+        make install
+
+    - name: Build Arrp compiler and make ZIP
+      run: |
+        mkdir build
+        cd build
+        ../make-zip.sh .. macos
+
+    - name: Upload ZIP as release asset
+      uses: AButler/upload-release-assets@v1.0
+      with:
+        files: 'build/*.zip'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
