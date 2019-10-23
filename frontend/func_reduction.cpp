@@ -145,7 +145,7 @@ fn::expr_ptr func_reduction::visit_func_app(const shared_ptr<fn::func_app> & app
             cout << tag << " Trying to apply: "; m_printer.print(object, cout); cout << endl;
         }
 
-        if (auto f = dynamic_pointer_cast<function>(object))
+        if (auto f = dynamic_pointer_cast<fn::function>(object))
         {
             int applied_arg_count = std::min(int(f->vars.size()), remaining_arg_count);
             object = apply(f, remaining_args, applied_arg_count);
@@ -284,7 +284,7 @@ fn::expr_ptr func_reduction::visit_ref(const shared_ptr<fn::reference> & ref)
             reduce(id);
         }
 
-        if (auto f = dynamic_pointer_cast<function>(id->expr.expr))
+        if (auto f = dynamic_pointer_cast<fn::function>(id->expr.expr))
         {
             if (id->is_recursive)
                 throw stream::source_error("Recursive function not allowed.", id->location);
@@ -320,7 +320,7 @@ fn::expr_ptr func_reduction::try_expose_function(fn::expr_ptr e)
 
     while(auto scope = dynamic_pointer_cast<scope_expr>(sub_expr))
     {
-        if (auto f = dynamic_pointer_cast<function>(scope->value.expr))
+        if (auto f = dynamic_pointer_cast<fn::function>(scope->value.expr))
         {
             scope->value = f->expr;
             f->expr = e;
