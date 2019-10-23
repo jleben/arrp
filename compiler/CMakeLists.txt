@@ -55,7 +55,11 @@ else()
 endif()
 endif()
 
-find_library(GMP_LIB gmp)
+if(APPLE)
+    find_library(GMP_LIB libgmp.a)
+else()
+    find_library(GMP_LIB gmp)
+endif()
 
 # NOTE: gmp needed by isl
 target_link_libraries(arrp-lib ${ISL_LIBRARY} isl-cpp ${GMP_LIB} m)
