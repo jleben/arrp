@@ -181,7 +181,7 @@ void generate(const generic_io::options & options, const nlohmann::json & report
         if (cpp_compiler.empty())
         {
             if (system("g++ --version 2>&1 > /dev/null") == 0)
-                cpp_compiler == "g++";
+                cpp_compiler = "g++";
         }
         if (cpp_compiler.empty())
         {
