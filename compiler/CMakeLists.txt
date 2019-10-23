@@ -55,8 +55,10 @@ else()
 endif()
 endif()
 
+find_library(GMP_LIB gmp)
+
 # NOTE: gmp needed by isl
-target_link_libraries( arrp-lib ${ISL_LIBRARY} isl-cpp gmp m)
+target_link_libraries(arrp-lib ${ISL_LIBRARY} isl-cpp ${GMP_LIB} m)
 
 # Executable
 
