@@ -10,7 +10,7 @@ jobs:
     steps:
 
     - run: |
-        wget https://github.com/jleben/arrp/releases/download/test-release/arrp_1.0.0_macos.zip
+        wget https://github.com/jleben/arrp/releases/download/test-release2/arrp_1.0.0_macos.zip
         unzip arrp_1.0.0_macos.zip
         cd arrp_1.0.0_macos
         echo "main = 1;" > test.arrp
