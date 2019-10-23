@@ -14,5 +14,5 @@ jobs:
         unzip arrp_1.0.0_macos.zip
         cd arrp_1.0.0_macos
         echo "main = 1;" > test.arrp
-        ARRP_HOME=. && ./bin/arrp test.arrp --exec test
+        ARRP_HOME=. ./bin/arrp test.arrp --exec test
         ./test
