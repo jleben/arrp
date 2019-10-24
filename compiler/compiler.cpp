@@ -43,6 +43,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../cpp/cpp_target.hpp"
 #include "report.hpp"
 #include "../interface/raw/generator.h"
+#include "../utility/filesystem.hpp"
+#include "../utility/subprocess.hpp"
 
 #include <isl-cpp/printer.hpp>
 #include <isl-cpp/utility.hpp>
@@ -102,6 +104,8 @@ result::code compile(const options & opts)
 result::code compile_module
 (const module_source & source, istream & text, const options & opts)
 {
+    arrp::filesystem::temporary_dir temp_dir;
+
     module_parser parser;
     parser.set_import_dirs(opts.import_dirs);
     parser.set_import_extensions(opts.import_extensions);
@@ -385,18 +389,14 @@ result::code compile_module
 
             // Generate C++ output
 
-            string tmp_dir = "/tmp/arrp/build";
-            {
-                int status = system(("mkdir -p " + tmp_dir).c_str());
-                if (status != 0)
-                    throw error("Failed to create directory: " + tmp_dir);
-            }
-
-            string cpp_filename;
+            string tmp_cpp_filename;
 
             if (opts.cpp.enabled or !opts.generic_io.filename.empty())
             {
+                tmp_cpp_filename = temp_dir.name() + "/kernel.cpp";
+
                 string namespace_name;
+                string user_cpp_filename;
 
                 if (opts.cpp.enabled)
                 {
@@ -404,7 +404,7 @@ result::code compile_module
                     if (file_base.empty())
                         file_base = main_module->name;
 
-                    cpp_filename = file_base + ".cpp";
+                    user_cpp_filename = file_base + ".cpp";
 
                     namespace_name = opts.cpp.nmspace;
                     if (namespace_name.empty())
@@ -412,18 +412,20 @@ result::code compile_module
                 }
                 else
                 {
-                    cpp_filename = tmp_dir + "/kernel.cpp";
                     namespace_name = "arrp_kernel";
                 }
 
                 arrp::report()["cpp"]["namespace"] = namespace_name;
-                arrp::report()["cpp"]["filename"] = cpp_filename;
+                arrp::report()["cpp"]["tmp-filename"] = tmp_cpp_filename;
 
-                ofstream cpp_file(cpp_filename);
+                if (verbose<compiler::log>::enabled())
+                    cerr << "Opening C++ output file: " << tmp_cpp_filename << endl;
+
+                ofstream cpp_file(tmp_cpp_filename);
                 if (!cpp_file.is_open())
                 {
                     cerr << "Could not open C++ output file: "
-                         << cpp_filename << endl;
+                         << tmp_cpp_filename << endl;
                     return result::io_error;
                 }
 
@@ -443,6 +445,25 @@ result::code compile_module
                                   ast,
                                   cpp_file,
                                   opts);
+
+                // Copy to user file
+                if (!user_cpp_filename.empty())
+                {
+                    if (verbose<compiler::log>::enabled())
+                        cerr << "Copying C++ output file to: " << user_cpp_filename << endl;
+
+                    arrp::report()["cpp"]["output-filename"] = user_cpp_filename;
+                    arrp::subprocess::run("cp " + tmp_cpp_filename + " " + user_cpp_filename);
+                }
+            }
+
+            if (!opts.generic_io.filename.empty())
+            {
+                arrp::generic_io::options output_opt;
+                output_opt.output_file = opts.generic_io.filename;
+                output_opt.mode = opts.generic_io.mode;
+
+                arrp::generic_io::generate(output_opt, arrp::report(), temp_dir);
             }
         }
     }
@@ -451,12 +472,11 @@ result::code compile_module
         print(source_error::critical, e);
         return result::semantic_error;
     }
-    /*
     catch(error & e)
     {
         cout << "ERROR: " << e.what() << endl;
-        return result::semantic_error;
-    }*/
+        return result::generator_error;
+    }
 
     if (!opts.report_file.empty())
     {
@@ -468,23 +488,6 @@ result::code compile_module
         else
         {
             out << arrp::report().dump(4) << endl;
-        }
-    }
-
-    if (!opts.generic_io.filename.empty())
-    {
-        try
-        {
-            arrp::generic_io::options output_opt;
-            output_opt.output_file = opts.generic_io.filename;
-            output_opt.mode = opts.generic_io.mode;
-
-            arrp::generic_io::generate(output_opt, arrp::report());
-        }
-        catch (error & e)
-        {
-            cerr << "ERROR: " << e.what() << endl;
-            return result::generator_error;
         }
     }
 

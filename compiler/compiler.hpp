@@ -31,7 +31,9 @@ result::code compile_module(const module_source &, istream & text, const options
 
 void print_buffer_sizes(const vector<stream::polyhedral::array_ptr> &);
 
-struct io_latency {}; // For verbose output
+// For logging
+struct io_latency {};
+struct log {};
 
 }
 }

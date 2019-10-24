@@ -200,6 +200,7 @@ int main(int argc, char *argv[])
                     new string_option(&opt.generic_io.mode));
 
     auto verbose_out = new verbose_out_options;
+    verbose_out->add_topic<compiler::log>("general");
     verbose_out->add_topic<module_parser>("parsing");
     verbose_out->add_topic<ast::output>("ast");
     verbose_out->add_topic<functional::model>("func-model");

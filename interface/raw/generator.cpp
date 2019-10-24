@@ -96,7 +96,9 @@ string io_function(const json & channel, int index, bool is_input, bool raw)
     return function.str();
 }
 
-void generate(const generic_io::options & options, const nlohmann::json & report)
+void generate
+(const generic_io::options & options, const nlohmann::json & report,
+ filesystem::temporary_dir & temp_dir)
 {
     bool raw_mode = false;
 
@@ -107,7 +109,7 @@ void generate(const generic_io::options & options, const nlohmann::json & report
     else
         throw stream::error("Invalid IO mode: " + options.mode);
 
-    string kernel_file_name = report["cpp"]["filename"];
+    string kernel_file_name = report["cpp"]["tmp-filename"];
     string kernel_namespace = report["cpp"]["namespace"];
 
     // Generate C++ code
@@ -155,10 +157,7 @@ void generate(const generic_io::options & options, const nlohmann::json & report
     kernel_instance += "kernel.io = &io;\n";
     replace(io_text, "INSTANTIATE_KERNEL", kernel_instance);
 
-    string tmp_dir = "/tmp/arrp/generic-io";
-    subprocess::run("mkdir -p " + tmp_dir);
-
-    string main_cpp_file_name = tmp_dir + "/program.cpp";
+    string main_cpp_file_name = temp_dir.name() + "/program.cpp";
 
     {
         ofstream file(main_cpp_file_name);
@@ -195,8 +194,6 @@ void generate(const generic_io::options & options, const nlohmann::json & report
     string include_dirs;
 
     {
-        include_dirs += " -I.";
-
         auto * ARRP_HOME = getenv("ARRP_HOME");
         if (ARRP_HOME)
             include_dirs += " -I" + string(ARRP_HOME) + "/include";

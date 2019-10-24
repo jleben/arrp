@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../extra/json/json.hpp"
+#include "../../utility/filesystem.hpp"
 
 #include <string>
 
@@ -16,7 +17,7 @@ struct options
     std::string mode;
 };
 
-void generate(const options &, const nlohmann::json & report);
+void generate(const options &, const nlohmann::json & report, filesystem::temporary_dir &);
 
 }
 }
