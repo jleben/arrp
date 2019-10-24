@@ -209,14 +209,19 @@ int main(int argc, char *argv[])
 
     try
     {
-    kernel.prelude();
+        kernel.prelude();
 
-    auto remaining_periods = count;
-    while(count < 0 or remaining_periods)
-    {
-        --remaining_periods;
-        kernel.period();
-    }
+        // FIXME: Skip period if it is empty
+
+        if (KERNEL_HAS_PERIOD)
+        {
+            auto remaining_periods =  count;
+            while(count < 0 or remaining_periods)
+            {
+                --remaining_periods;
+                kernel.period();
+            }
+        }
     }
     catch(std::ios_base::failure &)
     {

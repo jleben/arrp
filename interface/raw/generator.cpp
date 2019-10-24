@@ -112,6 +112,18 @@ void generate
     string kernel_file_name = report["cpp"]["tmp-filename"];
     string kernel_namespace = report["cpp"]["namespace"];
 
+    bool has_period = false;
+
+    for (auto & out : report["outputs"])
+    {
+        bool is_stream = out["is_stream"];
+        if (is_stream)
+        {
+            has_period = true;
+            break;
+        }
+    }
+
     // Generate C++ code
 
     string io_text = arrp_raw_io_template;
@@ -156,6 +168,8 @@ void generate
     kernel_instance += "::program<arrp::Raw_IO> kernel;\n";
     kernel_instance += "kernel.io = &io;\n";
     replace(io_text, "INSTANTIATE_KERNEL", kernel_instance);
+
+    replace(io_text, "KERNEL_HAS_PERIOD", has_period ? "true" : "false");
 
     string main_cpp_file_name = temp_dir.name() + "/program.cpp";
 
