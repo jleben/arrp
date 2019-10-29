@@ -17,3 +17,8 @@ add_library(arrp-io-generic-lib
 
 #add_executable(arrp-io-raw generator.cpp ${CMAKE_CURRENT_BINARY_DIR}/embedded-interface-template.cpp)
 #set_target_properties(arrp-io-raw PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+configure_file(interface.h ${CMAKE_BINARY_DIR}/include/arrp/generic_io/interface.h COPYONLY)
+configure_file(main.cpp ${CMAKE_BINARY_DIR}/include/arrp/generic_io/main.cpp COPYONLY)
+
+install(FILES interface.h main.cpp DESTINATION include/generic_io)

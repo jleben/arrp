@@ -461,7 +461,6 @@ result::code compile_module
             {
                 arrp::generic_io::options output_opt;
                 output_opt.output_file = opts.generic_io.filename;
-                output_opt.mode = opts.generic_io.mode;
 
                 arrp::generic_io::generate(output_opt, arrp::report(), temp_dir);
             }

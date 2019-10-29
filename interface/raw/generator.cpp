@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <cstdlib>
 
@@ -96,19 +97,56 @@ string io_function(const json & channel, int index, bool is_input, bool raw)
     return function.str();
 }
 
+string cpp_type_for_arrp_type(const string & type)
+{
+    if (type == "bool")
+        return "bool";
+    if (type == "integer")
+        return "int";
+    if (type == "real32")
+        return "float";
+    if (type == "real64")
+        return "double";
+    if (type == "complex32")
+        return "complex<float>";
+    if (type == "complex64")
+        return "complex<double>";
+    return string();
+}
+
+void write_channel_func(ostream & text, const nlohmann::json & channel)
+{
+    string name = channel["name"];
+    int size = channel["size"];
+    string type = cpp_type_for_arrp_type(channel["type"]);
+
+    text << "shared_ptr<AbstractChannel<" << type << ">> sp_" << name << ";" << endl;
+
+    if (size > 1)
+    {
+        text << "void " << name << "("
+                << type << "* data"
+                << ", size_t size"
+                << ") {" << endl;
+        text << "  sp_" << name << "->transfer(data, size);" << endl;
+        text << "}" << endl;
+    }
+    else
+    {
+        {
+            text << "void " << name << "("
+                    << type << "& data"
+                    << ") {" << endl;
+            text << "  sp_" << name << "->transfer(data);" << endl;
+            text << "}" << endl;
+        }
+    }
+}
+
 void generate
 (const generic_io::options & options, const nlohmann::json & report,
  filesystem::temporary_dir & temp_dir)
 {
-    bool raw_mode = false;
-
-    if (options.mode == "text")
-        raw_mode = false;
-    else if (options.mode == "raw")
-        raw_mode = true;
-    else
-        throw stream::error("Invalid IO mode: " + options.mode);
-
     string kernel_file_name = report["cpp"]["tmp-filename"];
     string kernel_namespace = report["cpp"]["namespace"];
 
@@ -124,58 +162,77 @@ void generate
         }
     }
 
-    // Generate C++ code
+    ostringstream io_text;
+    io_text << "namespace arrp { namespace generic_io {" << endl;
+    io_text << "struct Generated_IO {" << endl;
 
-    string io_text = arrp_raw_io_template;
+    io_text << "static const bool has_period = " << (has_period ? "true" : "false") << ";" << endl;
 
-    replace(io_text, "INPUT_COUNT", to_string(report["inputs"].size()));
-    replace(io_text, "OUTPUT_COUNT", to_string(report["outputs"].size()));
+    // IO functions
 
-    string input_names = channel_names(report["inputs"]);
-    string output_names = channel_names(report["outputs"]);
-
-    replace(io_text, "INPUT_NAMES", input_names);
-    replace(io_text, "OUTPUT_NAMES", output_names);
-
-    string io_functions;
-
+    for (auto & channel : report["inputs"])
     {
-        int input_index = 0;
-        for (auto & channel : report["inputs"])
-        {
-            io_functions += io_function(channel, input_index, true, raw_mode);
-            ++input_index;
-        }
+        write_channel_func(io_text, channel);
     }
 
+    for (auto & channel : report["outputs"])
     {
-        int output_index = 0;
-        for (auto & channel : report["outputs"])
-        {
-            io_functions += io_function(channel, output_index, false, raw_mode);
-            ++output_index;
-        }
+        write_channel_func(io_text, channel);
     }
 
-    replace(io_text, "IO_FUNCTIONS", io_functions);
+    // Channel managers
 
-    string kernel_declaration;
-    kernel_declaration = "#include \"" + kernel_file_name + "\"";
-    replace(io_text, "DECLARE_KERNEL", kernel_declaration);
+    io_text << "ChannelManagerMap input_managers = {" << endl;
+    for (auto & channel : report["inputs"])
+    {
+        string name = channel["name"];
+        string type = cpp_type_for_arrp_type(channel["type"]);
+        bool is_stream = channel["is_stream"];
+        io_text << "  { "
+                << "\"" << name << "\", "
+                << " std::make_shared<ChannelManager<" << type << ">>"
+                << "(sp_" << name << ", true, " << is_stream << ") "
+                << "},"
+                << endl;
+    }
+    io_text << "};" << endl;
 
-    string kernel_instance;
-    kernel_instance += kernel_namespace;
-    kernel_instance += "::program<arrp::Raw_IO> kernel;\n";
-    kernel_instance += "kernel.io = &io;\n";
-    replace(io_text, "INSTANTIATE_KERNEL", kernel_instance);
+    io_text << "ChannelManagerMap output_managers = {" << endl;
+    for (auto & channel : report["outputs"])
+    {
+        string name = channel["name"];
+        string type = cpp_type_for_arrp_type(channel["type"]);
+        bool is_stream = channel["is_stream"];
+        io_text << "  { "
+                << "\"" << name << "\", "
+                << " std::make_shared<ChannelManager<" << type << ">>"
+                << "(sp_" << name << ", false, " << is_stream << ") "
+                << "},"
+                << endl;
+    }
+    io_text << "};" << endl;
 
-    replace(io_text, "KERNEL_HAS_PERIOD", has_period ? "true" : "false");
+    // End class
+    io_text << "};" << endl;
 
-    string main_cpp_file_name = temp_dir.name() + "/program.cpp";
+    // End namespace
+    io_text << "}}" << endl;
 
+    string main_cpp_file_name = temp_dir.name() + "/main.cpp";
+    string io_cpp_file_name = temp_dir.name() + "/generated_interface.h";
+
+    {
+        ofstream file(io_cpp_file_name);
+        file << io_text.str() << endl;
+    }
     {
         ofstream file(main_cpp_file_name);
-        file << io_text << endl;
+        file << "#include <arrp/generic_io/interface.h>" << endl;
+        file << "#include \"generated_interface.h\"" << endl;
+        file << "#include \"" << kernel_file_name << "\"" << endl;
+        file << "using Generated_Kernel = " << kernel_namespace
+             << "::program<arrp::generic_io::Generated_IO>;" << endl;
+        file << "#include <arrp/generic_io/main.cpp>" << endl;
     }
 
     // Compile C++

@@ -196,8 +196,6 @@ int main(int argc, char *argv[])
 
     args.add_option({"exec", "x", "<file>", "Executable file name."},
                     new string_option(&opt.generic_io.filename));
-    args.add_option({"exec-io", "", "<text|raw>", "Executable's input/output mode. Default = text."},
-                    new string_option(&opt.generic_io.mode));
 
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<compiler::log>("general");

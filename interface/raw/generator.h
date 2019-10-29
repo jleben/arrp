@@ -14,7 +14,6 @@ struct log {};
 struct options
 {
     std::string output_file;
-    std::string mode;
 };
 
 void generate(const options &, const nlohmann::json & report, filesystem::temporary_dir &);

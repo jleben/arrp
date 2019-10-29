@@ -44,7 +44,6 @@ struct options
 
     struct {
         string filename;
-        string mode = "text";
     } generic_io;
 
     vector<string> import_dirs;
