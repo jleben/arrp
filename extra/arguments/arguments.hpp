@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 #include <functional>
+#include <stack>
 
 namespace Arguments {
 
@@ -139,65 +140,34 @@ public:
         remaining_args = &destination;
     }
 
-    void parse(int argc, char * argv[])
+    void parse(int argc, char ** argv)
     {
-        // Skip executable name
-        --argc;
-        ++argv;
+        std::stack<string> args;
 
-        int i = 0;
-        for(; i < argc; ++i)
+        for(int i = argc-1; i > 0; --i)
+            args.push(argv[i]);
+
+        while(!args.empty())
         {
-            string arg = argv[i];
+            string arg = args.top();
+            args.pop();
 
-            if (arg[0] != '-')
-            {
-                ++remaining_arg_count;
-                if (remaining_args)
-                {
-                    remaining_args->push_back(arg);
-                }
-                else if (remaining_arg && remaining_arg_count == 1)
-                {
-                    *remaining_arg = arg;
-                }
-                else
-                {
-                    throw Error("Unexpected argument: " + arg);
-                }
+            if(try_parse_option(arg, args))
                 continue;
-            }
 
-            string name = arg;
-
-            auto option_it = options.find(name);
-            if (option_it == options.end())
-                throw Error("Invalid option: " + name);
-
-            auto & option = option_it->second;
-
-            vector<string> params;
-
-            while(params.size() < option.param_count)
+            ++remaining_arg_count;
+            if (remaining_args)
             {
-                ++i;
-                if (i >= argc)
-                    break;
-                string param = argv[i];
-                if (param[0] == '-')
-                    break;
-                params.push_back(param);
+                remaining_args->push_back(arg);
             }
-
-            if (params.size() < option.param_count)
+            else if (remaining_arg && remaining_arg_count == 1)
             {
-                std::ostringstream msg;
-                msg << "Option " << name << " requires " << option.param_count
-                    << " parameters, but " << params.size() << " given.";
-                throw Error(msg.str());
+                *remaining_arg = arg;
             }
-
-            option.parser(params);
+            else
+            {
+                throw Error("Unexpected argument: " + arg);
+            }
         }
     }
 
@@ -214,6 +184,59 @@ public:
     }
 
 private:
+    bool try_parse_option(const string & arg, std::stack<string> & args)
+    {
+        string name;
+        string value;
+
+        bool has_equals = false;
+        {
+            auto equals_pos = arg.find('=');
+            if (equals_pos == string::npos)
+            {
+                name = arg;
+            }
+            else
+            {
+                has_equals = true;
+                name = arg.substr(0, equals_pos);
+                value = arg.substr(equals_pos+1);
+            }
+        }
+
+        if (!options.count(name))
+            return false;
+
+        auto & option = options.at(name);
+
+        vector<string> params;
+
+        if (has_equals)
+        {
+            if (!value.empty())
+                params.push_back(value);
+        }
+        else
+        {
+            while(params.size() < option.param_count and !args.empty())
+            {
+                params.push_back(args.top());
+                args.pop();
+            }
+        }
+
+        if (params.size() < option.param_count)
+        {
+            std::ostringstream msg;
+            msg << "Option " << name << " requires " << option.param_count
+                << " parameters, but " << params.size() << " given.";
+            throw Error(msg.str());
+        }
+
+        option.parser(params);
+
+        return true;
+    }
 
     unordered_map<string, Option> options;
     int remaining_arg_count = 0;
