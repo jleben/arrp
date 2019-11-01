@@ -131,11 +131,11 @@ void write_channel_func(ostream & text, const nlohmann::json & channel, bool is_
 
     if (size > 1)
     {
+        text << "template <typename T, size_t S>" << endl;
         text << "void " << func_name << "("
-                << type << "* data"
-                << ", size_t size"
+                << "T (&data)[S]"
                 << ") {" << endl;
-        text << "  sp_" << name << "->transfer(data, size);" << endl;
+        text << "  sp_" << name << "->transfer((" << type << "*)data, " << size << ");" << endl;
         text << "}" << endl;
     }
     else
