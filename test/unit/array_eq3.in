@@ -4,7 +4,7 @@
 fib[0] = 0;
 fib[1] = 1;
 fib[i] = fib[i-2] + fib[i-1];
-main = fib;
+output main = fib;
 
 ##? [~]int
 ##? 0

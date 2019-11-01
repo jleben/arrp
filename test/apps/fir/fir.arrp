@@ -4,13 +4,12 @@ import array;
 import math;
 import signal;
 
-input in1 :: [~]real64;
 input coefs :: [3]real64;
 
 fir(k) =
   array.map(\w -> math.sum(w*k)) . signal.win(#k,1);
 
-main = fir(coefs,in1);
+output main = fir(coefs, [n -> n]);
 
 ##? [~]real64
 ##? 8

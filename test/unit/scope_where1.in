@@ -1,2 +1,2 @@
 
-main = 3 + x where x = 1;
+output main = 3 + x where x = 1;

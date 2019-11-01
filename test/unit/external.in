@@ -8,7 +8,7 @@ external g :: int -> int;
 
 a = [~,4: i,j -> i+j];
 
-main = [i -> f(a[i] * 2) + g(i)];
+output main = [i -> f(a[i] * 2) + g(i)];
 
 ##? [~,2]int
 ##? (2,10)

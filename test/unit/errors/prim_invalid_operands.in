@@ -1,2 +1,2 @@
 
-main = 1 + true;
+output main = 1 + true;

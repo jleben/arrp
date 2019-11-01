@@ -18,7 +18,7 @@ pi = atan(1) * 4;
 
 osc(freq) = sin(phase(freq) * 2 * pi);
 
-main = osc(0.1);
+output main = osc(0.1);
 
 ##? [~]real64
 ##? 0.00000

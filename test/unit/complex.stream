@@ -7,4 +7,4 @@ mul = 1.0 * 1i;
 div = 1.0 / 1i;
 arr = [5:e -> (1.0*e) + 1i];
 f = sin(1) + pi;
-main = exp(lit) + add + sub + mul + div + arr + f + pi;
+output main = exp(lit) + add + sub + mul + div + arr + f + pi;

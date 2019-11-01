@@ -1,2 +1,2 @@
 
-main = [2+3: a -> a]
+output main = [2+3: a -> a]

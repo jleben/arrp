@@ -1,7 +1,7 @@
 
 a = [0 -> 0; i -> 2*b[i-1]];
 b = [i -> a[i] + 1];
-main = a;
+output main = a;
 
 ##? [~]int
 ##? 0

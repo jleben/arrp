@@ -1,7 +1,7 @@
 f(x) = x + 1;
 g(a) = h(a);
 h(b) = b(3);
-main = g(f);
+output main = g(f);
 
 ##? int
 ##? 4

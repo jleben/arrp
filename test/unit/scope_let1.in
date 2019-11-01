@@ -1,2 +1,2 @@
 
-main = let x = 1 in 3 + x;
+output main = let x = 1 in 3 + x;

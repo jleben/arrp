@@ -14,7 +14,7 @@ signal = sine(f) where
     pi = atan(1)*4;
 };
 
-main = lp(0.4, signal);
+output main = lp(0.4, signal);
 
 ##? [~,3]real64
 ##? (0.000,0.000,0.000)

@@ -1,5 +1,5 @@
 
-main = [5,~: x,y -> x+y]
+output main = [5,~: x,y -> x+y]
 
 ##? [~,5]int
 

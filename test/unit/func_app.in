@@ -5,7 +5,7 @@ f(x,y) = z(x) + y;
 
 g(x) = f(x);
 
-main = g(9,5);
+output main = g(9,5);
 
 ##? real64
 ##? 8.0

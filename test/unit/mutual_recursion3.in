@@ -7,7 +7,7 @@ a + b + x where
     b = [i -> a[i] + 1];
 };
 
-main = f(2);
+output main = f(2);
 
 ##? [~]int
 ##? 3

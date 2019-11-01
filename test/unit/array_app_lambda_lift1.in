@@ -1,7 +1,7 @@
 
 
 x = [10: 0 -> 0; i -> this[i-1]+1][5];
-main = x;
+output main = x;
 
 ##? int
 ##? 5

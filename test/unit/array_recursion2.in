@@ -1,5 +1,5 @@
 
-main = x = [~: 0 -> 0; i -> 2 * y[i-1]] where
+output main = x = [~: 0 -> 0; i -> 2 * y[i-1]] where
 {
     y =  [~: i -> x[i] + 1];
 };

@@ -2,7 +2,7 @@
 f(g) = g(1)(2);
 h(x,y) = x + y;
 
-main = f(h);
+output main = f(h);
 
 ##? int
 ##? 3

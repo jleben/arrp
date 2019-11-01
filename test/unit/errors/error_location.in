@@ -9,4 +9,4 @@ f(x) = {
 };
 
 
-main = f(3);
+output main = f(3);

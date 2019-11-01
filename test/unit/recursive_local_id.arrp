@@ -5,7 +5,7 @@
 
 g(b) = b+2;
 
-main = y where {
+output main = y where {
   y[0] = 0;
   y[t] = g(y[t-1]+1);
 };

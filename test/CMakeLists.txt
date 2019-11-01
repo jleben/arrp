@@ -43,7 +43,7 @@ function(compile_output_test name test_source test_header test_libs)
   )
 endfunction()
 
-function(add_output_test name source)
+function(add_output_test_old name source)
 
   if(NOT ARGC LESS 3)
     list(GET ARGN 0 test_header)
@@ -74,6 +74,20 @@ function(add_output_test name source)
     "${CMAKE_CURRENT_BINARY_DIR}/${tester_name}"
     "--compare=${CMAKE_CURRENT_SOURCE_DIR}/${source}"
   )
+endfunction()
+
+function(add_output_test name source compile_options run_options)
+  add_test(NAME ${name}
+    COMMAND sh "${CMAKE_SOURCE_DIR}/test/common/compile_and_evaluate.sh"
+        "${name}" "${source}" "${compile_options}" "${run_options}"
+  )
+  set_property(TEST ${name}
+    PROPERTY ENVIRONMENT
+      ARRP_HOME=${CMAKE_BINARY_DIR}
+      CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
+      CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+  )
+  set_property(TEST ${name} PROPERTY TIMEOUT 10)
 endfunction()
 
 add_custom_target(tests)

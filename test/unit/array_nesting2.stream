@@ -1,5 +1,5 @@
 
-main = [5:
+output main = [5:
   0 -> 0;
   i -> [3: 0 -> 0; j -> this[j-1]+i];
 ];

@@ -3,4 +3,4 @@
 
 a = [10,5: i,j -> 1];
 b = [n -> [i -> a[i+10,n]]];
-main = b;
+output main = b;

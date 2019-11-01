@@ -1,7 +1,7 @@
 
 g(x) = x + x;
 f(y) = g(y);
-main = f(2.3);
+output main = f(2.3);
 
 ##? real64
 ##? 4.6

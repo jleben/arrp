@@ -3,7 +3,7 @@
 
 f(g) = g(1,2) + g(3,4);
 
-main = f(\x, y -> x * y);
+output main = f(\x, y -> x * y);
 
 ##? int
 ##? 14

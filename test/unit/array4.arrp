@@ -1,7 +1,7 @@
 
 ## Test redundant array parts
 
-main = [~:
+output main = [~:
     0 -> 0;
     t -> 1;
     t -> 2;

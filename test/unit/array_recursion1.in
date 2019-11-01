@@ -1,6 +1,6 @@
 
 x = [~: 0 -> 1; i -> x[i-1] + 2];
-main = x;
+output main = x;
 
 ##? [~]int
 ##? 1

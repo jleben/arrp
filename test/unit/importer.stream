@@ -4,6 +4,6 @@ import importee2 as i2;
 
 a = 1000;
 
-main = a + importee1.a + i2.a + i2.b;
+output main = a + importee1.a + i2.a + i2.b;
 
 

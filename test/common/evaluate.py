@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('source')
 parser.add_argument('report')
 parser.add_argument('--program')
+parser.add_argument('--program-options')
 args = parser.parse_args()
 
 # Parse report
@@ -89,6 +90,8 @@ if output['type'] != type_info['type']:
           " but program has " + output['type'])
     exit(1)
 
+print("Type {} OK.".format(type_str))
+
 # Compare output values
 
 if args.program is None:
@@ -102,7 +105,11 @@ for line in source_lines[1:]:
 if len(values) == 0:
     exit(0)
 
-cmd = args.program + ' -f text | head -n ' + str(len(values))
+cmd = args.program + ' -f text'
+if args.program_options is not None:
+    cmd += ' ' + args.program_options
+cmd += ' | head -n ' + str(len(values))
+
 result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
 
 out_lines = result.stdout.split('\n')
@@ -115,9 +122,11 @@ if len(actual_values) < len(values):
 
 values_ok = True
 for i in range(0,len(values)):
-    if values[i] != actual_values[i]:
-        print("Output[{}]: Expected {} but got {}.".format(i, values[i], actual_values[i]))
+    if abs(values[i] - actual_values[i]) > 0.001:
+        print("Output[{}] = {:.3f} (Error: Expected {:.3f}).".format(i, actual_values[i], values[i]))
         values_ok = False
+    else:
+        print("Output[{}] = {:.3f} (OK)".format(i, actual_values[i]))
 
 if not values_ok:
     exit(1)

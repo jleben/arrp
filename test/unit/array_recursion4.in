@@ -6,7 +6,7 @@ y = [~: j ->
   in x
 ];
 
-main = y;
+output main = y;
 
 ##? [~,5]int
 ##? (0,1,2,3,4)

@@ -5,7 +5,7 @@ x[0,j] = 1  for j < 6;
 x[i,j] = 2  for j < 6 and j < i;
 x[i,j] = 3  for j < 6 and j > i;
 x[i,j] = 0  for j < 6;
-main = x;
+output main = x;
 
 ##? [~,6]int
 ##? (1, 1, 1, 1, 1, 1)

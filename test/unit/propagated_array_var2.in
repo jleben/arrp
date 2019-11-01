@@ -8,7 +8,7 @@ f(j) =
 g(n) =
   [n:i -> f(i)+2];
 
-main = g(5);
+output main = g(5);
 
 ##? [5]int
 ##? 2

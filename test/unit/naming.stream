@@ -1,4 +1,4 @@
 
 f(a) = let b = sin(2) in cos(a) * sin(a) + b;
 x = let b = log(123) in b * 5;
-main = f(5) + x;
+output main = f(5) + x;

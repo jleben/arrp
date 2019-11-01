@@ -1,2 +1,2 @@
 
-main = [i -> case i==0: 3; else: true]
+output main = [i -> case i==0: 3; else: true]

@@ -1,6 +1,6 @@
 
 f(a) = let x = a/2 in x;
-main = f(2) + f(3) + f(4)
+output main = f(2) + f(3) + f(4)
 
 ##? real64
 ##? 4.5

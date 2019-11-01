@@ -1,6 +1,6 @@
 
 a = [5:i -> i];
-main = a * 2;
+output main = a * 2;
 
 ##? [5]int
 ##? 0

@@ -1,7 +1,7 @@
 
 f(a) = a * a + a;
 x = 1.5;
-main = f(x);
+output main = f(x);
 
 ##? real64
 ##? 3.75

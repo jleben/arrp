@@ -1,7 +1,7 @@
  
 a = [3: i -> 2*i];
 b = [i -> [j -> i + a[j]]];
-main = b;
+output main = b;
 
 ##? [~,3]int
 ##? (0,2,4)

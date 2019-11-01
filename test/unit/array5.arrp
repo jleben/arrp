@@ -1,7 +1,7 @@
 
 ## Test guards without "else" part
 
-main = [~:
+output main = [~:
     t | t < 5 -> t + 10;
     t -> t + 100;
 ]

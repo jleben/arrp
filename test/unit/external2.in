@@ -3,7 +3,7 @@ external f2 :: [5]int -> [5]real64;
 
 a = [5: i -> i];
 
-main = f2(a);
+output main = f2(a);
 
 ##? [5]real64
 ##? 0.0

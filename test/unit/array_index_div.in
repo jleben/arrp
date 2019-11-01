@@ -1,7 +1,7 @@
 
 x = [t -> t];
 
-main = [t -> x[t//3]];
+output main = [t -> x[t//3]];
 
 ##? [~]int
 ##? 0

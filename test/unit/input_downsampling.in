@@ -1,7 +1,7 @@
 
 input x :: [~]int;
 
-main = [~: i -> x[i*2]]
+output main = [~: i -> x[i*2]]
 
 ##? [~]int
 ##? 0

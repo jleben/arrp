@@ -6,7 +6,7 @@ f(j) = y where {
     y = [~: i -> j] + [~: 0 -> 0; i -> y[i-1]];
 };
 
-main = [3: j -> f(j)]
+output main = [3: j -> f(j)]
 
 ##? [~,3]int
 ##? (0, 1, 2)

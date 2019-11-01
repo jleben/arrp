@@ -18,7 +18,7 @@ precise_osc(freq) =
 freq = 1/9;
 
 ## Compare wavetable vs. precise:
-main = [osc(table, freq); precise_osc(freq)];
+output main = [osc(table, freq); precise_osc(freq)];
 
 ##? [~,2]real64
 ##? (0.000,0.000)

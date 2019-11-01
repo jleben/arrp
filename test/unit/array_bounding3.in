@@ -1,7 +1,7 @@
  
 a = [10: i -> i];
 b = [i | i < 5 -> a[i+5] | a[i] ];
-main = b;
+output main = b;
 
 ##? [10]int
 

@@ -2,7 +2,6 @@ import signal;
 import array;
 import math;
 
-input x :: [~]real64;
 input coefs_a :: [2]real64;
 input coefs_b :: [3]real64;
 
@@ -18,7 +17,8 @@ iir(aa,bs,x) = y where {
         convolve(aa, delay(0,#aa,y));
 };
 
-main = iir(coefs_a, coefs_b, x);
+x = [t -> t];
+output main = iir(coefs_a, coefs_b, x);
 
 ##? [~]real64
 ##? 0.000

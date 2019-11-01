@@ -12,7 +12,7 @@ arg_max(x) = y[#y-1,1]
         ];
     };
 
-main = arg_max([3;0;5;9;4;2]);
+output main = arg_max([3;0;5;9;4;2]);
 
 ##? int
 ##? 3

@@ -1,7 +1,7 @@
  
 a = [8: i -> i];
 b = [4: n -> [i -> a[i+n]]];
-main = b;
+output main = b;
 
 ##? [4,5]int
 ##? (0,1,2,3,4)

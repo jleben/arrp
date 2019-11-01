@@ -1,6 +1,6 @@
 
 x = [5: i -> [10: 0 -> 0; i -> x[i-1]+2][i]];
-main = x;
+output main = x;
 
 ##? [5]int
 ##? 0
