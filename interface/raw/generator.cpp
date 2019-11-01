@@ -101,7 +101,7 @@ string cpp_type_for_arrp_type(const string & type)
 {
     if (type == "bool")
         return "bool";
-    if (type == "integer")
+    if (type == "int")
         return "int";
     if (type == "real32")
         return "float";
