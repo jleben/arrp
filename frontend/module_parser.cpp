@@ -27,7 +27,7 @@ module * module_parser::parse(const module_source & source, istream & text_strea
 
         ast = parser.ast();
 
-        if (verbose<ast::output>::enabled())
+        if (verbose<ast::log>::enabled())
         {
             cout << endl << "## AST for file " << source.path << " ##" << endl;
             ast::printer p;

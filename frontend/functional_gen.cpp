@@ -225,6 +225,40 @@ void generator::apply_declaration(id_ptr id, ast::node_ptr root)
 
     stacker<string, name_stack_t> name_stacker(name, m_name_stack);
 
+    // For output declarations, mark id as output.
+    switch(root->type)
+    {
+    case ast::output:
+    case ast::output_type:
+    case ast::output_value:
+    {
+        if (id->is_external)
+        {
+            throw source_error("Name has already been defined as input or external function.",
+                               location_in_module(root->location));
+        }
+        id->is_output = true;
+        break;
+    }
+    default: break;
+    }
+
+    // Convert output declarations into other declarations
+    // and then continue as usual.
+    switch(root->type)
+    {
+    case ast::output:
+        return;
+    case ast::output_type:
+        root->type = ast::id_type_decl;
+        break;
+    case ast::output_value:
+        root->type = ast::binding;
+        break;
+    default: break;
+    }
+
+    // Generate id expression.
     switch(root->type)
     {
     case ast::id_type_decl:
@@ -262,6 +296,7 @@ void generator::apply_declaration(id_ptr id, ast::node_ptr root)
         ext->type_expr = expr_slot(do_type_expr(type_node));
         id->expr = expr_slot(ext);
         id->type_expr = ext->type_expr;
+        id->is_external = true;
 
         break;
     }

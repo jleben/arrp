@@ -303,6 +303,8 @@ expr_ptr copier::visit_scope(const shared_ptr<scope_expr> & e)
         new_id->type_expr = copy(id->type_expr);
         new_id->explicit_type = id->explicit_type;
         new_id->is_recursive = id->is_recursive;
+        new_id->is_external = id->is_external;
+        new_id->is_output = id->is_output;
         r->local.ids.push_back(new_id);
 
         m_copy_context.bind(id, new_id);

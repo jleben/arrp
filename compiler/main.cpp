@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<compiler::log>("general");
     verbose_out->add_topic<module_parser>("parsing");
-    verbose_out->add_topic<ast::output>("ast");
+    verbose_out->add_topic<ast::log>("ast");
     verbose_out->add_topic<functional::model>("func-model");
     verbose_out->add_topic<functional::generator>("func-model-gen");
     verbose_out->add_topic<arrp::func_reduction>("func-reduction");

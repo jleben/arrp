@@ -166,33 +166,34 @@ namespace stream { namespace parsing {
         IMPORT = 272,
         AS = 273,
         INPUT = 274,
-        EXTERNAL = 275,
-        TYPE_EQ = 276,
-        FOR = 277,
-        LET = 278,
-        IN = 279,
-        WHERE = 280,
-        RIGHT_ARROW = 281,
-        ELSE = 282,
-        LOGIC_OR = 283,
-        LOGIC_AND = 284,
-        BIT_OR = 285,
-        BIT_XOR = 286,
-        BIT_AND = 287,
-        EQ = 288,
-        NEQ = 289,
-        LESS = 290,
-        MORE = 291,
-        LESS_EQ = 292,
-        MORE_EQ = 293,
-        BIT_SHIFT_LEFT = 294,
-        BIT_SHIFT_RIGHT = 295,
-        PLUSPLUS = 296,
-        INT_DIV = 297,
-        DOTDOT = 298,
-        LOGIC_NOT = 299,
-        BIT_NOT = 300,
-        UMINUS = 301
+        OUTPUT = 275,
+        EXTERNAL = 276,
+        TYPE_EQ = 277,
+        FOR = 278,
+        LET = 279,
+        IN = 280,
+        WHERE = 281,
+        RIGHT_ARROW = 282,
+        ELSE = 283,
+        LOGIC_OR = 284,
+        LOGIC_AND = 285,
+        BIT_OR = 286,
+        BIT_XOR = 287,
+        BIT_AND = 288,
+        EQ = 289,
+        NEQ = 290,
+        LESS = 291,
+        MORE = 292,
+        LESS_EQ = 293,
+        MORE_EQ = 294,
+        BIT_SHIFT_LEFT = 295,
+        BIT_SHIFT_RIGHT = 296,
+        PLUSPLUS = 297,
+        INT_DIV = 298,
+        DOTDOT = 299,
+        LOGIC_NOT = 300,
+        BIT_NOT = 301,
+        UMINUS = 302
       };
     };
 
@@ -500,12 +501,12 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 661,     ///< Last index in yytable_.
+      yylast_ = 651,     ///< Last index in yytable_.
       yynnts_ = 49,  ///< Number of nonterminal symbols.
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 69  ///< Number of tokens.
+      yyntokens_ = 70  ///< Number of tokens.
     };
 
 
@@ -516,7 +517,7 @@ namespace stream { namespace parsing {
 
 #line 13 "parser.y" // lalr1.cc:377
 } } // stream::parsing
-#line 520 "parser.hpp" // lalr1.cc:377
+#line 521 "parser.hpp" // lalr1.cc:377
 
 
 

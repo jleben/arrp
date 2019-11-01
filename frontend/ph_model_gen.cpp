@@ -197,7 +197,7 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
         // a single iteration that writes the entire array,
         // unless atomic input is requested.
 
-        string stmt_name = id->name + ".s";
+        string stmt_name = id->name + ".in";
 
         isl::set domain(nullptr);
 
@@ -266,7 +266,7 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
     }
 
     ph::io_channel ch;
-    ch.name = call_name;
+    ch.name = id->name;
     ch.type = type;
     ch.array = ar;
     ch.statement = stmt;
@@ -275,12 +275,12 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
 }
 
 void polyhedral_gen::add_output(polyhedral::model & model,
-                                const string & name, id_ptr id,
+                                id_ptr id,
                                 bool atomic, bool ordered)
 {
     auto array = m_arrays.at(id);
 
-    string stmt_name = id->name + "." + name;
+    string stmt_name = id->name + ".out";
 
     isl::set domain(nullptr);
 
@@ -313,7 +313,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     // functional call expression
 
     auto call = make_shared<polyhedral::external_call>();
-    call->name = name;
+    call->name = "output_" + id->name;
 
     vector<expr_ptr> ar_index;
     if (atomic)
@@ -354,7 +354,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     model.statements.push_back(stmt);
 
     ph::io_channel ch;
-    ch.name = name;
+    ch.name = id->name;
     ch.type = id->expr->type;
     ch.array = array;
     ch.statement = stmt;

@@ -44,7 +44,7 @@ using type_ptr = std::shared_ptr<type>;
 
 namespace ast {
 
-struct output; // verbose output;
+struct log; // verbose output;
 
 using location_type = parsing::location;
 
@@ -64,6 +64,9 @@ enum node_type
     function_type,
 
     input,
+    output,
+    output_value,
+    output_type,
     external,
     id_type_decl,
     binding,

@@ -23,7 +23,7 @@
 %token INT REAL COMPLEX TRUE FALSE STRING
 %token ID QUALIFIED_ID
 %token IF THEN CASE THIS
-%token MODULE IMPORT AS INPUT EXTERNAL
+%token MODULE IMPORT AS INPUT OUTPUT EXTERNAL
 
 %left '='
 %left TYPE_EQ
@@ -166,6 +166,16 @@ external_decl:
   |
   EXTERNAL id TYPE_EQ type
   { $$ = make_list(ast::external, @$, {$2, $4}); }
+  |
+  OUTPUT id
+  { $$ = make_list(ast::output, @$, {$2, nullptr}); }
+  |
+  OUTPUT id '=' expr
+  // Use format of binding
+  { $$ = make_list(ast::output_value, @$, {$2, nullptr, $4}); }
+  |
+  OUTPUT id_type_decl
+  { $$ = $2; $$->type = ast::output_type; }
 ;
 
 

@@ -96,6 +96,7 @@ blank [ \t]
 "import" { return parser::token::IMPORT; }
 "as" { return parser::token::AS; }
 "input" { return parser::token::INPUT; }
+"output" { return parser::token::OUTPUT; }
 "external" { return parser::token::EXTERNAL; }
 
 [0-9]+(\.[0-9]+)?i {

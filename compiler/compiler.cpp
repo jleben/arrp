@@ -147,20 +147,33 @@ result::code compile_module
             cerr << "--" << endl;
         }
 
+        unordered_set<functional::id_ptr> output_ids;
+
+        for (auto & id : ids)
+        {
+            if (id->is_output)
+                output_ids.insert(id);
+        }
+
+        if (output_ids.empty())
+        {
+            throw source_error("No output defined.", code_location(main_module));
+        }
+
         functional::id_ptr main_id;
 
+        for (auto & id : ids)
         {
-            auto id_is_main = [&main_module](functional::id_ptr id) -> bool {
-                return id->name == "main";
-            };
-            auto main_id_it = std::find_if(ids.begin(), ids.end(), id_is_main);
-            if (main_id_it != ids.end())
-                main_id = *main_id_it;
+            if (!id->is_output)
+                continue;
+            if (main_id)
+                throw source_error("Output defined multiple times.", id->location);
+            main_id = id;
         }
 
         if (!main_id || !main_id->expr)
         {
-            auto msg = "No value named \"main\".";
+            auto msg = "No output defined.";
             throw source_error(msg, code_location(main_module));
         }
 
@@ -189,7 +202,7 @@ result::code compile_module
 
         if (dynamic_pointer_cast<functional::function>(main_id))
         {
-            throw source_error("main must not be a function.", main_id->location);
+            throw source_error("Output must not be a function.", main_id->location);
         }
 
         {
@@ -289,7 +302,7 @@ result::code compile_module
                 functional::polyhedral_gen gen(ph_opts);
                 ph_model = gen.process(array_ids);
 
-                gen.add_output(ph_model, "output", main_id, opts.atomic_io, opts.ordered_io);
+                gen.add_output(ph_model, main_id, opts.atomic_io, opts.ordered_io);
             }
 
             // Drop statement instances which write elements which are never read
