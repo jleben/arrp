@@ -114,9 +114,16 @@ string cpp_type_for_arrp_type(const string & type)
     return string();
 }
 
-void write_channel_func(ostream & text, const nlohmann::json & channel)
+void write_channel_func(ostream & text, const nlohmann::json & channel, bool is_input)
 {
     string name = channel["name"];
+
+    string func_name;
+    if (is_input)
+        func_name = "input_" + name;
+    else
+        func_name = "output_" + name;
+
     int size = channel["size"];
     string type = cpp_type_for_arrp_type(channel["type"]);
 
@@ -124,7 +131,7 @@ void write_channel_func(ostream & text, const nlohmann::json & channel)
 
     if (size > 1)
     {
-        text << "void " << name << "("
+        text << "void " << func_name << "("
                 << type << "* data"
                 << ", size_t size"
                 << ") {" << endl;
@@ -134,7 +141,7 @@ void write_channel_func(ostream & text, const nlohmann::json & channel)
     else
     {
         {
-            text << "void " << name << "("
+            text << "void " << func_name << "("
                     << type << "& data"
                     << ") {" << endl;
             text << "  sp_" << name << "->transfer(data);" << endl;
@@ -172,12 +179,12 @@ void generate
 
     for (auto & channel : report["inputs"])
     {
-        write_channel_func(io_text, channel);
+        write_channel_func(io_text, channel, true);
     }
 
     for (auto & channel : report["outputs"])
     {
-        write_channel_func(io_text, channel);
+        write_channel_func(io_text, channel, false);
     }
 
     // Channel managers
