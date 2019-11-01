@@ -163,6 +163,66 @@ void report_channel_config(ostream & s, const ChannelConfig & config)
     s << "format: " << config.format << endl;
 }
 
+template <typename List>
+static void print_list(ostream & s, const string & separator, const List & list)
+{
+    auto i = list.begin();
+    if (i == list.end())
+        return;
+    s << *i;
+    for(++i; i != list.end(); ++i)
+        s << separator << *i;
+}
+
+static
+void print_help(Generated_IO & io)
+{
+    vector<string> input_names;
+    vector<string> output_names;
+
+    for(auto & entry : io.input_managers)
+        input_names.push_back(entry.first);
+    for(auto & entry : io.output_managers)
+        output_names.push_back(entry.first);
+
+    std::sort(input_names.begin(), input_names.end());
+    std::sort(output_names.begin(), output_names.end());
+
+    cerr << "Options: " << endl;
+    cerr << "  -h or --help" << endl;
+    cerr << "    ... Print this help." << endl;
+    cerr << "  -f=<format> or --format=<format>" << endl;
+    cerr << "    ... Use this format for inputs outputs without explicit format." << endl;
+    cerr << "  <input>=<value>" << endl;
+    cerr << "    ... Define input value." << endl;
+    cerr << "  <input>=<source>[:<format>]" << endl;
+    cerr << "    ... Read input from source with given format." << endl;
+    cerr << "  <output>=<destination>[:<format>]" << endl;
+    cerr << "    ... Write output to destination with given format." << endl;;
+
+    cerr << "Sources/Destinations:" << endl;
+    cerr << "  pipe: Read from stdin or write to stdout." << endl;
+    cerr << "  <filename>: Use file as source/destination." << endl;
+    cerr << "Formats: " << endl;
+    cerr << "  raw: Binary output as stored in memory." << endl;
+    cerr << "  text: Print or parse values using C++ formatting (array elements separated by spaces)." << endl;
+
+    cerr << "Note: If there is a single input (output) or a single stream input (output) "
+            "it will use pipe source (destination) with raw format, unless specified otherwise." << endl;
+
+    cerr << "Inputs:" << endl;
+    cerr << "  ";
+    print_list(cerr, ", ", input_names);
+    cerr << endl;
+
+    cerr << "Outputs:" << endl;
+    cerr << "  ";
+    print_list(cerr, ", ", output_names);
+    cerr << endl;
+
+
+}
+
 int main(int argc, char *argv[])
 {
     Generated_IO io;
@@ -198,8 +258,8 @@ int main(int argc, char *argv[])
 
     if (help_requested)
     {
-        parser.print(cerr);
-        return 1;
+        print_help(io);
+        return 0;
     }
 
     try { Config config(options, io); }
