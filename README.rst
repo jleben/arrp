@@ -6,6 +6,8 @@ This project provides a compiler for Arrp.
 
 For more information on the language Arrp, visit the `Arrp website`_.
 
+**NOTE: The language and compiler are currently in development towards the release of version 1.0.0 and the documentation may be out of date.**
+
 Table of Contents:
 ##################
 
