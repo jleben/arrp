@@ -55,7 +55,6 @@ blank [ \t]
 "//" { return parser::token::INT_DIV; }
 "->" { return parser::token::RIGHT_ARROW; }
 "==" { return parser::token::EQ; }
-"::" { return parser::token::TYPE_EQ; }
 "!=" { return parser::token::NEQ; }
 "<" { return parser::token::LESS; }
 ">" { return parser::token::MORE; }

@@ -26,7 +26,6 @@
 %token MODULE IMPORT AS INPUT OUTPUT EXTERNAL
 
 %left '='
-%left TYPE_EQ
 %left FOR
 %right LET IN
 %right WHERE
@@ -161,10 +160,10 @@ nested_decl_list:
 ;
 
 external_decl:
-  INPUT id TYPE_EQ type
+  INPUT id ':' type
   { $$ = make_list(ast::input, @$, {$2, $4}); }
   |
-  EXTERNAL id TYPE_EQ type
+  EXTERNAL id ':' type
   { $$ = make_list(ast::external, @$, {$2, $4}); }
   |
   OUTPUT id
@@ -223,7 +222,7 @@ param_list:
 ;
 
 id_type_decl:
-    id TYPE_EQ type
+    id ':' type
     { $$ = make_list(ast::id_type_decl, @$, {$1, $3}); }
 ;
 
