@@ -4,7 +4,7 @@ import array;
 import math;
 import signal;
 
-input coefs :: [3]real64;
+input coefs : [3]real64;
 
 fir(k) =
   array.map(\w -> math.sum(w*k)) . signal.win(#k,1);

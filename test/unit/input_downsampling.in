@@ -1,5 +1,5 @@
 
-input x :: [~]int;
+input x : [~]int;
 
 output main = [~: i -> x[i*2]]
 

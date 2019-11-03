@@ -1,6 +1,6 @@
 
 f(x) = y where {
-    y :: [#x]int;
+    y : [#x]int;
     y = [#x: i -> i+20]
 };
 

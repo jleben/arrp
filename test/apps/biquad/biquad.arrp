@@ -2,8 +2,8 @@ import signal;
 import array;
 import math;
 
-input coefs_a :: [2]real64;
-input coefs_b :: [3]real64;
+input coefs_a : [2]real64;
+input coefs_b : [3]real64;
 
 delay(v,d,x) = [i | i < d -> v | x[i-d]];
 
@@ -12,7 +12,6 @@ convolve(h,x) =
     array.map(f, signal.win(#h,1,x));
 
 iir(aa,bs,x) = y where {
-    y :: [~]real64;
     y = convolve(bs, delay(0,#bs-1,x)) -
         convolve(aa, delay(0,#aa,y));
 };

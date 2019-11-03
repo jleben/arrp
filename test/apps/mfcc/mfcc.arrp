@@ -3,8 +3,8 @@ import signal;
 import array;
 import math;
 
-external fft :: [64]real64 -> [33]complex64;
-external dct :: [10]real64 -> [10]real64;
+external fft : [64]real64 -> [33]complex64;
+external dct : [10]real64 -> [10]real64;
 
 sr = 20000;
 freq_hz = 500;

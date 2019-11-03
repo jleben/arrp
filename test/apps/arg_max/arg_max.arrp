@@ -1,7 +1,7 @@
 arg_max(x) = y[#y-1,1]
     
     ## FIXME: Variable x in type is not substituted:
-    ## where y :: [#x,2]int = 
+    ## where y : [#x,2]int =
     
     where {
         y = [#x:
