@@ -3,5 +3,5 @@ f(a) = a * a + a;
 x = 1.5;
 output main = f(x);
 
-##? real64
-##? 3.75
+...? real64
+...? 3.75

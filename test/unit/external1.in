@@ -3,5 +3,5 @@ external f1 :: int -> real64;
 
 output main = 1 + f1(1);
 
-##? real64
-##? 1.5
+...? real64
+...? 1.5

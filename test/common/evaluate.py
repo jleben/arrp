@@ -25,7 +25,7 @@ report = read_report(args.report)
 
 source = open(args.source, 'r')
 
-source_lines = [line[3:] for line in source if line.startswith('##?')]
+source_lines = [line[4:] for line in source if line.startswith('...?')]
 
 if len(source_lines) == 0:
     exit(0)

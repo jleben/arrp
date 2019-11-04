@@ -27,7 +27,8 @@ blank [ \t]
 
 {blank}+   yylloc->step ();
 [\n]+      yylloc->lines (yyleng); yylloc->step ();
-##[^\n]*\n    yylloc->lines (1); yylloc->step ();
+"..."[^\n]*\n    yylloc->lines (1); yylloc->step ();
+"--"[^\n]*\n    yylloc->lines (1); yylloc->step ();
 
 \\ { return (parser::token_type) '\\'; }
 \{ { return (parser::token_type) '{'; }

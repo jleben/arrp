@@ -4,4 +4,4 @@ b = 22;
 c = [*: i -> 33];
 d = [#c: i -> 44];
 output main = [#a + #b: i -> d[i]];
-##output main = #d;
+...output main = #d;

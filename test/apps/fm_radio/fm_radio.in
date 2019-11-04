@@ -1,6 +1,6 @@
 module fm_radio;
 
-## General
+... General
 
 pi = 3.14159265359;
 
@@ -19,7 +19,7 @@ sum(a) = fold(add, a);
 
 slice(pos,len,a) = [len: j -> a[pos + j]];
 
-## App
+... App
 
 sampling_rate = 250000000.0;
 cutoff_frequency = 108000000.0;
@@ -82,7 +82,7 @@ eq_amps = {
   ]
 };
 
-##filtered = lp_filter(sampling_rate, cutoff_frequency, num_taps, 0, in);
+...filtered = lp_filter(sampling_rate, cutoff_frequency, num_taps, 0, in);
 
 filtered = lp_filter(sampling_rate, cutoff_frequency, num_taps, 4, in);
 fm_demodulated = fm_demodulate(sampling_rate, max_amp, bandwidth, filtered);

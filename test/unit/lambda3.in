@@ -1,9 +1,9 @@
 
-## Applying lambda multiple times by propagation through function argument
+... Applying lambda multiple times by propagation through function argument
 
 f(g) = g(1,2) + g(3,4);
 
 output main = f(\x, y -> x * y);
 
-##? int
-##? 14
+...? int
+...? 14

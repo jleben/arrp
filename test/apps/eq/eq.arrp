@@ -1,11 +1,11 @@
 import array;
 import math;
 
-##windows(size,hop,x) = [#x: i -> [size:j -> x[hop*i + j]]];
+...windows(size,hop,x) = [#x: i -> [size:j -> x[hop*i + j]]];
 
-##reverse(x) = [#x: i -> x[#x-1-i]];
+...reverse(x) = [#x: i -> x[#x-1-i]];
 
-##sum(x) = [#x+1: 0 -> 0; i -> this[i-1] + x[i-1]];
+...sum(x) = [#x+1: 0 -> 0; i -> this[i-1] + x[i-1]];
 
 convolve(h,x) =
   [#x: i -> math.sum([#h: k -> h[k] * x[i+#h-1-k]])];

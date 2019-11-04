@@ -1,8 +1,8 @@
 arg_max(x) = y[#y-1,1]
-    
-    ## FIXME: Variable x in type is not substituted:
-    ## where y : [#x,2]int =
-    
+
+    ... FIXME: Variable x in type is not substituted:
+    ... where y : [#x,2]int =
+
     where {
         y = [#x:
             0 -> [x[0]; 0];
@@ -14,5 +14,5 @@ arg_max(x) = y[#y-1,1]
 
 output main = arg_max([3;0;5;9;4;2]);
 
-##? int
-##? 3
+...? int
+...? 3

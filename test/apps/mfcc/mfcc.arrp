@@ -16,12 +16,12 @@ hi_freq = 10000;
 
 pi = atan(1) * 4;
 
-## Complex
+... Complex
 
 mag(X) = sqrt(real(X)*real(X) + imag(X)*imag(X));
 pow(X) = real(X)*real(X) + imag(X)*imag(X);
 
-## Mel scale
+... Mel scale
 
 freq_to_mel(f) = 2595 * log10(1 + f/700);
 
@@ -48,23 +48,22 @@ mel_coefs(sr, fl, fh, n, wn) =
   }
   in [n, wn//2+1: m, b -> coef(mfreqs[m], mfreqs[m+1], mfreqs[m+2], bin_to_freq(sr,wn,b))];
 
-## Program
+... Program
 
 x = [t -> sin(freq*t*2*pi)];
 
 w = signal.win(win_size, win_size, x);
 
-
-##main = mel_freqs(lo_freq,hi_freq,n_mels+2);
-##main = fft_freqs(20000,10);
-##main = freq_to_bin(sr,200,mel_freqs(lo_freq, hi_freq, n_mels+2));
-##main = mel_coefs(sr, lo_freq, hi_freq, n_mels, win_size);
+...main = mel_freqs(lo_freq,hi_freq,n_mels+2);
+...main = fft_freqs(20000,10);
+...main = freq_to_bin(sr,200,mel_freqs(lo_freq, hi_freq, n_mels+2));
+...main = mel_coefs(sr, lo_freq, hi_freq, n_mels, win_size);
 
 melc = mel_coefs(sr, lo_freq, hi_freq, n_mels, win_size);
 
 pow_spectrum = pow(array.map(fft,w))/win_size;
 
 mel_spectrum = array.map(\X -> array.map(\c -> math.sum(X*c), melc), pow_spectrum);
-##main = mel_spectrum;
+...main = mel_spectrum;
 
 main = array.map(dct, log(mel_spectrum + 0.0001));

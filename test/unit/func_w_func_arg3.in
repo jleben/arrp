@@ -4,5 +4,5 @@ h(x,y) = x + y;
 
 output main = f(h);
 
-##? int
-##? 3
+...? int
+...? 3
