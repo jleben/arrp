@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
 
-    args.add_option({"exec", "x", "<file>", "Executable file name."},
+    args.add_option({"exe", "x", "<file>", "Executable file name."},
                     new string_option(&opt.generic_io.filename));
 
     auto verbose_out = new verbose_out_options;
