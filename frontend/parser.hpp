@@ -168,11 +168,11 @@ namespace stream { namespace parsing {
         INPUT = 274,
         OUTPUT = 275,
         EXTERNAL = 276,
-        FOR = 277,
-        LET = 278,
-        IN = 279,
-        WHERE = 280,
-        RIGHT_ARROW = 281,
+        OTHERWISE = 277,
+        RIGHT_ARROW = 278,
+        LET = 279,
+        IN = 280,
+        WHERE = 281,
         ELSE = 282,
         LOGIC_OR = 283,
         LOGIC_AND = 284,
@@ -353,7 +353,7 @@ namespace stream { namespace parsing {
     /// \param yyvalue   the value to check
     static bool yy_table_value_is_error_ (int yyvalue);
 
-    static const signed char yypact_ninf_;
+    static const short int yypact_ninf_;
     static const signed char yytable_ninf_;
 
     /// Convert a scanner token number \a t to a symbol number.
@@ -500,12 +500,12 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 656,     ///< Last index in yytable_.
-      yynnts_ = 49,  ///< Number of nonterminal symbols.
+      yylast_ = 1201,     ///< Last index in yytable_.
+      yynnts_ = 51,  ///< Number of nonterminal symbols.
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 69  ///< Number of tokens.
+      yyntokens_ = 68  ///< Number of tokens.
     };
 
 

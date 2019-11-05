@@ -175,10 +175,7 @@ expr_ptr copier::visit_array_patterns(const shared_ptr<array_patterns> & ap)
 
         new_p.indexes = pattern.indexes;
 
-        if (pattern.domains)
-            new_p.domains = copy(pattern.domains);
-
-        new_p.expr = copy(pattern.expr);
+        new_p.domains = copy(pattern.domains);
 
         new_ap->patterns.push_back(new_p);
     }

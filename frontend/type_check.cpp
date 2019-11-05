@@ -823,7 +823,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
                 isl_array_def_domain |= isl_expr_domain;
             }
         }
-
+#if 0
         if (pattern.expr)
         {
             auto isl_expr_domain = isl_pattern_domain - isl_array_def_domain;
@@ -840,6 +840,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
 
             isl_array_def_domain |= isl_pattern_domain;
         }
+#endif
     }
 
 #if 0

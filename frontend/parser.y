@@ -24,12 +24,13 @@
 %token ID QUALIFIED_ID
 %token IF THEN CASE THIS
 %token MODULE IMPORT AS INPUT OUTPUT EXTERNAL
+%token OTHERWISE
 
 %left '='
-%left FOR
+%precedence ','
+%right RIGHT_ARROW
 %right LET IN
 %right WHERE
-%right RIGHT_ARROW
 %right ELSE
 %left LOGIC_OR
 %left LOGIC_AND
@@ -190,18 +191,9 @@ binding:
   }
   |
   // We use the same structure as array_pattern
-  id '[' expr_list ']' '=' expr
+  id '[' expr_list ']' '=' array_exprs
   {
-    auto pattern = make_list(@$, { $3, nullptr, $6 });
-    $$ = make_list( ast::array_element_def, @$, { $1, pattern });
-  }
-  |
-  // We use the same structure as array_pattern
-  id '[' expr_list ']' '=' expr FOR expr
-  {
-    auto domain = make_list(@$, { $8, $6 });
-    auto domains = make_list(@$, { domain });
-    auto pattern = make_list(@$, { $3, domains, nullptr });
+    auto pattern = make_list(@$, { $3, $6 });
     $$ = make_list( ast::array_element_def, @$, { $1, pattern });
   }
 ;
@@ -431,7 +423,6 @@ array_ranges:
   expr_list
 ;
 
-
 array_pattern_list:
   array_pattern
   { $$ = make_list( @$, {$1} ); }
@@ -445,32 +436,55 @@ array_pattern_list:
 ;
 
 array_pattern:
-  expr_list RIGHT_ARROW expr
-  { $$ = make_list( @$, { $1, nullptr, $3 } ); }
-  |
-  expr_list array_domain_list
-  { $$ = make_list( @$, { $1, $2, nullptr } ); }
-  |
-  expr_list array_domain_list '|' expr
-  { $$ = make_list( @$, { $1, $2, $4 } ); }
+  expr_list RIGHT_ARROW array_exprs
+  { $$ = make_list( @$, { $1, $3 } ); }
 ;
 
-
-array_domain_list:
-  array_domain
-  { $$ = make_list( @$, {$1} ); }
-  |
-  array_domain_list array_domain
+array_exprs:
+  expr %prec RIGHT_ARROW
   {
-    $$ = $1;
-    $$->as_list()->append( $2 );
+    auto constrained_expr = make_list( @$, { nullptr, $1 });
+    $$ = make_list( @$, {constrained_expr} );
+  }
+  |
+  constrained_array_expr
+  {
+    $$ = make_list( @$, {$1} );
+  }
+  |
+  '{' constrained_array_expr_list optional_semicolon '}'
+  { $$ = $2; }
+  |
+  '{' constrained_array_expr_list ';' final_constrained_array_expr optional_semicolon '}'
+  {
+    $$ = $2;
+    $$->as_list()->append( $4 );
     $$->location = @$;
   }
 ;
-array_domain:
-  '|' expr RIGHT_ARROW expr
-  { $$ = make_list( @$, { $2, $4 } ); }
+
+constrained_array_expr_list:
+  constrained_array_expr
+  { $$ = make_list( @$, {$1} ); }
+  |
+  constrained_array_expr_list ';' constrained_array_expr
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
 ;
+
+constrained_array_expr:
+  expr ',' IF expr    %prec ','
+  { $$ = make_list( @$, { $4, $1 } ); }
+;
+
+final_constrained_array_expr:
+  expr ',' OTHERWISE
+  { $$ = make_list( @$, { nullptr, $1 } ); }
+;
+
 
 array_enum:
   '[' array_elem_list ']'

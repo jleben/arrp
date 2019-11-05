@@ -1,7 +1,9 @@
 
-upsample(factor, x) =
-  [ n | n % factor == 0 -> x[n // factor]
-      | 0 ];
+upsample(factor, x) = y where
+    y[n] = {
+        x[n // factor], if n % factor == 0;
+        0, otherwise
+    };
 
 signal = [t -> 1];
 

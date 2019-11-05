@@ -283,7 +283,6 @@ public:
     {
         vector<index> indexes;
         expr_slot domains;
-        expr_slot expr;
     };
 
     vector<pattern> patterns;

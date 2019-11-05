@@ -2,8 +2,10 @@
 ... Test piecewise definition
 
 main[5] = 55;
-main[i] = i + 10 for i < 10;
-main[i] = i + 100;
+main[i] = {
+    i + 10,  if i < 10;
+    i + 100, otherwise
+};
 main[i] = -1; ... Should never happen
 output main;
 

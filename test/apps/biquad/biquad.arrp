@@ -5,7 +5,10 @@ import math;
 input coefs_a : [2]real64;
 input coefs_b : [3]real64;
 
-delay(v,d,x) = [i | i < d -> v | x[i-d]];
+delay(v,d,x) = [i -> {
+    v,      if i < d;
+    x[i-d], otherwise
+}];
 
 convolve(h,x) =
   let f(w) = math.sum(h * array.reverse(w)) in

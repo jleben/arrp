@@ -193,7 +193,11 @@ expr_ptr affine_integer_expression_check::ensure_expression(expr_ptr expr)
 
 expr_ptr affine_integer_expression_check::ensure_contraint(expr_ptr expr)
 {
-    if (auto op = dynamic_pointer_cast<primitive>(expr))
+    if (auto boolean = dynamic_pointer_cast<bool_const>(expr))
+    {
+        return expr;
+    }
+    else if (auto op = dynamic_pointer_cast<primitive>(expr))
     {
         switch(op->kind)
         {

@@ -345,7 +345,7 @@ expr_ptr array_reducer::reduce
                 Cg = intersect(Cg, negate(Ce));
             }
         }
-
+#if 0
         if (pattern.expr)
         {
             auto Ce = Cp;
@@ -355,6 +355,7 @@ expr_ptr array_reducer::reduce
 
             Cg = intersect(Cg, negate(Ce));
         }
+#endif
     }
 
     // If only one subdomain, and it has no constraints,

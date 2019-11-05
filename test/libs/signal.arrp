@@ -22,10 +22,10 @@ triangle(freq, delay) =
   let ph = phase(freq, delay) in
     1 - abs(ph*2 - 1);
 
-biquad(a,b,x) = [n -> y[n+2]]
-  where
-    y = [n
-      | n < 2 -> 0
-      |   x[n] * b[0] + x[n-1] * b[1] + x[n-2] * b[2]
-                      - y[n-1] * a[0] - y[n-2] * a[1]
-    ];
+biquad(a,b,x) = [n -> y[n+2]] where
+{
+    y[0] = 0;
+    y[1] = 0;
+    y[n] = x[n] * b[0] + x[n-1] * b[1] + x[n-2] * b[2]
+                       - y[n-1] * a[0] - y[n-2] * a[1];
+};

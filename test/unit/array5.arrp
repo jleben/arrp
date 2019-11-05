@@ -2,7 +2,7 @@
 ... Test guards without "else" part
 
 output main = [~:
-    t | t < 5 -> t + 10;
+    t -> t + 10, if t < 5;
     t -> t + 100;
 ]
 

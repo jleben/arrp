@@ -666,7 +666,6 @@ generator::do_array_pattern(ast::node_ptr root)
 
     auto index_nodes = root->as_list()->elements[0];
     auto domains_node = root->as_list()->elements[1];
-    auto universal_node = root->as_list()->elements[2];
 
     array_patterns::pattern pattern;
 
@@ -737,9 +736,6 @@ generator::do_array_pattern(ast::node_ptr root)
     if (domains_node)
         pattern.domains = expr_slot(do_array_domains(domains_node));
 
-    if (universal_node)
-        pattern.expr = expr_slot(do_expr(universal_node));
-
     return pattern;
 }
 
@@ -752,8 +748,14 @@ expr_ptr generator::do_array_domains(ast::node_ptr root)
     {
         auto & d = domain_node->as_list()->elements[0];
         auto & e = domain_node->as_list()->elements[1];
-        domains->cases.emplace_back
-                (expr_slot(do_expr(d)), expr_slot(do_expr(e)));
+
+        expr_ptr dx;
+        if (d)
+            dx = do_expr(d);
+        else
+            dx = make_shared<bool_const>(true, location_in_module(e->location));
+
+        domains->cases.emplace_back(expr_slot(dx), expr_slot(do_expr(e)));
     }
 
     return domains;
