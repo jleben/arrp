@@ -88,10 +88,6 @@ blank [ \t]
   *yylval = ast::make_const( *yylloc, false );
   return parser::token::FALSE;
 }
-"this" {
-  *yylval = ast::make_node(ast::array_self_ref, *yylloc);
-  return parser::token::THIS;
-}
 "module" { return parser::token::MODULE; }
 "import" { return parser::token::IMPORT; }
 "as" { return parser::token::AS; }

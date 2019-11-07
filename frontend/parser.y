@@ -22,7 +22,7 @@
 %token INVALID "invalid token"
 %token INT REAL COMPLEX TRUE FALSE STRING
 %token ID QUALIFIED_ID
-%token IF THEN CASE THIS
+%token IF THEN CASE
 %token MODULE IMPORT AS INPUT OUTPUT EXTERNAL
 %token OTHERWISE
 
@@ -278,8 +278,6 @@ expr:
   |
   array_apply
   |
-  array_self_apply
-  |
   array_size
   |
   expr PLUSPLUS expr
@@ -411,11 +409,6 @@ func_lambda:
 
 array_apply:
   expr '[' expr_list ']'
-  { $$ = make_list( ast::array_apply, @$, {$1, $3} ); }
-;
-
-array_self_apply:
-  THIS '[' expr_list ']'
   { $$ = make_list( ast::array_apply, @$, {$1, $3} ); }
 ;
 
