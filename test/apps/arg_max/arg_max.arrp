@@ -1,18 +1,16 @@
 arg_max(x) = y[#y-1,1]
 
-    ... FIXME: Variable x in type is not substituted:
-    ... where y : [#x,2]int =
+    ... FIXME: It is difficult to insert a large expression
+    ... between 'y[i]' and ', if i < #x';
 
     where {
-        y = [#x:
-            0 -> [x[0]; 0];
-            i -> if x[i] > y[i-1,0]
-                then [x[i]; i]
-                else y[i-1]
-        ];
+        y[0] = (x[0], 0);
+        y[i] = pick(x[i], y[i-1], i), if i < #x;
+        pick(x,y,i) =
+            if x > y[0] then (x, i) else y
     };
 
-output main = arg_max([3;0;5;9;4;2]);
+output main = arg_max((3,0,5,9,4,2));
 
 ...? int
 ...? 3

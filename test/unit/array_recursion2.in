@@ -1,8 +1,9 @@
 
-output main = x = [~: 0 -> 0; i -> 2 * y[i-1]] where
-{
-    y =  [~: i -> x[i] + 1];
-};
+x[0] = 0;
+x[i] = 2 * y[i-1] where
+    y[j] = x[j] + 1;
+
+output x;
 
 ...? [~]int
 ...? 0

@@ -1,6 +1,6 @@
 
 f(g,i) = g(1,2) + i;
-output main = f(\x,y -> x+y, 3);
+output main = f((x,y) -> x+y, 3);
 
 ...? int
 ...? 6

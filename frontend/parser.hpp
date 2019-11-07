@@ -500,12 +500,12 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 1201,     ///< Last index in yytable_.
-      yynnts_ = 51,  ///< Number of nonterminal symbols.
+      yylast_ = 1210,     ///< Last index in yytable_.
+      yynnts_ = 49,  ///< Number of nonterminal symbols.
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 68  ///< Number of tokens.
+      yyntokens_ = 67  ///< Number of tokens.
     };
 
 

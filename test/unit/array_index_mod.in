@@ -1,7 +1,7 @@
 
-x = [5: t -> t*2];
-
-output main = [t -> x[t%3]];
+x[t] = t*2, if t < 5;
+y[t] = x[t%3];
+output y;
 
 ...? [~]int
 ...? 0

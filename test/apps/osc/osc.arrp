@@ -1,23 +1,10 @@
 module osc;
 
-phase(freq) = p where
-{
-    p =
-    [
-        0 -> 0.0;
-        t ->
-        ... Breaks when using "this":
-        ... let x = this[t-1] + freq[t-1] in
-        let x = p[t-1] + freq[t-1] in
-            if x < 1 then x else x - 1
-    ];
-};
+import signal;
 
-pi = atan(1) * 4;
+... FIXME: 'signal.sine(0.1, 0)' gives error "No type satisfying constraints" in signal.phase.
 
-osc(freq) = sin(phase(freq) * 2 * pi);
-
-output main = osc(0.1);
+output main = signal.sine(0.1, 0.0);
 
 ...? [~]real64
 ...? 0.00000

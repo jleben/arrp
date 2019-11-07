@@ -1,5 +1,5 @@
 
-a = [10:x -> x/2];
+a = [x:10] -> x/2;
 b = a;
 output main = b[5];
 

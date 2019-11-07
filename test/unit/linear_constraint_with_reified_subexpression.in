@@ -5,9 +5,9 @@
 ... When type checking linear constraint 'i < N' though,
 ... the reference to the local id should be substituted with its value.
 
-f(N) = [~: i -> {i, if i < N;  N, otherwise}];
+f(N) = y where y[i] = {i, if i < N;  N, otherwise};
 
-output main = [3: j -> f(j + 3)];
+output main = [j:3] -> f(j + 3);
 
 ...? [~,3]int
 ...? (0,0,0)

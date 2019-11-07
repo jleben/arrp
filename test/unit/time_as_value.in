@@ -1,5 +1,5 @@
 
-output main = [3,~: i,t -> i+t];
+output main = [i:3,t] -> i+t;
 
 ...? [~,3]int
 ...? (0,1,2)

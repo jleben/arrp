@@ -1,15 +1,15 @@
-delay(v,a) = [0 -> v; t -> a[t-1]];
+import signal as sig;
 
 lp(a,x) = y where {
-  y = a*x + (1-a)*delay(0,y);
+  y = a*x + (1-a) * sig.delay(0,y);
 };
 
 ... Test signal: 3 harmonics
 
 signal = sine(f) where 
 {
-    sine(f) = [t -> sin(f*t*2*pi)];
-    f = [3: i -> (2*i+1)*0.02];
+    sine(f) = [t] -> sin(f*t*2*pi);
+    f = [i:3] -> (2*i+1)*0.02;
     pi = atan(1)*4;
 };
 

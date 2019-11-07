@@ -27,7 +27,7 @@
 %token OTHERWISE
 
 %left '='
-%precedence ','
+%precedence ',' ':'
 %right RIGHT_ARROW
 %right LET IN
 %right WHERE
@@ -266,13 +266,13 @@ expr:
   |
   if_expr
   |
-  lambda
+  func_lambda
   |
   func_apply
   |
   func_composition
   |
-  array_func
+  array_lambda
   |
   array_enum
   |
@@ -394,10 +394,18 @@ where_expr:
   }
 ;
 
-lambda:
-  '\\'  param_list RIGHT_ARROW expr
+func_lambda:
+  '(' expr[param] ')' RIGHT_ARROW expr[value]
   {
-    $$ = make_list(ast::lambda, @$, {$2, $4} );
+    auto params = make_list(@$, { $[param] });
+    $$ = make_list(ast::lambda, @$, { params, $[value] } );
+  }
+  |
+  '(' expr[first_param] ',' expr_list[other_params] ')' RIGHT_ARROW expr[value]
+  {
+    auto params = make_list(@$, {$[first_param]});
+    params->as_list()->append($[other_params]->as_list()->elements);
+    $$ = make_list(ast::lambda, @$, {params, $[value]} );
   }
 ;
 
@@ -411,23 +419,32 @@ array_self_apply:
   { $$ = make_list( ast::array_apply, @$, {$1, $3} ); }
 ;
 
-array_func:
-  '[' array_ranges ':' array_pattern_list optional_semicolon ']'
-  { $$ = make_list( ast::array_def, @$, {$2, $4} ); }
-  |
-  '[' array_pattern_list optional_semicolon ']'
-  { $$ = make_list( ast::array_def, @$, {nullptr, $2} ); }
+array_lambda:
+  '[' array_lambda_params ']' RIGHT_ARROW expr
+  {
+    auto ranges = make_list(@2, {});
+    auto indexes = make_list(@2, {});
+
+    for (auto & param : $array_lambda_params->as_list()->elements)
+    {
+      indexes->as_list()->append(param->as_list()->elements[0]);
+      ranges->as_list()->append(param->as_list()->elements[1]);
+    }
+
+    auto piece = make_list(@expr, { nullptr, $expr });
+    auto pieces = make_list(@expr, { piece });
+    auto pattern = make_list(@$, { indexes, pieces });
+    auto patterns = make_list(@$, { pattern });
+
+    $$ = make_list( ast::array_def, @$, {ranges, patterns} );
+  }
 ;
 
-array_ranges:
-  expr_list
-;
-
-array_pattern_list:
-  array_pattern
+array_lambda_params:
+  array_lambda_param
   { $$ = make_list( @$, {$1} ); }
   |
-  array_pattern_list ';' array_pattern
+  array_lambda_params ',' array_lambda_param
   {
     $$ = $1;
     $$->as_list()->append( $3 );
@@ -435,9 +452,12 @@ array_pattern_list:
   }
 ;
 
-array_pattern:
-  expr_list RIGHT_ARROW array_exprs
-  { $$ = make_list( @$, { $1, $3 } ); }
+array_lambda_param:
+    id
+    { $$ = make_list( @$, {$1, make_node(infinity, @$)} ); }
+    |
+    id ':' expr
+    { $$ = make_list( @$, {$1, $3} ); }
 ;
 
 array_exprs:
@@ -485,25 +505,11 @@ final_constrained_array_expr:
   { $$ = make_list( @$, { nullptr, $1 } ); }
 ;
 
-
 array_enum:
-  '[' array_elem_list ']'
+  '(' expr ',' expr_list ')'
   {
-    $$ = $2;
-    $$->type = ast::array_enum;
-    $$->location = @$;
-  }
-;
-
-array_elem_list:
-  expr
-  { $$ = make_list( @$, {$1} ); }
-  |
-  array_elem_list ';' expr
-  {
-    $$ = $1;
-    $$->as_list()->append( $3 );
-    $$->location = @$;
+    $$ = make_list(ast::array_enum, @$, { $expr });
+    $$->as_list()->append($expr_list->as_list()->elements);
   }
 ;
 

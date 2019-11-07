@@ -5,7 +5,7 @@ upsample(factor, x) = y where
         0, otherwise
     };
 
-signal = [t -> 1];
+signal[t] = 1;
 
 output main = upsample(3,signal);
 

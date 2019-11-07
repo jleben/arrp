@@ -1,12 +1,11 @@
 
-a = [5:k -> k];
+a = [k:5] -> k;
 
 f(j) =
   let x = a[j]
   in x;
 
-g(n) =
-  [n:i -> f(i)+2];
+g(n) = [i:n] -> f(i)+2;
 
 output main = g(5);
 

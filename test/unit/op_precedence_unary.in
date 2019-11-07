@@ -1,5 +1,5 @@
 
-output main = [10: i -> -(i+5)]
+output main = [i:10] -> -(i+5)
 
 ...? [10]int
 ...? -5

@@ -1,6 +1,7 @@
 
-g(a) = let x = [~:k -> k*a] in x;
-output main = [~,4: i,j -> g(j)[i]];
+g(a) = let x = [k] -> k*a in x;
+
+output main = [i,j:4] -> g(j)[i];
 
 ...? [~,4]int
 ...? (0,0,0,0)

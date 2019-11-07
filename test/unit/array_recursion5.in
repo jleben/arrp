@@ -1,10 +1,15 @@
 
 y =
-  let x =
-     [~: 0 -> 1; i -> y[i-1]+1]
-  in [~: 0 -> 1; i -> x[i-1]+2];
+  let {
+    x[0] = 1;
+    x[i] = y[i-1]+1;
+  }
+  in z where {
+    z[0] = 1;
+    z[i] = x[i-1]+2;
+  };
 
-output main = y;
+output y;
 
 ...? [~]int
 ...? 1

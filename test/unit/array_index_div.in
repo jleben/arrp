@@ -1,7 +1,7 @@
 
-x = [t -> t];
-
-output main = [t -> x[t//3]];
+x[t] = t;
+y[t] = x[t//3];
+output y;
 
 ...? [~]int
 ...? 0

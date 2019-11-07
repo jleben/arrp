@@ -3,11 +3,12 @@
 ... its reference should be updated in 'y' which should also be inflated.
 
 f(j) = x where {
-    x = [~: 0 -> j; i -> y[i-1]];
-    y = [~: i -> x[i] + 1];
+    x[0] = j;
+    x[i] = y[i-1];
+    y[i] = x[i] + 1;
 };
 
-output main = [3: j -> f(j)]
+output main = [j:3] -> f(j)
 
 ...? [~,3]int
 ...? (0, 1, 2)

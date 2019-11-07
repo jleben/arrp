@@ -2,17 +2,23 @@ module signal;
 import array;
 import math;
 
-delay(v,a) = [0 -> v; t -> a[t-1]];
+... FIXME: The following definition fails type checking if a has size [~,3]:
+... delay(v,a) = v ++ a;
 
-win(size,hop,x) = [t -> [size: k -> x[t*hop + k]]];
+delay(v,x) = y where {
+    y[0] = v;
+    y[t] = x[t-1];
+};
 
-phase(freq, init) = [
-    0 -> init;
-    t ->
-      if this[t-1] + freq[t] >= 1
-      then this[t-1] + freq[t] - 1
-      else this[t-1] + freq[t]
-];
+win(size,hop,x) = [t] -> [k:size] -> x[t*hop + k];
+
+phase(freq, init) = p where
+{
+    p[0] = init;
+    p[t] = wrap(p[t-1] + freq[t-1]) where
+        wrap(x) = if x < 1 then x else x - 1;
+};
+
 
 sine(freq, init_ph) =
   let ph = phase(freq, init_ph) in
@@ -22,7 +28,7 @@ triangle(freq, delay) =
   let ph = phase(freq, delay) in
     1 - abs(ph*2 - 1);
 
-biquad(a,b,x) = [n -> y[n+2]] where
+biquad(a,b,x) = [n] -> y[n+2] where
 {
     y[0] = 0;
     y[1] = 0;

@@ -1,5 +1,5 @@
 
-a = [5:i -> i];
+a = [i:5] -> i;
 output main = a * 2;
 
 ...? [5]int

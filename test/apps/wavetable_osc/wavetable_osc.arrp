@@ -3,22 +3,22 @@ module wavetable_osc;
 pi = 4*atan(1);
 
 table_size = 20;
-table = [table_size: i -> sin(i/table_size*2*pi)];
+table = [i:table_size] -> sin(i/table_size*2*pi);
 
 interpolate(a,i) =
   let d = i - floor(i) in
   a[int(i) % #a] * (1-d) + a[(int(i)+1) % #a] * d;
 
 osc(table, freq) =
-  [~: t -> interpolate(table, t * freq  * #table)];
+  [t] -> interpolate(table, t * freq  * #table);
 
 precise_osc(freq) =
-  [~: t -> sin(t*freq*2*pi)];
+  [t] -> sin(t*freq*2*pi);
 
 freq = 1/9;
 
 ... Compare wavetable vs. precise:
-output main = [osc(table, freq); precise_osc(freq)];
+output main = (osc(table, freq), precise_osc(freq));
 
 ...? [~,2]real64
 ...? (0.000,0.000)

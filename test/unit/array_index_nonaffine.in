@@ -1,8 +1,10 @@
 
-a = [10: i -> i];
+a[n] = n, if n < 10;
 
 ... 'i*i' is not affine, so 'i' should literally go over all its values.
-output main = [~: i -> a[min(i*i,5)]];
+b[i] = a[min(i*i,5)];
+
+output b;
 
 ...? [~]int
 ...? 0

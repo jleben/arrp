@@ -532,6 +532,9 @@ expr_ptr generator::make_func(ast::node_ptr params_node, ast::node_ptr expr_node
     {
         for(auto & param : params_node->as_list()->elements)
         {
+            if (param->type != ast::identifier)
+                throw source_error("Function parameter is not a name.", location_in_module(param->location));
+
             auto name = param->as_leaf<string>()->value;
             auto var = make_shared<func_var>(name, location_in_module(param->location));
             var->qualified_name = qualified_name(name);

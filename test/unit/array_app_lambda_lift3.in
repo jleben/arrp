@@ -1,10 +1,14 @@
 
-... FIXME: The following should fail at scheduling, but it doesn't:
-... x = 1 ++ [4: i-> [5: i -> x[i]+1][i+1] ];
+... FIXME: The following should fail at scheduling, but it doesn't;
+... instead, unvalid memory locations are accessed:
+... x = 1 ++ [i:4] -> ([i:4] -> x[i]+1)[i+1];
+
+... FIXME: the test name is misleading -
+... - no lambda lifting happens in this array application.
 
 x : [5,4]int;
-x = 1 ++ [4: i-> [4: i -> x[i]+1][i] ];
-output main = x;
+x = 1 ++ [i:4] -> ([i:4] -> x[i]+1)[i];
+output x;
 
 ...? [5,4]int
 ...? (1, 1, 1, 1)

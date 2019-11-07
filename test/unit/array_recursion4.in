@@ -1,12 +1,12 @@
 
-y = [~: j ->
+y[j] =
   let {
-    x = [5: 0 -> j; i -> x[i-1] + 1]
+    x[0] = j;
+    x[i] = x[i-1] + 1, if i < 5;
   }
-  in x
-];
+  in x;
 
-output main = y;
+output y;
 
 ...? [~,5]int
 ...? (0,1,2,3,4)

@@ -3,8 +3,9 @@
 f(x) =
 a + b + x where
 {
-    a = [0 -> 0; i -> 2*b[i-1]];
-    b = [i -> a[i] + 1];
+    a[0] = 0;
+    a[i] = 2*b[i-1];
+    b[i] = a[i] + 1;
 };
 
 output main = f(2);

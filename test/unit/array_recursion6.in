@@ -1,7 +1,10 @@
 
-output main = [~:j ->
-  [4: 0 -> j; i -> this[i-1] + j]
-]
+y[j] = z where {
+    z[0] = j;
+    z[i] = z[i-1] + j, if i < 4;
+};
+
+output y;
 
 ...? [~,4]int
 ...? (0,0,0,0)

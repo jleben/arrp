@@ -1,10 +1,10 @@
 
 f(x) = y where {
     y : [#x]int;
-    y = [#x: i -> i+20]
+    y = [i:#x] -> i+20;
 };
 
-output main = f([5: i -> i+10])
+output main = f([i:5] -> i+10)
 
 ...? [5]int
 ...? 20
