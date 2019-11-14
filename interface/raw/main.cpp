@@ -7,7 +7,7 @@ using namespace arrp::generic_io;
 
 struct Options
 {
-    string default_channel_format = "raw";
+    string default_channel_format = "text";
     int max_buffer_size = 1024;
     unordered_map<string, string> channel_options;
 };
