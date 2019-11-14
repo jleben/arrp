@@ -181,9 +181,9 @@ int main(int argc, char *argv[])
     args.add_option({"align-data", "", "<bytes>", "Alignment requirement of data."},
                     new int_option(&opt.data_alignment));
 
-    args.add_option({"avoid-modulo-bitmask", "", "", "Avoid modulo in array indexing by extending"
+    args.add_option({"no-avoid-modulo-bitmask", "", "", "Disable avoiding modulo in array indexing by extending"
                      " array size to power of two and using bitmasking instead."},
-                    new switch_option(&opt.data_size_power_of_two, true));
+                    new switch_option(&opt.data_size_power_of_two, false));
     args.add_option({"avoid-modulo-datashift", "", "", "Avoid modulo by shifting data in buffers."},
                     new switch_option(&opt.buffer_data_shifting, true));
     args.add_option({"move-loop-invariant-code", "", "", ""},
