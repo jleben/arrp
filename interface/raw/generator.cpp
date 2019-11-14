@@ -280,7 +280,7 @@ void generate
     {
         string cmd = cpp_compiler
                 + " -std=c++17"
-                //+ " -O3 "
+                + " -O1 "
                 + include_dirs
                 + " " + main_cpp_file_name
                 + " -o " + options.output_file;
