@@ -131,9 +131,9 @@ void write_channel_func(ostream & text, const nlohmann::json & channel, bool is_
 
     if (size > 1)
     {
-        text << "template <typename T>" << endl;
+        text << "template <typename A>" << endl;
         text << "void " << func_name << "("
-                << "T &data"
+                << "A &data"
                 << ") {" << endl;
         text << "  sp_" << name << "->transfer(reinterpret_cast<" << type << "*>(data), " << size << ");" << endl;
         text << "}" << endl;
@@ -144,10 +144,26 @@ void write_channel_func(ostream & text, const nlohmann::json & channel, bool is_
             text << "void " << func_name << "("
                     << type << "& data"
                     << ") {" << endl;
-            text << "  sp_" << name << "->transfer(data);" << endl;
+            text << "  sp_" << name << "->transfer(&data, 1);" << endl;
             text << "}" << endl;
         }
     }
+}
+
+void write_channel_manager(ostream & text, const nlohmann::json & channel, bool is_input)
+{
+    string name = channel["name"];
+    string type = cpp_type_for_arrp_type(channel["type"]);
+    bool is_stream = channel["is_stream"];
+    int size = channel["size"];
+    string manager_type = "ChannelManager<" + type + ">";
+    text << "  { "
+            << "\"" << name << "\", "
+            << " std::make_shared<" << manager_type << ">"
+            << "(sp_" << name << ", "
+            << manager_type << "::Properties { " << is_input << ", " << is_stream << ", " << size << " }) "
+            << "},"
+            << endl;
 }
 
 void generate
@@ -192,30 +208,14 @@ void generate
     io_text << "ChannelManagerMap input_managers = {" << endl;
     for (auto & channel : report["inputs"])
     {
-        string name = channel["name"];
-        string type = cpp_type_for_arrp_type(channel["type"]);
-        bool is_stream = channel["is_stream"];
-        io_text << "  { "
-                << "\"" << name << "\", "
-                << " std::make_shared<ChannelManager<" << type << ">>"
-                << "(sp_" << name << ", true, " << is_stream << ") "
-                << "},"
-                << endl;
+        write_channel_manager(io_text, channel, true);
     }
     io_text << "};" << endl;
 
     io_text << "ChannelManagerMap output_managers = {" << endl;
     for (auto & channel : report["outputs"])
     {
-        string name = channel["name"];
-        string type = cpp_type_for_arrp_type(channel["type"]);
-        bool is_stream = channel["is_stream"];
-        io_text << "  { "
-                << "\"" << name << "\", "
-                << " std::make_shared<ChannelManager<" << type << ">>"
-                << "(sp_" << name << ", false, " << is_stream << ") "
-                << "},"
-                << endl;
+        write_channel_manager(io_text, channel, false);
     }
     io_text << "};" << endl;
 
@@ -280,6 +280,7 @@ void generate
     {
         string cmd = cpp_compiler
                 + " -std=c++17"
+                //+ " -O3 "
                 + include_dirs
                 + " " + main_cpp_file_name
                 + " -o " + options.output_file;

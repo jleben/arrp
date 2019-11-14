@@ -8,6 +8,7 @@ using namespace arrp::generic_io;
 struct Options
 {
     string default_channel_format = "raw";
+    int max_buffer_size = 1024;
     unordered_map<string, string> channel_options;
 };
 
@@ -105,12 +106,9 @@ private:
             return;
         }
 
-        manager->setup(config);
+        config.max_buffer_size = options.max_buffer_size;
 
-        if (manager->is_input())
-            manager->stream()->exceptions(std::ifstream::failbit | std::ifstream::badbit);
-        else
-            manager->stream()->exceptions(std::ifstream::failbit | std::ifstream::badbit | std::ifstream::eofbit);
+        manager->setup(config);
     }
 
     ChannelConfig parse_channel_options(const string & text, const Options & options)
@@ -192,7 +190,9 @@ void print_help(Generated_IO & io)
     cerr << "  -h or --help" << endl;
     cerr << "    ... Print this help." << endl;
     cerr << "  -f=<format> or --format=<format>" << endl;
-    cerr << "    ... Use this format for inputs outputs without explicit format." << endl;
+    cerr << "    ... Use this format for inputs and outputs without explicit format." << endl;
+    cerr << "  -b=<size> or --buffer=<size>" << endl;
+    cerr << "    ... Maximum amount of buffered data for inputs and outputs." << endl;
     cerr << "  <input>=<value>" << endl;
     cerr << "    ... Define input value." << endl;
     cerr << "  <input>=<source>[:<format>]" << endl;
@@ -246,6 +246,8 @@ int main(int argc, char *argv[])
 
     parser.add_option("-f", options.default_channel_format);
     parser.add_option("--format", options.default_channel_format);
+    parser.add_option("-b", options.max_buffer_size);
+    parser.add_option("--buffer", options.max_buffer_size);
     parser.add_switch("-h", help_requested);
     parser.add_switch("--help", help_requested);
 
