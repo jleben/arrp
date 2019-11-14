@@ -413,11 +413,9 @@ result::code compile_module
 
                 if (opts.cpp.enabled)
                 {
-                    string file_base = opts.cpp.filename;
-                    if (file_base.empty())
-                        file_base = main_module->name;
-
-                    user_cpp_filename = file_base + ".cpp";
+                    user_cpp_filename = opts.cpp.filename;
+                    if (user_cpp_filename.empty())
+                        user_cpp_filename = main_module->name + ".cpp";
 
                     namespace_name = opts.cpp.nmspace;
                     if (namespace_name.empty())
