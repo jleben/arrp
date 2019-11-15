@@ -13,7 +13,7 @@ Table of Contents:
 
 - `Installation <#installation>`_
 - `Usage <#usage>`_
-- `Building from Source<#building>`_
+- `Building from Source<#building-from-source>`_
 
 Installation
 #############
@@ -22,15 +22,17 @@ Installation packages are available `on GitHub <https://github.com/jleben/arrp/r
 
 - Debian package:
 
-    Install the package using your preferred method. Depending on your Linux setup, double-clicking may open a graphical installer. The following command installs the package using ``dpkg``::
+  Depending on your Linux setup, double-clicking may open a graphical installer.
+
+  Alternatively, the following command installs the package using ``dpkg``::
 
     dpkg -i package_name.deb
 
 - Mac OS ZIP archive:
 
-    - Unzip the folder.
-    - The compiler executable is at ``bin/arrp`` in the unzipped folder. Optionally, add the ``bin`` dir to the ``PATH`` environment variable.
-    - If you wish ``arrp`` to generate executables, either set the environment variable ``ARRP_HOME`` to the unzipped folder, or add the ``include`` subfolder to the ``CPATH`` environment variable.
+  - Unzip the folder.
+  - The compiler executable is at ``bin/arrp`` in the unzipped folder. Optionally, add the ``bin`` dir to the ``PATH`` environment variable.
+  - If you wish ``arrp`` to generate executables, either set the environment variable ``ARRP_HOME`` to the unzipped folder, or add the ``include`` subfolder to the ``CPATH`` environment variable.
 
 Usage
 #####
