@@ -122,7 +122,7 @@ To use the compiler in the build directory, set the environment variable `ARRP_H
 Running tests
 =============
 
-After building the compiler, run `ctest` in the build folder.
+After building the compiler, run ``ctest`` in the build folder.
 
 Options
 =======
