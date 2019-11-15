@@ -11,14 +11,58 @@ For more information on the language Arrp, visit the `Arrp website`_.
 Table of Contents:
 ##################
 
-- `Building <#building>`_
+- `Installation <#installation>`_
 - `Usage <#usage>`_
+- `Building from Source<#building>`_
 
-Building
-########
+Installation
+#############
 
-Prerequisits
-============
+Installation packages are available `on GitHub <https://github.com/jleben/arrp/releases>`_ as release assets.
+
+- Debian package:
+
+    Install the package using your preferred method. Depending on your Linux setup, double-clicking may open a graphical installer. The following command installs the package using ``dpkg``::
+
+    dpkg -i package_name.deb
+
+- Mac OS ZIP archive:
+
+    - Unzip the folder.
+    - The compiler executable is at ``bin/arrp`` in the unzipped folder. Optionally, add the ``bin`` dir to the ``PATH`` environment variable.
+    - If you wish ``arrp`` to generate executables, either set the environment variable ``ARRP_HOME`` to the unzipped folder, or add the ``include`` subfolder to the ``CPATH`` environment variable.
+
+Usage
+#####
+
+Invoking the compiler with the `-h` option will print information about
+its usage and available options::
+
+    arrp -h
+
+To generate C++ from Arrp code (replacing ``program...`` with the desired file name)::
+
+    arrp program.arrp --cpp program.cpp
+
+The Arrp compiler can also generate an executable (this also requires a C++ compiler)::
+
+    arrp program.arrp --exe program
+
+Run the executable with the `-h` option to get help on how to use it::
+
+    ./program -h
+
+See the `documentation <http://arrp-lang.info/doc>`_
+for more information about the generated C++ code and executables.
+
+.. _Arrp website: http://arrp-lang.info
+
+
+Building from Source
+####################
+
+Prerequisites
+=============
 
 **NOTE:** The project requires a compiler with a good support for C++11.
 
@@ -69,7 +113,14 @@ On Linux and Mac OS X, execute the following commands, starting in the root of t
 
 This will produce the Arrp compiler executable::
 
-    build/compiler/arrp
+    build/arrp
+
+To use the compiler in the build directory, set the environment variable `ARRP_HOME` to that directory.
+
+Running tests
+-------------
+
+After building the compiler, run `ctest` in the build folder.
 
 Options
 =======
@@ -78,26 +129,3 @@ The CMake build system provides the following options:
 
 - PARSER_REGENERATE - Regenerate lexer and parser using flex and bison.
 - PARSER_GENERATOR_OUTPUT_DESCRIPTION - When generating parser, output parser description.
-- BUILD_TESTING - Build tests.
-
-
-Usage
-#####
-
-The Arrp compiler executable is built in this location:
-``build/compiler/arrp``.
-
-Invoking the compiler with the `-h` option will print information about
-its usage and available options::
-
-    arrp -h
-
-To compile Arrp code from a file and generate C++, invoke the compiler with the
-file name and the "--cpp" option::
-
-    arrp <input file> --cpp
-
-Further information about the usage of the generated C++ code is available
-in the `Arrp documentation <http://arrp-lang.info/doc/target-cpp>`_.
-
-.. _Arrp website: http://arrp-lang.info
