@@ -13,7 +13,7 @@ Table of Contents:
 
 - `Installation <#installation>`_
 - `Usage <#usage>`_
-- `Building from Source<#building-from-source>`_
+- `Building from Source <#building-from-source>`_
 
 Installation
 #############
