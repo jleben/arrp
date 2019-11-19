@@ -36,12 +36,11 @@ jobs:
         cd build
         ../make-deb.sh ..
 
-    - name: Upload package
-      uses: skx/github-action-publish-binaries@release-0.9.1
-      env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload package as release asset
+      uses: AButler/upload-release-assets@v1.0
       with:
-          args: 'build/*.deb'
+        files: 'build/*.deb'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
 
