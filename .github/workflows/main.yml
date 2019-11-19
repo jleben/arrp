@@ -2,7 +2,7 @@ name: Build and upload release assets
 
 on:
   release:
-    types: [published, prereleased]
+    types: [created]
 
 jobs:
   build-ubuntu:
