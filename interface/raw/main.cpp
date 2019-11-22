@@ -2,6 +2,8 @@
 
 #include <arrp/arguments/arguments.hpp>
 
+#include <iostream>
+
 using namespace std;
 using namespace arrp::generic_io;
 
@@ -11,6 +13,19 @@ struct Options
     int max_buffer_size = 1024;
     unordered_map<string, string> channel_options;
 };
+
+static void print_actual_channel_config(ActualChannelConfig config)
+{
+    cerr << config.type;
+
+    if (config.type != "pipe")
+        cerr << ": " << config.value;
+
+    if (config.type != "value")
+        cerr << ", format: " << config.format;
+
+    cerr << ", block size: " << config.block_size;
+}
 
 struct Config
 {
@@ -23,14 +38,28 @@ struct Config
         {
             auto & name = entry.first;
             auto manager = entry.second;
-            setup_manager(name, manager, options);
+            bool ok = setup_manager(name, manager, options);
+
+            if (ok)
+            {
+                cerr << "Input " << name << ": ";
+                print_actual_channel_config(manager->configuration());
+                cerr << endl;
+            }
         }
 
         for(auto & entry : io.output_managers)
         {
             auto & name = entry.first;
             auto manager = entry.second;
-            setup_manager(name, manager, options);
+            bool ok = setup_manager(name, manager, options);
+
+            if (ok)
+            {
+                cerr << "Output " << name << ": ";
+                print_actual_channel_config(manager->configuration());
+                cerr << endl;
+            }
         }
 
         if (unconfigured_channels.size())
@@ -74,7 +103,7 @@ private:
         return name.size() and (name == single_input_stream or name == single_output_stream);
     }
 
-    void setup_manager(const string & name, shared_ptr<AbstractChannelManager> manager, const Options & options)
+    bool setup_manager(const string & name, shared_ptr<AbstractChannelManager> manager, const Options & options)
     {
         ChannelConfig config;
 
@@ -91,7 +120,7 @@ private:
             {
                 cerr << "Invalid options for channel '" << name << "': " << e.what() << endl;
                 unconfigured_channels.push_back(name);
-                return;
+                return false;
             }
         }
         else if (is_singular_stream(name))
@@ -103,12 +132,14 @@ private:
         else
         {
             unconfigured_channels.push_back(name);
-            return;
+            return false;
         }
 
         config.max_buffer_size = options.max_buffer_size;
 
         manager->setup(config);
+
+        return true;
     }
 
     ChannelConfig parse_channel_options(const string & text, const Options & options)

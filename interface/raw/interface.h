@@ -211,6 +211,14 @@ struct ChannelConfig
     int max_buffer_size = 1024;
 };
 
+struct ActualChannelConfig
+{
+    string value;
+    string type;
+    string format;
+    int block_size = 0;
+};
+
 class AbstractChannelManager
 {
 public:
@@ -219,6 +227,7 @@ public:
     virtual std::ios* stream() = 0;
     virtual bool is_stream() const = 0;
     virtual bool is_input() const = 0;
+    virtual ActualChannelConfig configuration() const = 0;
 };
 
 static string infer_channel_type(string value)
@@ -289,9 +298,19 @@ public:
             return out_stream;
     }
 
+    ActualChannelConfig configuration() const override
+    {
+        return d_configuration;
+    }
+
     virtual void setup(ChannelConfig & config)
     {
         using namespace std;
+
+        d_configuration.type = config.type;
+        d_configuration.value = config.value;
+        d_configuration.format = config.format;
+        d_configuration.block_size = d_properties.transfer_size;
 
         if (config.type == "value")
         {
@@ -365,6 +384,11 @@ public:
                 else
                     channel = make_shared<BinaryOutputStream<T>>(out_stream);
             }
+
+            if (should_buffer)
+            {
+                d_configuration.block_size = config.max_buffer_size;
+            }
         }
         else if (config.format == "text")
         {
@@ -381,6 +405,7 @@ public:
 
     shared_ptr<AbstractChannel<T>>& channel;
     const Properties d_properties;
+    ActualChannelConfig d_configuration;
     string value;
     istream * in_stream = nullptr;
     ostream * out_stream = nullptr;
