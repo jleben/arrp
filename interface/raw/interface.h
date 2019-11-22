@@ -199,7 +199,7 @@ public:
 
 private:
     vector<T> d_buffer;
-    int d_buffer_index = d_buffer.size();
+    int d_buffer_index = 0;
 };
 
 
