@@ -161,38 +161,37 @@ namespace stream { namespace parsing {
         IF = 267,
         THEN = 268,
         CASE = 269,
-        THIS = 270,
-        MODULE = 271,
-        IMPORT = 272,
-        AS = 273,
-        INPUT = 274,
+        MODULE = 270,
+        IMPORT = 271,
+        AS = 272,
+        INPUT = 273,
+        OUTPUT = 274,
         EXTERNAL = 275,
-        TYPE_EQ = 276,
-        FOR = 277,
+        OTHERWISE = 276,
+        RIGHT_ARROW = 277,
         LET = 278,
         IN = 279,
         WHERE = 280,
-        RIGHT_ARROW = 281,
-        ELSE = 282,
-        LOGIC_OR = 283,
-        LOGIC_AND = 284,
-        BIT_OR = 285,
-        BIT_XOR = 286,
-        BIT_AND = 287,
-        EQ = 288,
-        NEQ = 289,
-        LESS = 290,
-        MORE = 291,
-        LESS_EQ = 292,
-        MORE_EQ = 293,
-        BIT_SHIFT_LEFT = 294,
-        BIT_SHIFT_RIGHT = 295,
-        PLUSPLUS = 296,
-        INT_DIV = 297,
-        DOTDOT = 298,
-        LOGIC_NOT = 299,
-        BIT_NOT = 300,
-        UMINUS = 301
+        ELSE = 281,
+        LOGIC_OR = 282,
+        LOGIC_AND = 283,
+        BIT_OR = 284,
+        BIT_XOR = 285,
+        BIT_AND = 286,
+        EQ = 287,
+        NEQ = 288,
+        LESS = 289,
+        MORE = 290,
+        LESS_EQ = 291,
+        MORE_EQ = 292,
+        BIT_SHIFT_LEFT = 293,
+        BIT_SHIFT_RIGHT = 294,
+        PLUSPLUS = 295,
+        INT_DIV = 296,
+        DOTDOT = 297,
+        LOGIC_NOT = 298,
+        BIT_NOT = 299,
+        UMINUS = 300
       };
     };
 
@@ -353,7 +352,7 @@ namespace stream { namespace parsing {
     /// \param yyvalue   the value to check
     static bool yy_table_value_is_error_ (int yyvalue);
 
-    static const signed char yypact_ninf_;
+    static const short int yypact_ninf_;
     static const signed char yytable_ninf_;
 
     /// Convert a scanner token number \a t to a symbol number.
@@ -500,12 +499,12 @@ namespace stream { namespace parsing {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 661,     ///< Last index in yytable_.
-      yynnts_ = 49,  ///< Number of nonterminal symbols.
+      yylast_ = 1216,     ///< Last index in yytable_.
+      yynnts_ = 48,  ///< Number of nonterminal symbols.
       yyfinal_ = 6, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 69  ///< Number of tokens.
+      yyntokens_ = 66  ///< Number of tokens.
     };
 
 
@@ -516,7 +515,7 @@ namespace stream { namespace parsing {
 
 #line 13 "parser.y" // lalr1.cc:377
 } } // stream::parsing
-#line 520 "parser.hpp" // lalr1.cc:377
+#line 519 "parser.hpp" // lalr1.cc:377
 
 
 

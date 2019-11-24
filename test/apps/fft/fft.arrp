@@ -3,11 +3,11 @@ import math;
 
 twiddles(N) = [N//2: k -> exp(-2*math.pi*1i*k/N)];
 
-## local_twiddles(level) = [N/pow(2,level): k -> twiddles[k*pow(2,level)]];
+... local_twiddles(level) = [N/pow(2,level): k -> twiddles[k*pow(2,level)]];
 
 w = twiddles(8);
 
-## 0,4,2,6,1,5,3,7
+... 0,4,2,6,1,5,3,7
 
 x = [8: t -> sin(2*t/8*2*math.pi)];
 
@@ -23,12 +23,12 @@ r = [4: i -> r11[i] + r12[i]] ++ [4: i -> r11[i] - r12[i]];
 
 main = sqrt(real(r) * real(r) + imag(r) * imag(r));
 
-##? [8]real64
-##? 0.0
-##? 0.0
-##? 4.0
-##? 0.0
-##? 0.0
-##? 0.0
-##? 4.0
-##? 0.0
+...? [8]real64
+...? 0.0
+...? 0.0
+...? 4.0
+...? 0.0
+...? 0.0
+...? 0.0
+...? 4.0
+...? 0.0

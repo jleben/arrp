@@ -1,17 +1,17 @@
 
-## When 'y' is inflated (due to use of 'j'),
-## its reference should be updated in the lambda lifted array on the right of the summation.
+... When 'y' is inflated (due to use of 'j'),
+... its reference should be updated in the lambda lifted array on the right of the summation.
 
 f(j) = y where {
-    y = [~: i -> j] + [~: 0 -> 0; i -> y[i-1]];
+    y = ([i] -> j) + (0 ++ [i] -> y[i]);
 };
 
-main = [3: j -> f(j)]
+output main = [j:3] -> f(j);
 
-##? [~,3]int
-##? (0, 1, 2)
-##? (0, 2, 4)
-##? (0, 3, 6)
-##? (0, 4, 8)
-##? (0, 5, 10)
-##? (0, 6, 12)
+...? [~,3]int
+...? (0, 1, 2)
+...? (0, 2, 4)
+...? (0, 3, 6)
+...? (0, 4, 8)
+...? (0, 5, 10)
+...? (0, 6, 12)

@@ -2,4 +2,4 @@
 f(x) = x;
 a = [i:5 -> i];
 g(y) = a[f(y)];
-main = g(10);
+output main = g(10);

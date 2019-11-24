@@ -225,6 +225,40 @@ void generator::apply_declaration(id_ptr id, ast::node_ptr root)
 
     stacker<string, name_stack_t> name_stacker(name, m_name_stack);
 
+    // For output declarations, mark id as output.
+    switch(root->type)
+    {
+    case ast::output:
+    case ast::output_type:
+    case ast::output_value:
+    {
+        if (id->is_external)
+        {
+            throw source_error("Name has already been defined as input or external function.",
+                               location_in_module(root->location));
+        }
+        id->is_output = true;
+        break;
+    }
+    default: break;
+    }
+
+    // Convert output declarations into other declarations
+    // and then continue as usual.
+    switch(root->type)
+    {
+    case ast::output:
+        return;
+    case ast::output_type:
+        root->type = ast::id_type_decl;
+        break;
+    case ast::output_value:
+        root->type = ast::binding;
+        break;
+    default: break;
+    }
+
+    // Generate id expression.
     switch(root->type)
     {
     case ast::id_type_decl:
@@ -262,6 +296,7 @@ void generator::apply_declaration(id_ptr id, ast::node_ptr root)
         ext->type_expr = expr_slot(do_type_expr(type_node));
         id->expr = expr_slot(ext);
         id->type_expr = ext->type_expr;
+        id->is_external = true;
 
         break;
     }
@@ -497,6 +532,9 @@ expr_ptr generator::make_func(ast::node_ptr params_node, ast::node_ptr expr_node
     {
         for(auto & param : params_node->as_list()->elements)
         {
+            if (param->type != ast::identifier)
+                throw source_error("Function parameter is not a name.", location_in_module(param->location));
+
             auto name = param->as_leaf<string>()->value;
             auto var = make_shared<func_var>(name, location_in_module(param->location));
             var->qualified_name = qualified_name(name);
@@ -631,7 +669,6 @@ generator::do_array_pattern(ast::node_ptr root)
 
     auto index_nodes = root->as_list()->elements[0];
     auto domains_node = root->as_list()->elements[1];
-    auto universal_node = root->as_list()->elements[2];
 
     array_patterns::pattern pattern;
 
@@ -702,9 +739,6 @@ generator::do_array_pattern(ast::node_ptr root)
     if (domains_node)
         pattern.domains = expr_slot(do_array_domains(domains_node));
 
-    if (universal_node)
-        pattern.expr = expr_slot(do_expr(universal_node));
-
     return pattern;
 }
 
@@ -717,8 +751,14 @@ expr_ptr generator::do_array_domains(ast::node_ptr root)
     {
         auto & d = domain_node->as_list()->elements[0];
         auto & e = domain_node->as_list()->elements[1];
-        domains->cases.emplace_back
-                (expr_slot(do_expr(d)), expr_slot(do_expr(e)));
+
+        expr_ptr dx;
+        if (d)
+            dx = do_expr(d);
+        else
+            dx = make_shared<bool_const>(true, location_in_module(e->location));
+
+        domains->cases.emplace_back(expr_slot(dx), expr_slot(do_expr(e)));
     }
 
     return domains;

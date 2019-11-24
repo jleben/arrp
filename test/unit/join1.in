@@ -1,4 +1,4 @@
 
 f(a) = [*:t -> a];
 
-main = [*:t -> [5:k -> f(k)[t]]];
+output main = [*:t -> [5:k -> f(k)[t]]];

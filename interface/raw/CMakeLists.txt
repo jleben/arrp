@@ -21,4 +21,4 @@ add_library(arrp-io-generic-lib
 configure_file(interface.h ${CMAKE_BINARY_DIR}/include/arrp/generic_io/interface.h COPYONLY)
 configure_file(main.cpp ${CMAKE_BINARY_DIR}/include/arrp/generic_io/main.cpp COPYONLY)
 
-install(FILES interface.h main.cpp DESTINATION include/generic_io)
+install(FILES interface.h main.cpp DESTINATION include/arrp/generic_io)

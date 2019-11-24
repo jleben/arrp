@@ -681,7 +681,7 @@ public:
     block_statement() {}
     block_statement(const vector<statement_ptr> & stmts): statements(stmts) {}
 
-    void generate(state &, ostream &);
+    void generate(state &, ostream &) override;
     virtual void generate_nested(state &, ostream &) override;
 };
 

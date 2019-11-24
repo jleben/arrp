@@ -1,0 +1,180 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+
+  build-test-ubuntu:
+
+    runs-on: ubuntu-latest
+    container:
+        image: ubuntu:18.04
+
+    steps:
+    - name: Install dependencies
+      run: |
+        apt-get update
+        apt-get -y install build-essential libtool autoconf git cmake python3 libgmp-dev dpkg-dev
+
+    - name: Checkout repository
+      uses: actions/checkout@v1
+
+    - name: Checkout submodules
+      run: |
+        git submodule update --init --recursive
+
+    - name: Build ISL
+      run: |
+        cd extra/isl
+        mkdir build
+        ./autogen.sh
+        ./configure --prefix=$(pwd)/build
+        make install
+
+    - name: Build Arrp compiler
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        make
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest
+
+    - name: Build Debian package
+      run: |
+        mkdir build-pkg
+        cd build-pkg
+        ../make-deb.sh ..
+        mkdir release
+        cp *.deb release/
+
+    - name: Upload package as artifact
+      uses: actions/upload-artifact@master
+      with:
+        name: debian-package
+        path: 'build-pkg/release'
+
+
+  test-debian-package:
+
+    needs: build-test-ubuntu
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Download package as artifact
+      uses: actions/download-artifact@master
+      with:
+        name: debian-package
+
+    - name: Test package
+      run: |
+          sudo dpkg -i debian-package/*.deb
+          echo "input x : [~]int; output y = 2*x;" > test.arrp
+          arrp test.arrp --exe test
+          echo 1 3 5 | ./test > output.txt
+          echo "Output:"
+          cat output.txt
+          echo -en "2\n6\n10\n" > expected.txt
+          diff output.txt expected.txt
+          if [[ $? -eq 0 ]]; then
+            echo "OK"
+          else
+            echo "Error"
+            exit 1
+          fi
+
+
+  build-test-macos:
+
+    runs-on: macOS-latest
+
+    steps:
+
+    - uses: actions/checkout@v1
+
+    - name: Checkout submodules
+      run: |
+        git submodule update --init --recursive
+
+    - name: Install dependencies
+      run: |
+        brew install automake autoconf libtool gmp
+
+    - name: Build ISL
+      run: |
+        cd extra/isl
+        mkdir build
+        ./autogen.sh
+        ./configure --prefix=$(pwd)/build
+        make install
+
+    - name: Build Arrp compiler
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        make
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest
+
+    - name: Make package
+      run: |
+        mkdir build-pkg
+        cd build-pkg
+        ../make-zip.sh .. macos
+        mkdir release
+        cp *.zip release/
+
+    - name: Upload package as artifact
+      uses: actions/upload-artifact@master
+      with:
+        name: macos-package
+        path: 'build-pkg/release'
+
+
+  test-macos-package:
+
+    needs: build-test-macos
+
+    runs-on: macOS-latest
+
+    steps:
+
+    - name: Download package as artifact
+      uses: actions/download-artifact@master
+      with:
+        name: macos-package
+
+    - name: Test package
+      run: |
+          unzip macos-package/*.zip
+          cd arrp_*_macos
+          echo "input x : [~]int; output y = 2*x;" > test.arrp
+          ARRP_HOME=. ./bin/arrp test.arrp --exe test
+          echo 1 3 5 | ./test > output.txt
+          echo "Output:"
+          cat output.txt
+          echo -en "2\n6\n10\n" > expected.txt
+          diff output.txt expected.txt
+          if [[ $? -eq 0 ]]; then
+            echo "OK"
+          else
+            echo "Error"
+            exit 1
+          fi

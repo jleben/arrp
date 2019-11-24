@@ -1,20 +1,21 @@
 
-a = [~: i -> i];
+a[n] = n;
 
-## 'log(i)' is not affine, so 'i' should literally go over all its values.
-## 'max(0, min(5, ...)) + i' is affine though.
+... 'log(i)' is not affine, so 'i' should literally go over all its values.
+... 'max(0, min(5, ...)) + i' is affine though.
 
-main = [~: i -> a[max(0, min(10, i*i)) + i]];
+b[i] = a[max(0, min(10, i*i)) + i];
+output b;
 
-##? [~]int
-##? 0
-##? 2
-##? 6
-##? 12
-##? 14
-##? 15
-##? 16
-##? 17
-##? 18
-##? 19
-##? 20
+...? [~]int
+...? 0
+...? 2
+...? 6
+...? 12
+...? 14
+...? 15
+...? 16
+...? 17
+...? 18
+...? 19
+...? 20

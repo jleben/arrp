@@ -61,7 +61,7 @@ protected:
     virtual bool visit_infinity(const shared_ptr<infinity> &) override { return true; }
     virtual bool visit_ref(const shared_ptr<reference> &) override { return true; }
     virtual bool visit_array_self_ref(const shared_ptr<array_self_ref> &) override { return true; }
-    virtual bool visit_primitive(const shared_ptr<primitive> & prim)
+    virtual bool visit_primitive(const shared_ptr<primitive> & prim) override
     {
         for (auto & arg : prim->operands)
         {
@@ -823,7 +823,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
                 isl_array_def_domain |= isl_expr_domain;
             }
         }
-
+#if 0
         if (pattern.expr)
         {
             auto isl_expr_domain = isl_pattern_domain - isl_array_def_domain;
@@ -840,6 +840,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
 
             isl_array_def_domain |= isl_pattern_domain;
         }
+#endif
     }
 
 #if 0

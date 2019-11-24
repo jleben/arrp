@@ -1,4 +1,4 @@
 
 a = [i -> i];
-main =  #a;
+output main =  #a;
 

@@ -302,8 +302,6 @@ public:
         {
             if (pattern.domains)
                 visit(pattern.domains);
-            if (pattern.expr)
-                visit(pattern.expr);
         }
     }
     virtual void visit_array_app(const shared_ptr<array_app> & app)
@@ -352,7 +350,7 @@ public:
 class rewriter_base : public visitor<expr_ptr>
 {
 public:
-    virtual expr_ptr visit(const expr_ptr & expr)
+    virtual expr_ptr visit(const expr_ptr & expr) override
     {
         if (expr)
             return visitor::visit(expr);
@@ -440,8 +438,6 @@ public:
         {
             if (pattern.domains)
                 pattern.domains = visit(pattern.domains);
-            if (pattern.expr)
-                pattern.expr = visit(pattern.expr);
         }
         return ap;
     }

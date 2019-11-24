@@ -22,15 +22,15 @@
 %token INVALID "invalid token"
 %token INT REAL COMPLEX TRUE FALSE STRING
 %token ID QUALIFIED_ID
-%token IF THEN CASE THIS
-%token MODULE IMPORT AS INPUT EXTERNAL
+%token IF THEN CASE
+%token MODULE IMPORT AS INPUT OUTPUT EXTERNAL
+%token OTHERWISE
 
 %left '='
-%left TYPE_EQ
-%left FOR
+%precedence ',' ':'
+%right RIGHT_ARROW
 %right LET IN
 %right WHERE
-%right RIGHT_ARROW
 %right ELSE
 %left LOGIC_OR
 %left LOGIC_AND
@@ -161,11 +161,21 @@ nested_decl_list:
 ;
 
 external_decl:
-  INPUT id TYPE_EQ type
+  INPUT id ':' type
   { $$ = make_list(ast::input, @$, {$2, $4}); }
   |
-  EXTERNAL id TYPE_EQ type
+  EXTERNAL id ':' type
   { $$ = make_list(ast::external, @$, {$2, $4}); }
+  |
+  OUTPUT id
+  { $$ = make_list(ast::output, @$, {$2, nullptr}); }
+  |
+  OUTPUT id '=' expr
+  // Use format of binding
+  { $$ = make_list(ast::output_value, @$, {$2, nullptr, $4}); }
+  |
+  OUTPUT id_type_decl
+  { $$ = $2; $$->type = ast::output_type; }
 ;
 
 
@@ -181,18 +191,9 @@ binding:
   }
   |
   // We use the same structure as array_pattern
-  id '[' expr_list ']' '=' expr
+  id '[' expr_list ']' '=' array_exprs
   {
-    auto pattern = make_list(@$, { $3, nullptr, $6 });
-    $$ = make_list( ast::array_element_def, @$, { $1, pattern });
-  }
-  |
-  // We use the same structure as array_pattern
-  id '[' expr_list ']' '=' expr FOR expr
-  {
-    auto domain = make_list(@$, { $8, $6 });
-    auto domains = make_list(@$, { domain });
-    auto pattern = make_list(@$, { $3, domains, nullptr });
+    auto pattern = make_list(@$, { $3, $6 });
     $$ = make_list( ast::array_element_def, @$, { $1, pattern });
   }
 ;
@@ -213,7 +214,7 @@ param_list:
 ;
 
 id_type_decl:
-    id TYPE_EQ type
+    id ':' type
     { $$ = make_list(ast::id_type_decl, @$, {$1, $3}); }
 ;
 
@@ -265,19 +266,17 @@ expr:
   |
   if_expr
   |
-  lambda
+  func_lambda
   |
   func_apply
   |
   func_composition
   |
-  array_func
+  array_lambda
   |
   array_enum
   |
   array_apply
-  |
-  array_self_apply
   |
   array_size
   |
@@ -393,10 +392,18 @@ where_expr:
   }
 ;
 
-lambda:
-  '\\'  param_list RIGHT_ARROW expr
+func_lambda:
+  '(' expr[param] ')' RIGHT_ARROW expr[value]
   {
-    $$ = make_list(ast::lambda, @$, {$2, $4} );
+    auto params = make_list(@$, { $[param] });
+    $$ = make_list(ast::lambda, @$, { params, $[value] } );
+  }
+  |
+  '(' expr[first_param] ',' expr_list[other_params] ')' RIGHT_ARROW expr[value]
+  {
+    auto params = make_list(@$, {$[first_param]});
+    params->as_list()->append($[other_params]->as_list()->elements);
+    $$ = make_list(ast::lambda, @$, {params, $[value]} );
   }
 ;
 
@@ -405,29 +412,32 @@ array_apply:
   { $$ = make_list( ast::array_apply, @$, {$1, $3} ); }
 ;
 
-array_self_apply:
-  THIS '[' expr_list ']'
-  { $$ = make_list( ast::array_apply, @$, {$1, $3} ); }
+array_lambda:
+  '[' array_lambda_params ']' RIGHT_ARROW expr
+  {
+    auto ranges = make_list(@2, {});
+    auto indexes = make_list(@2, {});
+
+    for (auto & param : $array_lambda_params->as_list()->elements)
+    {
+      indexes->as_list()->append(param->as_list()->elements[0]);
+      ranges->as_list()->append(param->as_list()->elements[1]);
+    }
+
+    auto piece = make_list(@expr, { nullptr, $expr });
+    auto pieces = make_list(@expr, { piece });
+    auto pattern = make_list(@$, { indexes, pieces });
+    auto patterns = make_list(@$, { pattern });
+
+    $$ = make_list( ast::array_def, @$, {ranges, patterns} );
+  }
 ;
 
-array_func:
-  '[' array_ranges ':' array_pattern_list optional_semicolon ']'
-  { $$ = make_list( ast::array_def, @$, {$2, $4} ); }
-  |
-  '[' array_pattern_list optional_semicolon ']'
-  { $$ = make_list( ast::array_def, @$, {nullptr, $2} ); }
-;
-
-array_ranges:
-  expr_list
-;
-
-
-array_pattern_list:
-  array_pattern
+array_lambda_params:
+  array_lambda_param
   { $$ = make_list( @$, {$1} ); }
   |
-  array_pattern_list ';' array_pattern
+  array_lambda_params ',' array_lambda_param
   {
     $$ = $1;
     $$->as_list()->append( $3 );
@@ -435,52 +445,64 @@ array_pattern_list:
   }
 ;
 
-array_pattern:
-  expr_list RIGHT_ARROW expr
-  { $$ = make_list( @$, { $1, nullptr, $3 } ); }
-  |
-  expr_list array_domain_list
-  { $$ = make_list( @$, { $1, $2, nullptr } ); }
-  |
-  expr_list array_domain_list '|' expr
-  { $$ = make_list( @$, { $1, $2, $4 } ); }
+array_lambda_param:
+    id
+    { $$ = make_list( @$, {$1, make_node(infinity, @$)} ); }
+    |
+    id ':' expr
+    { $$ = make_list( @$, {$1, $3} ); }
 ;
 
-
-array_domain_list:
-  array_domain
-  { $$ = make_list( @$, {$1} ); }
-  |
-  array_domain_list array_domain
+array_exprs:
+  expr %prec RIGHT_ARROW
   {
-    $$ = $1;
-    $$->as_list()->append( $2 );
+    auto constrained_expr = make_list( @$, { nullptr, $1 });
+    $$ = make_list( @$, {constrained_expr} );
+  }
+  |
+  constrained_array_expr
+  {
+    $$ = make_list( @$, {$1} );
+  }
+  |
+  '{' constrained_array_expr_list optional_semicolon '}'
+  { $$ = $2; }
+  |
+  '{' constrained_array_expr_list ';' final_constrained_array_expr optional_semicolon '}'
+  {
+    $$ = $2;
+    $$->as_list()->append( $4 );
     $$->location = @$;
   }
 ;
-array_domain:
-  '|' expr RIGHT_ARROW expr
-  { $$ = make_list( @$, { $2, $4 } ); }
+
+constrained_array_expr_list:
+  constrained_array_expr
+  { $$ = make_list( @$, {$1} ); }
+  |
+  constrained_array_expr_list ';' constrained_array_expr
+  {
+    $$ = $1;
+    $$->as_list()->append( $3 );
+    $$->location = @$;
+  }
+;
+
+constrained_array_expr:
+  expr ',' IF expr    %prec ','
+  { $$ = make_list( @$, { $4, $1 } ); }
+;
+
+final_constrained_array_expr:
+  expr ',' OTHERWISE
+  { $$ = make_list( @$, { nullptr, $1 } ); }
 ;
 
 array_enum:
-  '[' array_elem_list ']'
+  '(' expr ',' expr_list ')'
   {
-    $$ = $2;
-    $$->type = ast::array_enum;
-    $$->location = @$;
-  }
-;
-
-array_elem_list:
-  expr
-  { $$ = make_list( @$, {$1} ); }
-  |
-  array_elem_list ';' expr
-  {
-    $$ = $1;
-    $$->as_list()->append( $3 );
-    $$->location = @$;
+    $$ = make_list(ast::array_enum, @$, { $expr });
+    $$->as_list()->append($expr_list->as_list()->elements);
   }
 ;
 

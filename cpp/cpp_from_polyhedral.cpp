@@ -81,6 +81,14 @@ static expression_ptr to_int32(expression_ptr e, primitive_type t)
         return cast(int_type(), e);
 }
 
+static expression_ptr to_type(expression_ptr e, primitive_type a, primitive_type r)
+{
+    if (a == r)
+        return e;
+
+    return cast(type_for(r), e);
+}
+
 void cpp_from_polyhedral::generate_statement
 (const string & name, const index_type & index, builder* ctx)
 {
@@ -364,11 +372,17 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     }
     case primitive_op::max:
     {
-        return make_shared<call_expression>("max", operands[0], operands[1]);
+        auto r_t = prim_type(expr);
+        auto lhs = to_type(operands[0], prim_type(expr->operands[0]), r_t);
+        auto rhs = to_type(operands[1], prim_type(expr->operands[1]), r_t);
+        return make_shared<call_expression>("max", lhs, rhs);
     }
     case primitive_op::min:
     {
-        return make_shared<call_expression>("min", operands[0], operands[1]);
+        auto r_t = prim_type(expr);
+        auto lhs = to_type(operands[0], prim_type(expr->operands[0]), r_t);
+        auto rhs = to_type(operands[1], prim_type(expr->operands[1]), r_t);
+        return make_shared<call_expression>("min", lhs, rhs);
     }
     case primitive_op::log:
     {

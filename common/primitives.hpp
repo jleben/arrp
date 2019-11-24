@@ -189,9 +189,9 @@ inline ostream & operator<<(ostream & s, primitive_type t)
     switch(t)
     {
     case primitive_type::boolean:
-        s << "boolean"; break;
+        s << "bool"; break;
     case primitive_type::integer:
-        s << "integer"; break;
+        s << "int"; break;
     case primitive_type::real32:
         s << "real32"; break;
     case primitive_type::real64:

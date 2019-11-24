@@ -74,7 +74,7 @@ struct options
     bool loop_invariant_code_motion = false;
 
     int data_alignment = 0;
-    bool data_size_power_of_two = false;
+    bool data_size_power_of_two = true;
 
     string report_file;
 };

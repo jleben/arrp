@@ -6,7 +6,6 @@
 #include "error.hpp"
 #include "name_provider.hpp"
 #include "func_copy.hpp"
-#include "array_bounding.hpp"
 #include "linear_expr_gen.hpp"
 
 #include <isl-cpp/constraint.hpp>
@@ -95,7 +94,6 @@ private:
 
     name_provider & m_name_provider;
     copier m_copier;
-    array_bounding m_array_bounding;
     affine_integer_expression_check m_affine;
 
     isl::context m_isl_ctx;

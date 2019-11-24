@@ -1,2 +1,2 @@
 
-main = x + 1 where x = y * 2 where y = 3;
+output main = x + 1 where x = y * 2 where y = 3;

@@ -1,6 +1,6 @@
 
 a = [5: x -> x];
-main = [10:
+output main = [10:
   0 -> a;
   k -> this[k-1] + 1;
 ];

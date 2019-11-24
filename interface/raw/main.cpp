@@ -2,14 +2,30 @@
 
 #include <arrp/arguments/arguments.hpp>
 
+#include <iostream>
+
 using namespace std;
 using namespace arrp::generic_io;
 
 struct Options
 {
-    string default_channel_format = "raw";
+    string default_channel_format = "text";
+    int max_buffer_size = 1024;
     unordered_map<string, string> channel_options;
 };
+
+static void print_actual_channel_config(ActualChannelConfig config)
+{
+    cerr << config.type;
+
+    if (config.type != "pipe")
+        cerr << ": " << config.value;
+
+    if (config.type != "value")
+        cerr << ", format: " << config.format;
+
+    cerr << ", block size: " << config.block_size;
+}
 
 struct Config
 {
@@ -22,14 +38,28 @@ struct Config
         {
             auto & name = entry.first;
             auto manager = entry.second;
-            setup_manager(name, manager, options);
+            bool ok = setup_manager(name, manager, options);
+
+            if (ok)
+            {
+                cerr << "Input " << name << ": ";
+                print_actual_channel_config(manager->configuration());
+                cerr << endl;
+            }
         }
 
         for(auto & entry : io.output_managers)
         {
             auto & name = entry.first;
             auto manager = entry.second;
-            setup_manager(name, manager, options);
+            bool ok = setup_manager(name, manager, options);
+
+            if (ok)
+            {
+                cerr << "Output " << name << ": ";
+                print_actual_channel_config(manager->configuration());
+                cerr << endl;
+            }
         }
 
         if (unconfigured_channels.size())
@@ -73,7 +103,7 @@ private:
         return name.size() and (name == single_input_stream or name == single_output_stream);
     }
 
-    void setup_manager(const string & name, shared_ptr<AbstractChannelManager> manager, const Options & options)
+    bool setup_manager(const string & name, shared_ptr<AbstractChannelManager> manager, const Options & options)
     {
         ChannelConfig config;
 
@@ -90,7 +120,7 @@ private:
             {
                 cerr << "Invalid options for channel '" << name << "': " << e.what() << endl;
                 unconfigured_channels.push_back(name);
-                return;
+                return false;
             }
         }
         else if (is_singular_stream(name))
@@ -102,15 +132,14 @@ private:
         else
         {
             unconfigured_channels.push_back(name);
-            return;
+            return false;
         }
+
+        config.max_buffer_size = options.max_buffer_size;
 
         manager->setup(config);
 
-        if (manager->is_input())
-            manager->stream()->exceptions(std::ifstream::failbit | std::ifstream::badbit);
-        else
-            manager->stream()->exceptions(std::ifstream::failbit | std::ifstream::badbit | std::ifstream::eofbit);
+        return true;
     }
 
     ChannelConfig parse_channel_options(const string & text, const Options & options)
@@ -163,6 +192,68 @@ void report_channel_config(ostream & s, const ChannelConfig & config)
     s << "format: " << config.format << endl;
 }
 
+template <typename List>
+static void print_list(ostream & s, const string & separator, const List & list)
+{
+    auto i = list.begin();
+    if (i == list.end())
+        return;
+    s << *i;
+    for(++i; i != list.end(); ++i)
+        s << separator << *i;
+}
+
+static
+void print_help(Generated_IO & io)
+{
+    vector<string> input_names;
+    vector<string> output_names;
+
+    for(auto & entry : io.input_managers)
+        input_names.push_back(entry.first);
+    for(auto & entry : io.output_managers)
+        output_names.push_back(entry.first);
+
+    std::sort(input_names.begin(), input_names.end());
+    std::sort(output_names.begin(), output_names.end());
+
+    cerr << "Options: " << endl;
+    cerr << "  -h or --help" << endl;
+    cerr << "    ... Print this help." << endl;
+    cerr << "  -f=<format> or --format=<format>" << endl;
+    cerr << "    ... Use this format for inputs and outputs without explicit format." << endl;
+    cerr << "  -b=<size> or --buffer=<size>" << endl;
+    cerr << "    ... Maximum amount of buffered data for inputs and outputs." << endl;
+    cerr << "  <input>=<value>" << endl;
+    cerr << "    ... Define input value." << endl;
+    cerr << "  <input>=<source>[:<format>]" << endl;
+    cerr << "    ... Read input from source with given format." << endl;
+    cerr << "  <output>=<destination>[:<format>]" << endl;
+    cerr << "    ... Write output to destination with given format." << endl;;
+
+    cerr << "Sources/Destinations:" << endl;
+    cerr << "  pipe: Read from stdin or write to stdout." << endl;
+    cerr << "  <filename>: Use file as source/destination." << endl;
+    cerr << "Formats: " << endl;
+    cerr << "  raw: Binary output as stored in memory." << endl;
+    cerr << "  text: Print or parse values using C++ formatting (array elements separated by spaces)." << endl;
+
+    cerr << "Note: If there is a single input (output) or a single stream input (output) "
+            "it will use pipe source (destination) with raw format, unless specified otherwise." << endl;
+
+    cerr << "Inputs:" << endl;
+    cerr << "  ";
+    print_list(cerr, ", ", input_names);
+    cerr << endl;
+
+    cerr << "Outputs:" << endl;
+    cerr << "  ";
+    print_list(cerr, ", ", output_names);
+    cerr << endl;
+
+
+}
+
 int main(int argc, char *argv[])
 {
     Generated_IO io;
@@ -186,6 +277,8 @@ int main(int argc, char *argv[])
 
     parser.add_option("-f", options.default_channel_format);
     parser.add_option("--format", options.default_channel_format);
+    parser.add_option("-b", options.max_buffer_size);
+    parser.add_option("--buffer", options.max_buffer_size);
     parser.add_switch("-h", help_requested);
     parser.add_switch("--help", help_requested);
 
@@ -198,8 +291,8 @@ int main(int argc, char *argv[])
 
     if (help_requested)
     {
-        parser.print(cerr);
-        return 1;
+        print_help(io);
+        return 0;
     }
 
     try { Config config(options, io); }

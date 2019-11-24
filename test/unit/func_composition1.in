@@ -2,7 +2,7 @@
 f1(x) = y + 1 where y = x + 10;
 f2(x) = x * 2;
 
-main = (f1 . f2)(10.4);
+output main = (f1 . f2)(10.4);
 
-##? real64
-##? 31.8
+...? real64
+...? 31.8

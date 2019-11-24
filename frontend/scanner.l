@@ -27,7 +27,8 @@ blank [ \t]
 
 {blank}+   yylloc->step ();
 [\n]+      yylloc->lines (yyleng); yylloc->step ();
-##[^\n]*\n    yylloc->lines (1); yylloc->step ();
+"..."[^\n]*\n    yylloc->lines (1); yylloc->step ();
+"--"[^\n]*\n    yylloc->lines (1); yylloc->step ();
 
 \\ { return (parser::token_type) '\\'; }
 \{ { return (parser::token_type) '{'; }
@@ -55,7 +56,6 @@ blank [ \t]
 "//" { return parser::token::INT_DIV; }
 "->" { return parser::token::RIGHT_ARROW; }
 "==" { return parser::token::EQ; }
-"::" { return parser::token::TYPE_EQ; }
 "!=" { return parser::token::NEQ; }
 "<" { return parser::token::LESS; }
 ">" { return parser::token::MORE; }
@@ -77,7 +77,7 @@ blank [ \t]
 "let" { return parser::token::LET; }
 "in" { return parser::token::IN; }
 "where" { return parser::token::WHERE; }
-"for" { return parser::token::FOR; }
+"otherwise" { return parser::token::OTHERWISE; }
 ".." { return parser::token::DOTDOT; }
 "++" { return parser::token::PLUSPLUS; }
 "true" {
@@ -88,14 +88,11 @@ blank [ \t]
   *yylval = ast::make_const( *yylloc, false );
   return parser::token::FALSE;
 }
-"this" {
-  *yylval = ast::make_node(ast::array_self_ref, *yylloc);
-  return parser::token::THIS;
-}
 "module" { return parser::token::MODULE; }
 "import" { return parser::token::IMPORT; }
 "as" { return parser::token::AS; }
 "input" { return parser::token::INPUT; }
+"output" { return parser::token::OUTPUT; }
 "external" { return parser::token::EXTERNAL; }
 
 [0-9]+(\.[0-9]+)?i {

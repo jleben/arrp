@@ -22,7 +22,7 @@ add_library(arrp-lib STATIC
   ../frontend/type_check.cpp
   ../frontend/linear_expr_gen.cpp
   ../frontend/array_to_isl.cpp
-  ../frontend/array_bounding.cpp
+  #../frontend/array_bounding.cpp
   ../frontend/array_reduction.cpp
   ../frontend/array_inflate.cpp
   ../frontend/array_transpose.cpp
@@ -44,7 +44,7 @@ add_library(arrp-lib STATIC
 
 target_link_libraries(arrp-lib parser arrp-io-generic-lib)
 
-set_property( TARGET arrp-lib PROPERTY OUTPUT_NAME arrp )
+set_property(TARGET arrp-lib PROPERTY OUTPUT_NAME arrp)
 
 if(FALSE)
 if(DEFINED LLVM_VERSION AND LLVM_VERSION VERSION_GREATER 3.4)
@@ -66,6 +66,9 @@ endif()
 target_link_libraries(arrp-lib ${ISL_LIBRARY} isl-cpp ${GMP_LIB} m)
 
 # Executable
+
+configure_file(version.template.hpp version.hpp @ONLY)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 add_executable(arrp main.cpp)
 target_link_libraries(arrp arrp-lib)

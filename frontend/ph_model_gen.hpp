@@ -33,7 +33,7 @@ public:
     polyhedral_gen(const options &);
     polyhedral::model process(const unordered_set<id_ptr> & ids);
     void add_output(polyhedral::model &,
-                    const string & name, id_ptr id,
+                    id_ptr id,
                     bool atomic, bool ordered);
 
 private:

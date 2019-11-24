@@ -3,4 +3,4 @@ f(a) = let x = a in x + 1;
 
 g(b) = f(b);
 
-main = g(2);
+output main = g(2);

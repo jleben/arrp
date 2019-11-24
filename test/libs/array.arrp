@@ -1,22 +1,21 @@
 module array;
 
-slice(pos,len,a) = [len:i -> a[pos + i]];
+slice(pos,len,a) = [i:len] -> a[pos + i];
 
-## FIXME: Array bounding required to get rid of #a
-scan(f,a) = [#a:
-    0 -> a[0];
-    i -> f(this[i-1], a[i]);
-];
+scan(f,a) = s where {
+    s[0] = a[0];
+    s[i] = f(s[i-1], a[i]), if i < #a;
+};
 
 fold(f,a) =
     let s = scan(f,a) in
         s[#a-1];
 
-iterate(f,init) = [
-    0 -> init;
-    i -> f(this[i-1]);
-];
+iterate(f,init) = r where {
+    r[0] = init;
+    r[i] = f(r[i-1]);
+};
 
-map(f,a) = [#a: i -> f(a[i])];
+map(f,a) = [i:#a] -> f(a[i]);
 
-reverse(x) = [#x: i -> x[#x-1-i]];
+reverse(x) = [i:#x] -> x[#x-1-i];
