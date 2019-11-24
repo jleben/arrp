@@ -2,9 +2,11 @@
 
 namespace arrp {
 
-inline std::string version()
+class info
 {
-    return "@ARRP_VERSION@";
-}
+public:
+    static std::string version() { return "@ARRP_VERSION@"; }
+    static std::string commit() { return "@ARRP_COMMIT@"; }
+};
 
 }
