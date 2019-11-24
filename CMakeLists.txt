@@ -13,6 +13,13 @@ set(TEST_BUILD_TYPE Release CACHE STRING "Build type for tests (affects performa
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# Get Arrp version
+
+file(STRINGS "${CMAKE_SOURCE_DIR}/VERSION" ARRP_VERSION LIMIT_COUNT 1)
+message(STATUS "Arrp version: ${ARRP_VERSION}")
+
+# C++ options
+
 if (CMAKE_VERSION VERSION_LESS 3.1)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 else()
@@ -26,6 +33,8 @@ endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w44267 /w44244")
 endif()
+
+# Prepare parser generator
 
 if(PARSER_REGENERATE)
   find_package(Flex REQUIRED)
