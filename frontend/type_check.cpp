@@ -61,7 +61,7 @@ protected:
     virtual bool visit_infinity(const shared_ptr<infinity> &) override { return true; }
     virtual bool visit_ref(const shared_ptr<reference> &) override { return true; }
     virtual bool visit_array_self_ref(const shared_ptr<array_self_ref> &) override { return true; }
-    virtual bool visit_primitive(const shared_ptr<primitive> & prim)
+    virtual bool visit_primitive(const shared_ptr<primitive> & prim) override
     {
         for (auto & arg : prim->operands)
         {

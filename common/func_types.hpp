@@ -216,7 +216,7 @@ public:
 
     void print(ostream & out) const override;
 
-    virtual bool operator==(const type & other) const
+    virtual bool operator==(const type & other) const override
     {
         if (!other.is_meta())
             return false;
