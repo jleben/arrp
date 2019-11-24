@@ -303,7 +303,7 @@ public:
         return d_configuration;
     }
 
-    virtual void setup(ChannelConfig & config)
+    virtual void setup(ChannelConfig & config) override
     {
         using namespace std;
 
