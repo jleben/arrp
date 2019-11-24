@@ -132,12 +132,12 @@ int main(int argc, char *argv[])
         args.try_parse_argument(opt.input_filename);
     });
 
-    args.add_option({"help", "h", "Print help."}, [](arguments& args){
+    args.add_option({"help", "h", "", "Print help."}, [](arguments& args){
         args.print_help();
         throw arguments::abortion();
     });
 
-    args.add_option({"version", "", "Print version."}, [](arguments &){
+    args.add_option({"version", "", "", "Print version."}, [](arguments &){
         cerr << "Arrp version: " << arrp::info::version()
              << ", commit: " << arrp::info::commit()
              << endl;
