@@ -92,6 +92,7 @@ endfunction()
 
 add_custom_target(tests)
 
+add_subdirectory(exe)
 add_subdirectory(common)
 add_subdirectory(unit)
 add_subdirectory(apps)
