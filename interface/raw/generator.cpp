@@ -274,13 +274,17 @@ void generate
     {
         auto * ARRP_HOME = getenv("ARRP_HOME");
         if (ARRP_HOME)
-            include_dirs += " -I" + string(ARRP_HOME) + "/include";
+            include_dirs += "-I" + string(ARRP_HOME) + "/include";
     }
+
+    string cpp_compiler_options = options.cpp_compiler_opts;
+    if (cpp_compiler_options.empty())
+        cpp_compiler_options = "-O1";
 
     {
         string cmd = cpp_compiler
                 + " -std=c++17"
-                + " -O1 "
+                + " " + cpp_compiler_options + " "
                 + include_dirs
                 + " " + main_cpp_file_name
                 + " -o " + options.output_file;
