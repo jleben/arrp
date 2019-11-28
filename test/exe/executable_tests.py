@@ -16,7 +16,8 @@ def info(msg):
   sys.stderr.write(msg + '\n');
 
 def compile_arrp(source, output_name):
-  subprocess.run([arrp_exe, '-x', output_name], input=source, universal_newlines=True, check=True)
+  subprocess.run([arrp_exe, '-x', output_name, '--cpp-compiler-opts', '-O0'],
+                 input=source, universal_newlines=True, check=True)
 
 def compare(actual, expected):
   if actual != expected:
