@@ -157,7 +157,14 @@ int main(int argc, char *argv[])
     });
 
     args.add_option({"cpp-namespace", "", "<name>", "Generate C++ output in namespace <name>."},
-                    new string_option(&opt.cpp.nmspace));
+                    new string_option(&opt.cpp.compiler_options));
+
+    auto parse_cpp_compiler_opts = [&opt](arguments& args){
+        opt.cpp.compiler_options = args.parse_raw_argument("options");
+    };
+
+    args.add_option({"cpp-compiler-opts", "", "<options>", "C++ compiler options."},
+                    parse_cpp_compiler_opts);
 
     args.add_option({"sched-whole", "", "", "Schedule whole program at once."},
                     new switch_option(&opt.schedule.cluster, false));

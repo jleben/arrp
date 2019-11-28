@@ -40,6 +40,7 @@ struct options
         bool enabled = false;
         string nmspace;
         string filename;
+        string compiler_options;
     } cpp;
 
     struct {

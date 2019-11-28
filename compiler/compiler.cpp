@@ -472,6 +472,7 @@ result::code compile_module
             {
                 arrp::generic_io::options output_opt;
                 output_opt.output_file = opts.generic_io.filename;
+                output_opt.cpp_compiler_opts = opts.cpp.compiler_options;
 
                 arrp::generic_io::generate(output_opt, arrp::report(), temp_dir);
             }

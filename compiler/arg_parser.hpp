@@ -215,6 +215,20 @@ private:
     }
 
 public:
+    string parse_raw_argument(const string & what)
+    {
+        if (arg_count())
+        {
+            string arg = current_arg();
+            advance();
+            return arg;
+        }
+        else
+        {
+            throw missing_argument(what, m_current_opt);
+        }
+    }
+
     void parse_argument(string & arg, const string & what)
     {
         if (arg_count() && current_arg()[0] != '-')
