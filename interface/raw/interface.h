@@ -112,9 +112,15 @@ class BufferedBinaryInputStream : public BinaryInputStream<T>
 public:
     BufferedBinaryInputStream(istream *d, int buffer_size):
         BinaryInputStream<T>(d),
-        d_buffer(buffer_size)
+        d_buffer_size(buffer_size)
     {
+        d_buffer = new T[buffer_size];
         d->exceptions(std::ifstream::badbit);
+    }
+
+    ~BufferedBinaryInputStream()
+    {
+        delete[] d_buffer;
     }
 
     virtual void transfer(T* destination, size_t count) override
@@ -133,7 +139,7 @@ public:
         {
             //cerr << "Reading... " << endl;
             d_buffer_index = 0;
-            this->d_stream->read((char*)(d_buffer.data()), d_buffer.size() * sizeof(T));
+            this->d_stream->read((char*)(d_buffer), d_buffer_size * sizeof(T));
             d_buffer_count = this->d_stream->gcount() / sizeof(T);
             //cerr << "Read " << d_buffer_count << " items." << endl;
             if (count - dst_index > d_buffer_count)
@@ -148,7 +154,8 @@ public:
     }
 
 private:
-    vector<T> d_buffer;
+    T * d_buffer;
+    int d_buffer_size = 0;
     int d_buffer_index = 0;
     int d_buffer_count = 0;
 };
@@ -159,8 +166,9 @@ class BufferedBinaryOutputStream : public BinaryOutputStream<T>
 public:
     BufferedBinaryOutputStream(ostream *d, int buffer_size):
         BinaryOutputStream<T>(d),
-        d_buffer(buffer_size)
+        d_buffer_size(buffer_size)
     {
+        d_buffer = new T[buffer_size];
         d->exceptions(std::ifstream::failbit | std::ifstream::badbit);
     }
 
@@ -170,27 +178,29 @@ public:
 
         if (d_buffer_index > 0)
         {
-            BinaryOutputStream<T>::transfer(d_buffer.data(), d_buffer_index);
+            write(d_buffer_index);
         }
+
+        delete[] d_buffer;
     }
 
     virtual void transfer(T* source, size_t count) override
     {
         int src_index = 0;
 
-        for (; d_buffer_index < d_buffer.size() and src_index < count;
+        for (; d_buffer_index < d_buffer_size and src_index < count;
              ++d_buffer_index, ++src_index)
         {
             d_buffer[d_buffer_index] = source[src_index];
         }
 
-        if (d_buffer_index == d_buffer.size())
+        if (d_buffer_index == d_buffer_size)
         {
             d_buffer_index = 0;
-            BinaryOutputStream<T>::transfer(d_buffer.data(), d_buffer.size());
+            write(d_buffer_size);
         }
 
-        for (; d_buffer_index < d_buffer.size() and src_index < count;
+        for (; d_buffer_index < d_buffer_size and src_index < count;
              ++d_buffer_index, ++src_index)
         {
             d_buffer[d_buffer_index] = source[src_index];
@@ -198,7 +208,13 @@ public:
     }
 
 private:
-    vector<T> d_buffer;
+    void write(size_t count)
+    {
+        this->d_stream->write((char*)(d_buffer), count * sizeof(T));
+    }
+
+    T * d_buffer;
+    int d_buffer_size = 0;
     int d_buffer_index = 0;
 };
 
