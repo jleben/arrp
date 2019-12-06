@@ -174,7 +174,7 @@ def test_explicit_format():
   expected_output = '300\n500\n700\n900\n'
   return compare(output, expected_output)
 
-def test_file():
+def test_file_text():
   source = 'input x : [~]int; output y = x * 10;'
   compile_arrp(source, 'arrp-test')
 
@@ -190,6 +190,89 @@ def test_file():
   return compare(output, expected_output)
 
 
+def test_file_binary():
+  source = 'input x : [~]int; output y = x;'
+  compile_arrp(source, 'arrp-test')
+
+  result = subprocess.run(['./arrp-test',
+                           'y=./test-output.raw:raw'],
+                          input = '7 2 4 3', universal_newlines=True, check=True)
+
+  out_file = open('./test-output.raw', 'rb')
+  output = out_file.read()
+  info("Checking output binary file:")
+  if compare(output, to_byte_array([7,2,4,3], '=i')):
+    info("OK")
+  else:
+    return False
+  out_file.close()
+
+  result = subprocess.run(['./arrp-test',
+                           'x=./test-output.raw:raw'],
+                          stdout=subprocess.PIPE, universal_newlines=True, check=True)
+
+  expected_output = '7\n2\n4\n3\n'
+  return compare(result.stdout, expected_output)
+
+
+def test_file_binary_unbuffered():
+  source = 'input x : [~]int; output y = x;'
+  compile_arrp(source, 'arrp-test')
+
+  result = subprocess.run(['./arrp-test',
+                           '-b=0',
+                           'y=./test-output.raw:raw'],
+                          input = '7 2 4 3', universal_newlines=True, check=True)
+
+  out_file = open('./test-output.raw', 'rb')
+  output = out_file.read()
+  info("Checking output binary file:")
+  if compare(output, to_byte_array([7,2,4,3], '=i')):
+    info("OK")
+  else:
+    return False
+  out_file.close()
+
+  result = subprocess.run(['./arrp-test',
+                           '-b=0',
+                           'x=./test-output.raw:raw'],
+                          stdout=subprocess.PIPE, universal_newlines=True, check=True)
+
+  expected_output = '7\n2\n4\n3\n'
+  return compare(result.stdout, expected_output)
+
+
+def test_file_text_binary_bool():
+  source = 'input x : [~]bool; output y = x;'
+  compile_arrp(source, 'arrp-test')
+
+  # text input
+  # unbuffered binary output
+  result = subprocess.run(['./arrp-test',
+                           '-b=0',
+                           'y=./test-output.raw:raw'],
+                          input = '1 0 1 1 0', universal_newlines=True, check=True)
+
+  out_file = open('./test-output.raw', 'rb')
+  output = out_file.read()
+  info("Checking output binary file:")
+  if compare(output, to_byte_array([1,0,1,1,0], '=B')):
+    info("OK")
+  else:
+    return False
+  out_file.close()
+
+  # buffered binary input
+  # text output
+  result = subprocess.run(['./arrp-test',
+                           '-b=3',
+                           'x=./test-output.raw:raw'],
+                          stdout=subprocess.PIPE, universal_newlines=True, check=True)
+
+  expected_output = '1\n0\n1\n1\n0\n'
+  return compare(result.stdout, expected_output)
+
+
 def test_multi_input():
   source = 'input k : int; input x : [~]int; output y = x*k'
   compile_arrp(source, 'arrp-test')
@@ -201,6 +284,14 @@ def test_multi_input():
 
   expected_output = '0\n30\n60\n90\n'
   return compare(result.stdout, expected_output)
+
+
+def test_boolean_text_io():
+  source =  'input x : [~]bool;    output y = not x;'
+  compile_arrp(source, 'arrp-test')
+  result = subprocess.run('./arrp-test', input='1 0 0 1 0 1', stdout=subprocess.PIPE, universal_newlines=True, check=True)
+  info("Got output:\n" + result.stdout)
+  return compare(result.stdout, '0\n1\n1\n0\n1\n0\n')
 
 
 tests = {
@@ -215,8 +306,12 @@ tests = {
     'binary-buffered-stream': test_binary_stream_buffered,
     'binary-buffered-stream-noinput': test_binary_stream_buffered_noinput,
     'explicit-format': test_explicit_format,
-    'file': test_file,
+    'file-text': test_file_text,
+    'file-binary': test_file_binary,
+    'file-binary-unbuffered': test_file_binary_unbuffered,
+    'file-text-binary-bool': test_file_text_binary_bool,
     'multi-input': test_multi_input,
+    'boolean-text-io': test_boolean_text_io,
 }
 
 def main():

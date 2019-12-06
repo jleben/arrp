@@ -12,8 +12,12 @@ set(test_names
   binary-buffered-stream
   binary-buffered-stream-noinput
   explicit-format
-  file
+  file-text
+  file-binary
+  file-binary-unbuffered
+  file-text-binary-bool
   multi-input
+  boolean-text-io
 )
 
 foreach(test_name ${test_names})
