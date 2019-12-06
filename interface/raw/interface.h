@@ -273,6 +273,9 @@ public:
 
     ~ChannelManager()
     {
+        // Make sure channel is destroyed before io streams
+        channel = nullptr;
+
         if (owns_stream)
         {
             delete in_stream;
