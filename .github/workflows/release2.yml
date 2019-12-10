@@ -3,7 +3,7 @@ name: Test release creation
 
 on:
   release:
-    types: [created]
+    types: [created, edited]
 
 jobs:
   greeting:
