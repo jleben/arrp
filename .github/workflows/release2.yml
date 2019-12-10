@@ -1,0 +1,13 @@
+ 
+name: Test release creation
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  greeting:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Greet
+      run: echo "Hi"
