@@ -36,16 +36,19 @@ struct options
     //string output_filename;
     //string meta_output_filename;
 
+    string output_filename_base;
+    string target_type = "cpp";
+
     struct {
-        bool enabled = false;
         string nmspace;
-        string filename;
-        string compiler_options;
     } cpp;
 
     struct {
-        string filename;
     } generic_io;
+
+    struct {
+        string name;
+    } jack_io;
 
     vector<string> import_dirs;
     vector<string> import_extensions { "arrp" };
