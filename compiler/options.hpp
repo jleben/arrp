@@ -68,6 +68,9 @@ struct options
 
     bool atomic_io = false;
     bool ordered_io = true;
+    // clocked_io: all IO channels transfer a sample
+    // before any of them transfers the next sample.
+    bool clocked_io = false;
 
     bool parallel = false;
     int parallel_dim = -1;

@@ -328,6 +328,11 @@ result::code compile_module
                 }
             }
 
+            if (opts.clocked_io)
+            {
+                functional::add_io_clock(ph_model);
+            }
+
             // Compute polyhedral schedule
 
             polyhedral::schedule schedule(ph_model.context);

@@ -212,10 +212,16 @@ int main(int argc, char *argv[])
     args.add_option({"move-loop-invariant-code", "", "", ""},
                     new switch_option(&opt.loop_invariant_code_motion, true));
 
+    args.add_option({"io-common-clock", "", "",
+                     "All inputs and outputs are scheduled on a common clock"
+                     " at a rate of 1 element/tick."
+                     " Overrides --io-unordered."},
+                    new switch_option(&opt.clocked_io, true));
     args.add_option({"io-unordered", "", "", "Do not necessarily order input and output."},
                     new switch_option(&opt.ordered_io, false));
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
+
 
     args.add_option({"target", "", "", "Target type: cpp (default), generic, jack"},
                     new string_option(&opt.target_type));

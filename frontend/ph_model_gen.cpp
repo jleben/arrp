@@ -1156,6 +1156,75 @@ shared_ptr<polyhedral::array_access> polyhedral_gen::access
     return access;
 }
 
+void add_io_clock(polyhedral::model & model)
+{
+    // Add order relations expressing that
+    // all input and outputs at index i should happen
+    // before all inputs and outputs at index i+1.
+
+    // Expressing relations directly between inputs and outputs
+    // would be in O(#in * #out).
+    // Instead, we introduce an intermediate dummy domain to
+    // make reduce it to O(#in + #out).
+
+    // Create a clock domain { .io_clock[i] : i >= 0 }
+    // For each input and output x, add relations:
+    // { x[i] -> .io_clock[i] } and
+    // { .io_clock[i] -> x[i+1] }
+
+    isl::space clock_space(model.context, isl::set_tuple(".io_clock", 1));
+    auto clock = isl::basic_set::universe(clock_space);
+    clock.add_constraint(clock_space.var(0) >= 0);
+
+    isl::union_map deps(model.context);
+
+    for (const auto & input : model.inputs)
+    {
+        if (not input.statement->is_infinite)
+            continue;
+
+        {
+            auto m = isl::map::between(input.statement->domain, clock);
+            m = m.equate(0, 0);
+            deps |= m;
+        }
+
+        {
+            auto m = isl::map::between(clock, input.statement->domain);
+            auto s = m.get_space();
+            m.add_constraint(s.in(0)+1 == s.out(0));
+            deps |= m;
+        }
+    }
+
+    for (const auto & output : model.outputs)
+    {
+        if (not output.statement->is_infinite)
+            continue;
+
+        {
+            auto m = isl::map::between(output.statement->domain, clock);
+            m = m.equate(0, 0);
+            deps |= m;
+        }
+        {
+            auto m = isl::map::between(clock, output.statement->domain);
+            auto s = m.get_space();
+            m.add_constraint(s.in(0)+1 == s.out(0));
+            deps |= m;
+        }
+    }
+
+#if 0
+    cerr << "hsdf deps:" << endl;
+    isl::printer printer(model.context);
+    printer.print_each_in(deps);
+    cerr << endl;
+#endif
+
+    model.clock = clock;
+    model.clock_relations = deps;
+}
 
 }
 }
