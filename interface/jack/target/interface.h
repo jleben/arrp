@@ -1,7 +1,7 @@
 #pragma once
 
-#include "buffer.h"
 #include "jack_client.h"
+#include "linear_buffer.h"
 
 #include <stdexcept>
 
@@ -11,14 +11,12 @@ namespace jack_io {
 class Abstract_IO
 {
 public:
-    using Buffer = Circular_Buffer<float>;
-
-    static constexpr int default_buffer_size = 50000;
+    using Buffer = Linear_Buffer<float>;
 
     Abstract_IO(Jack_Client * jack, int input_count, int output_count):
         d_jack(jack),
-        d_inputs(input_count, default_buffer_size),
-        d_outputs(output_count, default_buffer_size)
+        d_inputs(input_count),
+        d_outputs(output_count)
     {
         printf("#inputs: %d, #outputs %d\n", input_count, output_count);
         // FIXME: Properly size buffers

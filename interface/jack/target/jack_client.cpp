@@ -208,13 +208,16 @@ void Jack_Client::receive()
     for (int i = 0; i < d_inputs.size(); ++i)
     {
         auto & buf = d_hidden->d_kernel->io->inputs()[i];
-        float * src = (jack_default_audio_sample_t*) jack_port_get_buffer(d_inputs[i], d_frames_to_process);
-        for (int f = 0; f < d_frames_to_process; ++f)
-        {
-            buf.push(src[f]);
-        }
+        float * data = (jack_default_audio_sample_t*) jack_port_get_buffer(d_inputs[i], d_frames_to_process);
+        buf = Linear_Buffer<float>(data, d_frames_to_process);
+        buf.produce(d_frames_to_process);
+    }
 
-        printf("Input %d readable %d\n", i, buf.readable());
+    for (int i = 0; i < d_outputs.size(); ++i)
+    {
+        auto & buf = d_hidden->d_kernel->io->outputs()[i];
+        float * data = (jack_default_audio_sample_t*) jack_port_get_buffer(d_outputs[i], d_frames_to_process);
+        buf = Linear_Buffer<float>(data, d_frames_to_process);
     }
 }
 
@@ -225,17 +228,11 @@ void Jack_Client::send()
     for (int i = 0; i < d_outputs.size(); ++i)
     {
         auto & buf = d_hidden->d_kernel->io->outputs()[i];
-        float * dst = (jack_default_audio_sample_t*) jack_port_get_buffer(d_outputs[i], d_frames_to_process);
-        int f = 0;
-        for (; f < d_frames_to_process - buf.readable(); ++f)
+        if (buf.readable() != d_frames_to_process)
         {
-            dst[f] = 0;
+            printf("Buffer underrun for output %d.\n", i);
         }
-        for (; f < d_frames_to_process; ++f)
-        {
-            dst[f] = buf.pop();
-        }
-        printf("Output %d writable %d\n", i, buf.writable());
+        buf.clear();
     }
 
     jack_cycle_signal(d_client, 0);
