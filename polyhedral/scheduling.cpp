@@ -314,9 +314,21 @@ isl::schedule scheduler::make_schedule
         //constr = isl_schedule_constraints_set_coincidence(constr, proximity_deps.copy());
     }
 
-    isl_schedule * sched =
-            isl_schedule_constraints_compute_schedule(constr);
-    assert(sched);
+    isl_schedule * sched = nullptr;
+
+    {
+        auto error_action = m_model.context.error_action();
+        m_model.context.set_error_action(isl::context::warn_on_error);
+
+        sched = isl_schedule_constraints_compute_schedule(constr);
+
+        m_model.context.set_error_action(error_action);
+    }
+
+    if (!sched)
+    {
+        throw stream::error("Could not find a valid schedule.");
+    }
 
     return sched;
 }
