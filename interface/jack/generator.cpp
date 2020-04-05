@@ -17,8 +17,6 @@ void generate(const options & opt, const nlohmann::json & report)
     string kernel_file_name = report["cpp"]["filename"];
     string kernel_namespace = report["cpp"]["namespace"];
 
-    int prologueInputFrames = 0;
-    int prologueOutputFrames = 0;
     int periodFrames = 0;
     int inputChannels = 0;
     int outputChannels = 0;
@@ -64,15 +62,12 @@ void generate(const options & opt, const nlohmann::json & report)
 
     {
         output = outputs[0];
-
-        prologueOutputFrames = output["prologue_count"];
         periodFrames = output["period_count"];
         outputChannels = output["dimensions"].size() ? int(output["dimensions"][0]) : 1;
     }
 
     if (!input.is_null())
     {
-        prologueInputFrames = input["prologue_count"];
         if (input["period_count"] != periodFrames)
         {
             throw stream::error("Input and output rates are different.");

@@ -585,10 +585,7 @@ arrp::json io_channel_report(const polyhedral::io_channel & channel)
 
     if (channel.array->is_infinite)
     {
-        int prelude_count = channel.array->first_period_access;
-        int period_count = channel.array->last_period_access - channel.array->first_period_access + 1;
-        report["prologue_count"] = prelude_count;
-        report["period_count"] = period_count;
+        report["period_count"] = channel.array->period;
     }
 
     return report;
