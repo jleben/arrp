@@ -27,6 +27,7 @@ function(arrp_to_jack name arrp_source)
     COMMAND ${ARRP_EXECUTABLE}
     ARGS
       ${CMAKE_CURRENT_SOURCE_DIR}/${arrp_source}
+      --io-common-clock
       --target jack
       --output ${name}
       --jack-name ${name}
