@@ -95,8 +95,6 @@ void cpp_from_polyhedral::generate_statement
     auto stmt_ref = std::find_if(m_model.statements.begin(), m_model.statements.end(),
                                  [&](polyhedral::stmt_ptr s){ return s->name == name; });
 
-    // There are some dummy statements in the schedule, like '.io_clock'.
-    // Ignore those.
     if (stmt_ref == m_model.statements.end())
         return;
 

@@ -1173,8 +1173,20 @@ void add_io_clock(polyhedral::model & model)
     // { .io_clock[i] -> x[i+1] }
 
     isl::space clock_space(model.context, isl::set_tuple(".io_clock", 1));
-    auto clock = isl::basic_set::universe(clock_space);
-    clock.add_constraint(clock_space.var(0) >= 0);
+    auto clock_domain = isl::set::universe(clock_space);
+    clock_domain.add_constraint(clock_space.var(0) >= 0);
+
+    auto call = make_shared<polyhedral::external_call>();
+    call->name = "clock";
+
+    auto stmt = make_shared<polyhedral::statement>(clock_domain);
+    stmt->is_infinite = true;
+    stmt->expr = call;
+
+    model.statements.push_back(stmt);
+
+    clock_domain = stmt->domain;
+    clock_space = clock_domain.get_space();
 
     isl::union_map deps(model.context);
 
@@ -1184,13 +1196,13 @@ void add_io_clock(polyhedral::model & model)
             continue;
 
         {
-            auto m = isl::map::between(input.statement->domain, clock);
+            auto m = isl::map::between(input.statement->domain, clock_domain);
             m = m.equate(0, 0);
             deps |= m;
         }
 
         {
-            auto m = isl::map::between(clock, input.statement->domain);
+            auto m = isl::map::between(clock_domain, input.statement->domain);
             auto s = m.get_space();
             m.add_constraint(s.in(0)+1 == s.out(0));
             deps |= m;
@@ -1203,12 +1215,12 @@ void add_io_clock(polyhedral::model & model)
             continue;
 
         {
-            auto m = isl::map::between(output.statement->domain, clock);
+            auto m = isl::map::between(output.statement->domain, clock_domain);
             m = m.equate(0, 0);
             deps |= m;
         }
         {
-            auto m = isl::map::between(clock, output.statement->domain);
+            auto m = isl::map::between(clock_domain, output.statement->domain);
             auto s = m.get_space();
             m.add_constraint(s.in(0)+1 == s.out(0));
             deps |= m;
@@ -1222,7 +1234,6 @@ void add_io_clock(polyhedral::model & model)
     cerr << endl;
 #endif
 
-    model.clock = clock;
     model.clock_relations = deps;
 }
 

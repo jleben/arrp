@@ -187,7 +187,6 @@ public:
     unordered_map<string, array_ptr> phase_ids;
     isl::union_map parallel_accesses { nullptr };
 
-    isl::set clock { nullptr };
     isl::union_map clock_relations { nullptr };
 
     statement *statement_for( const isl::identifier & id )
@@ -240,9 +239,8 @@ public:
                 order_relations |= stmt->self_relations.in_domain(stmt->domain).in_range(stmt->domain);
         }
 
-        if (m.clock.is_valid())
+        if (m.clock_relations.is_valid())
         {
-            domains |= m.clock;
             order_relations |= m.clock_relations;
         }
     }

@@ -384,6 +384,9 @@ scheduler::make_proximity_dependencies(const isl::union_map & dependencies)
 void
 scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & opt)
 {
+    // FIXME: Throwing an exception leaves ISL objects allocated
+    // which causes ISL to assert when isl_ctx is destroyed.
+
     isl_schedule_node * domain_node = isl_schedule_get_root(sched.tree.get());
     assert_or_throw(isl_schedule_node_get_type(domain_node) == isl_schedule_node_domain);
 
