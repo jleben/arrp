@@ -199,15 +199,18 @@ void * Jack_Client::process_thread()
 
 void Jack_Client::receive()
 {
-    printf("Receive\n");
+    //printf("Receive\n");
 
     d_frames_to_process = jack_cycle_wait(d_client);
 
-    printf("Frames = %d\n", d_frames_to_process);
+    //printf("Frames = %d\n", d_frames_to_process);
 
     for (int i = 0; i < d_inputs.size(); ++i)
     {
         auto & buf = d_hidden->d_kernel->io->inputs()[i];
+        if (buf.readable())
+            fprintf(stderr, "Error: Input buffer %d not consumed.\n", i);
+
         float * data = (jack_default_audio_sample_t*) jack_port_get_buffer(d_inputs[i], d_frames_to_process);
         buf = Linear_Buffer<float>(data, d_frames_to_process);
         buf.produce(d_frames_to_process);
@@ -216,6 +219,9 @@ void Jack_Client::receive()
     for (int i = 0; i < d_outputs.size(); ++i)
     {
         auto & buf = d_hidden->d_kernel->io->outputs()[i];
+        if (buf.readable())
+            fprintf(stderr, "Error: Output buffer %d not consumed.\n", i);
+
         float * data = (jack_default_audio_sample_t*) jack_port_get_buffer(d_outputs[i], d_frames_to_process);
         buf = Linear_Buffer<float>(data, d_frames_to_process);
     }
@@ -223,14 +229,14 @@ void Jack_Client::receive()
 
 void Jack_Client::send()
 {
-    printf("Send\n");
+    //printf("Send\n");
 
     for (int i = 0; i < d_outputs.size(); ++i)
     {
         auto & buf = d_hidden->d_kernel->io->outputs()[i];
         if (buf.readable() != d_frames_to_process)
         {
-            printf("Buffer underrun for output %d.\n", i);
+            fprintf(stderr, "Error: Output buffer %d underrun.\n", i);
         }
         buf.clear();
     }
