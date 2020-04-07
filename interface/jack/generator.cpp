@@ -75,16 +75,6 @@ void generate(const options & opt, const nlohmann::json & report)
         inputChannels = input["dimensions"].size() ? int(input["dimensions"][0]) : 1;
     }
 
-#if 0
-    vector<int> buf_candidates = {
-        prologueInputFrames,
-        prologueOutputFrames,
-        periodFrames
-    };
-
-    int buf_size = std::max_element(buf_candidates.begin(), buf_candidates.end());
-#endif
-
     ostringstream io_text;
     io_text << "#pragma once" << endl;
     io_text << "#include \"" << kernel_file_name << "\"" << endl;
