@@ -291,7 +291,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     }
     else
     {
-        auto tuple = isl::set_tuple( isl::identifier(stmt_name, nullptr), 1 );
+        auto tuple = isl::set_tuple( isl::identifier(stmt_name), 1 );
         auto space = isl::space(model.context, tuple);
         domain = isl::set::universe(space);
 
@@ -375,7 +375,7 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
 
     auto arr = make_shared<ph::array>();
 
-    auto tuple = isl::set_tuple( isl::identifier(array_name, arr.get()),
+    auto tuple = isl::set_tuple( isl::identifier(array_name),
                                  std::max((int)size.size(), 1) );
 
     auto space = isl::space( m_isl_ctx, tuple );
@@ -1184,9 +1184,6 @@ void add_io_clock(polyhedral::model & model)
     stmt->expr = call;
 
     model.statements.push_back(stmt);
-
-    clock_domain = stmt->domain;
-    clock_space = clock_domain.get_space();
 
     isl::union_map deps(model.context);
 

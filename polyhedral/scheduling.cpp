@@ -65,16 +65,6 @@ static int lcm(int a, int b)
 
 namespace polyhedral {
 
-statement *statement_for( const isl::identifier & id )
-{
-    return reinterpret_cast<statement*>(id.data);
-}
-
-array * array_for( const isl::identifier & id)
-{
-    return reinterpret_cast<array*>(id.data);
-}
-
 scheduler::scheduler( model & m ):
     m_printer(m.context),
     m_model(m),
@@ -139,8 +129,8 @@ scheduler::schedule(const scheduler::options & options)
         cout << endl << "Scheduled dependencies:" << endl;
         m_model_summary.dependencies.for_each([&](isl::map m){
             auto space = m.get_space();
-            cout << space.id(isl::space::input).name << " -> "
-                 << space.id(isl::space::output).name << ": " << endl;
+            cout << space.id(isl::space::input).name() << " -> "
+                 << space.id(isl::space::output).name() << ": " << endl;
             isl::union_map um(m);
             um.map_domain_through(schedule.full);
             um.map_range_through(schedule.full);

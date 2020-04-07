@@ -72,11 +72,7 @@ public:
           const isl::set & d,
           primitive_type type):
         name(name), domain(d), type(type)
-    {
-        auto id = domain.id();
-        id.data = this;
-        domain.set_id(id);
-    }
+    {}
 
     string name;
     isl::set domain;
@@ -99,11 +95,7 @@ class statement
 public:
     statement(const isl::set & d):
         name(d.name()), domain(d)
-    {
-        auto id = domain.id();
-        id.data = this;
-        domain.set_id(id);
-    }
+    {}
 
     string name;
     isl::set domain;
@@ -188,16 +180,6 @@ public:
     isl::union_map parallel_accesses { nullptr };
 
     isl::union_map clock_relations { nullptr };
-
-    statement *statement_for( const isl::identifier & id )
-    {
-        return reinterpret_cast<statement*>(id.data);
-    }
-
-    array * array_for( const isl::identifier & id)
-    {
-        return reinterpret_cast<array*>(id.data);
-    }
 };
 
 class model_summary
