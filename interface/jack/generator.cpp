@@ -14,6 +14,12 @@ namespace jack_io {
 
 void generate(const options & opt, const nlohmann::json & report)
 {
+    // TODO:
+    // - Pass sample rate to kernel
+    // - Support other finite inputs (parameters)
+    // - Support runtime variable parameters?
+    // - Support MIDI/OSC streams?
+
     string kernel_file_name = report["cpp"]["filename"];
     string kernel_namespace = report["cpp"]["namespace"];
 
