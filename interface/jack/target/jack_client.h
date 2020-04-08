@@ -1,7 +1,5 @@
 #pragma once
 
-#include "buffer.h"
-
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
@@ -16,6 +14,8 @@
 
 namespace arrp {
 namespace jack_io {
+
+using std::vector;
 
 class Jack_Client
 {

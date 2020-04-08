@@ -1,42 +1,35 @@
 #pragma once
 
-#include "jack_client.h"
 #include <arrp/linear_buffer.h>
-
-#include <stdexcept>
+#include <m_pd.h>
 
 namespace arrp {
-namespace jack_io {
+namespace puredata_io {
 
 class Abstract_IO
 {
 public:
     using Buffer = Linear_Buffer<float>;
 
-    Abstract_IO(Jack_Client * jack, int input_count, int output_count):
-        d_jack(jack),
+    Abstract_IO(int input_count, int output_count):
         d_inputs(input_count),
         d_outputs(output_count)
     {
     }
+
+    virtual ~Abstract_IO() {}
 
     vector<Buffer> & inputs() { return d_inputs; }
     vector<Buffer> & outputs() { return d_outputs; }
 
     void clock()
     {
-        ++d_clock_ticks;
-
-        // Note: Keep looping until we get some frames
-        while (d_clock_ticks >= d_jack->frames_to_process())
-        {
-            d_clock_ticks = 0;
-            d_jack->transmit();
-        }
     }
 
+    // Always (re)starts processing from initial state.
+    virtual void process(int buf_size) = 0;
+
 protected:
-    Jack_Client * d_jack;
     vector<Buffer> d_inputs;
     vector<Buffer> d_outputs;
     int d_clock_ticks = 0;
@@ -72,3 +65,4 @@ protected:
 
 }
 }
+

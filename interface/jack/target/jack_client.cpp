@@ -1,6 +1,7 @@
 // NOTE: This file is processed by CMake
 
 #include <arrp/jack_io/jack_client.h>
+#include <arrp/linear_buffer.h>
 
 #include @ARRP_JACK_IO_HEADER@
 #include <iostream>

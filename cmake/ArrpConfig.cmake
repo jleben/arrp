@@ -83,3 +83,22 @@ function(arrp_to_exe name arrp_source)
 
   add_dependencies(${name} ${name}-arrp-outputs)
 endfunction()
+
+function(arrp_to_pd name arrp_source)
+
+  add_library(${name} SHARED
+    ${ARRP_INCLUDE_DIR}/arrp/puredata_io/entry.cpp
+    ${arrp_source}
+  )
+
+  target_include_directories(${name} PRIVATE ${ARRP_INCLUDE_DIR})
+
+  target_link_libraries(${name} pcl)
+
+  set_target_properties(${name} PROPERTIES
+    OUTPUT_NAME arrp~
+    PREFIX ""
+    SUFFIX .pd_linux
+  )
+
+endfunction()

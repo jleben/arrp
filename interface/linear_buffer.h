@@ -3,7 +3,6 @@
 #include <vector>
 
 namespace arrp {
-namespace jack_io {
 
 using std::vector;
 
@@ -83,5 +82,4 @@ public:
     }
 };
 
-}
 }
