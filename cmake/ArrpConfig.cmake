@@ -86,9 +86,32 @@ endfunction()
 
 function(arrp_to_pd name arrp_source)
 
+  set(work_dir "${CMAKE_CURRENT_BINARY_DIR}/${name}.dir")
+  file(MAKE_DIRECTORY ${work_dir})
+
+  set(kernel_h ${work_dir}/${name}.h)
+  set(pd_intf_cpp ${work_dir}/${name}-pd-interface.cpp)
+
+  add_custom_command(
+    OUTPUT
+      ${pd_intf_cpp}
+    DEPENDS
+      ${arrp_source}
+    COMMAND ${ARRP_EXECUTABLE}
+    ARGS
+      ${CMAKE_CURRENT_SOURCE_DIR}/${arrp_source}
+      --io-common-clock
+      --target puredata
+      --pd-name ${name}
+      --output ${name}
+    WORKING_DIRECTORY ${work_dir}
+  )
+
+  add_custom_target(${name}-arrp-outputs DEPENDS ${pd_intf_cpp})
+
   add_library(${name} SHARED
     ${ARRP_INCLUDE_DIR}/arrp/puredata_io/entry.cpp
-    ${arrp_source}
+    ${pd_intf_cpp}
   )
 
   target_include_directories(${name} PRIVATE ${ARRP_INCLUDE_DIR})
@@ -96,9 +119,11 @@ function(arrp_to_pd name arrp_source)
   target_link_libraries(${name} pcl)
 
   set_target_properties(${name} PROPERTIES
-    OUTPUT_NAME arrp~
+    OUTPUT_NAME "${name}~"
     PREFIX ""
-    SUFFIX .pd_linux
+    SUFFIX ".pd_linux"
   )
+
+  add_dependencies(${name} ${name}-arrp-outputs)
 
 endfunction()

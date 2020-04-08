@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arrp/linear_buffer.h>
+#include <pcl.h>
 #include <m_pd.h>
 
 namespace arrp {
@@ -24,15 +25,36 @@ public:
 
     void clock()
     {
+        ++d_elapsed_ticks;
+        if(d_elapsed_ticks >= d_buffer_size)
+        {
+            co_resume();
+            d_elapsed_ticks = 0;
+        }
     }
 
     // Always (re)starts processing from initial state.
-    virtual void process(int buf_size) = 0;
+    void process(int buf_size)
+    {
+        d_buffer_size = buf_size;
+        d_elapsed_ticks = 0;
+
+        prologue();
+
+        for(;;)
+        {
+            period();
+        }
+    }
 
 protected:
+    virtual void prologue() = 0;
+    virtual void period() = 0;
+
     vector<Buffer> d_inputs;
     vector<Buffer> d_outputs;
-    int d_clock_ticks = 0;
+    int d_buffer_size = 0;
+    int d_elapsed_ticks = 0;
 
     template <int S>
     void input(float (&value)[S])

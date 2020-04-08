@@ -44,6 +44,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "report.hpp"
 #include "../interface/raw/generator.h"
 #include "../interface/jack/generator.h"
+#include "../interface/puredata/generate.h"
 #include "../utility/filesystem.hpp"
 #include "../utility/subprocess.hpp"
 
@@ -457,6 +458,18 @@ result::code compile_module
                     output_opt.client_name = "Arrp module " + main_module->name;
 
                 arrp::jack_io::generate(output_opt, arrp::report());
+            }
+            else if (opts.target_type == "puredata")
+            {
+                arrp::puredata_io::options pd_opt;
+
+                pd_opt.base_file_name = output_filename_base;
+
+                pd_opt.pd_object_name = opts.puredata_io.name;
+                if (pd_opt.pd_object_name.empty())
+                    pd_opt.pd_object_name = "arrp_" + main_module->name;
+
+                arrp::puredata_io::generate(pd_opt, arrp::report());
             }
         }
     }

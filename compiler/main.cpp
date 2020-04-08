@@ -234,6 +234,8 @@ int main(int argc, char *argv[])
 
     args.add_option({"jack-name", "", "", "Jack client name."},
                     new string_option(&opt.jack_io.name));
+    args.add_option({"pd-name", "", "", "Pure Data object name (without ~)."},
+                    new string_option(&opt.puredata_io.name));
 
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<compiler::log>("general");

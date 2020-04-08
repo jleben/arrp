@@ -50,6 +50,10 @@ struct options
         string name;
     } jack_io;
 
+    struct {
+        string name;
+    } puredata_io;
+
     vector<string> import_dirs;
     vector<string> import_extensions { "arrp" };
 

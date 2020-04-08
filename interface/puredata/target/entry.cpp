@@ -23,7 +23,7 @@ struct my_object_type
 
 static void * create_pd_object()
 {
-    printf("Create\n");
+    //printf("Create\n");
 
     my_object_type * object = reinterpret_cast<my_object_type*>(pd_new(my_class));
     // FIXME: Review stack size
@@ -31,10 +31,11 @@ static void * create_pd_object()
     object->has_routine = false;
     object->kernel = create_kernel();
 
+#if 0
     printf("Num in %lu out %lu\n",
            object->kernel->inputs().size(),
            object->kernel->outputs().size());
-
+#endif
     for (int i = 1; i < object->kernel->inputs().size(); ++i)
     {
         inlet_new(&object->base, &object->base.ob_pd, &s_signal, &s_signal);
@@ -50,7 +51,7 @@ static void * create_pd_object()
 
 static void destroy_pd_object(my_object_type * object)
 {
-    printf("Destroy\n");
+    //printf("Destroy\n");
 
     delete object->kernel;
 
@@ -61,7 +62,7 @@ static void destroy_pd_object(my_object_type * object)
 static
 t_int* process_pd_signals(t_int* args)
 {
-    printf("Process\n");
+    //printf("Process\n");
 
     auto * object = reinterpret_cast<my_object_type*>(args[1]);
 
@@ -89,7 +90,7 @@ t_int* process_pd_signals(t_int* args)
 
 static void kernel_routine_func(void * data)
 {
-    printf("Kernel routine\n");
+    //printf("Kernel routine\n");
 
     auto * object = static_cast<my_object_type*>(data);
     object->kernel->process(object->buf_size);
@@ -97,7 +98,7 @@ static void kernel_routine_func(void * data)
 
 static void setup_pd_process_callback(my_object_type * object, t_signal **sp)
 {
-    printf("Setup DSP\n");
+    //printf("Setup DSP\n");
 
     if (object->has_routine)
         co_delete(object->kernel_routine);
@@ -124,20 +125,11 @@ static void setup_pd_process_callback(my_object_type * object, t_signal **sp)
     dsp_add(process_pd_signals, 1, object);
 }
 
-}
-}
-
-extern "C" {
-
-// FIXME: setup function name must match object (library) name
-void arrp_tilde_setup()
+void library_setup(const char * name)
 {
-    printf("Library setup\n");
+    //printf("library_setup(%s)\n", name);
 
-    using namespace arrp::puredata_io;
-
-    // FIXME: object name
-    my_class = class_new(gensym("arrp~"),
+    my_class = class_new(gensym(name),
         (t_newmethod)create_pd_object,
         (t_method)destroy_pd_object,
         sizeof(my_object_type),
@@ -150,4 +142,5 @@ void arrp_tilde_setup()
   CLASS_MAINSIGNALIN(my_class, my_object_type, f);
 }
 
+}
 }
