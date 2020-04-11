@@ -9,11 +9,11 @@ add_custom_command(
         ${CMAKE_CURRENT_BINARY_DIR}/embedded-interface-template.cpp
     )
 
-add_library(arrp-io-generic-lib
+add_library(arrp-io-generic-lib STATIC
     generator.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/embedded-interface-template.cpp
-    ../../utility/subprocess.cpp
 )
+
+target_link_libraries(arrp-io-generic-lib arrp-utils)
 
 #add_executable(arrp-io-raw generator.cpp ${CMAKE_CURRENT_BINARY_DIR}/embedded-interface-template.cpp)
 #set_target_properties(arrp-io-raw PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})

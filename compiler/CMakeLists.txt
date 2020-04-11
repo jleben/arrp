@@ -2,9 +2,6 @@
 include_directories(../common)
 
 add_library(arrp-lib STATIC
-  ../utility/debug.cpp
-  ../utility/cpp-gen.cpp
-  ../utility/filesystem.cpp
   ../common/primitives.cpp
   ../common/func_types.cpp
   ../common/func_model_printer.cpp
@@ -37,12 +34,13 @@ add_library(arrp-lib STATIC
   ../cpp/cpp_from_isl.cpp
   ../cpp/name_mapper.cpp
   ../cpp/collect_names.cpp
+
   arg_parser.cpp
   report.cpp
   compiler.cpp
 )
 
-target_link_libraries(arrp-lib parser arrp-io-generic-lib arrp-io-jack-lib arrp-io-pd-lib)
+target_link_libraries(arrp-lib parser arrp-utils arrp-io-generic-lib arrp-io-jack-lib arrp-io-pd-lib)
 
 set_property(TARGET arrp-lib PROPERTY OUTPUT_NAME arrp)
 

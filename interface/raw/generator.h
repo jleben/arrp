@@ -14,6 +14,7 @@ struct log {};
 struct options
 {
     std::string base_file_name;
+    std::string cpp_compiler_opts;
 };
 
 void generate(const options &, const nlohmann::json & report);

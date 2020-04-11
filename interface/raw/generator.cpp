@@ -4,6 +4,7 @@
 #include "../../extra/arguments/arguments.hpp"
 #include "../../utility/subprocess.hpp"
 #include "../../utility/debug.hpp"
+#include "../../utility/find_files.h"
 
 #include <iostream>
 #include <fstream>
@@ -239,6 +240,25 @@ void generate
         file << "using Generated_Kernel = " << kernel_namespace
              << "::program<arrp::generic_io::Generated_IO>;" << endl;
         file << "#include <arrp/generic_io/main.cpp>" << endl;
+    }
+
+    string cpp_compiler = find_cpp_compiler();
+
+    string cpp_compiler_options = options.cpp_compiler_opts;
+    if (cpp_compiler_options.empty())
+        cpp_compiler_options = "-O1";
+
+    {
+        string cmd = cpp_compiler
+                + " -std=c++17"
+                + " " + cpp_compiler_options + " "
+                + " " + main_cpp_file_name
+                + " -o " + options.base_file_name;
+
+        if (stream::verbose<log>::enabled())
+            cerr << "Executing: " << cmd << endl;
+
+        subprocess::run(cmd);
     }
 }
 
