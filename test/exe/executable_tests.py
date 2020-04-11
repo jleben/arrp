@@ -5,8 +5,10 @@ import os
 
 cmake_source_dir=os.environ['CMAKE_SOURCE_DIR']
 cmake_binary_dir=os.environ['CMAKE_BINARY_DIR']
+cpp_compiler=os.environ['CMAKE_CXX_COMPILER']
+arrp_install_dir=os.environ['ARRP_INSTALL_DIR']
 
-arrp_exe = cmake_binary_dir + '/arrp'
+arrp_exe = arrp_install_dir + '/bin/arrp'
 
 def error(msg):
   sys.stderr.write('Error: ' + msg + '\n');
@@ -16,8 +18,21 @@ def info(msg):
   sys.stderr.write(msg + '\n');
 
 def compile_arrp(source, output_name):
-  subprocess.run([arrp_exe, '-x', output_name, '--cpp-compiler-opts', '-O0'],
+  info("Compiling Arrp...")
+  subprocess.run([arrp_exe, '--target', 'generic', '--output', output_name],
                  input=source, universal_newlines=True, check=True)
+  info("Compiling C++...")
+  subprocess.run(
+    [
+      cpp_compiler,
+      '-std=c++17',
+      output_name + '-generic-main.cpp',
+      '-I.',
+      '-I' + arrp_install_dir + '/include',
+      '-o', output_name
+    ],
+    check=True
+  )
 
 def compare(actual, expected):
   if actual != expected:

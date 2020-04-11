@@ -30,9 +30,9 @@ foreach(test_name ${test_names})
   )
   set_property(TEST ${name}
     PROPERTY ENVIRONMENT
-      ARRP_HOME=${CMAKE_BINARY_DIR}
       CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
       CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
+      CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+      ARRP_INSTALL_DIR=${CMAKE_INSTALL_PREFIX}
   )
 endforeach()
-
