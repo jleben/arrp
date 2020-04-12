@@ -94,7 +94,9 @@ void cpp_from_polyhedral::generate_statement
 {
     auto stmt_ref = std::find_if(m_model.statements.begin(), m_model.statements.end(),
                                  [&](polyhedral::stmt_ptr s){ return s->name == name; });
-    assert(stmt_ref != m_model.statements.end());
+
+    if (stmt_ref == m_model.statements.end())
+        return;
 
     generate_statement((*stmt_ref).get(), index, ctx);
 }

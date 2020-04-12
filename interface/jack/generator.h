@@ -6,7 +6,7 @@
 #include <string>
 
 namespace arrp {
-namespace generic_io {
+namespace jack_io {
 
 // For the purpose of verbose output:
 struct log {};
@@ -14,6 +14,7 @@ struct log {};
 struct options
 {
     std::string base_file_name;
+    std::string client_name;
 };
 
 void generate(const options &, const nlohmann::json & report);

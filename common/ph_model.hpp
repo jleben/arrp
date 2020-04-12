@@ -72,11 +72,7 @@ public:
           const isl::set & d,
           primitive_type type):
         name(name), domain(d), type(type)
-    {
-        auto id = domain.id();
-        id.data = this;
-        domain.set_id(id);
-    }
+    {}
 
     string name;
     isl::set domain;
@@ -99,11 +95,7 @@ class statement
 public:
     statement(const isl::set & d):
         name(d.name()), domain(d)
-    {
-        auto id = domain.id();
-        id.data = this;
-        domain.set_id(id);
-    }
+    {}
 
     string name;
     isl::set domain;
@@ -187,15 +179,7 @@ public:
     unordered_map<string, array_ptr> phase_ids;
     isl::union_map parallel_accesses { nullptr };
 
-    statement *statement_for( const isl::identifier & id )
-    {
-        return reinterpret_cast<statement*>(id.data);
-    }
-
-    array * array_for( const isl::identifier & id)
-    {
-        return reinterpret_cast<array*>(id.data);
-    }
+    isl::union_map clock_relations { nullptr };
 };
 
 class model_summary
@@ -235,6 +219,11 @@ public:
         {
             if (stmt->self_relations.is_valid())
                 order_relations |= stmt->self_relations.in_domain(stmt->domain).in_range(stmt->domain);
+        }
+
+        if (m.clock_relations.is_valid())
+        {
+            order_relations |= m.clock_relations;
         }
     }
 

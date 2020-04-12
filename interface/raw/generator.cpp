@@ -167,10 +167,9 @@ void write_channel_manager(ostream & text, const nlohmann::json & channel, bool 
 }
 
 void generate
-(const generic_io::options & options, const nlohmann::json & report,
- filesystem::temporary_dir & temp_dir)
+(const generic_io::options & options, const nlohmann::json & report)
 {
-    string kernel_file_name = report["cpp"]["tmp-filename"];
+    string kernel_file_name = report["cpp"]["filename"];
     string kernel_namespace = report["cpp"]["namespace"];
 
     bool has_period = false;
@@ -225,8 +224,8 @@ void generate
     // End namespace
     io_text << "}}" << endl;
 
-    string main_cpp_file_name = temp_dir.name() + "/main.cpp";
-    string io_cpp_file_name = temp_dir.name() + "/generated_interface.h";
+    string main_cpp_file_name = options.base_file_name + "-generic-main.cpp";
+    string io_cpp_file_name = options.base_file_name + "-generic-interface.h";
 
     {
         ofstream file(io_cpp_file_name);
@@ -235,64 +234,11 @@ void generate
     {
         ofstream file(main_cpp_file_name);
         file << "#include <arrp/generic_io/interface.h>" << endl;
-        file << "#include \"generated_interface.h\"" << endl;
+        file << "#include \"" << io_cpp_file_name << "\"" << endl;
         file << "#include \"" << kernel_file_name << "\"" << endl;
         file << "using Generated_Kernel = " << kernel_namespace
              << "::program<arrp::generic_io::Generated_IO>;" << endl;
         file << "#include <arrp/generic_io/main.cpp>" << endl;
-    }
-
-    // Compile C++
-
-    string cpp_compiler;
-
-    {
-        auto * CXX = getenv("CXX");
-        if (CXX)
-            cpp_compiler = CXX;
-        if (cpp_compiler.empty())
-        {
-            if (system("c++ --version 2>&1 > /dev/null") == 0)
-                cpp_compiler = "c++";
-        }
-        if (cpp_compiler.empty())
-        {
-            if (system("g++ --version 2>&1 > /dev/null") == 0)
-                cpp_compiler = "g++";
-        }
-        if (cpp_compiler.empty())
-        {
-            throw stream::error("Failed to find C++ compiler.");
-        }
-    }
-
-    if (stream::verbose<log>::enabled())
-        cerr << "Using C++ compiler: " << cpp_compiler << endl;
-
-    string include_dirs;
-
-    {
-        auto * ARRP_HOME = getenv("ARRP_HOME");
-        if (ARRP_HOME)
-            include_dirs += "-I" + string(ARRP_HOME) + "/include";
-    }
-
-    string cpp_compiler_options = options.cpp_compiler_opts;
-    if (cpp_compiler_options.empty())
-        cpp_compiler_options = "-O1";
-
-    {
-        string cmd = cpp_compiler
-                + " -std=c++17"
-                + " " + cpp_compiler_options + " "
-                + include_dirs
-                + " " + main_cpp_file_name
-                + " -o " + options.output_file;
-
-        if (stream::verbose<log>::enabled())
-            cerr << "Executing: " << cmd << endl;
-
-        subprocess::run(cmd);
     }
 }
 

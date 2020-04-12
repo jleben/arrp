@@ -134,6 +134,8 @@ private:
     unordered_set<expr_ptr> m_nonaffine;
 };
 
+void add_io_clock(polyhedral::model &);
+
 }
 }
 

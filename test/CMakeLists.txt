@@ -83,9 +83,10 @@ function(add_output_test name source compile_options run_options)
   )
   set_property(TEST ${name}
     PROPERTY ENVIRONMENT
-      ARRP_HOME=${CMAKE_BINARY_DIR}
       CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
       CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+      CXX=${CMAKE_CXX_COMPILER}
+      ARRP_INSTALL_DIR=${CMAKE_INSTALL_PREFIX}
   )
   set_property(TEST ${name} PROPERTY TIMEOUT 10)
 endfunction()

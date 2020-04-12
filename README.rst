@@ -109,18 +109,19 @@ On Linux and Mac OS X, execute the following commands, starting in the root of t
     mkdir build
     cd build
     cmake ..
-    make
+    make install
 
-This will produce the Arrp compiler executable::
+You can control where the compiler is installed using the CMake variable `CMAKE_INSTALL_PREFIX <https://cmake.org/cmake/help/latest/variable/CMAKE_INSTALL_PREFIX.html>`_.
 
-    build/arrp
+After installation, the Arrp compiler executable is located at ``CMAKE_INSTALL_PREFIX/bin/arrp``.
 
-To use the compiler in the build directory, set the environment variable `ARRP_HOME` to that directory.
 
 Running tests
 =============
 
-After building the compiler, run ``ctest`` in the build folder.
+1. Build and install the compiler.
+1. Run tests using: ``ctest``
+
 
 Options
 =======

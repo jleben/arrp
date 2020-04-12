@@ -36,16 +36,23 @@ struct options
     //string output_filename;
     //string meta_output_filename;
 
+    string output_filename_base;
+    string target_type = "cpp";
+
     struct {
-        bool enabled = false;
         string nmspace;
-        string filename;
-        string compiler_options;
     } cpp;
 
     struct {
-        string filename;
     } generic_io;
+
+    struct {
+        string name;
+    } jack_io;
+
+    struct {
+        string name;
+    } puredata_io;
 
     vector<string> import_dirs;
     vector<string> import_extensions { "arrp" };
@@ -65,6 +72,9 @@ struct options
 
     bool atomic_io = false;
     bool ordered_io = true;
+    // clocked_io: all IO channels transfer a sample
+    // before any of them transfers the next sample.
+    bool clocked_io = false;
 
     bool parallel = false;
     int parallel_dim = -1;

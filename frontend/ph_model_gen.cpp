@@ -291,7 +291,7 @@ void polyhedral_gen::add_output(polyhedral::model & model,
     }
     else
     {
-        auto tuple = isl::set_tuple( isl::identifier(stmt_name, nullptr), 1 );
+        auto tuple = isl::set_tuple( isl::identifier(stmt_name), 1 );
         auto space = isl::space(model.context, tuple);
         domain = isl::set::universe(space);
 
@@ -375,7 +375,7 @@ ph::array_ptr polyhedral_gen::make_array(id_ptr id)
 
     auto arr = make_shared<ph::array>();
 
-    auto tuple = isl::set_tuple( isl::identifier(array_name, arr.get()),
+    auto tuple = isl::set_tuple( isl::identifier(array_name),
                                  std::max((int)size.size(), 1) );
 
     auto space = isl::space( m_isl_ctx, tuple );
@@ -1156,6 +1156,83 @@ shared_ptr<polyhedral::array_access> polyhedral_gen::access
     return access;
 }
 
+void add_io_clock(polyhedral::model & model)
+{
+    // Add order relations expressing that
+    // all input and outputs at index i should happen
+    // before all inputs and outputs at index i+1.
+
+    // Expressing relations directly between inputs and outputs
+    // would be in O(#in * #out).
+    // Instead, we introduce an intermediate dummy domain to
+    // make reduce it to O(#in + #out).
+
+    // Create a clock domain { .io_clock[i] : i >= 0 }
+    // For each input and output x, add relations:
+    // { x[i] -> .io_clock[i] } and
+    // { .io_clock[i] -> x[i+1] }
+
+    isl::space clock_space(model.context, isl::set_tuple(".io_clock", 1));
+    auto clock_domain = isl::set::universe(clock_space);
+    clock_domain.add_constraint(clock_space.var(0) >= 0);
+
+    auto call = make_shared<polyhedral::external_call>();
+    call->name = "clock";
+
+    auto stmt = make_shared<polyhedral::statement>(clock_domain);
+    stmt->is_infinite = true;
+    stmt->expr = call;
+
+    model.statements.push_back(stmt);
+
+    isl::union_map deps(model.context);
+
+    for (const auto & input : model.inputs)
+    {
+        if (not input.statement->is_infinite)
+            continue;
+
+        {
+            auto m = isl::map::between(input.statement->domain, clock_domain);
+            m = m.equate(0, 0);
+            deps |= m;
+        }
+
+        {
+            auto m = isl::map::between(clock_domain, input.statement->domain);
+            auto s = m.get_space();
+            m.add_constraint(s.in(0)+1 == s.out(0));
+            deps |= m;
+        }
+    }
+
+    for (const auto & output : model.outputs)
+    {
+        if (not output.statement->is_infinite)
+            continue;
+
+        {
+            auto m = isl::map::between(output.statement->domain, clock_domain);
+            m = m.equate(0, 0);
+            deps |= m;
+        }
+        {
+            auto m = isl::map::between(clock_domain, output.statement->domain);
+            auto s = m.get_space();
+            m.add_constraint(s.in(0)+1 == s.out(0));
+            deps |= m;
+        }
+    }
+
+#if 0
+    cerr << "hsdf deps:" << endl;
+    isl::printer printer(model.context);
+    printer.print_each_in(deps);
+    cerr << endl;
+#endif
+
+    model.clock_relations = deps;
+}
 
 }
 }

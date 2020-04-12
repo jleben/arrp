@@ -43,6 +43,8 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../cpp/cpp_target.hpp"
 #include "report.hpp"
 #include "../interface/raw/generator.h"
+#include "../interface/jack/generator.h"
+#include "../interface/puredata/generate.h"
 #include "../utility/filesystem.hpp"
 #include "../utility/subprocess.hpp"
 
@@ -104,8 +106,6 @@ result::code compile(const options & opts)
 result::code compile_module
 (const module_source & source, istream & text, const options & opts)
 {
-    arrp::filesystem::temporary_dir temp_dir;
-
     module_parser parser;
     parser.set_import_dirs(opts.import_dirs);
     parser.set_import_extensions(opts.import_extensions);
@@ -329,6 +329,11 @@ result::code compile_module
                 }
             }
 
+            if (opts.clocked_io)
+            {
+                functional::add_io_clock(ph_model);
+            }
+
             // Compute polyhedral schedule
 
             polyhedral::schedule schedule(ph_model.context);
@@ -400,81 +405,71 @@ result::code compile_module
 
             report_io(ph_model);
 
+            string output_filename_base = opts.output_filename_base;
+            if (output_filename_base.empty())
+                output_filename_base = main_module->name;
+
             // Generate C++ output
 
-            string tmp_cpp_filename;
-
-            if (opts.cpp.enabled or !opts.generic_io.filename.empty())
             {
-                tmp_cpp_filename = temp_dir.name() + "/kernel.cpp";
+                string namespace_name = opts.cpp.nmspace;
+                if (namespace_name.empty())
+                    namespace_name = "arrp_module_" + main_module->name;
 
-                string namespace_name;
-                string user_cpp_filename;
-
-                if (opts.cpp.enabled)
-                {
-                    user_cpp_filename = opts.cpp.filename;
-                    if (user_cpp_filename.empty())
-                        user_cpp_filename = main_module->name + ".cpp";
-
-                    namespace_name = opts.cpp.nmspace;
-                    if (namespace_name.empty())
-                        namespace_name = main_module->name;
-                }
-                else
-                {
-                    namespace_name = "arrp_kernel";
-                }
+                string filename = output_filename_base + ".h";
 
                 arrp::report()["cpp"]["namespace"] = namespace_name;
-                arrp::report()["cpp"]["tmp-filename"] = tmp_cpp_filename;
+                arrp::report()["cpp"]["filename"] = filename;
 
                 if (verbose<compiler::log>::enabled())
-                    cerr << "Opening C++ output file: " << tmp_cpp_filename << endl;
+                    cerr << "Opening C++ output file: " << filename << endl;
 
-                ofstream cpp_file(tmp_cpp_filename);
+                ofstream cpp_file(filename);
                 if (!cpp_file.is_open())
                 {
                     cerr << "Could not open C++ output file: "
-                         << tmp_cpp_filename << endl;
+                         << filename << endl;
                     return result::io_error;
                 }
-
-#if 0
-                string hpp_filename = file_base + ".h";
-                ofstream hpp_file(hpp_filename);
-                if (!hpp_file.is_open())
-                {
-                    cerr << "Could not open C++ header output file: "
-                         << hpp_filename << endl;
-                    return result::io_error;
-                }
-#endif
 
                 cpp_gen::generate(namespace_name,
                                   ph_model,
                                   ast,
                                   cpp_file,
                                   opts);
-
-                // Copy to user file
-                if (!user_cpp_filename.empty())
-                {
-                    if (verbose<compiler::log>::enabled())
-                        cerr << "Copying C++ output file to: " << user_cpp_filename << endl;
-
-                    arrp::report()["cpp"]["output-filename"] = user_cpp_filename;
-                    arrp::subprocess::run("cp " + tmp_cpp_filename + " " + user_cpp_filename);
-                }
             }
 
-            if (!opts.generic_io.filename.empty())
+            if (opts.target_type == "generic")
             {
                 arrp::generic_io::options output_opt;
-                output_opt.output_file = opts.generic_io.filename;
-                output_opt.cpp_compiler_opts = opts.cpp.compiler_options;
 
-                arrp::generic_io::generate(output_opt, arrp::report(), temp_dir);
+                output_opt.base_file_name = output_filename_base;
+
+                arrp::generic_io::generate(output_opt, arrp::report());
+            }
+            else if (opts.target_type == "jack")
+            {
+                arrp::jack_io::options output_opt;
+
+                output_opt.base_file_name = output_filename_base;
+
+                output_opt.client_name = opts.jack_io.name;
+                if (output_opt.client_name.empty())
+                    output_opt.client_name = "Arrp module " + main_module->name;
+
+                arrp::jack_io::generate(output_opt, arrp::report());
+            }
+            else if (opts.target_type == "puredata")
+            {
+                arrp::puredata_io::options pd_opt;
+
+                pd_opt.base_file_name = output_filename_base;
+
+                pd_opt.pd_object_name = opts.puredata_io.name;
+                if (pd_opt.pd_object_name.empty())
+                    pd_opt.pd_object_name = "arrp_" + main_module->name;
+
+                arrp::puredata_io::generate(pd_opt, arrp::report());
             }
         }
     }
@@ -584,6 +579,8 @@ arrp::json io_channel_report(const polyhedral::io_channel & channel)
     type << channel.array->type;
     report["type"] = type.str();
 
+    // FIXME: Size and count does not take into account atomic IO.
+
     int64_t size = 1;
     for(auto & s : channel.array->size)
     {
@@ -597,6 +594,11 @@ arrp::json io_channel_report(const polyhedral::io_channel & channel)
     {
         if (s >= 0)
             report["dimensions"].push_back(s);
+    }
+
+    if (channel.array->is_infinite)
+    {
+        report["period_count"] = channel.array->period;
     }
 
     return report;

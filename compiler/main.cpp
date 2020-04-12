@@ -119,6 +119,29 @@ struct int_tuple_parser : public option_parser
     }
 };
 
+template<typename E>
+struct enum_option : public option_parser
+{
+    E & target;
+    const unordered_map<string,E> values;
+
+    enum_option(E & target, const unordered_map<string,E> values):
+        target(target),
+        values(values)
+    {}
+
+    void process(arguments & args) override
+    {
+        string text;
+        args.parse_argument(text, "value");
+        try {
+            target = values.at(text);
+        } catch (std::out_of_range &) {
+            throw arguments::error(string("Invalid value: ") + text);
+        }
+    }
+};
+
 }
 }
 
@@ -149,22 +172,6 @@ int main(int argc, char *argv[])
 
     args.add_option({"import-extension", "ie", "<ext>", "Import files with extension \".<ext>\"."},
                     new string_list_option(&opt.import_extensions));
-
-    args.add_option({"cpp", "", "<name>", "Generate C++ output file named <name>.cpp"},
-                    [&opt](arguments& args){
-        opt.cpp.enabled = true;
-        args.try_parse_argument(opt.cpp.filename);
-    });
-
-    args.add_option({"cpp-namespace", "", "<name>", "Generate C++ output in namespace <name>."},
-                    new string_option(&opt.cpp.compiler_options));
-
-    auto parse_cpp_compiler_opts = [&opt](arguments& args){
-        opt.cpp.compiler_options = args.parse_raw_argument("options");
-    };
-
-    args.add_option({"cpp-compiler-opts", "", "<options>", "C++ compiler options."},
-                    parse_cpp_compiler_opts);
 
     args.add_option({"sched-whole", "", "", "Schedule whole program at once."},
                     new switch_option(&opt.schedule.cluster, false));
@@ -205,13 +212,30 @@ int main(int argc, char *argv[])
     args.add_option({"move-loop-invariant-code", "", "", ""},
                     new switch_option(&opt.loop_invariant_code_motion, true));
 
+    args.add_option({"io-common-clock", "", "",
+                     "All inputs and outputs are scheduled on a common clock"
+                     " at a rate of 1 element/tick."
+                     " Overrides --io-unordered."},
+                    new switch_option(&opt.clocked_io, true));
     args.add_option({"io-unordered", "", "", "Do not necessarily order input and output."},
                     new switch_option(&opt.ordered_io, false));
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
 
-    args.add_option({"exe", "x", "<file>", "Executable file name."},
-                    new string_option(&opt.generic_io.filename));
+
+    args.add_option({"target", "", "", "Target type: cpp (default), generic, jack"},
+                    new string_option(&opt.target_type));
+
+    args.add_option({"output", "o", "", "Base name for outputs."},
+                    new string_option(&opt.output_filename_base));
+
+    args.add_option({"cpp-namespace", "", "<name>", "Generate C++ output in namespace <name>."},
+                    new string_option(&opt.cpp.nmspace));
+
+    args.add_option({"jack-name", "", "", "Jack client name."},
+                    new string_option(&opt.jack_io.name));
+    args.add_option({"pd-name", "", "", "Pure Data object name (without ~)."},
+                    new string_option(&opt.puredata_io.name));
 
     auto verbose_out = new verbose_out_options;
     verbose_out->add_topic<compiler::log>("general");

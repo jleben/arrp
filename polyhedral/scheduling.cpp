@@ -65,16 +65,6 @@ static int lcm(int a, int b)
 
 namespace polyhedral {
 
-statement *statement_for( const isl::identifier & id )
-{
-    return reinterpret_cast<statement*>(id.data);
-}
-
-array * array_for( const isl::identifier & id)
-{
-    return reinterpret_cast<array*>(id.data);
-}
-
 scheduler::scheduler( model & m ):
     m_printer(m.context),
     m_model(m),
@@ -139,8 +129,8 @@ scheduler::schedule(const scheduler::options & options)
         cout << endl << "Scheduled dependencies:" << endl;
         m_model_summary.dependencies.for_each([&](isl::map m){
             auto space = m.get_space();
-            cout << space.id(isl::space::input).name << " -> "
-                 << space.id(isl::space::output).name << ": " << endl;
+            cout << space.id(isl::space::input).name() << " -> "
+                 << space.id(isl::space::output).name() << ": " << endl;
             isl::union_map um(m);
             um.map_domain_through(schedule.full);
             um.map_range_through(schedule.full);
@@ -314,9 +304,21 @@ isl::schedule scheduler::make_schedule
         //constr = isl_schedule_constraints_set_coincidence(constr, proximity_deps.copy());
     }
 
-    isl_schedule * sched =
-            isl_schedule_constraints_compute_schedule(constr);
-    assert(sched);
+    isl_schedule * sched = nullptr;
+
+    {
+        auto error_action = m_model.context.error_action();
+        m_model.context.set_error_action(isl::context::warn_on_error);
+
+        sched = isl_schedule_constraints_compute_schedule(constr);
+
+        m_model.context.set_error_action(error_action);
+    }
+
+    if (!sched)
+    {
+        throw stream::error("Could not find a valid schedule.");
+    }
 
     return sched;
 }
@@ -372,6 +374,9 @@ scheduler::make_proximity_dependencies(const isl::union_map & dependencies)
 void
 scheduler::make_periodic_schedule(polyhedral::schedule & sched, const options & opt)
 {
+    // FIXME: Throwing an exception leaves ISL objects allocated
+    // which causes ISL to assert when isl_ctx is destroyed.
+
     isl_schedule_node * domain_node = isl_schedule_get_root(sched.tree.get());
     assert_or_throw(isl_schedule_node_get_type(domain_node) == isl_schedule_node_domain);
 

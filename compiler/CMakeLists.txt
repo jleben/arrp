@@ -42,7 +42,7 @@ add_library(arrp-lib STATIC
   compiler.cpp
 )
 
-target_link_libraries(arrp-lib parser arrp-io-generic-lib)
+target_link_libraries(arrp-lib parser arrp-io-generic-lib arrp-io-jack-lib arrp-io-pd-lib)
 
 set_property(TARGET arrp-lib PROPERTY OUTPUT_NAME arrp)
 
@@ -72,7 +72,7 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 add_executable(arrp main.cpp)
 target_link_libraries(arrp arrp-lib)
-set_target_properties(arrp PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set_target_properties(arrp PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Installation
 
