@@ -123,33 +123,30 @@ result::code compile_module
 
     try
     {
-        vector<functional::id_ptr> ids;
+
+        functional::scope global_scope;
 
         {
             functional::generator fgen;
-            ids = fgen.generate(parser.modules());
+            global_scope.ids = fgen.generate(parser.modules());
         }
 
         {
             functional::reference_analysis refs;
-            refs.process(ids);
+            refs.process(global_scope.ids);
         }
 
         if (verbose<functional::model>::enabled())
         {
             cerr << "-- Functional model:" << endl;
             functional::printer printer;
-            for (const auto & id : ids)
-            {
-                printer.print(id, cout);
-                cout << endl;
-            }
+            printer.print(global_scope, cout);
             cerr << "--" << endl;
         }
 
         unordered_set<functional::id_ptr> output_ids;
 
-        for (auto & id : ids)
+        for (auto & id : global_scope.ids)
         {
             if (id->is_output)
                 output_ids.insert(id);
@@ -159,7 +156,7 @@ result::code compile_module
         {
             throw source_error("No output defined.", code_location(main_module));
         }
-
+#if 0
         functional::id_ptr main_id;
 
         for (auto & id : ids)
@@ -176,20 +173,18 @@ result::code compile_module
             auto msg = "No output defined.";
             throw source_error(msg, code_location(main_module));
         }
-
+#endif
         functional::name_provider func_name_provider(':');
 
+        for (auto & id : output_ids)
         {
             arrp::func_reduction func_reducer(func_name_provider);
-            func_reducer.reduce(main_id);
+            func_reducer.reduce(id);
         }
-
-        functional::scope global_scope;
-        global_scope.ids = ids;
 
         {
             arrp::scope_cleanup cleanup;
-            cleanup.clean(global_scope, main_id);
+            cleanup.clean(global_scope);
         }
 
         if (verbose<functional::model>::enabled())
@@ -200,17 +195,23 @@ result::code compile_module
             cerr << "--" << endl;
         }
 
-        if (dynamic_pointer_cast<functional::function>(main_id))
+        for (auto & id : output_ids)
         {
-            throw source_error("Output must not be a function.", main_id->location);
+            if (dynamic_pointer_cast<functional::function>(id))
+            {
+                throw source_error("Output must not be a function.", id->location);
+            }
+        }
+
+        for (auto & id : output_ids)
+        {
+            arrp::folding folding(func_name_provider);
+            folding.process(id);
         }
 
         {
-            arrp::folding folding(func_name_provider);
-            folding.process(main_id);
-
             arrp::scope_cleanup cleanup;
-            cleanup.clean(global_scope, main_id);
+            cleanup.clean(global_scope);
         }
 
         if (verbose<functional::model>::enabled())
@@ -221,16 +222,15 @@ result::code compile_module
             cerr << "--" << endl;
         }
 
-        unordered_set<functional::id_ptr> array_ids;
+        //unordered_set<functional::id_ptr> array_ids;
 
         {
             functional::type_checker type_checker(func_name_provider);
             type_checker.process(global_scope);
-            array_ids = type_checker.ids();
 
             // Type check does some folding, so we should clean up scopes
             arrp::scope_cleanup cleanup;
-            cleanup.clean(global_scope, main_id);
+            cleanup.clean(global_scope);
         }
 
         if (verbose<functional::model>::enabled())
@@ -257,35 +257,27 @@ result::code compile_module
 
         {
             functional::array_reducer reducer(func_name_provider);
-            array_ids = reducer.process(array_ids);
+            reducer.process(global_scope);
 
-            arrp::collect_ids collect_ids;
-            array_ids = collect_ids.collect(main_id);
+            arrp::scope_cleanup cleanup;
+            cleanup.clean(global_scope);
 
             if (verbose<functional::model>::enabled())
             {
                 cout << "-- Reduced arrays:" << endl;
                 functional::printer printer;
-                for (const auto & id : array_ids)
-                {
-                    printer.print(id, cout);
-                    cout << endl;
-                }
+                printer.print(global_scope, cout);
             }
         }
 
         {
             functional::array_transposer transposer;
-            transposer.process(array_ids);
+            transposer.process(global_scope.ids);
             if (verbose<functional::model>::enabled())
             {
                 cout << "-- Transposed arrays:" << endl;
                 functional::printer printer;
-                for (const auto & id : array_ids)
-                {
-                    printer.print(id, cout);
-                    cout << endl;
-                }
+                printer.print(global_scope, cout);
             }
         }
 
@@ -300,9 +292,7 @@ result::code compile_module
                 ph_opts.ordered_io = opts.ordered_io;
 
                 functional::polyhedral_gen gen(ph_opts);
-                ph_model = gen.process(array_ids);
-
-                gen.add_output(ph_model, main_id, opts.atomic_io, opts.ordered_io);
+                ph_model = gen.process(global_scope.ids);
             }
 
             // Drop statement instances which write elements which are never read

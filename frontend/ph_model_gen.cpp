@@ -102,12 +102,18 @@ polyhedral_gen::process(const unordered_set<id_ptr> & ids)
     {
         if (auto input = dynamic_pointer_cast<functional::external>(id->expr.expr))
         {
-            make_input(id, model, m_options.atomic_io, m_options.ordered_io);
+            make_input(model, id, m_options.atomic_io, m_options.ordered_io);
+            continue;
         }
-        else
+
         {
             auto a = make_array(id);
             model.arrays.push_back(a);
+        }
+
+        if (id->is_output)
+        {
+            make_output(model, id, m_options.atomic_io, m_options.ordered_io);
         }
     }
 
@@ -127,7 +133,7 @@ polyhedral_gen::process(const unordered_set<id_ptr> & ids)
     return model;
 }
 
-void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomic, bool ordered)
+void polyhedral_gen::make_input(polyhedral::model & model, id_ptr id, bool atomic, bool ordered)
 {
     auto input = dynamic_pointer_cast<functional::external>(id->expr.expr);
     auto type = input->type;
@@ -274,7 +280,7 @@ void polyhedral_gen::make_input(id_ptr id, polyhedral::model & model, bool atomi
     model.inputs.push_back(ch);
 }
 
-void polyhedral_gen::add_output(polyhedral::model & model,
+void polyhedral_gen::make_output(polyhedral::model & model,
                                 id_ptr id,
                                 bool atomic, bool ordered)
 {

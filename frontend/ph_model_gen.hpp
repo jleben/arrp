@@ -31,10 +31,13 @@ public:
     };
 
     polyhedral_gen(const options &);
+
+    polyhedral::model process(const vector<id_ptr> & ids)
+    {
+        return process(unordered_set<id_ptr>(ids.begin(), ids.end()));
+    }
+
     polyhedral::model process(const unordered_set<id_ptr> & ids);
-    void add_output(polyhedral::model &,
-                    id_ptr id,
-                    bool atomic, bool ordered);
 
 private:
     struct space_map
@@ -62,7 +65,8 @@ private:
     void make_time_array();
     void add_time_array(polyhedral::model &);
 
-    void make_input(id_ptr id, polyhedral::model &, bool atomic, bool ordered);
+    void make_input(polyhedral::model &, id_ptr id, bool atomic, bool ordered);
+    void make_output(polyhedral::model &, id_ptr id, bool atomic, bool ordered);
 
     polyhedral::array_ptr make_array(id_ptr id);
 

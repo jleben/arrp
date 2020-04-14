@@ -48,6 +48,7 @@ class array_reducer
 public:
     array_reducer(name_provider &);
 
+    void process(scope &);
     unordered_set<id_ptr> process(const unordered_set<id_ptr> & ids);
 
 private:

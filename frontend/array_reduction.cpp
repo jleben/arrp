@@ -167,6 +167,15 @@ array_reducer::array_reducer(name_provider & nmp):
     m_printer.set_print_var_address(true);
 }
 
+void array_reducer::process(scope & s)
+{
+    unordered_set<id_ptr> in_ids(s.ids.begin(), s.ids.end());
+
+    auto out_ids = process(in_ids);
+
+    s.ids = std::vector<id_ptr>(out_ids.begin(), out_ids.end());
+}
+
 unordered_set<id_ptr> array_reducer::process(const unordered_set<id_ptr> & ids)
 {
     m_processed_ids.clear();

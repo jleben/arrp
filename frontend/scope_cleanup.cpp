@@ -6,20 +6,31 @@ using namespace stream::functional;
 
 namespace arrp {
 
-void scope_cleanup::clean(fn::scope & scope, fn::id_ptr id)
+void scope_cleanup::clean(fn::scope & scope)
 {
     for (auto & id : scope.ids)
-        id->ref_count = 0;
+    {
+        if (id->is_output)
+        {
+            id->ref_count = 1;
+            m_used_ids.insert(id);
+        }
+        else
+        {
+            id->ref_count = 0;
+        }
+    }
 
-    id->ref_count = 1;
-    m_used_ids.insert(id);
+    for (auto & id : scope.ids)
+    {
+        if (id->is_output)
+            visit_local_id(id);
+    }
 
-    visit_local_id(id);
-
-    clean(scope);
+    remove_unused(scope);
 }
 
-void scope_cleanup::clean(fn::scope & e)
+void scope_cleanup::remove_unused(fn::scope & e)
 {
     vector<id_ptr> remaining;
     for (auto & id : e.ids)
@@ -36,7 +47,7 @@ expr_ptr scope_cleanup::visit_scope(const shared_ptr<fn::scope_expr> & scope)
         id->ref_count = 0;
 
     visit(scope->value);
-    clean(scope->local);
+    remove_unused(scope->local);
 
     if (scope->local.ids.empty())
         return scope->value;
