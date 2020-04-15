@@ -22,6 +22,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #define STREAM_LANG_ERROR_INCLUDED
 
 #include <exception>
+#include <stdexcept>
 #include <sstream>
 #include <string>
 
@@ -58,10 +59,12 @@ private:
     string m_msg;
 };
 
-inline void assert_or_throw(bool condition)
+inline void assert_or_throw(bool condition, const string & msg = string())
 {
     if (!condition)
-        throw error("Assertion failed.");
+    {
+        throw std::runtime_error(msg.empty() ? string("Assertion failed.") : msg);
+    }
 }
 
 }

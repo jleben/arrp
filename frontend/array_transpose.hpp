@@ -19,14 +19,19 @@ using std::list;
 class array_transposer : private visitor<void>
 {
 public:
-    void process(unordered_set<id_ptr> & ids);
+    void process(const vector<id_ptr> & ids)
+    {
+        process(unordered_set<id_ptr>(ids.begin(), ids.end()));
+    }
+
+    void process(const unordered_set<id_ptr> & ids);
 
 private:
-    void transpose_arrays(unordered_set<id_ptr> & ids);
+    void transpose_arrays(const unordered_set<id_ptr> & ids);
     void transpose_array(const id_ptr & id);
     bool transpose_order(id_ptr id, const array_size_vec & s, list<int> & order);
 
-    void transpose_accesses(unordered_set<id_ptr> & ids);
+    void transpose_accesses(const unordered_set<id_ptr> & ids);
     void transpose_access(const id_ptr & id);
 
     void visit_array(const shared_ptr<array> & arr) override;

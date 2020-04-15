@@ -9,7 +9,7 @@ using namespace std;
 namespace stream {
 namespace functional {
 
-void array_transposer::process(unordered_set<id_ptr> & ids)
+void array_transposer::process(const unordered_set<id_ptr> & ids)
 {
     try
     {
@@ -27,7 +27,7 @@ void array_transposer::process(unordered_set<id_ptr> & ids)
     m_current_id = nullptr;
 }
 
-void array_transposer::transpose_arrays(unordered_set<id_ptr> & ids)
+void array_transposer::transpose_arrays(const unordered_set<id_ptr> & ids)
 {
     for (auto & id : ids)
         transpose_array(id);
@@ -126,7 +126,7 @@ bool array_transposer::transpose_order
     return has_streaming_dimension;
 }
 
-void array_transposer::transpose_accesses(unordered_set<id_ptr> & ids)
+void array_transposer::transpose_accesses(const unordered_set<id_ptr> & ids)
 {
     for (auto & id : ids)
         transpose_access(id);

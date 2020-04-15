@@ -71,15 +71,6 @@ using std::pair;
 class scheduler
 {
 public:
-
-    class error : public std::runtime_error
-    {
-    public:
-        error(const string & msg):
-            runtime_error(msg)
-        {}
-    };
-
     struct options
     {
         bool optimize = true;
@@ -158,15 +149,15 @@ private:
         int size;
     };
 
-    isl_schedule_node * tile(isl_schedule_node *, const options &);
+    void tile(isl::schedule_node &, const options &);
 
-    isl_schedule_node * ensure_tile_parallelism(isl_schedule_node *, const options &);
+    void ensure_tile_parallelism(isl::schedule_node &, const options &);
 
-    isl_schedule_node * permute_dimensions(isl_schedule_node *, const vector<int> & permutation);
+    void permute_dimensions(isl::schedule_node &, const vector<int> & permutation);
 
-    isl_schedule_node * add_periodic_tiling_dimension(isl_schedule_node *,
-                                                      isl_multi_union_pw_aff *,
-                                                      const options &);
+    void add_periodic_tiling_dimension(isl::schedule_node &,
+                                       isl_multi_union_pw_aff *,
+                                       const options &);
 
     vector<access_info> analyze_access_schedules(const isl::union_map & schedule);
 
