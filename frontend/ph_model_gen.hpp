@@ -32,12 +32,7 @@ public:
 
     polyhedral_gen(const options &);
 
-    polyhedral::model process(const vector<id_ptr> & ids)
-    {
-        return process(unordered_set<id_ptr>(ids.begin(), ids.end()));
-    }
-
-    polyhedral::model process(const unordered_set<id_ptr> & ids);
+    polyhedral::model process(const vector<id_ptr> & ids);
 
 private:
     struct space_map

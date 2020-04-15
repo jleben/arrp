@@ -49,7 +49,6 @@ public:
     array_reducer(name_provider &);
 
     void process(scope &);
-    unordered_set<id_ptr> process(const unordered_set<id_ptr> & ids);
 
 private:
     void process(id_ptr);
@@ -73,7 +72,7 @@ private:
 
     isl::context m_isl_ctx;
 
-    unordered_set<id_ptr> m_processed_ids;
+    unordered_set<id_ptr> m_additional_ids;
 
     printer m_printer;
     name_provider m_name_provider;

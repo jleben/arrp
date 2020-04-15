@@ -91,7 +91,7 @@ void polyhedral_gen::add_time_array(polyhedral::model & output)
 }
 
 polyhedral::model
-polyhedral_gen::process(const unordered_set<id_ptr> & ids)
+polyhedral_gen::process(const vector<id_ptr> & ids)
 {
     polyhedral::model model;
     model.context = m_isl_ctx;

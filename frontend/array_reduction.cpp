@@ -161,7 +161,7 @@ private:
 
 array_reducer::array_reducer(name_provider & nmp):
     m_name_provider(nmp),
-    m_copier(m_processed_ids, nmp),
+    m_copier(m_additional_ids, nmp),
     m_sub(m_copier, m_printer)
 {
     m_printer.set_print_var_address(true);
@@ -169,27 +169,17 @@ array_reducer::array_reducer(name_provider & nmp):
 
 void array_reducer::process(scope & s)
 {
-    unordered_set<id_ptr> in_ids(s.ids.begin(), s.ids.end());
+    m_additional_ids.clear();
 
-    auto out_ids = process(in_ids);
-
-    s.ids = std::vector<id_ptr>(out_ids.begin(), out_ids.end());
-}
-
-unordered_set<id_ptr> array_reducer::process(const unordered_set<id_ptr> & ids)
-{
-    m_processed_ids.clear();
-
-    for (auto & id : ids)
+    for (auto & id : s.ids)
         process(id);
 
-    return m_processed_ids;
+    for (auto & id : m_additional_ids)
+        s.ids.push_back(id);
 }
 
 void array_reducer::process(id_ptr id)
 {
-    m_processed_ids.insert(id);
-
     if (verbose<array_reducer>::enabled())
     {
         cout << "Processing id: ";
@@ -1073,7 +1063,7 @@ expr_ptr array_reducer::lambda_lift(expr_ptr e, const string & name)
     // Make new global id n = a;
     auto unique_name = m_name_provider.new_name(name);
     auto id = make_shared<identifier>(unique_name, arr, location_type());
-    m_processed_ids.insert(id);
+    m_additional_ids.insert(id);
     id->expr = reduce(id->expr);
 
     // Make expression n[i,j,...] and return it instead of e.
