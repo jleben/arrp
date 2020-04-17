@@ -12,6 +12,17 @@ using json = nlohmann::json;
 namespace arrp {
 namespace jack_io {
 
+void generate_io_function(const json & channel, int index, bool is_input, ostream & out)
+{
+    string name = channel["name"];
+    string direction = is_input ? "input" : "output";
+
+    out << "void " << direction << "_" << name;
+    out << "(float & value) { ";
+    out << direction << "(" << index << ", value);";
+    out << " }" << endl;
+}
+
 void generate(const options & opt, const nlohmann::json & report)
 {
     // TODO:
@@ -23,9 +34,7 @@ void generate(const options & opt, const nlohmann::json & report)
     string kernel_file_name = report["cpp"]["filename"];
     string kernel_namespace = report["cpp"]["namespace"];
 
-    int periodFrames = 0;
-    int inputChannels = 0;
-    int outputChannels = 0;
+    int commonPeriodFrames = -1;
 
     auto & inputs = report["inputs"];
     auto & outputs = report["outputs"];
@@ -36,8 +45,13 @@ void generate(const options & opt, const nlohmann::json & report)
             throw stream::error("Input is not a stream: " + string(channel["name"]));
         if (string(channel["type"]) != "real32")
             throw stream::error("Input does not have type real32: " + string(channel["name"]));
-        if (channel.count("dimensions") and channel["dimensions"].size() > 1)
-            throw stream::error("Input has too many dimensions: " + string(channel["name"]));
+        if (channel.count("dimensions"))
+            throw stream::error("Input is multidimensional: " + string(channel["name"]));
+
+        int periodFrames = channel["period_count"];
+        if (commonPeriodFrames >= 0 and periodFrames != commonPeriodFrames)
+            throw stream::error("Input/output channels have different rates.");
+        commonPeriodFrames = periodFrames;
     }
 
     for (auto & channel : outputs)
@@ -46,90 +60,68 @@ void generate(const options & opt, const nlohmann::json & report)
             throw stream::error("Output is not a stream: " + string(channel["name"]));
         if (string(channel["type"]) != "real32")
             throw stream::error("Output does not have type real32: " + string(channel["name"]));
-        if (channel.count("dimensions") and channel["dimensions"].size() > 1)
-            throw stream::error("Output has too many dimensions: " + string(channel["name"]));
-    }
+        if (channel.count("dimensions"))
+            throw stream::error("Output is multidimensional: " + string(channel["name"]));
 
-    json input, output;
-
-    if (inputs.size() > 1)
-    {
-        throw stream::error("Too many inputs (only one supported).");
-    }
-    else if (inputs.size())
-    {
-        input = inputs[0];
-    }
-
-    if (outputs.size() != 1)
-    {
-        throw stream::error("Exactly one output required.");
-    }
-
-    {
-        output = outputs[0];
-        periodFrames = output["period_count"];
-        outputChannels = output["dimensions"].size() ? int(output["dimensions"][0]) : 1;
-    }
-
-    if (!input.is_null())
-    {
-        if (input["period_count"] != periodFrames)
-        {
-            throw stream::error("Input and output rates are different.");
-        }
-        inputChannels = input["dimensions"].size() ? int(input["dimensions"][0]) : 1;
+        int periodFrames = channel["period_count"];
+        if (commonPeriodFrames >= 0 and periodFrames != commonPeriodFrames)
+            throw stream::error("Input/output channels have different rates.");
+        commonPeriodFrames = periodFrames;
     }
 
     ostringstream io_text;
-    io_text << "#pragma once" << endl;
+    io_text << "#include <arrp/jack_io/jack_client.cpp>" << endl;
     io_text << "#include \"" << kernel_file_name << "\"" << endl;
-    io_text << "#include <arrp/jack_io/interface.h>" << endl;
     io_text << "#include <string>" << endl;
+    io_text << "#include <memory>" << endl;
+    // FIXME: Use standard C++ to sleep forever instead of POSIX sleep from unistd.h
+    io_text << "#include <unistd.h>" << endl;
+
     io_text << "namespace arrp { namespace jack_io {" << endl;
 
-    io_text << "class IO : public Abstract_IO {" << endl;
+    io_text << "class Program : public Jack_Client {" << endl;
+
+    io_text << "using Kernel = " << kernel_namespace << "::program<Program>;" << endl;
 
     io_text << "public:" << endl;
 
-    io_text << "IO(Jack_Client * jack): "
-            << "Abstract_IO(jack, " << inputChannels << ", " << outputChannels << ") {}" << endl;
+    io_text << "std::unique_ptr<Kernel> d_kernel;" << endl;
 
-    io_text << "std::string name() { return \"" << opt.client_name << "\"; }" << endl;
+    io_text << "Program(): "
+            << "Jack_Client(\"" << opt.client_name << "\", "
+            << inputs.size() << ", " << outputs.size() << ")" << endl
+            << "{" << endl
+            << " d_kernel = std::make_unique<Kernel>();" << endl
+            << " d_kernel->io = this;" << endl
+            << "}" << endl;
 
-    if (!input.is_null())
+    for (int i = 0; i < inputs.size(); ++i)
     {
-        string name = input["name"];
-        int size = input["size"];
-
-        io_text << "void input_" << name;
-        if (size == 1)
-            io_text << "(float & value)";
-        else
-            io_text << "(float (&value)[" << size << "])";
-        io_text << " { input(value); }" << endl;
+        generate_io_function(inputs[i], i, true, io_text);
     }
 
+    for (int i = 0; i < outputs.size(); ++i)
     {
-        string name = output["name"];
-        int size = output["size"];
-
-        io_text << "void output_" << name;
-        if (size == 1)
-            io_text << "(float & value)";
-        else
-            io_text << "(float (&value)[" << size << "])";
-        io_text << " { output(value); }" << endl;
+        generate_io_function(outputs[i], i, false, io_text);
     }
+
+    io_text << "void process() override {" << endl
+            << "d_kernel->prelude();" << endl
+            << "for(;;) { d_kernel->period(); }" << endl
+            << "}" << endl;
 
     io_text << "};" << endl; // class
 
-    io_text << "using Kernel = " << kernel_namespace << "::program<IO>;" << endl;
 
     io_text << "}}" << endl; // namespace
 
+    io_text << "int main () {" << endl
+            << "arrp::jack_io::Program program;" << endl
+            << "sleep(-1);" << endl
+            << "}" << endl;
+
     {
-        string filename = opt.base_file_name + "-jack-interface.h";
+        string filename = opt.base_file_name + "-jack-client.cpp";
         cerr << "Writing to " << filename << endl;
         ofstream io_file(filename);
         io_file << io_text.str();

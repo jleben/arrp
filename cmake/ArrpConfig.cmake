@@ -10,18 +10,13 @@ function(arrp_to_jack name arrp_source)
   file(MAKE_DIRECTORY ${work_dir})
 
   set(kernel_h ${work_dir}/${name}.h)
-  set(jack_client_h ${work_dir}/${name}-jack-interface.h)
   set(jack_client_cpp ${work_dir}/${name}-jack-client.cpp)
   set(executable ${name})
-
-  set(ARRP_JACK_IO_HEADER <${jack_client_h}>)
-
-  configure_file(${ARRP_INCLUDE_DIR}/arrp/jack_io/jack_client.cpp ${jack_client_cpp})
 
   add_custom_command(
     OUTPUT
       ${kernel_h}
-      ${jack_client_h}
+      ${jack_client_cpp}
     DEPENDS
       ${arrp_source}
     COMMAND ${ARRP_EXECUTABLE}
@@ -34,15 +29,14 @@ function(arrp_to_jack name arrp_source)
     WORKING_DIRECTORY ${work_dir}
   )
 
-  add_custom_target(${name}-arrp-outputs DEPENDS ${jack_client_h})
+  add_custom_target(${name}-arrp-outputs DEPENDS ${jack_client_cpp})
 
   add_executable(
     ${executable}
     ${jack_client_cpp}
-    ${ARRP_INCLUDE_DIR}/arrp/jack_io/main.cpp
   )
 
-  target_include_directories(${executable} PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${ARRP_INCLUDE_DIR})
+  target_include_directories(${executable} PRIVATE ${ARRP_INCLUDE_DIR})
 
   target_link_libraries(${executable} jack)
 

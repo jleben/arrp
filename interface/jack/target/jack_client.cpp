@@ -1,9 +1,5 @@
-// NOTE: This file is processed by CMake
+#include "jack_client.h"
 
-#include <arrp/jack_io/jack_client.h>
-#include <arrp/linear_buffer.h>
-
-#include @ARRP_JACK_IO_HEADER@
 #include <iostream>
 
 using namespace std;
@@ -11,18 +7,11 @@ using namespace std;
 namespace arrp {
 namespace jack_io {
 
-struct Jack_Client::Hidden
+Jack_Client::Jack_Client(const string & name, int input_count, int output_count):
+    d_input_bufs(input_count),
+    d_output_bufs(output_count)
 {
-    Kernel * d_kernel;
-};
-
-Jack_Client::Jack_Client()
-{
-    d_hidden = new Hidden;
-    d_hidden->d_kernel = new Kernel();
-    d_hidden->d_kernel->io = new IO(this);
-
-    string client_name = d_hidden->d_kernel->io->name();
+    string client_name = name;
     const char *server_name = NULL;
     jack_options_t options = JackNullOption;
     jack_status_t status;
@@ -49,7 +38,6 @@ Jack_Client::Jack_Client()
         cerr << "Unique name '" << client_name << "' assigned." << endl;
     }
 
-    //jack_set_process_callback (client, &Jack_Client::process_cb, this);
     jack_set_process_thread(client, &Jack_Client::process_thread_cb, this);
     jack_on_shutdown (client, &Jack_Client::shutdown_cb, this);
 
@@ -62,7 +50,7 @@ Jack_Client::Jack_Client()
 
     /* create ports */
 
-    for (int i = 0; i < d_hidden->d_kernel->io->inputs().size(); ++i)
+    for (int i = 0; i < d_input_bufs.size(); ++i)
     {
         auto name = string("input") + to_string(i);
         auto * port = jack_port_register (client, name.c_str(),
@@ -76,7 +64,7 @@ Jack_Client::Jack_Client()
         d_inputs.push_back(port);
     }
 
-    for (int i = 0; i < d_hidden->d_kernel->io->outputs().size(); ++i)
+    for (int i = 0; i < d_output_bufs.size(); ++i)
     {
         auto name = string("output") + to_string(i);
         auto * port = jack_port_register (client, name.c_str(),
@@ -137,54 +125,12 @@ Jack_Client::~Jack_Client()
     jack_client_close (d_client);
 }
 
-#if 0
-int
-Jack_Client::process (jack_nframes_t nframes)
-{
-    jack_default_audio_sample_t *in, *out;
-
-    for (int i = 0; i < d_inputs.size(); ++i)
-    {
-        auto * buf = jack_port_get_buffer (d_inputs[i], nframes);
-        for (int f = 0; f < nframes; ++f)
-        {
-            d_intf.input(i).push(buf[f]);
-        }
-    }
-
-    // FIXME: while input buffers have enough data
-    d_intf.process();
-
-    for (int i = 0; i < d_outputs.size(); ++i)
-    {
-        auto * buf = jack_port_get_buffer (d_outputs[i], nframes);
-        int zeros = std::max(0, nframes - d_intf.output(i).readable());
-        for (int f = 0; f < zeros; ++f)
-        {
-            buf[f] = 0;
-        }
-        for (int f = zeros; f < nframes; ++f)
-        {
-            buf[f] = d_intf.output(i).pop();
-        }
-    }
-
-    return 0;
-}
-#endif
-
 void * Jack_Client::process_thread()
 {
-    receive();
-
     try
     {
-        d_hidden->d_kernel->prelude();
-
-        for(;;)
-        {
-            d_hidden->d_kernel->period();
-        }
+        receive();
+        process();
     }
     catch (std::runtime_error & e)
     {
@@ -208,7 +154,7 @@ void Jack_Client::receive()
 
     for (int i = 0; i < d_inputs.size(); ++i)
     {
-        auto & buf = d_hidden->d_kernel->io->inputs()[i];
+        auto & buf = d_input_bufs[i];
         if (buf.readable())
             fprintf(stderr, "Error: Input buffer %d not consumed.\n", i);
 
@@ -219,7 +165,7 @@ void Jack_Client::receive()
 
     for (int i = 0; i < d_outputs.size(); ++i)
     {
-        auto & buf = d_hidden->d_kernel->io->outputs()[i];
+        auto & buf = d_output_bufs[i];
         if (buf.readable())
             fprintf(stderr, "Error: Output buffer %d not consumed.\n", i);
 
@@ -234,10 +180,10 @@ void Jack_Client::send()
 
     for (int i = 0; i < d_outputs.size(); ++i)
     {
-        auto & buf = d_hidden->d_kernel->io->outputs()[i];
+        auto & buf = d_output_bufs[i];
         if (buf.readable() != d_frames_to_process)
         {
-            fprintf(stderr, "Error: Output buffer %d underrun.\n", i);
+            fprintf(stderr, "Error: Output buffer %d unexpected data size (%d/%d)\n", i, buf.readable(), d_frames_to_process);
         }
         buf.clear();
     }
