@@ -226,17 +226,14 @@ void generate
     io_text << "}}" << endl;
 
     string main_cpp_file_name = options.base_file_name + "-generic-main.cpp";
-    string io_cpp_file_name = options.base_file_name + "-generic-interface.h";
 
-    {
-        ofstream file(io_cpp_file_name);
-        file << io_text.str() << endl;
-    }
     {
         ofstream file(main_cpp_file_name);
         file << "#include <arrp/generic_io/interface.h>" << endl;
-        file << "#include \"" << io_cpp_file_name << "\"" << endl;
         file << "#include \"" << kernel_file_name << "\"" << endl;
+
+        file << io_text.str() << endl;
+
         file << "using Generated_Kernel = " << kernel_namespace
              << "::program<arrp::generic_io::Generated_IO>;" << endl;
         file << "#include <arrp/generic_io/main.cpp>" << endl;
