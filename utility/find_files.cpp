@@ -2,6 +2,7 @@
 #include "../common/error.hpp"
 
 #include <cstdlib>
+#include <fstream>
 
 using namespace std;
 
@@ -48,7 +49,7 @@ std::string find_arrp_cpp_include_dir()
             return cpath;
     }
 
-
+    throw stream::error("Failed to find Arrp include dir.");
 }
 
 
