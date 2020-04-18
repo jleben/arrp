@@ -27,6 +27,32 @@ public:
         m_storage(capacity), m_data(m_storage.data()), m_capacity(capacity)
     {}
 
+    Linear_Buffer(const Linear_Buffer & other):
+        m_storage(other.m_storage),
+        m_data(other.m_data == other.m_storage.data() ? m_storage.data() : other.m_data),
+        m_capacity(m_storage.size()),
+        m_readPos(other.m_readPos),
+        m_writePos(other.m_writePos)
+    {}
+
+    Linear_Buffer & operator=(const Linear_Buffer & other)
+    {
+        m_storage = other.m_storage;
+        m_data = other.m_data == other.m_storage.data() ? m_storage.data() : other.m_data;
+        m_capacity = m_storage.size();
+        m_readPos = other.m_readPos;
+        m_writePos = other.m_writePos;
+        return *this;
+    }
+
+    void allocate(int size)
+    {
+        m_storage.resize(size);
+        m_data = m_storage.data();
+        m_capacity = size;
+        m_readPos = m_writePos = 0;
+    }
+
     T * data() { return m_data; }
     const T * data() const { return m_data; }
 

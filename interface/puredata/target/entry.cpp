@@ -67,13 +67,21 @@ t_int* process_pd_signals(t_int* args)
 
     auto * object = reinterpret_cast<my_object_type*>(args[1]);
 
-    // Reset buffers
+    // Fill input buffers
 
     for (int i = 0; i < object->kernel->inputs().size(); ++i)
     {
+        auto * data = object->inlet_buffers[i];
         auto & buf = object->kernel->inputs()[i];
-        buf = Linear_Buffer<float>(object->inlet_buffers[i], object->buf_size);
+        buf.clear();
+        for (int f = 0; f < buf.size(); ++f)
+        {
+            buf[f] = data[f];
+        }
+        buf.produce(buf.size());
     }
+
+    // Reset output buffers
 
     for (int i = 0; i < object->kernel->outputs().size(); ++i)
     {
@@ -125,6 +133,9 @@ static void setup_pd_process_callback(my_object_type * object, t_signal **sp)
     for (int i = 0; i < object->kernel->inputs().size(); ++i, ++sp)
     {
         object->inlet_buffers.push_back((*sp)->s_vec);
+
+        auto & buf = object->kernel->inputs()[i];
+        buf.allocate(object->buf_size);
     }
 
     object->outlet_buffers.clear();
