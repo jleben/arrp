@@ -52,6 +52,13 @@ public:
         d_output_bufs[i].push(value);
     }
 
+    template <typename T>
+    void input_samplerate(T & value)
+    {
+        using namespace std;
+        value = jack_get_sample_rate(d_client);
+    }
+
 private:
     using Buffer = Linear_Buffer<float>;
 

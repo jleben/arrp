@@ -62,13 +62,6 @@ Jack_Client::Jack_Client(const string & name, int input_count, int output_count)
     jack_set_process_thread(client, &Jack_Client::process_thread_cb, this);
     jack_on_shutdown (client, &Jack_Client::shutdown_cb, this);
 
-    /* display the current sample rate. */
-
-    cerr << "Sample rate: " << jack_get_sample_rate (client) << endl;
-
-    // FIXME: Abort if unexpected samplerate?
-
-
     /* create ports */
 
     for (int i = 0; i < d_input_bufs.size(); ++i)
