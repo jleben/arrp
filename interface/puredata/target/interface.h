@@ -56,32 +56,14 @@ protected:
     int d_buffer_size = 0;
     int d_elapsed_ticks = 0;
 
-    template <int S>
-    void input(float (&value)[S])
+    void input(int i, float & value)
     {
-        for (int i = 0; i < S; ++i)
-        {
-            value[i] = d_inputs[i].pop();
-        }
+        value = d_inputs[i].pop();
     }
 
-    template <int S>
-    void output(float (&value)[S])
+    void output(int i, float & value)
     {
-        for (int i = 0; i < S; ++i)
-        {
-            d_outputs[i].push(value[i]);
-        }
-    }
-
-    void input(float & value)
-    {
-        value = d_inputs[0].pop();
-    }
-
-    void output(float & value)
-    {
-        d_outputs[0].push(value);
+        d_outputs[i].push(value);
     }
 };
 

@@ -11,14 +11,23 @@ using nlohmann::json;
 namespace arrp {
 namespace puredata_io {
 
+void generate_io_function(const json & channel, int index, bool is_input, ostream & out)
+{
+    string name = channel["name"];
+    string direction = is_input ? "input" : "output";
+
+    out << "void " << direction << "_" << name;
+    out << "(float & value) { ";
+    out << direction << "(" << index << ", value);";
+    out << " }" << endl;
+}
+
 void generate(const options & opt, const nlohmann::json & report)
 {
     string kernel_file_name = report["cpp"]["filename"];
     string kernel_namespace = report["cpp"]["namespace"];
 
-    int periodFrames = 0;
-    int inputChannels = 0;
-    int outputChannels = 0;
+    int commonPeriodFrames = -1;
 
     auto & inputs = report["inputs"];
     auto & outputs = report["outputs"];
@@ -29,8 +38,13 @@ void generate(const options & opt, const nlohmann::json & report)
             throw stream::error("Input is not a stream: " + string(channel["name"]));
         if (string(channel["type"]) != "real32")
             throw stream::error("Input does not have type real32: " + string(channel["name"]));
-        if (channel.count("dimensions") and channel["dimensions"].size() > 1)
-            throw stream::error("Input has too many dimensions: " + string(channel["name"]));
+        if (channel.count("dimensions"))
+            throw stream::error("Input is multidimensional: " + string(channel["name"]));
+
+        int periodFrames = channel["period_count"];
+        if (commonPeriodFrames >= 0 and periodFrames != commonPeriodFrames)
+            throw stream::error("Input/output channels have different rates.");
+        commonPeriodFrames = periodFrames;
     }
 
     for (auto & channel : outputs)
@@ -39,39 +53,13 @@ void generate(const options & opt, const nlohmann::json & report)
             throw stream::error("Output is not a stream: " + string(channel["name"]));
         if (string(channel["type"]) != "real32")
             throw stream::error("Output does not have type real32: " + string(channel["name"]));
-        if (channel.count("dimensions") and channel["dimensions"].size() > 1)
-            throw stream::error("Output has too many dimensions: " + string(channel["name"]));
-    }
+        if (channel.count("dimensions"))
+            throw stream::error("Output is multidimensional: " + string(channel["name"]));
 
-    json input, output;
-
-    if (inputs.size() > 1)
-    {
-        throw stream::error("Too many inputs (only one supported).");
-    }
-    else if (inputs.size())
-    {
-        input = inputs[0];
-    }
-
-    if (outputs.size() != 1)
-    {
-        throw stream::error("Exactly one output required.");
-    }
-
-    {
-        output = outputs[0];
-        periodFrames = output["period_count"];
-        outputChannels = output["dimensions"].size() ? int(output["dimensions"][0]) : 1;
-    }
-
-    if (!input.is_null())
-    {
-        if (input["period_count"] != periodFrames)
-        {
-            throw stream::error("Input and output rates are different.");
-        }
-        inputChannels = input["dimensions"].size() ? int(input["dimensions"][0]) : 1;
+        int periodFrames = channel["period_count"];
+        if (commonPeriodFrames >= 0 and periodFrames != commonPeriodFrames)
+            throw stream::error("Input/output channels have different rates.");
+        commonPeriodFrames = periodFrames;
     }
 
     ostringstream io_text;
@@ -89,7 +77,7 @@ void generate(const options & opt, const nlohmann::json & report)
 
     io_text << "public:" << endl;
     io_text << "IO(): "
-            << "Abstract_IO(" << inputChannels << ", " << outputChannels << ")"
+            << "Abstract_IO(" << inputs.size() << ", " << outputs.size() << ")"
             << "{}" << endl;
 
     io_text << "void prologue() override {" << endl;
@@ -102,43 +90,33 @@ void generate(const options & opt, const nlohmann::json & report)
     io_text << "kernel->period();" << endl;
     io_text << "}" << endl;
 
-    if (!input.is_null())
+    for (int i = 0; i < inputs.size(); ++i)
     {
-        string name = input["name"];
-        int size = input["size"];
-
-        io_text << "void input_" << name;
-        if (size == 1)
-            io_text << "(float & value)";
-        else
-            io_text << "(float (&value)[" << size << "])";
-        io_text << " { input(value); }" << endl;
+        generate_io_function(inputs[i], i, true, io_text);
     }
 
+    for (int i = 0; i < outputs.size(); ++i)
     {
-        string name = output["name"];
-        int size = output["size"];
-
-        io_text << "void output_" << name;
-        if (size == 1)
-            io_text << "(float & value)";
-        else
-            io_text << "(float (&value)[" << size << "])";
-        io_text << " { output(value); }" << endl;
+        generate_io_function(outputs[i], i, false, io_text);
     }
 
     io_text << "};" << endl; // class
 
     io_text << "Abstract_IO * create_kernel() { return new IO; }" << endl;
 
-    io_text << "void library_setup(const char * name);" << endl;
+    io_text << "void library_setup(const char * name, bool has_signal_inputs);" << endl;
 
     io_text << "}}" << endl; // namespace
 
     io_text << "extern \"C\" {" << endl;
 
     io_text << "void " << opt.pd_object_name << "_tilde_setup()"
-            << " { arrp::puredata_io::library_setup(\"" << opt.pd_object_name << "~\"); }"
+            << " { "
+            << "arrp::puredata_io::library_setup("
+            << "\"" << opt.pd_object_name << "~\""
+            << ", " << (inputs.size() ? "true" : "false")
+            << ");"
+            << " }"
             << endl;
 
     io_text << "}" << endl; // extern C
