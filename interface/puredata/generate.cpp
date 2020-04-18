@@ -15,10 +15,14 @@ void generate_io_function(const json & channel, int index, bool is_input, ostrea
 {
     string name = channel["name"];
     string direction = is_input ? "input" : "output";
+    string type = string(channel["type"]) == "real64" ? "double" : "float";
 
     out << "void " << direction << "_" << name;
-    out << "(float & value) { ";
-    out << direction << "(" << index << ", value);";
+    out << "(" << type << "& value) { ";
+    if (is_input)
+        out << "value = input(" << index << ");";
+    else
+        out << "output(" << index << ", value);";
     out << " }" << endl;
 }
 
@@ -36,8 +40,8 @@ void generate(const options & opt, const nlohmann::json & report)
     {
         if (not channel["is_stream"])
             throw stream::error("Input is not a stream: " + string(channel["name"]));
-        if (string(channel["type"]) != "real32")
-            throw stream::error("Input does not have type real32: " + string(channel["name"]));
+        if (string(channel["type"]) != "real32" and string(channel["type"]) != "real64")
+            throw stream::error("Input does not have type real32 or real64: " + string(channel["name"]));
         if (channel.count("dimensions"))
             throw stream::error("Input is multidimensional: " + string(channel["name"]));
 
@@ -51,8 +55,8 @@ void generate(const options & opt, const nlohmann::json & report)
     {
         if (not channel["is_stream"])
             throw stream::error("Output is not a stream: " + string(channel["name"]));
-        if (string(channel["type"]) != "real32")
-            throw stream::error("Output does not have type real32: " + string(channel["name"]));
+        if (string(channel["type"]) != "real32" and string(channel["type"]) != "real64")
+            throw stream::error("Output does not have type real32 or real64: " + string(channel["name"]));
         if (channel.count("dimensions"))
             throw stream::error("Output is multidimensional: " + string(channel["name"]));
 

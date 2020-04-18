@@ -42,12 +42,12 @@ public:
         }
     }
 
-    void input(int i, float & value)
+    float input(int i)
     {
-        value = d_input_bufs[i].pop();
+        return d_input_bufs[i].pop();
     }
 
-    void output(int i, float & value)
+    void output(int i, float value)
     {
         d_output_bufs[i].push(value);
     }

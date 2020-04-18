@@ -56,12 +56,12 @@ protected:
     int d_buffer_size = 0;
     int d_elapsed_ticks = 0;
 
-    void input(int i, float & value)
+    float input(int i)
     {
-        value = d_inputs[i].pop();
+        return d_inputs[i].pop();
     }
 
-    void output(int i, float & value)
+    void output(int i, float value)
     {
         d_outputs[i].push(value);
     }
