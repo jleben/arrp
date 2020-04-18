@@ -55,7 +55,6 @@ public:
     template <typename T>
     void input_samplerate(T & value)
     {
-        using namespace std;
         value = jack_get_sample_rate(d_client);
     }
 

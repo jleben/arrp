@@ -47,6 +47,12 @@ public:
         }
     }
 
+    template <typename T>
+    void input_samplerate(T & value)
+    {
+        value = sys_getsr();
+    }
+
 protected:
     virtual void prologue() = 0;
     virtual void period() = 0;

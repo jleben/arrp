@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <unordered_set>
 
 using namespace std;
 using nlohmann::json;
@@ -34,9 +35,36 @@ void generate(const options & opt, const nlohmann::json & report)
     int commonPeriodFrames = -1;
 
     auto & inputs = report["inputs"];
-    auto & outputs = report["outputs"];
+    auto & audio_outputs = report["outputs"];
+
+    json sample_rate_input;
+    vector<json> audio_inputs;
 
     for (auto & channel : inputs)
+    {
+        if (string(channel["name"]) == "samplerate")
+        {
+            sample_rate_input = channel;
+        }
+        else
+        {
+            audio_inputs.push_back(channel);
+        }
+    }
+
+    if (not sample_rate_input.is_null())
+    {
+        std::unordered_set<string> valid_types = { "int", "real32", "real64" };
+        if (not valid_types.count(string(sample_rate_input["type"])) or
+            sample_rate_input["is_stream"] or
+            sample_rate_input.count("dimensions"))
+        {
+            throw stream::error("Input 'samplerate' has invalid type."
+                                " Required 'int' or 'real32' or 'real64'.");
+        }
+    }
+
+    for (auto & channel : audio_inputs)
     {
         if (not channel["is_stream"])
             throw stream::error("Input is not a stream: " + string(channel["name"]));
@@ -51,7 +79,7 @@ void generate(const options & opt, const nlohmann::json & report)
         commonPeriodFrames = periodFrames;
     }
 
-    for (auto & channel : outputs)
+    for (auto & channel : audio_outputs)
     {
         if (not channel["is_stream"])
             throw stream::error("Output is not a stream: " + string(channel["name"]));
@@ -81,7 +109,7 @@ void generate(const options & opt, const nlohmann::json & report)
 
     io_text << "public:" << endl;
     io_text << "IO(): "
-            << "Abstract_IO(" << inputs.size() << ", " << outputs.size() << ")"
+            << "Abstract_IO(" << audio_inputs.size() << ", " << audio_outputs.size() << ")"
             << "{}" << endl;
 
     io_text << "void prologue() override {" << endl;
@@ -94,14 +122,14 @@ void generate(const options & opt, const nlohmann::json & report)
     io_text << "kernel->period();" << endl;
     io_text << "}" << endl;
 
-    for (int i = 0; i < inputs.size(); ++i)
+    for (int i = 0; i < audio_inputs.size(); ++i)
     {
-        generate_io_function(inputs[i], i, true, io_text);
+        generate_io_function(audio_inputs[i], i, true, io_text);
     }
 
-    for (int i = 0; i < outputs.size(); ++i)
+    for (int i = 0; i < audio_outputs.size(); ++i)
     {
-        generate_io_function(outputs[i], i, false, io_text);
+        generate_io_function(audio_outputs[i], i, false, io_text);
     }
 
     io_text << "};" << endl; // class
@@ -118,7 +146,7 @@ void generate(const options & opt, const nlohmann::json & report)
             << " { "
             << "arrp::puredata_io::library_setup("
             << "\"" << opt.pd_object_name << "~\""
-            << ", " << (inputs.size() ? "true" : "false")
+            << ", " << (audio_inputs.size() ? "true" : "false")
             << ");"
             << " }"
             << endl;
