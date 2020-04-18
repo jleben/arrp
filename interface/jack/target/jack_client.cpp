@@ -13,7 +13,7 @@ Jack_Client::Jack_Client(const string & name, int input_count, int output_count)
 {
     string client_name = name;
     const char *server_name = NULL;
-    jack_options_t options = JackNullOption;
+    jack_options_t options = JackNoStartServer;
     jack_status_t status;
 
     /* open a client connection to the JACK server */
