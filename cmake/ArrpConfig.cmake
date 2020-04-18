@@ -115,8 +115,13 @@ function(arrp_to_pd name arrp_source)
   set_target_properties(${name} PROPERTIES
     OUTPUT_NAME "${name}~"
     PREFIX ""
-    SUFFIX ".pd_linux"
   )
+
+  if(CMAKE_SYSTEM_NAME STREQUAL Linux)
+    set_target_properties(${name} PROPERTIES SUFFIX ".pd_linux")
+  elseif(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+    set_target_properties(${name} PROPERTIES SUFFIX ".pd_darwin")
+  endif()
 
   add_dependencies(${name} ${name}-arrp-outputs)
 
