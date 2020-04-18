@@ -60,10 +60,7 @@ private:
         return static_cast<Jack_Client*>(arg)->process_thread();
     }
 
-    static void shutdown_cb(void *arg)
-    {
-        exit(1);
-    }
+    static void shutdown_cb(void *arg);
 
     void* process_thread();
 

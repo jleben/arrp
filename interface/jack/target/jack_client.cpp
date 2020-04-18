@@ -7,6 +7,34 @@ using namespace std;
 namespace arrp {
 namespace jack_io {
 
+void printJackStatus(JackStatus status, ostream & out)
+{
+    if(status & JackServerFailed)
+    {
+        out << "Unable to connect to JACK server. Is server running?" << endl;
+    }
+    if (status & JackInvalidOption)
+    {
+        out << "Invalid options were provided." << endl;
+    }
+    if (status & JackServerError)
+    {
+        out << "Error communicating with server." << endl;
+    }
+    if (status & JackInitFailure)
+    {
+        out << "Unable to initialize client." << endl;
+    }
+    if (status & JackShmFailure)
+    {
+        out << "Unable to access shared memory." << endl;
+    }
+    if (status & JackVersionError)
+    {
+        out << "JACK client protocol version is not supported." << endl;
+    }
+}
+
 Jack_Client::Jack_Client(const string & name, int input_count, int output_count):
     d_input_bufs(input_count),
     d_output_bufs(output_count)
@@ -21,21 +49,14 @@ Jack_Client::Jack_Client(const string & name, int input_count, int output_count)
     auto * client = d_client = jack_client_open (client_name.c_str(), options, &status, server_name);
     if (client == NULL)
     {
-        cerr << "jack_client_open() failed, " << "status = " << status << endl;
-        if (status & JackServerFailed)
-        {
-            cerr << "Unable to connect to JACK server.";
-        }
+        cerr << "Failed to create Jack client." << endl;
+        printJackStatus(status, cerr);
         exit (1);
-    }
-    if (status & JackServerStarted)
-    {
-        cerr << "JACK server started." << endl;
     }
     if (status & JackNameNotUnique)
     {
         client_name = jack_get_client_name(client);
-        cerr << "Unique name '" << client_name << "' assigned." << endl;
+        cerr << "Jack client name already in use. Changed to '" << client_name << "'." << endl;
     }
 
     jack_set_process_thread(client, &Jack_Client::process_thread_cb, this);
@@ -189,6 +210,12 @@ void Jack_Client::send()
     }
 
     jack_cycle_signal(d_client, 0);
+}
+
+void Jack_Client::shutdown_cb(void *arg)
+{
+    cerr << "JACK server is shutting down this client." << endl;
+    exit(1);
 }
 
 }
