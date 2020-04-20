@@ -23,7 +23,7 @@ function(arrp_to_jack name arrp_source)
     ARGS
       ${CMAKE_CURRENT_SOURCE_DIR}/${arrp_source}
       --io-common-clock
-      --target jack
+      --interface jack
       --output ${name}
       --jack-name ${name}
     WORKING_DIRECTORY ${work_dir}
@@ -51,7 +51,7 @@ function(arrp_to_exe name arrp_source)
 
   file(MAKE_DIRECTORY ${work_dir})
 
-  set(main_cpp ${work_dir}/${name}-generic-main.cpp)
+  set(main_cpp ${work_dir}/${name}-stdio-main.cpp)
 
   add_custom_command(
     OUTPUT
@@ -61,7 +61,7 @@ function(arrp_to_exe name arrp_source)
     COMMAND ${ARRP_EXECUTABLE}
     ARGS
       ${CMAKE_CURRENT_SOURCE_DIR}/${arrp_source}
-      --target generic
+      --interface stdio
       --output ${name}
     WORKING_DIRECTORY ${work_dir}
   )
@@ -95,7 +95,7 @@ function(arrp_to_pd name arrp_source)
     ARGS
       ${CMAKE_CURRENT_SOURCE_DIR}/${arrp_source}
       --io-common-clock
-      --target puredata
+      --interface puredata
       --pd-name ${name}
       --output ${name}
     WORKING_DIRECTORY ${work_dir}

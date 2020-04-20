@@ -19,14 +19,14 @@ def info(msg):
 
 def compile_arrp(source, output_name):
   info("Compiling Arrp...")
-  subprocess.run([arrp_exe, '--target', 'generic', '--output', output_name],
+  subprocess.run([arrp_exe, '--interface', 'stdio', '--output', output_name],
                  input=source, universal_newlines=True, check=True)
   info("Compiling C++...")
   subprocess.run(
     [
       cpp_compiler,
       '-std=c++17',
-      output_name + '-generic-main.cpp',
+      output_name + '-stdio-main.cpp',
       '-I.',
       '-I' + arrp_install_dir + '/include',
       '-o', output_name

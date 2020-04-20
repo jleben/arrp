@@ -37,7 +37,7 @@ struct options
     //string meta_output_filename;
 
     string output_filename_base;
-    string target_type = "cpp";
+    string interface_type = "cpp";
 
     struct {
         string nmspace;

@@ -222,9 +222,8 @@ int main(int argc, char *argv[])
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
 
-
-    args.add_option({"target", "", "", "Target type: cpp (default), generic, jack"},
-                    new string_option(&opt.target_type));
+    args.add_option({"interface", "", "", "Interface type: cpp (default), stdio, jack, puredata"},
+                    new string_option(&opt.interface_type));
 
     args.add_option({"output", "o", "", "Base name for outputs."},
                     new string_option(&opt.output_filename_base));
