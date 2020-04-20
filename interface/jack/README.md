@@ -2,7 +2,7 @@
 
 The Arrp compiler can generate C++ code for a Jack client using the option `--interface jack`.
 
-CMake helps in automating the process of generating this C++ code and further compiling it into an executable.
+CMake helps automate the process of generating this C++ code and further compiling it into an executable.
 
 ## Example
 
@@ -55,9 +55,18 @@ Place the following files into the same directory:
 
     arrp_to_jack(osc-jack osc.arrp)
 
-### Procedure
+### Procedure (Linux, Mac OS)
 
-1. Run `make osc-jack` to generate a Jack client executable `osc-jack`.
+1. In the directory containing the above files, run the following commands to generate a Jack client executable `osc-jack`.
+
+        mkdir build
+        cd build
+        cmake -D CMAKE_BUILD_TYPE=Release ..
+        make osc-jack
+
+    Note: If you want machine code that's easier to debug, replace the cmake command with:
+
+        cmake -D CMAKE_BUILD_TYPE=Debug ..
 
 1. With the Jack server running, execute `osc-jack`.
 
