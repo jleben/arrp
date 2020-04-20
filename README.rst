@@ -6,6 +6,8 @@ This project provides a compiler for Arrp.
 
 For more information on the language Arrp, visit the `Arrp website`_.
 
+.. _Arrp website: http://arrp-lang.info
+
 Table of Contents:
 ##################
 
@@ -16,7 +18,7 @@ Table of Contents:
 Installation
 #############
 
-Installation packages are available `on GitHub <https://github.com/jleben/arrp/releases>`_ as release assets.
+Installation packages are available `on GitHub <https://github.com/jleben/arrp/releases>`_.
 
 - Debian package:
 
@@ -29,8 +31,8 @@ Installation packages are available `on GitHub <https://github.com/jleben/arrp/r
 - Mac OS ZIP archive:
 
   - Unzip the folder.
-  - The compiler executable is at ``bin/arrp`` in the unzipped folder. Optionally, add the ``bin`` dir to the ``PATH`` environment variable.
-  - If you wish ``arrp`` to generate executables, either set the environment variable ``ARRP_HOME`` to the unzipped folder, or add the ``include`` subfolder to the ``CPATH`` environment variable.
+  - Add the ``bin`` dir to the ``PATH`` environment variable.
+  - Add the ``include`` subfolder to the ``CPATH`` environment variable.
 
 Usage
 #####
@@ -40,22 +42,25 @@ its usage and available options::
 
     arrp -h
 
-To generate C++ from Arrp code (replacing ``program...`` with the desired file name)::
+Generating C++ Kernel Code
+==========================
 
-    arrp program.arrp --cpp program.cpp
+By default, the Arrp compiler generates a C++ "kernel" - C++ code with a generic interface that makes it easy to integrate into larger C++ projects.
 
-The Arrp compiler can also generate an executable (this also requires a C++ compiler)::
+The following command writes the kernel code into a C++ header file ``program.h``::
 
-    arrp program.arrp --exe program
+    arrp program.arrp --output program
 
-Run the executable with the `-h` option to get help on how to use it::
+See the `documentation <http://arrp-lang.info/doc/target-cpp>`_ for a detailed explanation of the C++ kernel code.
 
-    ./program -h
+Generating Code for Various Interfaces
+======================================
 
-See the `documentation <http://arrp-lang.info/doc>`_
-for more information about the generated C++ code and executables.
+The Arrp compiler can also generate additional C++ code wrapping the kernel into a variety of different interfaces:
 
-.. _Arrp website: http://arrp-lang.info
+- Standard streams
+- `Jack client <interface/jack/README.md>`_
+- `Pure Data external <interface/puredata/README.md>`_
 
 
 Building from Source

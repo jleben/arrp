@@ -224,8 +224,8 @@ void generate
     // End namespace
     io_text << "}}" << endl;
 
-    string main_cpp_file_name = options.base_file_name + "-generic-main.cpp";
-    string io_cpp_file_name = options.base_file_name + "-generic-interface.h";
+    string main_cpp_file_name = options.base_file_name + "-stdio-main.cpp";
+    string io_cpp_file_name = options.base_file_name + "-stdio-interface.h";
 
     {
         ofstream file(io_cpp_file_name);

@@ -429,7 +429,7 @@ result::code compile_module
                                   opts);
             }
 
-            if (opts.target_type == "generic")
+            if (opts.interface_type == "stdio")
             {
                 arrp::generic_io::options output_opt;
 
@@ -437,7 +437,7 @@ result::code compile_module
 
                 arrp::generic_io::generate(output_opt, arrp::report());
             }
-            else if (opts.target_type == "jack")
+            else if (opts.interface_type == "jack")
             {
                 arrp::jack_io::options output_opt;
 
@@ -449,7 +449,7 @@ result::code compile_module
 
                 arrp::jack_io::generate(output_opt, arrp::report());
             }
-            else if (opts.target_type == "puredata")
+            else if (opts.interface_type == "puredata")
             {
                 arrp::puredata_io::options pd_opt;
 
