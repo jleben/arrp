@@ -10,8 +10,8 @@ This example demonstrates how to create a Jack client from simple Arrp code that
 
 ### Prerequisites:
 
-- CMake
-- Jack development library
+- CMake ([Ubuntu](https://packages.ubuntu.com/bionic/cmake), [Mac OS](https://cmake.org/download/))
+- Jack development library ([Ubuntu - jack1](https://packages.ubuntu.com/bionic/libjack-dev), [Ubuntu - jack2](https://packages.ubuntu.com/bionic/libjack-jackd2-dev), [Mac OS](https://jackaudio.org/downloads/), [Mac OS - Homebrew](https://formulae.brew.sh/formula/jack))
 
 ### Code
 

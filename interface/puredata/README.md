@@ -10,8 +10,9 @@ This example demonstrates how to create a Pure Data external object from simple 
 
 ### Prerequisites:
 
-- CMake
-- Pure Data development header (m_pd.h)
+- CMake ([Ubuntu](https://packages.ubuntu.com/bionic/cmake), [Mac OS](https://cmake.org/download/))
+- Pure Data development headers (come with Pure Data) ([Ubuntu](https://packages.ubuntu.com/bionic/puredata-dev), [Mac OS](https://puredata.info/docs/faq/macosx))
+- Portable Coroutine Library ([Ubuntu](https://packages.ubuntu.com/bionic/libpcl1-dev), [Mac OS - Homebrew](https://formulae.brew.sh/formula/libpcl))
 
 ### Code
 
