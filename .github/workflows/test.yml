@@ -83,14 +83,14 @@ jobs:
       run: |
           sudo dpkg -i debian-package/*.deb
 
-          echo "input x : [~]int; output y = 2*x;" > test.arrp
+          echo "import math; input x : [~]int; output y = math.add(x,1);" > test.arrp
           arrp test.arrp --interface stdio --output test
           c++ -std=c++17 test-stdio-main.cpp -I. -o test
 
           echo 1 3 5 | ./test > output.txt
           echo "Output:"
           cat output.txt
-          echo -en "2\n6\n10\n" > expected.txt
+          echo -en "2\n4\n6\n" > expected.txt
           diff output.txt expected.txt
           if [[ $? -eq 0 ]]; then
             echo "OK"
@@ -177,14 +177,14 @@ jobs:
 
           mkdir test
           cd test
-          echo "input x : [~]int; output y = 2*x;" > test.arrp
+          echo "import math; input x : [~]int; output y = math.add(x,1);" > test.arrp
           ${arrp_prefix}/bin/arrp test.arrp --interface stdio --output test
           g++ -std=c++17 test-stdio-main.cpp -I. -I${arrp_prefix}/include -o test
 
           echo 1 3 5 | ./test > output.txt
           echo "Output:"
           cat output.txt
-          echo -en "2\n6\n10\n" > expected.txt
+          echo -en "2\n4\n6\n" > expected.txt
           diff output.txt expected.txt
           if [[ $? -eq 0 ]]; then
             echo "OK"
