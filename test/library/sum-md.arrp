@@ -1,0 +1,9 @@
+import math;
+
+-- 0,1,4,9,16
+a = [n:5, m:3] -> n*n + m;
+
+output y = math.sum(a);
+
+...? [3]int
+...? (30,35,40)

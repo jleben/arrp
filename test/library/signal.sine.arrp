@@ -1,5 +1,3 @@
-module osc;
-
 import signal;
 
 output main = signal.sine(0.1, 0.0);

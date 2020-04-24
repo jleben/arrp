@@ -21,9 +21,9 @@ window(size,hop,x) = [t] -> [k:size] -> x[t*hop + k];
 
 phase(freq, start) = p where
 {
-    p[0] = start;
-    p[t] = mod1(p[t-1] + freq[t-1]) where
-        mod1(x) = x - floor(x);
+    p[0] = mod1(start);
+    p[t] = mod1(p[t-1] + freq[t-1]);
+    mod1(x) = x - floor(x);
 };
 
 sine(freq, start_phase) =
@@ -32,7 +32,7 @@ sine(freq, start_phase) =
 
 triangle(freq, start_phase) =
   let ph = phase(freq, start_phase) in
-    1 - abs(ph*2 - 1);
+    1 - abs(ph*4 - 2);
 
 square(freq, start_phase) =
   let ph = phase(freq, start_phase) in
