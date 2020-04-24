@@ -1,10 +1,17 @@
 # For parser
 include_directories(../common)
 
+if (CMAKE_SYSTEM_NAME STREQUAL Linux)
+  set(platform_utils_src ../utility/platform_linux.cpp)
+else()
+  set(platform_utils_src ../utility/platform_default.cpp)
+endif()
+
 add_library(arrp-lib STATIC
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../utility/filesystem.cpp
+  ${platform_utils_src}
   ../common/primitives.cpp
   ../common/func_types.cpp
   ../common/func_model_printer.cpp
@@ -69,13 +76,6 @@ target_link_libraries(arrp-lib ${ISL_LIBRARY} isl-cpp ${GMP_LIB} m)
 
 configure_file(version.template.hpp version.hpp @ONLY)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-
-if(CMAKE_SYSTEM_NAME STREQUAL Linux OR
-   CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  set_source_files_properties(main.cpp PROPERTIES
-    COMPILE_DEFINITIONS "ARRP_DEFAULT_IMPORT_PATH=\"/usr/lib/arrp/library\""
-  )
-endif()
 
 add_executable(arrp main.cpp)
 target_link_libraries(arrp arrp-lib)
