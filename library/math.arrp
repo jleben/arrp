@@ -1,7 +1,7 @@
 module math;
 import array;
 
-pi = 3.14159265359;
+pi = atan(1.0) * 4.0;
 
 add(x,y) = x + y;
 

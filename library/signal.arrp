@@ -1,0 +1,53 @@
+module signal;
+import array;
+import math;
+
+... FIXME: The following definition fails type checking if a has size [~,3]:
+... delay(v,a) = v ++ a;
+
+-- Utilities
+
+delay(v,d,x) = y where y[i] = {
+    v,      if i < d;
+    x[i-d], otherwise
+};
+
+window(size,hop,x) = [t] -> [k:size] -> x[t*hop + k];
+
+
+-- Generators
+
+... FIXME: 'phase(0.1, 0)' gives error "No type satisfying constraints"
+
+phase(freq, start) = p where
+{
+    p[0] = mod1(start);
+    p[t] = mod1(p[t-1] + freq[t-1]);
+    mod1(x) = x - floor(x);
+};
+
+sine(freq, start_phase) =
+  let ph = phase(freq, start_phase) in
+    sin(ph * 2 * math.pi);
+
+triangle(freq, start_phase) =
+  let ph = phase(freq, start_phase) in
+    1 - abs(ph*4 - 2);
+
+square(freq, start_phase) =
+  let ph = phase(freq, start_phase) in
+    floor(ph * 2) * 2 - 1;
+
+
+-- Filters
+
+convolve(h,x) =
+  let f(w) = math.sum(h * array.reverse(w)) in
+    array.map(f, window(#h,1,x));
+
+iir(aa,bs,x) = y where {
+    y = convolve(bs, delay(0,#bs-1,x)) -
+        convolve(aa, delay(0,#aa,y));
+};
+
+fir(h) = convolve(h) . delay(0,#h-1)

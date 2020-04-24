@@ -1,0 +1,21 @@
+module fir;
+
+import array;
+import math;
+import signal;
+
+output main = signal.fir((3,2,1), [n] -> n);
+
+...? [~]int
+...? 0
+...? 3
+...? 8
+...? 14
+...? 20
+...? 26
+...? 32
+...? 38
+...? 44
+...? 50
+...? 56
+...? 62

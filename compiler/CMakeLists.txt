@@ -1,10 +1,19 @@
 # For parser
 include_directories(../common)
 
+if(CMAKE_SYSTEM_NAME STREQUAL Linux)
+  set(platform_utils_src ../utility/platform_linux.cpp)
+elseif(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+  set(platform_utils_src ../utility/platform_macos.cpp)
+else()
+  set(platform_utils_src ../utility/platform_default.cpp)
+endif()
+
 add_library(arrp-lib STATIC
   ../utility/debug.cpp
   ../utility/cpp-gen.cpp
   ../utility/filesystem.cpp
+  ${platform_utils_src}
   ../common/primitives.cpp
   ../common/func_types.cpp
   ../common/func_model_printer.cpp

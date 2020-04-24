@@ -81,6 +81,7 @@ add_subdirectory(frontend)
 add_subdirectory(utility)
 add_subdirectory(compiler)
 add_subdirectory(interface)
+add_subdirectory(library)
 add_subdirectory(test)
 
 install(FILES cpp/arrp.hpp DESTINATION include/arrp)

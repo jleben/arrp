@@ -1,9 +1,8 @@
 module wavetable_osc;
-
-pi = 4*atan(1);
+import math;
 
 table_size = 20;
-table = [i:table_size] -> sin(i/table_size*2*pi);
+table = [i:table_size] -> sin(i/table_size*2*math.pi);
 
 interpolate(a,i) =
   let d = i - floor(i) in
@@ -13,7 +12,7 @@ osc(table, freq) =
   [t] -> interpolate(table, t * freq  * #table);
 
 precise_osc(freq) =
-  [t] -> sin(t*freq*2*pi);
+  [t] -> sin(t*freq*2*math.pi);
 
 freq = 1/9;
 

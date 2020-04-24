@@ -21,6 +21,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "options.hpp"
 #include "arg_parser.hpp"
 #include "compiler.hpp"
+#include "../utility/platform.hpp"
 #include "../common/ast.hpp"
 #include "../common/functional_model.hpp"
 #include "../frontend/module_parser.hpp"
@@ -145,9 +146,66 @@ struct enum_option : public option_parser
 }
 }
 
+static
+void get_import_dirs_from_string(options & opt, const string & text)
+{
+    if (text.empty())
+        return;
+
+    string::size_type start = 0;
+    for(;;)
+    {
+        string::size_type end = text.find(':', start);
+        if (end != string::npos)
+        {
+            if (end > start)
+            {
+                string elem = text.substr(start, end-start);
+                opt.import_dirs.push_back(elem);
+            }
+            start = end + 1;
+        }
+        else
+        {
+            if (start < text.size())
+            {
+                string elem = text.substr(start);
+                opt.import_dirs.push_back(elem);
+            }
+            break;
+        }
+    }
+}
+
+static void get_builtin_import_dirs(options & opt)
+{
+    string path;
+
+    try { path = arrp::get_platform()->builtin_import_path(); }
+    catch (error &) {}
+
+    if (!path.empty())
+        opt.import_dirs.push_back(path);
+}
+
+static void get_import_dirs_from_env(options & opt)
+{
+    char * text = getenv("ARRP_IMPORT_PATH");
+    if (text)
+        get_import_dirs_from_string(opt, text);
+}
+
 int main(int argc, char *argv[])
 {
     options opt;
+
+    // Hardcoded import dirs come first
+    get_builtin_import_dirs(opt);
+
+    // Import dirs from environment follow those from command line
+    get_import_dirs_from_env(opt);
+
+    // Import dirs from command line will come last.
 
     arguments args;
 
@@ -275,6 +333,16 @@ int main(int argc, char *argv[])
     {
         cerr << "Error: " << e.msg() << endl;
         return result::command_line_error;
+    }
+
+    if (verbose<compiler::log>::enabled())
+    {
+        cerr << "Import directories: " << endl;
+        for (auto & dir : opt.import_dirs)
+        {
+            cerr << dir << endl;
+        }
+        cerr << endl;
     }
 
     return compile(opt);
