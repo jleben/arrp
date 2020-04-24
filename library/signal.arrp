@@ -1,0 +1,41 @@
+module signal;
+import array;
+import math;
+
+... FIXME: The following definition fails type checking if a has size [~,3]:
+... delay(v,a) = v ++ a;
+
+delay(v,x) = y where {
+    y[0] = v;
+    y[t] = x[t-1];
+};
+
+window(size,hop,x) = [t] -> [k:size] -> x[t*hop + k];
+
+phase(freq, start) = p where
+{
+    p[0] = start;
+    p[t] = mod1(p[t-1] + freq[t-1]) where
+        mod1(x) = x - floor(x);
+};
+
+sine(freq, start_phase) =
+  let ph = phase(freq, start_phase) in
+    sin(ph * 2 * math.pi);
+
+triangle(freq, start_phase) =
+  let ph = phase(freq, start_phase) in
+    1 - abs(ph*2 - 1);
+
+square(freq, start_phase) =
+  let ph = phase(freq, start_phase) in
+    floor(ph * 2) * 2 - 1;
+
+biquad(a,b,x) = y where
+{
+    y[0] = x[n] * b[0];
+    y[1] = x[n] * b[0] + x[n-1] * b[1]
+                       - y[n-1] * a[0];
+    y[n] = x[n] * b[0] + x[n-1] * b[1] + x[n-2] * b[2]
+                       - y[n-1] * a[0] - y[n-2] * a[1];
+};

@@ -1,0 +1,8 @@
+module math;
+import array;
+
+pi = atan(1.0) * 4.0;
+
+add(x,y) = x + y;
+
+sum(a) = array.fold(add,a);
