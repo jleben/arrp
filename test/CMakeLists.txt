@@ -19,6 +19,7 @@ add_custom_target(tests)
 add_subdirectory(exe)
 add_subdirectory(common)
 add_subdirectory(unit)
+add_subdirectory(library)
 add_subdirectory(apps)
 
 set(ARRP_COMPILER ${CMAKE_BINARY_DIR}/compiler/arrp)
