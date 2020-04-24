@@ -1,8 +1,0 @@
-module math;
-import array;
-
-pi = 3.14159265359;
-
-add(x,y) = x + y;
-
-sum(a) = array.fold(add,a);

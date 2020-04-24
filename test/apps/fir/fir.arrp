@@ -4,14 +4,11 @@ import array;
 import math;
 import signal;
 
-input coefs : [3]real64;
+output main = signal.fir((3,2,1), [n] -> n);
 
-fir(k) =
-  array.map((w) -> math.sum(w*k)) . signal.win(#k,1);
-
-output main = fir(coefs, [n] -> n);
-
-...? [~]real64
+...? [~]int
+...? 0
+...? 3
 ...? 8
 ...? 14
 ...? 20

@@ -1,17 +1,12 @@
 import signal as sig;
 
 lp(a,x) = y where {
-  y = a*x + (1-a) * sig.delay(0,y);
+  y = a*x + (1-a) * sig.delay(0,1,y);
 };
 
 ... Test signal: 3 harmonics
 
-signal = sine(f) where 
-{
-    sine(f) = [t] -> sin(f*t*2*pi);
-    f = [i:3] -> (2*i+1)*0.02;
-    pi = atan(1)*4;
-};
+signal = [t,i:3] -> signal.sine((2*i+1)*0.02, 0.0)[t];
 
 output main = lp(0.4, signal);
 

@@ -2,26 +2,11 @@ import signal;
 import array;
 import math;
 
-input coefs_a : [2]real64;
-input coefs_b : [3]real64;
-
-delay(v,d,x) = y where y[i] = {
-    v,      if i < d;
-    x[i-d], otherwise
-};
-
-
-convolve(h,x) =
-  let f(w) = math.sum(h * array.reverse(w)) in
-    array.map(f, signal.win(#h,1,x));
-
-iir(aa,bs,x) = y where {
-    y = convolve(bs, delay(0,#bs-1,x)) -
-        convolve(aa, delay(0,#aa,y));
-};
-
 x = [t] -> t;
-output main = iir(coefs_a, coefs_b, x);
+coefs_a = 1/(1, 2);
+coefs_b = 1/(1, 2, 3);
+
+output main = signal.iir(coefs_a, coefs_b, x);
 
 ...? [~]real64
 ...? 0.000

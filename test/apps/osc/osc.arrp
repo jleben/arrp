@@ -2,8 +2,6 @@ module osc;
 
 import signal;
 
-... FIXME: 'signal.sine(0.1, 0)' gives error "No type satisfying constraints" in signal.phase.
-
 output main = signal.sine(0.1, 0.0);
 
 ...? [~]real64
