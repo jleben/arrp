@@ -1,9 +1,8 @@
 #include "platform.hpp"
 #include "../common/error.hpp"
+#include <mach-o/dyld.h>
 
-#include <stdlib.h>
-#include <string.h>
-#include <string>
+#include <vector>
 
 using namespace std;
 
@@ -24,7 +23,7 @@ string path_dir(const string & path)
     return path.substr(0, last_sep);
 }
 
-class linux_platform : public platform
+class macos_platform : public platform
 {
     string executable_path() override;
     string builtin_import_path() override;
@@ -32,22 +31,28 @@ class linux_platform : public platform
 
 platform * get_platform()
 {
-    static linux_platform p;
+    static macos_platform p;
     return &p;
 }
 
-string linux_platform::executable_path()
+string macos_platform::executable_path()
 {
-    char * path_c = realpath("/proc/self/exe", nullptr);
+    uint32_t size = 1024;
+    vector<char> buf(size);
 
-    if (!path_c)
+    int error = _NSGetExecutablePath(buf.data(), &size);
+    if (error)
     {
-        int e = errno;
-        throw stream::error(string("Could not resolve /proc/self/exe: ") + strerror(e));
+        // 'size' was updated to required size.
+        buf.resize(size);
+        error = _NSGetExecutablePath(buf.data(), &size);
+        if (error)
+        {
+            throw stream::error("_NSGetExecutablePath failed twice.");
+        }
     }
 
-    string path(path_c);
-    free(path_c);
+    string path(buf.data(), size);
 
     string dir_path = path_dir(path);
     if (dir_path.empty())
@@ -58,7 +63,7 @@ string linux_platform::executable_path()
     return dir_path;
 }
 
-string linux_platform::builtin_import_path()
+string macos_platform::builtin_import_path()
 {
     string exe_path = executable_path();
     return exe_path + "/../lib/arrp/library";
