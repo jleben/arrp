@@ -1,8 +1,8 @@
-Introduction
-############
+Arrp
+####
 
 Arrp is a functional programming language for digital signal processing.
-This project provides a compiler for Arrp.
+This project provides a compiler and a standard library for Arrp.
 
 For more information on the language Arrp, visit the `Arrp website`_.
 
@@ -124,8 +124,8 @@ After installation, the Arrp compiler executable is located at ``CMAKE_INSTALL_P
 Running tests
 =============
 
-1. Build and install the compiler.
-1. Run tests using: ``ctest``
+#. Build and install the compiler as described in the previous section.
+#. Run tests using ``ctest`` in the build directory.
 
 
 Options
