@@ -280,7 +280,8 @@ int main(int argc, char *argv[])
     args.add_option({"io-atomic", "", "", "Input and output singular elements."},
                     new switch_option(&opt.atomic_io, true));
 
-    args.add_option({"interface", "", "", "Interface type: cpp (default), stdio, jack, puredata"},
+    args.add_option({"interface", "", "",
+                     "Interface type: cpp (default), stdio, jack, puredata, vst3"},
                     new string_option(&opt.interface_type));
 
     args.add_option({"output", "o", "", "Base name for outputs."},

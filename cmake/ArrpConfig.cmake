@@ -126,3 +126,44 @@ function(arrp_to_pd name arrp_source)
   add_dependencies(${name} ${name}-arrp-outputs)
 
 endfunction()
+
+
+function(arrp_to_vst3 name arrp_source)
+
+  find_library(PCL_LIBRARY pcl)
+
+  set(kernel_h ${name}.h)
+  set(processor_cpp ${name}-vst3.cpp)
+  set(factory_cpp ${name}-factory.cpp)
+
+  configure_file(${ARRP_INCLUDE_DIR}/arrp/vst3/factory_template.cpp ${factory_cpp})
+
+  add_custom_command(
+    OUTPUT
+      ${kernel_h}
+      ${processor_cpp}
+    DEPENDS
+      ${arrp_source}
+    COMMAND ${ARRP_EXECUTABLE}
+    ARGS
+      ${CMAKE_CURRENT_SOURCE_DIR}/${arrp_source}
+      --io-common-clock
+      --interface vst3
+      --output ${name}
+  )
+
+  #add_custom_target(${name}-arrp-outputs DEPENDS ${processor_cpp} ${factory_cpp})
+
+  smtg_add_vst3plugin(${name} ${processor_cpp} ${factory_cpp})
+  set_target_properties(${name} PROPERTIES ${SDK_IDE_MYPLUGINS_FOLDER})
+  target_include_directories(${name} PRIVATE ${ARRP_INCLUDE_DIR})
+  target_link_libraries(${name} PRIVATE base sdk ${PCL_LIBRARY})
+
+  # FIXME: Provide these resources:
+  if(SMTG_MAC)
+      smtg_set_bundle(${target} INFOPLIST "${CMAKE_CURRENT_LIST_DIR}/resource/Info.plist" PREPROCESS)
+  elseif(SMTG_WIN)
+      target_sources(${target} PRIVATE resource/plug.rc)
+  endif()
+
+endfunction()

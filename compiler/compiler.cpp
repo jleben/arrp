@@ -45,6 +45,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include "../interface/raw/generator.h"
 #include "../interface/jack/generator.h"
 #include "../interface/puredata/generate.h"
+#include "../interface/vst3/generate.h"
 #include "../utility/filesystem.hpp"
 #include "../utility/subprocess.hpp"
 
@@ -460,6 +461,12 @@ result::code compile_module
                     pd_opt.pd_object_name = "arrp_" + main_module->name;
 
                 arrp::puredata_io::generate(pd_opt, arrp::report());
+            }
+            else if (opts.interface_type == "vst3")
+            {
+                arrp::vst3::options vst3_opt;
+                vst3_opt.base_file_name = output_filename_base;
+                arrp::vst3::generate(vst3_opt, arrp::report());
             }
         }
     }
