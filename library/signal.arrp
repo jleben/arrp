@@ -12,7 +12,15 @@ delay(v,d,x) = y where y[i] = {
     x[i-d], otherwise
 };
 
+prev(v,x) = y where {
+  y[0] = v;
+  y[n] = x[n-1];
+};
+
 window(size,hop,x) = [t] -> [k:size] -> x[t*hop + k];
+
+hold_while(condition, x) = y where
+  y = if condition then prev(x[0], x) else x;
 
 
 -- Generators
@@ -37,6 +45,19 @@ triangle(freq, start_phase) =
 square(freq, start_phase) =
   let ph = phase(freq, start_phase) in
     floor(ph * 2) * 2 - 1;
+
+pulse(rate) = y where
+{
+  p = phase(abs(rate), 0.0);
+  y = if prev(1.0, p) > p then 1.0 else 0.0;
+};
+
+pulse_width(rate, width) = y where
+{
+  p = phase(abs(rate), 0.0);
+  w = hold_while(prev(0.0, p) <= p, width);
+  y = if p >= w then 0.0 else 1.0;
+};
 
 
 -- Filters
