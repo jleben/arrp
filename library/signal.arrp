@@ -1,4 +1,5 @@
 module signal;
+
 import array;
 import math;
 
@@ -71,4 +72,12 @@ iir(aa,bs,x) = y where {
         convolve(aa, delay(0,#aa,y));
 };
 
-fir(h) = convolve(h) . delay(0,#h-1)
+fir(h) = convolve(h) . delay(0,#h-1);
+
+one_pole(a,x) = y where y = (1-abs(a))*x - a * prev(0.0, y);
+
+-- r: rate in [0,1]
+line(r,x) = y where {
+  y1 = prev(0.0,y);
+  y = if x > y1 then min(x, y1+r) else max(x, y1-r);
+};
