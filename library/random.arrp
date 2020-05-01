@@ -1,0 +1,9 @@
+module random;
+
+-- Assuming 32 bit signed integers with wrapping overflow.
+-- Produces values in the entire range.
+
+linear_congruential_stream(seed) = y where {
+  y[0] = int(seed);
+  y[n] = 22695477 * y[n-1] + 1;
+}

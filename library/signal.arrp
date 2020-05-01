@@ -2,6 +2,7 @@ module signal;
 
 import array;
 import math;
+import random;
 
 ... FIXME: The following definition fails type checking if a has size [~,3]:
 ... delay(v,a) = v ++ a;
@@ -60,6 +61,7 @@ pulse_width(rate, width) = y where
   y = if p >= w then 0.0 else 1.0;
 };
 
+white_noise(seed) = real64(random.linear_congruential_stream(seed)) / 2147483648.0;
 
 -- Filters
 
