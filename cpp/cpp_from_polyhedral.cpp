@@ -73,14 +73,6 @@ static expression_ptr to_real32(expression_ptr e, primitive_type t)
         return cast(float_type(), e);
 }
 
-static expression_ptr to_int32(expression_ptr e, primitive_type t)
-{
-    if (t == primitive_type::integer)
-        return e;
-    else
-        return cast(int_type(), e);
-}
-
 static expression_ptr to_type(expression_ptr e, primitive_type a, primitive_type r)
 {
     if (a == r)
@@ -137,7 +129,10 @@ expression_ptr cpp_from_polyhedral::generate_expression
     }
     else if ( auto const_int = dynamic_cast<functional::int_const*>(expr.get()) )
     {
-        result = literal(const_int->value);
+        if (const_int->is_signed())
+            result = literal(const_int->signed_value());
+        else
+            result = literal(const_int->unsigned_value());
     }
     else if ( auto const_double = dynamic_cast<functional::constant<double>*>(expr.get()) )
     {
@@ -290,7 +285,7 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         }
         else if (expr->kind == primitive_op::divide)
         {
-            if ( lhs_t == t::integer && rhs_t == t::integer )
+            if (is_integer(lhs_t) && is_integer(rhs_t))
             {
                 lhs = cast(double_type(), lhs);
             }
@@ -337,8 +332,8 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     case primitive_op::divide_integer:
     {
         auto result = make_shared<bin_op_expression>(op::div, operands[0], operands[1]);
-        if ( prim_type(expr->operands[0]) == primitive_type::integer &&
-             prim_type(expr->operands[1]) == primitive_type::integer )
+        if ( is_integer(prim_type(expr->operands[0])) &&
+             is_integer(prim_type(expr->operands[1])) )
         {
             return result;
         }
@@ -358,13 +353,13 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     }
     case primitive_op::floor:
     {
-        if (prim_type(expr->operands[0]) == primitive_type::integer)
+        if (is_integer(prim_type(expr->operands[0])))
             return operands[0];
         return make_shared<call_expression>("floor", operands[0]);
     }
     case primitive_op::ceil:
     {
-        if (prim_type(expr->operands[0]) == primitive_type::integer)
+        if (is_integer(prim_type(expr->operands[0])))
             return operands[0];
         return make_shared<call_expression>("ceil", operands[0]);
     }
@@ -404,7 +399,11 @@ expression_ptr cpp_from_polyhedral::generate_primitive
     }
     case primitive_op::exp2:
     {
-        return make_shared<call_expression>("exp2", operands[0]);
+        auto arg_t = prim_type(expr->operands[0]);
+        expression_ptr result = make_shared<call_expression>("exp2", operands[0]);
+        if (is_integer(arg_t))
+            result = cast(type_for(arg_t), result);
+        return result;
     }
     case primitive_op::sqrt:
     {
@@ -446,9 +445,38 @@ expression_ptr cpp_from_polyhedral::generate_primitive
         auto method = binop(op::member_of_reference, operands[0], method_id);
         return call(method, {});
     }
-    case primitive_op::to_integer:
+    case primitive_op::to_int8:
     {
-        return to_int32(operands[0], expr->operands[0]->type->scalar()->primitive);
+        return cast(btype("int8_t"), operands[0]);
+    }
+    case primitive_op::to_uint8:
+    {
+        return cast(btype("uint8_t"), operands[0]);
+    }
+    case primitive_op::to_int16:
+    {
+        return cast(btype("int16_t"), operands[0]);
+    }
+    case primitive_op::to_uint16:
+    {
+        return cast(btype("uint16_t"), operands[0]);
+    }
+    case primitive_op::to_int:
+    case primitive_op::to_int32:
+    {
+        return cast(btype("int32_t"), operands[0]);
+    }
+    case primitive_op::to_uint32:
+    {
+        return cast(btype("uint32_t"), operands[0]);
+    }
+    case primitive_op::to_int64:
+    {
+        return cast(btype("int64_t"), operands[0]);
+    }
+    case primitive_op::to_uint64:
+    {
+        return cast(btype("uint64_t"), operands[0]);
     }
     case primitive_op::to_real32:
     {

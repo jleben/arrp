@@ -77,8 +77,6 @@ private:
     expr_ptr do_func_comp(ast::node_ptr);
     expr_ptr do_type_expr(ast::node_ptr);
 
-    primitive_type primitive_type_for_name(const string &);
-
     string qualified_name(const string & name);
 
     code_location location_in_module(ast::node_ptr node)

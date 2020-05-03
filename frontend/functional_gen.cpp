@@ -29,7 +29,15 @@ unordered_map<string, primitive_op> generator::m_prim_ops =
     { "max", primitive_op::max },
     { "real", primitive_op::real },
     { "imag", primitive_op::imag },
-    { "int", primitive_op::to_integer },
+    { "int", primitive_op::to_int },
+    { "int8", primitive_op::to_int8 },
+    { "uint8", primitive_op::to_uint8 },
+    { "int16", primitive_op::to_int16 },
+    { "uint16", primitive_op::to_uint16 },
+    { "int32", primitive_op::to_int32 },
+    { "uint32", primitive_op::to_uint32 },
+    { "int64", primitive_op::to_int64 },
+    { "uint64", primitive_op::to_uint64 },
     { "real32", primitive_op::to_real32 },
     { "real64", primitive_op::to_real64 },
     { "complex32", primitive_op::to_complex32 },
@@ -370,8 +378,8 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     {
         if (auto b = dynamic_pointer_cast<ast::leaf_node<bool>>(root))
             return make_shared<bool_const>(b->value, location_in_module(root->location));
-        else if(auto i = dynamic_pointer_cast<ast::leaf_node<int>>(root))
-            return make_shared<int_const>(i->value, location_in_module(root->location));
+        else if(auto i = dynamic_pointer_cast<ast::const_int>(root))
+            return make_unsigned_int(i->value, location_in_module(root->location), make_int_type());
         else if(auto d = dynamic_pointer_cast<ast::leaf_node<double>>(root))
             return make_shared<real_const>(d->value, location_in_module(root->location));
         else if (auto c = dynamic_pointer_cast<ast::leaf_node<complex<double>>>(root))
@@ -720,7 +728,7 @@ generator::do_array_pattern(ast::node_ptr root)
                         (e.what(), location_in_module(index_node->location));
             }
         }
-        else if(auto literal_int = dynamic_pointer_cast<ast::leaf_node<int>>(index_node))
+        else if(auto literal_int = dynamic_pointer_cast<ast::const_int>(index_node))
         {
             i.is_fixed = true;
             i.value = literal_int->value;
@@ -928,25 +936,6 @@ expr_ptr generator::do_type_expr(ast::node_ptr root)
     result->location = location_in_module(root->location);
 
     return result;
-}
-
-primitive_type generator::primitive_type_for_name(const string & name)
-{
-    static unordered_map<string, primitive_type> map =
-    {
-        { "bool", primitive_type::boolean },
-        { "int", primitive_type::integer },
-        { "real32", primitive_type::real32 },
-        { "real64", primitive_type::real64 },
-        { "complex32", primitive_type::complex32 },
-        { "complex64", primitive_type::complex64 },
-    };
-
-    auto m = map.find(name);
-    if (m == map.end())
-        return primitive_type::undefined;
-    else
-        return m->second;
 }
 
 string generator::qualified_name(const string & name)

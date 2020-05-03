@@ -53,9 +53,7 @@ expr_ptr make_ref(id_ptr id)
 
 expr_ptr make_int(int v)
 {
-    auto r = make_shared<int_const>(v);
-    r->type = make_int_type();
-    return r;
+    return make_signed_int(v);
 }
 
 expr_ptr empty_set()
@@ -584,7 +582,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
             bounds = make_shared<primitive>
                     (primitive_op::compare_eq,
                      make_shared<reference>(arr->vars.front()),
-                     make_shared<int_const>(current_index));
+                     make_int(current_index));
         }
         else
         {
@@ -592,7 +590,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                     make_shared<primitive>
                     (primitive_op::compare_geq,
                      make_shared<reference>(arr->vars.front()),
-                     make_shared<int_const>(current_index));
+                     make_int(current_index));
             if (current_size == -1)
             {
                 bounds = lb;
@@ -603,7 +601,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                         make_shared<primitive>
                         (primitive_op::compare_leq,
                          make_shared<reference>(arr->vars.front()),
-                         make_shared<int_const>(current_index + current_size - 1));
+                         make_int(current_index + current_size - 1));
                 bounds = make_shared<primitive>
                         (primitive_op::logic_and, lb, ub);
             }
@@ -687,9 +685,7 @@ expr_ptr array_reducer::reduce(std::shared_ptr<operation> op)
                         (arr->vars.front(), location_type(), make_int_type());
                 if (current_index > 0)
                 {
-                    auto offset =
-                            make_shared<int_const >
-                            (current_index, location_type(), make_int_type());
+                    auto offset = make_int(current_index);
 
                     first_arg = make_shared<primitive>
                             (primitive_op::subtract, first_arg, offset);
@@ -849,7 +845,7 @@ vector<int> array_reducer::array_size(std::shared_ptr<array> arr)
     {
         if (auto c = dynamic_pointer_cast<int_const>(var->range.expr))
         {
-            s.push_back(c->value);
+            s.push_back(c->signed_value());
         }
         else
         {
@@ -870,7 +866,7 @@ vector<array_var_ptr> array_reducer::make_array_vars(const array_size_vec & size
         if (dim_size == array_var::unconstrained)
             range = make_shared<infinity>();
         else
-            range = make_shared<int_const>(dim_size, location_type(), make_int_type());
+            range = make_int(dim_size);
         auto v = make_shared<array_var>(range, location_type());
         vars.push_back(v);
     }
@@ -889,7 +885,7 @@ array_reducer::broadcast(const vector<array_var_ptr> & vars, const array_size_ve
     for (int d = 0; d < size.size(); ++d)
     {
         if (size[d] == 1)
-            args.push_back(make_shared<int_const>(0));
+            args.push_back(make_int(0));
         else
             args.push_back(make_shared<reference>(vars[d], location_type(), make_int_type()));
     }

@@ -10,7 +10,7 @@ a + b + x where
 
 output main = f(2);
 
-...? [~]int
+...? [~]int32
 ...? 3
 ...? 7
 ...? 15

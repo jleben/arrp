@@ -1,9 +1,11 @@
 #include "generator.h"
 #include "../../common/error.hpp"
+#include "../../common/primitives.hpp"
 #include "../../extra/json/json.hpp"
 #include "../../extra/arguments/arguments.hpp"
 #include "../../utility/subprocess.hpp"
 #include "../../utility/debug.hpp"
+#include "../../cpp/cpp_target.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -97,21 +99,10 @@ string io_function(const json & channel, int index, bool is_input, bool raw)
     return function.str();
 }
 
-string cpp_type_for_arrp_type(const string & type)
+string cpp_type_for_arrp_type(const string & type_name)
 {
-    if (type == "bool")
-        return "bool";
-    if (type == "int")
-        return "int";
-    if (type == "real32")
-        return "float";
-    if (type == "real64")
-        return "double";
-    if (type == "complex32")
-        return "complex<float>";
-    if (type == "complex64")
-        return "complex<double>";
-    return string();
+    auto type = stream::primitive_type_for_name(type_name);
+    return stream::cpp_gen::type_name_for(type);
 }
 
 void write_channel_func(ostream & text, const nlohmann::json & channel, bool is_input)

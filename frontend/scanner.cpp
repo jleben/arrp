@@ -1086,13 +1086,18 @@ case 65:
 YY_RULE_SETUP
 #line 109 "scanner.l"
 {
-  *yylval = ast::make_const( *yylloc, std::stoi(yytext) );
+  try {
+    *yylval = ast::make_const( *yylloc, std::uint64_t(std::stoull(yytext)) );
+  } catch (std::out_of_range &) {
+    // FIXME: report error: value is too large.
+    throw;
+  }
   return parser::token::INT;
 }
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 113 "scanner.l"
+#line 118 "scanner.l"
 {
   *yylval = ast::make_qualified_id( *yylloc, yytext );
   return parser::token::QUALIFIED_ID;
@@ -1100,7 +1105,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 117 "scanner.l"
+#line 122 "scanner.l"
 {
   *yylval = ast::make_id( *yylloc, yytext );
   return parser::token::ID;
@@ -1108,7 +1113,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 121 "scanner.l"
+#line 126 "scanner.l"
 {
   *yylval = ast::make_const( *yylloc, std::string(yytext) );
   return parser::token::STRING;
@@ -1116,15 +1121,15 @@ YY_RULE_SETUP
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 126 "scanner.l"
+#line 131 "scanner.l"
 { return parser::token::INVALID; }
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 127 "scanner.l"
+#line 132 "scanner.l"
 ECHO;
 	YY_BREAK
-#line 1128 "scanner.cpp"
+#line 1133 "scanner.cpp"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2088,4 +2093,4 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 127 "scanner.l"
+#line 132 "scanner.l"

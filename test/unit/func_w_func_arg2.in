@@ -2,5 +2,5 @@ f(x) = x + 1;
 g(a) = h(3) where h = a;
 output main = g(f);
 
-...? int
+...? int32
 ...? 4

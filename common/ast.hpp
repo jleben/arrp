@@ -201,6 +201,8 @@ struct leaf_node : public node
     bool is_leaf() { return true; }
 };
 
+using const_int = leaf_node<uint64_t>;
+
 inline list_node *node::as_list()
 {
     assert(is_list());

@@ -302,7 +302,7 @@ expr_ptr type_checker::visit(const expr_ptr & expr)
 
 expr_ptr type_checker::visit_int(const shared_ptr<int_const> & expr)
 {
-    assign(expr, make_shared<scalar_type>(primitive_type::integer));
+    assign(expr, make_int_type());
     return expr;
 }
 
@@ -393,7 +393,7 @@ expr_ptr type_checker::visit_ref(const shared_ptr<reference> & ref)
     }
     else if (auto avar = dynamic_pointer_cast<array_var>(ref->var))
     {
-        assign(ref, make_shared<scalar_type>(primitive_type::integer));
+        assign(ref, make_int_type());
         return ref;
     }
     else
@@ -897,7 +897,7 @@ void type_checker::process_array(const shared_ptr<array> & arr)
 
             if (max_index.is_integer())
             {
-                var->range = make_shared<int_const>(max_index.integer() + 1);
+                var->range = make_signed_int(max_index.integer() + 1);
             }
             else if (max_index.is_pos_infinity())
             {
@@ -916,8 +916,8 @@ void type_checker::process_array(const shared_ptr<array> & arr)
 
     for (auto & var : arr->vars)
     {
-        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
-            size.push_back(c->value);
+        if (auto c = dynamic_pointer_cast<int_const>(var->range.expr))
+            size.push_back(c->signed_value());
         else
             size.push_back(-1);
     }
@@ -965,12 +965,12 @@ void type_checker::check_array_variables(const shared_ptr<array> & arr)
 
         var->range = visit(var->range);
 
-        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
+        if (auto c = dynamic_pointer_cast<int_const>(var->range.expr))
         {
-            if (c->value < 1)
+            if (c->signed_value() < 1)
             {
                 ostringstream msg;
-                msg << "Array size not positive (" <<  c->value << ")";
+                msg << "Array size not positive (" <<  c->signed_value() << ")";
                 throw type_error(msg.str(), var->range.location);
             }
         }
@@ -1051,9 +1051,9 @@ isl::set type_checker::array_var_bounds(const shared_ptr<array> & arr)
 
         domain.add_constraint(space.var(j) >= 0);
 
-        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
+        if (auto c = dynamic_pointer_cast<int_const>(var->range.expr))
         {
-            domain.add_constraint(space.var(j) < int(c->value));
+            domain.add_constraint(space.var(j) < int(c->signed_value()));
         }
     }
 
@@ -1084,9 +1084,9 @@ expr_ptr type_checker::visit_array_self_ref(const shared_ptr<array_self_ref> & s
 
     for (auto & var : arr->vars)
     {
-        if (auto c = dynamic_pointer_cast<constant<int>>(var->range.expr))
+        if (auto c = dynamic_pointer_cast<int_const>(var->range.expr))
         {
-            size.push_back(c->value);
+            size.push_back(c->signed_value());
         }
         else
         {
@@ -1155,7 +1155,7 @@ expr_ptr type_checker::visit_array_app(const shared_ptr<array_app> & app)
             throw type_error("Array argument is not a scalar.",
                               arg.location);
         }
-        if (arg_type->primitive != primitive_type::integer)
+        if (not is_integer(arg_type->primitive))
         {
             throw type_error("Array argument is not an integer.",
                                arg.location);
@@ -1229,7 +1229,7 @@ expr_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
 
     if (as->object->type->is_scalar())
     {
-        return make_shared<int_const>(1, location_type());
+        return make_signed_int(1);
     }
 
     if (!as->object->type->is_array())
@@ -1248,11 +1248,11 @@ expr_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
 
     if (as->dimension)
     {
-        auto dim_const = dynamic_pointer_cast<constant<int>>(as->dimension.expr);
+        auto dim_const = dynamic_pointer_cast<int_const>(as->dimension.expr);
         if (!dim_const)
             throw type_error("Not an integer constant.", as->dimension.location);
 
-        dim = dim_const->value;
+        dim = dim_const->signed_value();
         if (dim < 1)
         {
             ostringstream msg;
@@ -1270,7 +1270,7 @@ expr_ptr type_checker::visit_array_size(const shared_ptr<array_size> & as)
         size = 1;
 
     if (size >= 0)
-        return make_shared<int_const>(size, as->location);
+        return make_signed_int(size, as->location);
     else
         return make_shared<infinity>(as->location);
 }
@@ -1351,7 +1351,7 @@ expr_ptr type_checker::visit_array_type(const shared_ptr<array_type_expr> & e)
 
         if (auto ci = dynamic_pointer_cast<int_const>(size_expr.expr))
         {
-            auto v = ci->value;
+            int64_t v = ci->signed_value();
             if (v < 0)
                 throw type_error("Array size must be positive.", size_expr.location);
             size.push_back(v);

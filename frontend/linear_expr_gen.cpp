@@ -10,9 +10,9 @@ namespace functional {
 
 linexpr to_linear_expr(expr_ptr e)
 {
-    if (auto c = dynamic_pointer_cast<constant<int>>(e))
+    if (auto c = dynamic_pointer_cast<int_const>(e))
     {
-        return linexpr(c->value);
+        return linexpr(c->signed_value());
     }
     else if (auto ref = dynamic_pointer_cast<reference>(e))
     {
@@ -62,8 +62,8 @@ linexpr maximum(const linexpr & expr)
         {
             auto avar = dynamic_pointer_cast<array_var>(term.first);
             assert(avar);
-            if (auto c = dynamic_pointer_cast<constant<int>>(avar->range.expr))
-                value *= std::max(0, c->value - 1);
+            if (auto c = dynamic_pointer_cast<int_const>(avar->range.expr))
+                value *= std::max(0, int(c->signed_value()) - 1);
             else // unconstrained
             {
                 max_expr = max_expr + term;

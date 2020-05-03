@@ -11,15 +11,41 @@ using std::string;
 using std::ostream;
 using std::vector;
 
+// The type 'int' in source language is a synonym for
+// a signed integer type with an implementation-defined size,
+// at least 32 bits.
+
+// The type of integer literals is 'int'. However,
+// the compiler must store literals with a type that can
+// hold the entire combined range of 64 bit signed
+// and unsigned integers.
+
+// By immediately casting a literal to any explicit integer type,
+// it is guaranteed that any value representable in that type will
+// be preserved - e.g. int64(literal).
+
+// NOTE: Order is important to distinguish type groups
 enum class primitive_type
 {
     undefined,
+
     boolean,
-    integer,
+
+    int8,
+    uint8,
+    int16,
+    uint16,
+    int32,
+    uint32,
+    int64,
+    uint64,
+
     real32,
     real64,
+
     complex32,
     complex64,
+
     infinity
 };
 
@@ -38,7 +64,14 @@ inline vector<primitive_type> all_primitive_types()
     using pt = primitive_type;
     auto types = {
         pt::boolean,
-        pt::integer,
+        pt::int8,
+        pt::uint8,
+        pt::int16,
+        pt::uint16,
+        pt::int32,
+        pt::uint32,
+        pt::int64,
+        pt::uint64,
         pt::real32,
         pt::real64,
         pt::complex32,
@@ -48,50 +81,104 @@ inline vector<primitive_type> all_primitive_types()
     return types;
 }
 
-inline vector<primitive_type> all_simple_numeric_types()
+inline
+vector<primitive_type> combine_types(const vector<primitive_type> & a,
+                                     const vector<primitive_type> & b)
+{
+    vector<primitive_type> result;
+    result.reserve(a.size() + b.size());
+    for (auto & x : a)
+        result.push_back(x);
+    for (auto & x : b)
+        result.push_back(x);
+    return result;
+}
+
+inline void add_types(vector<primitive_type> & a, const vector<primitive_type> & b)
+{
+    for (auto & x : b)
+        a.push_back(x);
+}
+
+inline vector<primitive_type> all_integer_types()
 {
     using pt = primitive_type;
     auto types = {
-        pt::integer,
-        pt::real32,
-        pt::real64
+        pt::int8,
+        pt::uint8,
+        pt::int16,
+        pt::uint16,
+        pt::int32,
+        pt::uint32,
+        pt::int64,
+        pt::uint64,
     };
     return types;
+}
+
+inline vector<primitive_type> all_simple_numeric_types()
+{
+    using pt = primitive_type;
+    return combine_types(all_integer_types(), { pt::real32, pt::real64 });
 }
 
 inline vector<primitive_type> all_numeric_types()
 {
     using pt = primitive_type;
-    auto types = {
-        pt::integer,
-        pt::real32,
-        pt::real64,
-        pt::complex32,
-        pt::complex64
-    };
+    vector<pt> types = all_simple_numeric_types();
+    types.push_back(pt::complex32);
+    types.push_back(pt::complex64);
     return types;
 }
+
+inline bool is_real(primitive_type t)
+{ return t == primitive_type::real32 or t == primitive_type::real64; }
 
 template<primitive_type> bool is_real() { return false; }
 template<> inline bool is_real<primitive_type::real32>() { return true; }
 template<> inline bool is_real<primitive_type::real64>() { return true; }
 
-template<primitive_type> bool is_integer() { return false; }
-template<> inline bool is_integer<primitive_type::integer>() { return true; }
+inline
+bool is_integer(primitive_type t)
+{
+    return t >= primitive_type::int8 and t <= primitive_type::uint64;
+}
+template<primitive_type t> bool is_integer() { return is_integer(t); }
+
+inline
+bool is_signed_int(primitive_type t)
+{
+    using pt = primitive_type;
+
+    switch (t)
+    {
+    case pt::int8:
+    case pt::int16:
+    case pt::int32:
+    case pt::int64:
+        return true;
+    default:
+        return false;
+    }
+}
+template<primitive_type> bool is_signed_int() { return false; }
+template<> inline bool is_signed_int<primitive_type::int8>() { return true; }
+template<> inline bool is_signed_int<primitive_type::int16>() { return true; }
+template<> inline bool is_signed_int<primitive_type::int32>() { return true; }
+template<> inline bool is_signed_int<primitive_type::int64>() { return true; }
+
+
+inline bool is_complex(primitive_type t)
+{ return t == primitive_type::complex32 or t == primitive_type::complex64; }
 
 template<primitive_type> bool is_complex() { return false; }
 template<> inline bool is_complex<primitive_type::complex32>() { return true; }
 template<> inline bool is_complex<primitive_type::complex64>() { return true; }
 
-inline bool is_complex(primitive_type t)
+
+inline bool is_numeric(primitive_type t)
 {
-    switch(t) {
-    case primitive_type::complex32:
-    case primitive_type::complex64:
-        return true;
-    default:
-        return false;
-    }
+    return is_integer(t) or is_real(t) or is_complex(t);
 }
 
 primitive_type primitive_type_for_name(const string &);
@@ -133,7 +220,16 @@ enum class primitive_op
     real,
     imag,
 
-    to_integer,
+    to_int,
+    to_int8,
+    to_uint8,
+    to_int16,
+    to_uint16,
+    to_int32,
+    to_uint32,
+    to_int64,
+    to_uint64,
+
     to_real32,
     to_real64,
     to_complex32,
@@ -157,25 +253,14 @@ enum class primitive_op
 
 string name_of_primitive( primitive_op op );
 
-struct prim_op_overload
-{
-    prim_op_overload() {}
-    prim_op_overload(std::initializer_list<primitive_type> l):
-        types(l) {}
-    vector<primitive_type> types;
-};
-
-vector<prim_op_overload> overloads(primitive_op);
-
 struct ambiguous_type {};
 struct no_type {};
 
 primitive_type result_type(primitive_op, vector<primitive_type> & args);
 
-primitive_type common_type(primitive_type, primitive_type);
-
 primitive_type common_type(const vector<primitive_type> & types);
 
+bool operator<(primitive_type a, primitive_type b);
 bool operator<=(primitive_type a, primitive_type b);
 
 inline ostream & operator<<(ostream & s, primitive_op op)
@@ -190,8 +275,22 @@ inline ostream & operator<<(ostream & s, primitive_type t)
     {
     case primitive_type::boolean:
         s << "bool"; break;
-    case primitive_type::integer:
-        s << "int"; break;
+    case primitive_type::int8:
+        s << "int8"; break;
+    case primitive_type::uint8:
+        s << "uint8"; break;
+    case primitive_type::int16:
+        s << "int16"; break;
+    case primitive_type::uint16:
+        s << "uint16"; break;
+    case primitive_type::int32:
+        s << "int32"; break;
+    case primitive_type::uint32:
+        s << "uint32"; break;
+    case primitive_type::int64:
+        s << "int64"; break;
+    case primitive_type::uint64:
+        s << "uint64"; break;
     case primitive_type::real32:
         s << "real32"; break;
     case primitive_type::real64:

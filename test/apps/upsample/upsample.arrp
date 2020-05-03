@@ -9,7 +9,7 @@ signal[t] = 1;
 
 output main = upsample(3,signal);
 
-...? [~]int
+...? [~]int32
 ...? 1
 ...? 0
 ...? 0

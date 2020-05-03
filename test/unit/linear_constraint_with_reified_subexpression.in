@@ -9,7 +9,7 @@ f(N) = y where y[i] = {i, if i < N;  N, otherwise};
 
 output main = [j:3] -> f(j + 3);
 
-...? [~,3]int
+...? [~,3]int32
 ...? (0,0,0)
 ...? (1,1,1)
 ...? (2,2,2)

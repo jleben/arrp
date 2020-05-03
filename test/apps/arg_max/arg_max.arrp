@@ -12,5 +12,5 @@ arg_max(x) = y[#y-1,1]
 
 output main = arg_max((3,0,5,9,4,2));
 
-...? int
+...? int32
 ...? 3
