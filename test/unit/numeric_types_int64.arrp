@@ -1,0 +1,9 @@
+
+-- Max 32bit int is 2^32 = 4294967296
+-- We test a value just beyond that, but not much because
+-- the value is parsed in Python as a 64 bit float.
+
+output y = int64(-10000000000)*int64(2) - int64(10) * int64(5)
+
+...? int64
+...? -20000000050

@@ -1,0 +1,13 @@
+-- We use 12000000000000000000 which is
+-- between 2^63 (max signed 64 bit int) and 2^64 (max unsigned 64 bit int)
+
+-- We divide it to something within 53 bits so we don't loose precision when
+-- when Python tester parses it as float.
+
+-- Problem: g++ warns: "integer constant is so large that it is unsigned"
+-- We should avoid that by explicitly marking the constant as unsigned (the 'u' suffix).
+
+output y = uint64(12000000000000000000) // uint64(10000) + uint64(3) * uint64(50);
+
+...? uint64
+...? 1200000000000150
