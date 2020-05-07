@@ -75,9 +75,10 @@ jobs:
     steps:
 
     - name: Download package as artifact
-      uses: actions/download-artifact@master
+      uses: actions/download-artifact@v2
       with:
         name: debian-package
+        path: debian-package
 
     - name: Test package
       run: |
@@ -164,9 +165,10 @@ jobs:
     steps:
 
     - name: Download package as artifact
-      uses: actions/download-artifact@master
+      uses: actions/download-artifact@v2
       with:
         name: macos-package
+        path: macos-package
 
     - name: Test package
       run: |
