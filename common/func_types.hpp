@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <iostream>
+#include <cstdint>
 
 namespace stream {
 namespace functional {
@@ -77,9 +78,10 @@ inline scalar_type * type::scalar()
     return static_cast<scalar_type*>(this);
 }
 
+#if 1
 inline shared_ptr<scalar_type> make_int_type()
-{ return std::make_shared<scalar_type>(primitive_type::integer); }
-
+{ return std::make_shared<scalar_type>(primitive_type::int32); }
+#endif
 inline type_ptr type::undefined()
 {
     auto t = std::make_shared<scalar_type>(primitive_type::undefined);

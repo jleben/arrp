@@ -26,6 +26,17 @@ public:
     virtual void transfer(T* location, size_t count) = 0;
 };
 
+
+template <typename T>
+struct promoted_int { typedef T type; };
+
+template <>
+struct promoted_int<int8_t> { typedef int type; };
+
+template <>
+struct promoted_int<uint8_t> { typedef int type; };
+
+
 template <typename T>
 class TextInputStream : public AbstractChannel<T>
 {
@@ -39,7 +50,9 @@ public:
     {
         for(size_t i = 0; i < count; ++i)
         {
-            (*d_stream) >> *(location + i);
+            typename promoted_int<T>::type value;
+            (*d_stream) >> value;
+            *(location + i) = value;
         }
     }
 
@@ -60,7 +73,8 @@ public:
     {
         for(size_t i = 0; i < count; ++i)
         {
-            (*d_stream) << *(location + i) << std::endl;
+            typename promoted_int<T>::type value = *(location + i);
+            (*d_stream) << value << std::endl;
         }
     }
 

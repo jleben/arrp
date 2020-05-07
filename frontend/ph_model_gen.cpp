@@ -37,7 +37,7 @@ void polyhedral_gen::make_time_array()
     auto array_domain = isl::set::universe(array_space);
     array_domain.add_constraint(array_space.var(0) >= 0);
 
-    auto ar = make_shared<ph::array>(array_name,  array_domain, primitive_type::integer);
+    auto ar = make_shared<ph::array>(array_name,  array_domain, primitive_type::int32);
     ar->is_infinite = true;
     ar->size = { ph::infinite };
 
@@ -51,8 +51,8 @@ void polyhedral_gen::make_time_array()
         s0_dom.add_constraint(s0_space.var(0) == 0);
 
         auto s0 = make_shared<ph::statement>(s0_dom);
-        auto a0 = access(s0, ar, {make_shared<int_const>(0)}, false, true);
-        s0->expr = make_shared<ph::assignment>(a0, make_shared<int_const>(0));
+        auto a0 = access(s0, ar, { make_signed_int(0) }, false, true);
+        s0->expr = make_shared<ph::assignment>(a0, make_signed_int(0));
 
         m_time_stmts.push_back(s0);
     }
@@ -65,11 +65,11 @@ void polyhedral_gen::make_time_array()
 
         {
             auto t = make_shared<ph::iterator_read>(0);
-            auto t_1 = make_shared<primitive>(primitive_op::subtract, t, make_shared<int_const>(1));
+            auto t_1 = make_shared<primitive>(primitive_op::subtract, t, make_signed_int(1));
             t_1->type = make_int_type();
             auto at_1 = access(s1, ar, {t_1}, true, false);
 
-            auto v = make_shared<primitive>(primitive_op::add, at_1, make_shared<int_const>(1));
+            auto v = make_shared<primitive>(primitive_op::add, at_1, make_signed_int(1));
             v->type = make_int_type();
 
             auto at = access(s1, ar, {make_shared<ph::iterator_read>(0)}, false, true);
@@ -929,9 +929,9 @@ isl::set polyhedral_gen::to_affine_set(expr_ptr e, const space_map & s)
 
 isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & sm)
 {
-    if (auto c = dynamic_pointer_cast<constant<int>>(e))
+    if (auto c = dynamic_pointer_cast<int_const>(e))
     {
-        return sm.space.val(c->value);
+        return sm.space.val(c->signed_value());
     }
     else if (auto ref = dynamic_pointer_cast<reference>(e))
     {
@@ -1001,9 +1001,9 @@ isl::expression polyhedral_gen::to_affine_expr(expr_ptr e, const space_map & sm)
 
 isl::piecewise_expression piecewise_affine_expr_builder::build(expr_ptr e)
 {
-    if (auto c = dynamic_pointer_cast<constant<int>>(e))
+    if (auto c = dynamic_pointer_cast<int_const>(e))
     {
-        auto e = m_space.val(c->value);
+        auto e = m_space.val(c->signed_value());
         return isl_pw_aff_from_aff(e.copy());
     }
     else if (auto ref = dynamic_pointer_cast<reference>(e))

@@ -3,5 +3,5 @@ g(a) = h(a);
 h(b) = b(3);
 output main = g(f);
 
-...? int
+...? int32
 ...? 4

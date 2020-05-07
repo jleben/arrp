@@ -693,6 +693,7 @@ void generate(const string & name,
     cpp_from_polyhedral poly(model, buffers, name_mapper);
     poly.set_move_loop_invariant_code(opt.loop_invariant_code_motion);
 
+    m.members.push_back(make_shared<include_dir>("cstdint"));
     m.members.push_back(make_shared<include_dir>("cmath"));
     m.members.push_back(make_shared<include_dir>("algorithm"));
     m.members.push_back(make_shared<include_dir>("complex"));

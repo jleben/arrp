@@ -3,7 +3,7 @@ input x : [~]int;
 
 output main = [i] -> x[i*2]
 
-...? [~]int
+...? [~]int32
 ...? 0
 ...? 2
 ...? 4

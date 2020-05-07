@@ -6,7 +6,7 @@ fib[1] = 1;
 fib[i] = fib[i-2] + fib[i-1];
 output main = fib;
 
-...? [~]int
+...? [~]int32
 ...? 0
 ...? 1
 ...? 1

@@ -477,9 +477,9 @@ llvm_from_polyhedral::generate_expression
     {
         result = generate_reduction_access(access, index, ctx);
     }
-    else if ( auto const_int = dynamic_cast<constant<int>*>(expr) )
+    else if ( auto const_int = dynamic_cast<int_const*>(expr) )
     {
-        result = value((int32_t) const_int->value);
+        result = value((int32_t) const_int->signed_value());
     }
     else if ( auto const_double = dynamic_cast<constant<double>*>(expr) )
     {

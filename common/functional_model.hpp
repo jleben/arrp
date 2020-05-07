@@ -154,22 +154,69 @@ public:
     {}
 };
 
-class int_const : public constant<int>
+class int_const : public expression
 {
 public:
-    int_const(int v): constant(v)
+    int_const()
     {
-        this->type = make_int_type();
+        set_signed(0);
     }
-    int_const(int v, const location_type & loc, const type_ptr & type = nullptr):
-        constant(v, loc, type)
+
+    explicit int_const(const location_type &loc, const type_ptr &type):
+        expression(loc, type)
     {
-        if (!this->type)
-        {
-            this->type = make_int_type();
-        }
+        set_signed(0);
     }
+
+    void set_signed(int64_t v)
+    {
+        s = v;
+        d_is_signed = true;
+    }
+
+    void set_unsigned(uint64_t v)
+    {
+        u = v;
+        d_is_signed = false;
+    }
+
+    bool is_signed() const { return d_is_signed; }
+
+    int64_t signed_value()
+    {
+        if (is_signed()) return s;
+        else return int64_t(u);
+    }
+
+    uint64_t unsigned_value()
+    {
+        if (not is_signed()) return u;
+        else return uint64_t(s);
+    }
+
+private:
+    union {
+        uint64_t u;
+        int64_t s;
+    };
+    bool d_is_signed = false;
 };
+
+inline std::shared_ptr<int_const> make_signed_int
+(int64_t v, const location_type &loc = location_type(), const type_ptr & t = make_int_type())
+{
+    auto c = std::make_shared<int_const>(loc, t);
+    c->set_signed(v);
+    return c;
+}
+
+inline std::shared_ptr<int_const> make_unsigned_int
+(uint64_t v, const location_type &loc = location_type(), const type_ptr & t = make_int_type())
+{
+    auto c = std::make_shared<int_const>(loc, t);
+    c->set_unsigned(v);
+    return c;
+}
 
 class real_const : public constant<double>
 {

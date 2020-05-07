@@ -106,7 +106,12 @@ blank [ \t]
   return parser::token::REAL;
 }
 [0-9]+ {
-  *yylval = ast::make_const( *yylloc, std::stoi(yytext) );
+  try {
+    *yylval = ast::make_const( *yylloc, std::uint64_t(std::stoull(yytext)) );
+  } catch (std::out_of_range &) {
+    // FIXME: report error: value is too large.
+    throw;
+  }
   return parser::token::INT;
 }
 {id}\.{id} {

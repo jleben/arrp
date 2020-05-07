@@ -221,7 +221,7 @@ int array_size(const array_var_ptr & var)
 {
     if (auto c = dynamic_pointer_cast<int_const>(var->range.expr))
     {
-        return c->value;
+        return c->signed_value();
     }
     else
     {
@@ -318,7 +318,7 @@ expr_ptr array_inflate::visit_ref(const shared_ptr<reference> & e)
         app->args = { expr_slot(arg) };
 
         app->type = e->type;
-        arg->type = make_shared<scalar_type>(stream::primitive_type::integer);
+        arg->type = make_int_type();
         e->type = inflate_type(e->type, m_inflation.substitute_var);
 
         return app;

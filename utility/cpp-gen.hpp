@@ -908,6 +908,16 @@ inline basic_type_ptr int_type()
 {
     return std::make_shared<basic_type>("int");
 }
+inline basic_type_ptr fixed_int_type(int size)
+{
+    return std::make_shared<basic_type>("int" + std::to_string(size));
+}
+
+inline basic_type_ptr btype(const string & name)
+{
+    return std::make_shared<basic_type>(name);
+}
+
 inline basic_type_ptr bool_type()
 {
     return std::make_shared<basic_type>("bool");

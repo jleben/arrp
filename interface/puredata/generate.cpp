@@ -54,13 +54,19 @@ void generate(const options & opt, const nlohmann::json & report)
 
     if (not sample_rate_input.is_null())
     {
-        std::unordered_set<string> valid_types = { "int", "real32", "real64" };
+        std::unordered_set<string> valid_types =
+        { "int32", "uint32", "int64", "uint64", "real64" };
+
         if (not valid_types.count(string(sample_rate_input["type"])) or
             sample_rate_input["is_stream"] or
             sample_rate_input.count("dimensions"))
         {
-            throw stream::error("Input 'samplerate' has invalid type."
-                                " Required 'int' or 'real32' or 'real64'.");
+            ostringstream msg;
+            msg << "Input 'samplerate' has invalid type."
+                << " Required one of:";
+            for (const auto & t : valid_types)
+                msg << " " << t;
+            throw stream::error(msg.str());
         }
     }
 

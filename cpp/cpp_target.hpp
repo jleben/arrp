@@ -63,25 +63,45 @@ struct buffer
 // For verbose output
 struct cpp_target {};
 
-inline basic_type_ptr type_for(primitive_type pt)
+inline
+string type_name_for(primitive_type pt)
 {
     switch(pt)
     {
     case primitive_type::boolean:
-        return std::make_shared<basic_type>("bool");
-    case primitive_type::integer:
-        return std::make_shared<basic_type>("int");
+        return ("bool");
+    case primitive_type::int8:
+        return ("int8_t");
+    case primitive_type::uint8:
+        return ("uint8_t");
+    case primitive_type::int16:
+        return ("int16_t");
+    case primitive_type::uint16:
+        return ("uint16_t");
+    case primitive_type::int32:
+        return ("int32_t");
+    case primitive_type::uint32:
+        return ("uint32_t");
+    case primitive_type::int64:
+        return ("int64_t");
+    case primitive_type::uint64:
+        return ("uint64_t");
     case primitive_type::real32:
-        return std::make_shared<basic_type>("float");
+        return ("float");
     case primitive_type::real64:
-        return std::make_shared<basic_type>("double");
+        return ("double");
     case primitive_type::complex32:
-        return std::make_shared<basic_type>("complex<float>");
+        return ("complex<float>");
     case primitive_type::complex64:
-        return std::make_shared<basic_type>("complex<double>");
+        return ("complex<double>");
     default:
         throw error("Unexpected primitive type.");
     }
+}
+
+inline basic_type_ptr type_for(primitive_type pt)
+{
+    return std::make_shared<basic_type>(type_name_for(pt));
 }
 
 inline int size_for(primitive_type pt)
@@ -89,17 +109,27 @@ inline int size_for(primitive_type pt)
     switch(pt)
     {
     case primitive_type::boolean:
-        return sizeof(bool);
-    case primitive_type::integer:
-        return sizeof(int);
+        return 4;
+    case primitive_type::int8:
+    case primitive_type::uint8:
+        return 1;
+    case primitive_type::int16:
+    case primitive_type::uint16:
+        return 2;
+    case primitive_type::int32:
+    case primitive_type::uint32:
+        return 4;
+    case primitive_type::int64:
+    case primitive_type::uint64:
+        return 8;
     case primitive_type::real32:
-        return sizeof(float);
+        return 32;
     case primitive_type::real64:
-        return sizeof(double);
+        return 64;
     case primitive_type::complex32:
-        return sizeof(std::complex<float>);
+        return 2 * 32;
     case primitive_type::complex64:
-        return sizeof(std::complex<double>);
+        return 2 * 64;
     default:
         throw error("Unexpected primitive type.");
     }

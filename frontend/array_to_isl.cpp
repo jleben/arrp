@@ -82,9 +82,9 @@ isl::set to_affine_set(expr_ptr e, const space_map & s)
 
 isl::expression to_affine_expr(expr_ptr e, const space_map & s)
 {
-    if (auto c = dynamic_pointer_cast<constant<int>>(e))
+    if (auto c = dynamic_pointer_cast<int_const>(e))
     {
-        return s.space.val(c->value);
+        return s.space.val(c->signed_value());
     }
     else if (auto ref = dynamic_pointer_cast<reference>(e))
     {

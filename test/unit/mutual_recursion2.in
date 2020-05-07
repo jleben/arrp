@@ -6,7 +6,7 @@ output main = a + b where
     b[i] = a[i] + 1;
 };
 
-...? [~]int
+...? [~]int32
 ...? 1
 ...? 5
 ...? 13

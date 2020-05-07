@@ -6,7 +6,7 @@ import signal;
 
 output main = signal.fir((3,2,1), [n] -> n);
 
-...? [~]int
+...? [~]int32
 ...? 0
 ...? 3
 ...? 8

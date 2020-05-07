@@ -1,0 +1,5 @@
+
+output y = uint8(100) * uint8(2) - uint8(160) // uint8(10);
+
+...? uint8
+...? 184

@@ -4,6 +4,7 @@
 #include <numeric>
 #include <sstream>
 #include <unordered_map>
+#include <algorithm>
 
 using namespace std;
 
@@ -14,7 +15,17 @@ primitive_type primitive_type_for_name(const string & name)
     static unordered_map<string, primitive_type> map =
     {
         { "bool", primitive_type::boolean },
-        { "int", primitive_type::integer },
+        { "int", primitive_type::int32 },
+        { "int8", primitive_type::int8 },
+        { "uint8", primitive_type::uint8 },
+        { "int16", primitive_type::int16 },
+        { "uint16", primitive_type::uint16 },
+        { "int32", primitive_type::int32 },
+        { "uint32", primitive_type::uint32 },
+        { "int64", primitive_type::int64 },
+        { "uint64", primitive_type::uint64 },
+
+        { "real", primitive_type::real64 },
         { "real32", primitive_type::real32 },
         { "real64", primitive_type::real64 },
         { "complex32", primitive_type::complex32 },
@@ -100,8 +111,24 @@ string name_of_primitive( primitive_op op )
         return "imag";
     case primitive_op::to_real32:
         return "real32";
-    case primitive_op::to_integer:
+    case primitive_op::to_int:
         return "int";
+    case primitive_op::to_int8:
+        return "int8";
+    case primitive_op::to_uint8:
+        return "uint8";
+    case primitive_op::to_int16:
+        return "int16";
+    case primitive_op::to_uint16:
+        return "uint16";
+    case primitive_op::to_int32:
+        return "int32";
+    case primitive_op::to_uint32:
+        return "uint32";
+    case primitive_op::to_int64:
+        return "int64";
+    case primitive_op::to_uint64:
+        return "uint64";
     case primitive_op::to_real64:
         return "real64";
     case primitive_op::to_complex32:
@@ -131,315 +158,250 @@ string name_of_primitive( primitive_op op )
     }
 }
 
-vector<prim_op_overload> overloads(primitive_op op)
+static
+primitive_type map_type(primitive_type in,
+                        const unordered_map<primitive_type, primitive_type> & map)
+{
+    try
+    {
+        return map.at(in);
+    }
+    catch(std::out_of_range&)
+    {
+        throw no_type();
+    }
+}
+
+static
+primitive_type common_integer(const vector<primitive_type> & types)
+{
+    auto ct = common_type(types);
+    if (is_integer(ct))
+        return ct;
+    throw no_type();
+}
+
+static
+primitive_type num_conversion_result(primitive_type requested_type, vector<primitive_type> & args)
+{
+    if (args.size() == 1 and (is_numeric(args[0])))
+        return requested_type;
+    else
+        throw no_type();
+}
+
+static
+void check_num_args(vector<primitive_type> & t, int num)
+{
+    if (t.size() != num)
+        throw no_type();
+}
+
+primitive_type result_type(primitive_op op, vector<primitive_type> & args)
 {
     using pt = primitive_type;
 
-    vector<prim_op_overload> overloads;
+    {
+        bool all_args_undefined =
+                std::all_of(args.begin(), args.end(),
+                            [](pt t){ return t == pt::undefined; });
+
+        if (all_args_undefined)
+            return pt::undefined;
+    }
 
     switch(op)
     {
     case primitive_op::negate:
-        return {
-            { pt::integer, pt::integer },
+    {
+        check_num_args(args, 1);
+        return map_type(args[0], {
+            { pt::int8, pt::int8 },
+            { pt::uint8, pt::int8 },
+            { pt::int16, pt::int16 },
+            { pt::uint16, pt::int16 },
+            { pt::int32, pt::int32 },
+            { pt::uint32, pt::int32 },
+            { pt::int64, pt::int64 },
+            { pt::uint64, pt::int64 },
             { pt::real32, pt::real32 },
             { pt::real64, pt::real64 },
             { pt::complex32, pt::complex32 },
             { pt::complex64, pt::complex64 },
             { pt::boolean, pt::boolean }
-        };
+        });
+    }
     case primitive_op::add:
     case primitive_op::subtract:
     case primitive_op::multiply:
-        return {
-            { pt::integer, pt::integer, pt::integer },
-            { pt::real32, pt::real32, pt::real32 },
-            { pt::real64, pt::real64, pt::real64 },
-            { pt::complex32, pt::complex32, pt::complex32 },
-            { pt::complex64, pt::complex64, pt::complex64 }
-        };
+    {
+        check_num_args(args, 2);
+        auto ct = common_type(args);
+        if (is_numeric(ct))
+            return ct;
+        break;
+    }
     case primitive_op::divide:
-        return {
-            { pt::real32, pt::real32, pt::real32 },
-            { pt::real64, pt::real64, pt::real64 },
-            { pt::complex32, pt::complex32, pt::complex32 },
-            { pt::complex64, pt::complex64, pt::complex64 }
-        };
+    {
+        check_num_args(args, 2);
+        auto ct = common_type(args);
+        if (is_integer(ct))
+            return pt::real64;
+        if (is_real(ct) or is_complex(ct))
+            return ct;
+        break;
+    }
     case primitive_op::divide_integer:
-        return {
-            { pt::integer, pt::integer, pt::integer },
-            { pt::real32, pt::real32, pt::integer },
-            { pt::real64, pt::real64, pt::integer }
-        };
     case primitive_op::modulo:
-        return {
-            { pt::integer, pt::integer, pt::integer }
-        };
     case primitive_op::bitwise_not:
-        return {
-            { pt::integer, pt::integer }
-        };
     case primitive_op::bitwise_and:
     case primitive_op::bitwise_or:
     case primitive_op::bitwise_xor:
     case primitive_op::bitwise_lshift:
     case primitive_op::bitwise_rshift:
-        return {
-            { pt::integer, pt::integer, pt::integer }
-        };
+    {
+        check_num_args(args, 2);
+        return common_integer(args);
+    }
     case primitive_op::raise:
-        return {
-            { pt::integer, pt::integer, pt::integer },
-            { pt::real32, pt::real32, pt::real32 },
-            { pt::real64, pt::real64, pt::real64 },
-        };
+    {
+        check_num_args(args, 2);
+        auto ct = common_type(args);
+        if (is_numeric(ct))
+            return ct;
+        break;
+    }
     case primitive_op::exp:
     case primitive_op::log:
     case primitive_op::log10:
+    case primitive_op::sqrt:
     case primitive_op::sin:
     case primitive_op::cos:
     case primitive_op::tan:
     case primitive_op::asin:
     case primitive_op::acos:
     case primitive_op::atan:
-    case primitive_op::sqrt:
-        return {
-            { pt::real32, pt::real32 },
-            { pt::real64, pt::real64 },
-            { pt::complex32, pt::complex32 },
-            { pt::complex64, pt::complex64 }
-        };
+    {
+        check_num_args(args, 1);
+        auto & a = args[0];
+        if (is_integer(a))
+            return pt::real64;
+        if (is_real(a) or is_complex(a))
+            return a;
+        break;
+    }
     case primitive_op::log2:
-        return {
-            { pt::real32, pt::real32 },
-            { pt::real64, pt::real64 }
-        };
+    {
+        check_num_args(args, 1);
+        auto & a = args[0];
+        if (is_integer(a))
+            return pt::real64;
+        if (is_real(a))
+            return a;
+        break;
+    }
     case primitive_op::exp2:
-        return {
-            { pt::integer, pt::integer },
-            { pt::real32, pt::real32 },
-            { pt::real64, pt::real64 },
-        };
+    {
+        check_num_args(args, 1);
+        auto & a = args[0];
+        if (is_integer(a) or is_real(a))
+            return a;
+    }
     case primitive_op::ceil:
     case primitive_op::floor:
-        return {
-            { pt::integer, pt::integer },
-            { pt::real32, pt::real32 },
-            { pt::real64, pt::real64 }
-        };
     case primitive_op::abs:
-        return {
-            { pt::integer, pt::integer },
-            { pt::real32, pt::real32 },
-            { pt::real64, pt::real64 }
-        };
+    {
+        check_num_args(args, 1);
+        auto & a = args[0];
+        if (is_integer(a) or is_real(a))
+            return a;
+        break;
+    }
     case primitive_op::min:
     case primitive_op::max:
-        return {
-            { pt::integer, pt::integer, pt::integer },
-            { pt::real32, pt::real32, pt::real32 },
-            { pt::real64, pt::real64, pt::real64 }
-        };
+    {
+        check_num_args(args, 2);
+        auto ct = common_type(args);
+        if (is_integer(ct) or is_real(ct))
+            return ct;
+        break;
+    }
     case primitive_op::real:
     case primitive_op::imag:
-        return {
-            { pt::complex32, pt::real32 },
-            { pt::complex64, pt::real64 },
-        };
-    case primitive_op::to_integer:
-        for (auto t : all_simple_numeric_types())
-            overloads.push_back({ t, pt::integer });
+    {
+        check_num_args(args, 1);
+        auto & a = args[0];
+        if (a == pt::complex32)
+            return pt::real32;
+        if (a == pt::complex64)
+            return pt::complex64;
         break;
+    }
+    case primitive_op::to_int8:
+        return num_conversion_result(pt::int8, args);
+    case primitive_op::to_uint8:
+        return num_conversion_result(pt::uint8, args);
+    case primitive_op::to_int16:
+        return num_conversion_result(pt::int16, args);
+    case primitive_op::to_uint16:
+        return num_conversion_result(pt::uint16, args);
+    case primitive_op::to_int:
+    case primitive_op::to_int32:
+        return num_conversion_result(pt::int32, args);
+    case primitive_op::to_uint32:
+        return num_conversion_result(pt::uint32, args);
+    case primitive_op::to_int64:
+        return num_conversion_result(pt::int64, args);
+    case primitive_op::to_uint64:
+        return num_conversion_result(pt::uint64, args);
+
     case primitive_op::to_real32:
-        for (auto t : all_simple_numeric_types())
-            overloads.push_back({ t, pt::real32 });
-        break;
+        return num_conversion_result(pt::real32, args);
     case primitive_op::to_real64:
-        for (auto t : all_simple_numeric_types())
-            overloads.push_back({ t, pt::real64 });
-        break;
+        return num_conversion_result(pt::real64, args);
+
     case primitive_op::to_complex32:
-        for (auto t : all_numeric_types())
-            overloads.push_back({ t, pt::complex32 });
-        break;
+        return num_conversion_result(pt::complex32, args);
     case primitive_op::to_complex64:
-        for (auto t : all_numeric_types())
-            overloads.push_back({ t, pt::complex64 });
-        break;
+        return num_conversion_result(pt::complex64, args);
+
     case primitive_op::compare_eq:
     case primitive_op::compare_neq:
-        return {
-            { pt::integer, pt::integer, pt::boolean },
-            { pt::real32, pt::real32, pt::boolean },
-            { pt::real64, pt::real64, pt::boolean },
-            { pt::complex32, pt::complex32, pt::boolean },
-            { pt::complex64, pt::complex64, pt::boolean },
-        };
+    {
+        check_num_args(args, 2);
+        auto ct = common_type(args);
+        if (is_numeric(ct) or ct == pt::boolean)
+            return pt::boolean;
+        break;
+    }
     case primitive_op::compare_l:
     case primitive_op::compare_g:
     case primitive_op::compare_leq:
     case primitive_op::compare_geq:
-        return {
-            { pt::integer, pt::integer, pt::boolean },
-            { pt::real32, pt::real32, pt::boolean },
-            { pt::real64, pt::real64, pt::boolean }
-        };
+    {
+        check_num_args(args, 2);
+        auto ct = common_type(args);
+        if (is_integer(ct) or is_real(ct))
+            return pt::boolean;
+        break;
+    }
     case primitive_op::logic_and:
     case primitive_op::logic_or:
-        return { { pt::boolean, pt::boolean, pt::boolean } };
+    {
+        check_num_args(args, 2);
+        if (args[0] == pt::boolean and args[1] == pt::boolean)
+            return pt::boolean;
+        break;
+    }
     case primitive_op::conditional:
     {
-        for (auto t : all_primitive_types())
-            overloads.push_back(prim_op_overload({ pt::boolean, t, t, t }));
+        check_num_args(args, 3);
+        if (args[0] == pt::boolean)
+            return common_type( { args[1], args[2] } );
         break;
     }
     default:;
     }
-
-    return overloads;
-}
-
-primitive_type result_type(primitive_op op, vector<primitive_type> & args)
-{
-    // FIXME: we should promote (int/int) to (f64/f64), not (f32/f32),
-    // but still (int/f32) to (f32/f32).
-
-    using type = primitive_type;
-#if 0
-    cout << "Computing result type for: " << op;
-    for (auto & arg : args)
-        cout << " " << arg;
-    cout << endl;
-#endif
-    auto candidates = overloads(op);
-    if (candidates.empty())
-    {
-        ostringstream msg;
-        msg << "No overloads for op: " << op;
-        throw error(msg.str());
-    }
-
-    // If any arg is undefined,
-    // then if all overloads return the same type, return that type,
-    // else return undefined.
-    for (auto & arg : args)
-    {
-        if (arg == type::undefined)
-        {
-            auto t = candidates.front().types.back();
-            for(int c = 1; c < candidates.size(); ++c)
-            {
-                if (candidates[c].types.back() != t)
-                    return type::undefined;
-            }
-            return t;
-        }
-    }
-
-    vector<int> promoted;
-
-    for (int c = 0; c < candidates.size(); ++c)
-    {
-        if (args.size() != candidates[c].types.size() -1)
-            continue;
-
-        bool is_valid = true;
-        bool is_exact = true;
-        for (int i = 0; i < args.size(); ++i)
-        {
-            auto pt = candidates[c].types[i];
-            auto at = args[i];
-            if (pt == at)
-                continue;
-            is_exact = false;
-            is_valid = at <= pt;
-            if (!is_valid)
-                break;
-        }
-        if (is_exact)
-        {
-            return candidates[c].types.back();
-        }
-        if (is_valid)
-        {
-            promoted.push_back(c);
-        }
-    }
-
-    if (promoted.empty())
-    {
-        throw no_type();
-    }
-
-    if (promoted.size() == 1)
-    {
-        return candidates[promoted.front()].types.back();
-    }
-
-#if 0
-    cout << "Multiple promotions for " << op;
-    for(auto & a : args)
-        cout << " " << a;
-    cout << " = " << promoted.size() << endl;
-    for (auto & c : promoted)
-    {
-        for (int p = 0; p < candidates[c].types.size() - 1; ++p)
-        {
-            cout << candidates[c].types[p] << " ";
-        }
-        cout << "-> " << candidates[c].types.back();
-        cout << endl;
-    }
-#endif
-
-    // Check if one overload is the singular bottom of their order
-
-    vector<int> lowest_promoted;
-
-    // FIXME: optimize:
-    for (auto i : promoted)
-    {
-        bool ok = true;
-
-        for(auto j : promoted)
-        {
-            if (j == i)
-                continue;
-
-            for (int k = 0; ok && k < candidates[i].types.size()-1; ++k)
-            {
-                auto a = candidates[i].types[k];
-                auto b = candidates[j].types[k];
-                ok = a <= b;
-            }
-
-            if (!ok)
-                break;
-        }
-
-        if (ok)
-            lowest_promoted.push_back(i);
-    }
-
-    if (lowest_promoted.size() != 1)
-    {
-        throw ambiguous_type();
-    }
-
-    auto result = candidates[lowest_promoted.front()].types.back();
-
-    //cout << "result = " << result << endl;
-
-    return result;
-}
-
-primitive_type common_type(primitive_type t1, primitive_type t2)
-{
-    if (t1 <= t2)
-        return t2;
-
-    if (t2 <= t1)
-        return t1;
 
     throw no_type();
 }
@@ -449,42 +411,69 @@ primitive_type common_type(const vector<primitive_type> & types)
     if (types.empty())
         throw no_type();
 
-    auto accum_func =
-            static_cast<primitive_type(*)(primitive_type,primitive_type)>(&common_type);
+    // Since types form only a partial order,
+    // the top might not be absolute top
+    primitive_type top = *std::max_element(types.begin(), types.end());
 
-    primitive_type type =
-            std::accumulate(types.begin(), types.end(),
-                            primitive_type::undefined,
-                            accum_func);
+    // Check whether top is absolute
+    for (auto & t : types)
+    {
+        if (not (t <= top))
+            throw no_type();
+    }
 
-    return type;
+    return top;
 }
 
-bool operator<=(primitive_type a, primitive_type b)
+bool operator<(primitive_type a, primitive_type b)
 {
-    using t = primitive_type;
+    using pt = primitive_type;
 
-    if (a == b)
-        return true;
-
-    if (a == t::undefined)
+    if (a == pt::undefined)
         return true;
 
     switch(b)
     {
-    case t::infinity:
+    case pt::infinity:
         return false;
-    case t::boolean:
+    case pt::boolean:
         return false;
-    case t::complex64:
-        return a == t::real64 || a == t::integer;
-    case t::complex32:
-        return a == t::real32;
-    case t::real64:
-        return a == t::integer;
-    default:
+    case pt::complex64:
+    {
+        for (auto & t : all_integer_types())
+            if (a == t)
+                return true;
+        return a == pt::real32 || a == pt::real64;
+    }
+    case pt::complex32:
+    {
+        for (auto & t : all_integer_types())
+            if (a == t)
+                return true;
+        return a == pt::real32;
+    }
+    case pt::real64:
+    {
+        for (auto & t : all_integer_types())
+            if (a == t)
+                return true;
+        return a == pt::real32;
+    }
+    case pt::real32:
+    {
+        for (auto & t : all_integer_types())
+            if (a == t)
+                return true;
         return false;
     }
+    default:
+        return (is_signed_int(b) == is_signed_int(a) and int(a) < int(b));
+    }
+}
+
+bool operator<=(primitive_type a, primitive_type b)
+{
+    return a == b or a < b;
 }
 
 }
