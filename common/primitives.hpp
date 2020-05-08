@@ -11,22 +11,21 @@ using std::string;
 using std::ostream;
 using std::vector;
 
+// NOTE: Primitive types:
+
 // The type 'int' in source language is a synonym for
 // a signed integer type with an implementation-defined size,
 // at least 32 bits.
 
-// The type of integer literals is 'int'. However,
-// the compiler must store literals with a type that can
-// hold the entire combined range of 64 bit signed
-// and unsigned integers.
+// Integer literals get a signed integer type by default
+// or an unsigned integer type if suffixed by 'u'.
+// In both cases, the type has at least the size of 'int',
+// or larger if needed to represent the value (up to 64 bits).
 
-// By immediately casting a literal to any explicit integer type,
-// it is guaranteed that any value representable in that type will
-// be preserved - e.g. int64(literal).
-
-// NOTE: Order is important to distinguish type groups
 enum class primitive_type
 {
+    // NOTE: Order is important to distinguish type groups
+
     undefined,
 
     boolean,

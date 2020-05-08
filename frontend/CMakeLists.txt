@@ -39,3 +39,5 @@ set(src
 )
 
 add_library(parser STATIC ${src})
+
+target_link_libraries(parser gmp)

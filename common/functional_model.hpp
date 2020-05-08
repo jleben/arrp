@@ -32,6 +32,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <iostream>
 #include <unordered_set>
 #include <complex>
+#include <gmpxx.h>
 
 namespace stream {
 namespace functional {
@@ -157,53 +158,53 @@ public:
 class int_const : public expression
 {
 public:
-    int_const()
-    {
-        set_signed(0);
-    }
+    int_const():
+        d_value(0)
+    {}
 
-    explicit int_const(const location_type &loc, const type_ptr &type):
-        expression(loc, type)
-    {
-        set_signed(0);
-    }
+    int_const(mpz_class v, const location_type &loc, const type_ptr &type):
+        expression(loc, type),
+        d_value(v)
+    {}
 
-    void set_signed(int64_t v)
+    int_const(const location_type &loc, const type_ptr &type):
+        int_const(0, loc, type) {}
+
+    void set_signed(long v)
     {
-        s = v;
+        d_value = v;
         d_is_signed = true;
     }
 
-    void set_unsigned(uint64_t v)
+    void set_unsigned(unsigned long v)
     {
-        u = v;
+        d_value = v;
         d_is_signed = false;
     }
 
     bool is_signed() const { return d_is_signed; }
 
-    int64_t signed_value()
+    mpz_class value() const { return d_value; }
+
+    string text() const { return d_value.get_str(); }
+
+    long signed_value()
     {
-        if (is_signed()) return s;
-        else return int64_t(u);
+        return d_value.get_si();
     }
 
-    uint64_t unsigned_value()
+    unsigned long unsigned_value()
     {
-        if (not is_signed()) return u;
-        else return uint64_t(s);
+        return d_value.get_ui();
     }
 
 private:
-    union {
-        uint64_t u;
-        int64_t s;
-    };
+    mpz_class d_value;
     bool d_is_signed = false;
 };
 
 inline std::shared_ptr<int_const> make_signed_int
-(int64_t v, const location_type &loc = location_type(), const type_ptr & t = make_int_type())
+(long v, const location_type &loc = location_type(), const type_ptr & t = make_int_type())
 {
     auto c = std::make_shared<int_const>(loc, t);
     c->set_signed(v);
@@ -211,7 +212,7 @@ inline std::shared_ptr<int_const> make_signed_int
 }
 
 inline std::shared_ptr<int_const> make_unsigned_int
-(uint64_t v, const location_type &loc = location_type(), const type_ptr & t = make_int_type())
+(unsigned long v, const location_type &loc = location_type(), const type_ptr & t = make_int_type())
 {
     auto c = std::make_shared<int_const>(loc, t);
     c->set_unsigned(v);

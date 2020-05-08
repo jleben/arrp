@@ -1,6 +1,7 @@
 %{
 #include "scanner_internal.hpp"
 #include <complex>
+#include <gmpxx.h>
 %}
 
 %option c++
@@ -106,12 +107,13 @@ blank [ \t]
   return parser::token::REAL;
 }
 [0-9]+ {
-  try {
-    *yylval = ast::make_const( *yylloc, std::uint64_t(std::stoull(yytext)) );
-  } catch (std::out_of_range &) {
-    // FIXME: report error: value is too large.
-    throw;
-  }
+  *yylval = std::make_shared<ast::int_node>(ast::signed_integer, *yylloc, mpz_class(yytext) );
+  return parser::token::INT;
+}
+[0-9]+u {
+  string text(yytext);
+  text = text.substr(0, text.size()-1);
+  *yylval = std::make_shared<ast::int_node>(ast::unsigned_integer, *yylloc, mpz_class(text.c_str()));
   return parser::token::INT;
 }
 {id}\.{id} {

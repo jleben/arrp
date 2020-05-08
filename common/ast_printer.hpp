@@ -53,8 +53,8 @@ public:
         {
             if (auto b = dynamic_cast<leaf_node<bool>*>(n))
                 cout << (b->value ? "true" : "false");
-            else if(auto i = dynamic_cast<ast::const_int*>(n))
-                cout << i->value;
+            else if(auto i = dynamic_cast<ast::int_node*>(n))
+                cout << i->value.get_str();
             else if(auto d = dynamic_cast<leaf_node<double>*>(n))
                 cout << d->value;
             else if(auto s = dynamic_cast<leaf_node<string>*>(n))

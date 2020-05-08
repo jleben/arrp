@@ -26,6 +26,7 @@ along with this program; if not, write to the Free Software Foundation, Inc.,
 #include <string>
 #include <cassert>
 #include <iostream>
+#include <gmpxx.h>
 
 #include "../frontend/location.hh"
 #include "../common/primitives.hpp"
@@ -75,6 +76,8 @@ enum node_type
     local_scope,
     lambda,
     constant,
+    signed_integer,
+    unsigned_integer,
     identifier,
     qualified_id,
     primitive,
@@ -201,7 +204,7 @@ struct leaf_node : public node
     bool is_leaf() { return true; }
 };
 
-using const_int = leaf_node<uint64_t>;
+using int_node = leaf_node<mpz_class>;
 
 inline list_node *node::as_list()
 {

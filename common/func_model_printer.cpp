@@ -55,10 +55,7 @@ void printer::print(expr_ptr expr, ostream & out)
     }
     else if (auto const_int = dynamic_pointer_cast<int_const>(expr))
     {
-        if (const_int->is_signed())
-            out << const_int->signed_value();
-        else
-            out << const_int->unsigned_value();
+        out << const_int->text();
     }
     else if (auto const_double = dynamic_pointer_cast<real_const>(expr))
     {

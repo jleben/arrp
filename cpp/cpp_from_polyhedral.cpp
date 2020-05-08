@@ -129,10 +129,24 @@ expression_ptr cpp_from_polyhedral::generate_expression
     }
     else if ( auto const_int = dynamic_cast<functional::int_const*>(expr.get()) )
     {
-        if (const_int->is_signed())
-            result = literal(const_int->signed_value());
+        // FIXME:
+        // Smallest signed 64 bit int X can not be literally represented.
+        // It should be represented as 'Y - 1' where Y = X + 1.
+        // Also: Print a warning or error if value is not representable at all?
+
+        bool is_signed = is_signed_int(const_int->type->scalar()->primitive);
+
+        if (is_signed and const_int->value() == mpz_class("-9223372036854775808"))
+        {
+            result = binop(op::sub, literal("-9223372036854775807"), literal(1));
+        }
         else
-            result = literal(const_int->unsigned_value());
+        {
+            string text = const_int->text();
+            if (not is_signed)
+                text += 'u';
+            result = literal(text);
+        }
     }
     else if ( auto const_double = dynamic_cast<functional::constant<double>*>(expr.get()) )
     {
