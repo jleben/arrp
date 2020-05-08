@@ -429,6 +429,11 @@ void print_literal(ostream & stream, const X & v)
     stream << v;
 }
 
+inline void print_literal(ostream & stream, const uint64_t & v)
+{
+    stream << v << 'u';
+}
+
 inline void print_literal(ostream & stream, double v)
 {
     using namespace std;

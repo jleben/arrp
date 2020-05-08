@@ -22,11 +22,11 @@ bool to_b(expr_ptr expr)
     }
 }
 
-int64_t to_i(expr_ptr expr)
+mpz_class to_i(expr_ptr expr)
 {
     if (auto i = dynamic_cast<int_const*>(expr.get()))
     {
-        return i->signed_value();
+        return i->value();
     }
 
     throw undefined_value();
@@ -40,7 +40,7 @@ double to_d(expr_ptr expr)
     }
     else
     {
-        return to_i(expr);
+        throw undefined_value();
     }
 }
 
@@ -57,17 +57,9 @@ expr_ptr try_reduce(F f, Fs ... fs)
     }
 }
 
-template <typename F>
-expr_ptr try_reduce(F f)
+expr_ptr c_i(mpz_class i, primitive_type t)
 {
-    return f();
-}
-
-expr_ptr c_i(int64_t i)
-{
-    auto r = make_shared<int_const>();
-    r->set_signed(i);
-    return r;
+    return make_shared<int_const>(i, location_type(), make_shared<scalar_type>(t));
 }
 
 expr_ptr c_d(double d) { return make_shared<real_const>(d); }
@@ -77,22 +69,38 @@ expr_ptr reduce_primitive(std::shared_ptr<primitive> op)
 {
     auto & a = op->operands;
 
-    // TODO: Reduce more, including casts, support unsigned integers...
+    // TODO: Reduce more, including casts...
+
+    vector<primitive_type> arg_types;
+
+    for (auto & arg : a)
+    {
+        if (!arg->type)
+            return op;
+        if (!arg->type->is_scalar())
+            return op;
+        arg_types.push_back(arg->type->scalar()->primitive);
+    }
+
+    primitive_type result_type;
+
+    try { result_type = stream::result_type(op->kind, arg_types); }
+    catch (no_type &) { return op; }
 
     try
     {
         switch(op->kind)
         {
         case primitive_op::add:
-            return try_reduce([&](){ return c_i(to_i(a[0]) + to_i(a[1])); } );
+            return c_i(to_i(a[0]) + to_i(a[1]), result_type);
         case primitive_op::subtract:
-            return try_reduce([&](){ return c_i(to_i(a[0]) - to_i(a[1])); } );
+            return c_i(to_i(a[0]) - to_i(a[1]), result_type);
         case primitive_op::multiply:
-            return try_reduce([&](){ return c_i(to_i(a[0]) * to_i(a[1])); } );
+            return c_i(to_i(a[0]) * to_i(a[1]), result_type);
         case primitive_op::divide_integer:
-            return try_reduce([&](){ return c_i(to_i(a[0]) / to_i(a[1])); } );
+            return c_i(to_i(a[0]) / to_i(a[1]), result_type);
         case primitive_op::negate:
-            return try_reduce([&](){ return c_i(-to_i(a[0])); });
+            return c_i(-to_i(a[0]), result_type);
         default:
             return op;
         }

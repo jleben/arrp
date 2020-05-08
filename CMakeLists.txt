@@ -69,6 +69,20 @@ link_directories(${LLVM_LIBRARY_DIRS})
 
 endif()
 
+# Prepare GMP
+
+find_path(GMPXX_INCLUDE_DIR gmpxx.h)
+
+if(APPLE)
+    find_library(GMP_LIB libgmp.a)
+    find_library(GMPXX_LIB libgmpxx.a)
+else()
+    find_library(GMP_LIB gmp)
+    find_library(GMPXX_LIB gmpxx)
+endif()
+
+include_directories(${GMPXX_INCLUDE_DIR})
+
 # Prepare isl-cpp
 
 include_directories(extra)

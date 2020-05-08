@@ -374,12 +374,43 @@ expr_ptr generator::do_expr(ast::node_ptr root)
     {
         return do_lambda(root);
     }
+    case ast::signed_integer:
+    {
+        auto c = dynamic_pointer_cast<ast::int_node>(root);
+        auto & v = c->value;
+
+        type_ptr t;
+        mpz_class max32 = std::numeric_limits<int32_t>::max();
+        mpz_class min32 = std::numeric_limits<int32_t>::min();
+
+        if ( v <= max32 and v >= min32)
+            t = std::make_shared<scalar_type>(primitive_type::int32);
+        else
+            t = std::make_shared<scalar_type>(primitive_type::int64);
+
+        return make_shared<int_const>(c->value, location_in_module(root->location), t);
+    }
+    case ast::unsigned_integer:
+    {
+        auto c = dynamic_pointer_cast<ast::int_node>(root);
+        auto & v = c->value;
+
+        type_ptr t;
+        mpz_class max32 = std::numeric_limits<uint32_t>::max();
+        mpz_class min32 = std::numeric_limits<uint32_t>::min();
+
+        //if ( v.cmp(max32) <= 0 and v.cmp(min32) >= 0)
+        if ( v <= max32 and v >= min32)
+            t = std::make_shared<scalar_type>(primitive_type::uint32);
+        else
+            t = std::make_shared<scalar_type>(primitive_type::uint64);
+
+        return make_shared<int_const>(c->value, location_in_module(root->location), t);
+    }
     case ast::constant:
     {
         if (auto b = dynamic_pointer_cast<ast::leaf_node<bool>>(root))
             return make_shared<bool_const>(b->value, location_in_module(root->location));
-        else if(auto i = dynamic_pointer_cast<ast::const_int>(root))
-            return make_unsigned_int(i->value, location_in_module(root->location), make_int_type());
         else if(auto d = dynamic_pointer_cast<ast::leaf_node<double>>(root))
             return make_shared<real_const>(d->value, location_in_module(root->location));
         else if (auto c = dynamic_pointer_cast<ast::leaf_node<complex<double>>>(root))
@@ -728,10 +759,10 @@ generator::do_array_pattern(ast::node_ptr root)
                         (e.what(), location_in_module(index_node->location));
             }
         }
-        else if(auto literal_int = dynamic_pointer_cast<ast::const_int>(index_node))
+        else if(auto literal_int = dynamic_pointer_cast<ast::int_node>(index_node))
         {
             i.is_fixed = true;
-            i.value = literal_int->value;
+            i.value = literal_int->value.get_si();
         }
         else
         {

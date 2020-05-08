@@ -302,7 +302,13 @@ expr_ptr type_checker::visit(const expr_ptr & expr)
 
 expr_ptr type_checker::visit_int(const shared_ptr<int_const> & expr)
 {
-    assign(expr, make_int_type());
+    // NOTE: Type may have been assigned at creation.
+
+    auto t = expr->type;
+    if (!t)
+        t = make_int_type();
+
+    assign(expr, t);
     return expr;
 }
 

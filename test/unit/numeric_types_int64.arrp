@@ -1,9 +1,17 @@
 
--- Max 32bit int is 2^32 = 4294967296
--- We test a value just beyond that, but not much because
--- the value is parsed in Python as a 64 bit float.
+-- Min signed int64 is -9223372036854775808.
+-- Reduce this to something representable in Python's 64 bit float.
 
-output y = int64(-10000000000)*int64(2) - int64(10) * int64(5)
+-- Use a stream to prevent folding everything
 
-...? int64
-...? -20000000050
+a = -9223372036854775808;
+b = 9223370000000000001 - 1; -- Test some constant folding
+
+y[i] = a // (i+1) + b // (i+1);
+
+output y;
+
+...? [~]int64
+...? -2036854775808
+...? -1018427387904
+...? -678951591936
