@@ -6,7 +6,7 @@ This project provides a compiler and a standard library for Arrp.
 
 For more information on the language Arrp, visit the `Arrp website`_.
 
-.. _Arrp website: http://arrp-lang.info
+.. _Arrp website: https://arrp-lang.org
 
 Table of Contents:
 ##################
@@ -51,7 +51,7 @@ The following command writes the kernel code into a C++ header file ``program.h`
 
     arrp program.arrp --output program
 
-See the `documentation <http://arrp-lang.info/doc/target-cpp>`_ for a detailed explanation of the C++ kernel code.
+See the `documentation <https://arrp-lang.org/doc/target-cpp>`_ for a detailed explanation of the C++ kernel code.
 
 Generating Code for Various Interfaces
 ======================================
