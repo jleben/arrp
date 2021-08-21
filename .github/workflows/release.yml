@@ -41,7 +41,7 @@ jobs:
         cp *.deb release/
 
     - name: Upload package as artifact
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v2
       with:
         name: debian-package
         path: 'build/release'
@@ -80,7 +80,7 @@ jobs:
         cp *.zip release/
 
     - name: Upload package as artifact
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v2
       with:
         name: macos-package
         path: 'build/release'
@@ -95,7 +95,7 @@ jobs:
     steps:
 
     - name: Download package as artifact
-      uses: actions/download-artifact@master
+      uses: actions/download-artifact@v2
       with:
         name: debian-package
 
@@ -104,7 +104,8 @@ jobs:
           ls -R
           sudo dpkg -i *.deb
           echo "input x : [~]int; output y = 2*x;" > test.arrp
-          arrp test.arrp --exe test
+          arrp test.arrp --interface stdio --output test
+          g++ test-stdio-main.cpp -o test
           echo 1 3 5 | ./test > output.txt
           echo "Output:"
           cat output.txt
@@ -133,7 +134,7 @@ jobs:
     steps:
 
     - name: Download package as artifact
-      uses: actions/download-artifact@master
+      uses: actions/download-artifact@v2
       with:
         name: macos-package
 
@@ -142,7 +143,8 @@ jobs:
           unzip macos-package/*.zip
           cd arrp_*_macos
           echo "input x : [~]int; output y = 2*x;" > test.arrp
-          ARRP_HOME=. ./bin/arrp test.arrp --exe test
+          ./bin/arrp test.arrp --interface stdio --output test
+          CPATH=./include g++ test-stdio-main.cpp -o test
           echo 1 3 5 | ./test > output.txt
           echo "Output:"
           cat output.txt
