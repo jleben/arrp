@@ -101,7 +101,8 @@ jobs:
 
     - name: Test package
       run: |
-          sudo dpkg -i debian-package/*.deb
+          ls -R
+          sudo dpkg -i *.deb
           echo "input x : [~]int; output y = 2*x;" > test.arrp
           arrp test.arrp --exe test
           echo 1 3 5 | ./test > output.txt
