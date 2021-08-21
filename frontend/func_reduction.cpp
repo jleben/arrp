@@ -1,6 +1,5 @@
 #include "func_reduction.hpp"
 #include "error.hpp"
-#include "type_check.hpp"
 #include "../common/func_model_printer.hpp"
 #include "../utility/debug.hpp"
 
