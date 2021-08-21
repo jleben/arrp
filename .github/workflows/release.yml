@@ -1,8 +1,10 @@
 name: Build and upload release assets
 
 on:
-  release:
-    types: [created]
+  push:
+
+  #release:
+  #  types: [created]
 
 jobs:
   build-ubuntu:
