@@ -39,7 +39,7 @@ jobs:
         cp *.deb release/
 
     - name: Upload package as artifact
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v2
       with:
         name: debian-package
         path: 'build/release'
@@ -78,7 +78,7 @@ jobs:
         cp *.zip release/
 
     - name: Upload package as artifact
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v2
       with:
         name: macos-package
         path: 'build/release'
@@ -92,21 +92,24 @@ jobs:
 
     steps:
 
+    - uses: actions/checkout@v2
+
     - name: Download package as artifact
-      uses: actions/download-artifact@master
+      uses: actions/download-artifact@v2
       with:
         name: debian-package
 
     - name: Test package
       run: |
-          sudo dpkg -i debian-package/*.deb
-          echo "input x : [~]int; output y = 2*x;" > test.arrp
-          arrp test.arrp --exe test
-          echo 1 3 5 | ./test > output.txt
+          sudo dpkg -i *.deb
+          mkdir package-test
+          cd package-test
+          cmake ../.github/test
+          make arrp-test
+          echo 1 3 5 | ./arrp-test > output.txt
           echo "Output:"
           cat output.txt
-          echo -en "2\n6\n10\n" > expected.txt
-          diff output.txt expected.txt
+          diff output.txt ../.github/test/expected-output.txt
           if [[ $? -eq 0 ]]; then
             echo "OK"
           else
@@ -129,22 +132,25 @@ jobs:
 
     steps:
 
+    - uses: actions/checkout@v2
+
     - name: Download package as artifact
-      uses: actions/download-artifact@master
+      uses: actions/download-artifact@v2
       with:
         name: macos-package
 
     - name: Test package
       run: |
-          unzip macos-package/*.zip
-          cd arrp_*_macos
-          echo "input x : [~]int; output y = 2*x;" > test.arrp
-          ARRP_HOME=. ./bin/arrp test.arrp --exe test
-          echo 1 3 5 | ./test > output.txt
+          unzip arrp_*_macos.zip
+          mv arrp_*_macos package
+          mkdir package-test
+          cd package-test
+          cmake -D CMAKE_PREFIX_PATH="$(pwd)/../package" ../.github/test
+          make arrp-test
+          echo 1 3 5 | ./arrp-test > output.txt
           echo "Output:"
           cat output.txt
-          echo -en "2\n6\n10\n" > expected.txt
-          diff output.txt expected.txt
+          diff output.txt ../.github/test/expected-output.txt
           if [[ $? -eq 0 ]]; then
             echo "OK"
           else
