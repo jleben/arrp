@@ -1,0 +1,2 @@
+input x : [~]int;
+output y = 2*x;

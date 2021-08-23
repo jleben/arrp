@@ -49,6 +49,8 @@ jobs:
 
   build-macos:
 
+    if: false
+
     runs-on: macOS-latest
 
     steps:
@@ -107,12 +109,12 @@ jobs:
           sudo dpkg -i *.deb
           mkdir package-test
           cd package-test
-          cmake ../.github/data
-          make test
-          echo 1 3 5 | ./test > output.txt
+          cmake ../.github/test/test-ubuntu
+          make arrp-test
+          echo 1 3 5 | ./arrp-test > output.txt
           echo "Output:"
           cat output.txt
-          diff output.txt ../.github/data/expected.txt
+          diff output.txt ../.github/test/expected-output.txt
           if [[ $? -eq 0 ]]; then
             echo "OK"
           else
