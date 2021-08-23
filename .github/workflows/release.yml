@@ -103,7 +103,6 @@ jobs:
 
     - name: Test package
       run: |
-          ls -R
           sudo dpkg -i *.deb
           mkdir package-test
           cd package-test
