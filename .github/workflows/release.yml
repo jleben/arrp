@@ -120,7 +120,7 @@ jobs:
     - name: Upload package as release asset
       uses: AButler/upload-release-assets@v1.0
       with:
-        files: 'debian-package/*.deb'
+        files: '*.deb'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
 
@@ -161,5 +161,5 @@ jobs:
     - name: Upload package as release asset
       uses: AButler/upload-release-assets@v1.0
       with:
-        files: 'macos-package/*.zip'
+        files: 'arrp_*_macos.zip'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
