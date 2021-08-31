@@ -22,7 +22,7 @@ prev(v,x) = y where {
 window(size,hop,x) = [t] -> [k:size] -> x[t*hop + k];
 
 hold_while(condition, x) = y where
-  y = if condition then prev(x[0], x) else x;
+  y = if condition then prev(x[0], y) else x;
 
 
 -- Generators
