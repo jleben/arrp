@@ -78,8 +78,9 @@ fir(h) = convolve(h) . delay(0,#h-1);
 
 one_pole(a,x) = y where y = (1-abs(a))*x - a * prev(0.0, y);
 
--- r: rate in [0,1]
-line(r,x) = y where {
-  y1 = prev(0.0,y);
-  y = if x > y1 then min(x, y1+r) else max(x, y1-r);
+line(r, x) = y where {
+  y[0] = x[0];
+  y[i] = if x[i] > y[i - 1]
+      then min(x[i], y[i - 1] + r)
+      else max(x[i], y[i - 1] - r);
 };
