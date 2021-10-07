@@ -1,8 +1,8 @@
-name: Build and upload release assets
+name: Build and upload version package
 
 on:
-  release:
-    types: [created]
+  push:
+    tags: ['version-**']
 
 jobs:
   build-ubuntu:
@@ -117,12 +117,6 @@ jobs:
             exit 1
           fi
 
-    - name: Upload package as release asset
-      uses: AButler/upload-release-assets@v1.0
-      with:
-        files: '*.deb'
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-
 
   test-macos:
 
@@ -157,9 +151,3 @@ jobs:
             echo "Error"
             exit 1
           fi
-
-    - name: Upload package as release asset
-      uses: AButler/upload-release-assets@v1.0
-      with:
-        files: 'arrp_*_macos.zip'
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
