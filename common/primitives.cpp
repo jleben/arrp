@@ -215,21 +215,10 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
     case primitive_op::negate:
     {
         check_num_args(args, 1);
-        return map_type(args[0], {
-            { pt::int8, pt::int8 },
-            { pt::uint8, pt::int8 },
-            { pt::int16, pt::int16 },
-            { pt::uint16, pt::int16 },
-            { pt::int32, pt::int32 },
-            { pt::uint32, pt::int32 },
-            { pt::int64, pt::int64 },
-            { pt::uint64, pt::int64 },
-            { pt::real32, pt::real32 },
-            { pt::real64, pt::real64 },
-            { pt::complex32, pt::complex32 },
-            { pt::complex64, pt::complex64 },
-            { pt::boolean, pt::boolean }
-        });
+        auto & a = args[0];
+        if (is_numeric(a) or a == pt::boolean)
+            return a;
+        break;
     }
     case primitive_op::add:
     case primitive_op::subtract:
