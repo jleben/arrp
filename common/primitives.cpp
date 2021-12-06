@@ -242,19 +242,37 @@ primitive_type result_type(primitive_op op, vector<primitive_type> & args)
     }
     case primitive_op::divide_integer:
     case primitive_op::modulo:
-    case primitive_op::bitwise_not:
-    case primitive_op::bitwise_and:
-    case primitive_op::bitwise_or:
-    case primitive_op::bitwise_xor:
-    case primitive_op::bitwise_lshift:
-    case primitive_op::bitwise_rshift:
     {
         check_num_args(args, 2);
         return common_integer(args);
     }
+    case primitive_op::bitwise_not:
+    {
+        check_num_args(args, 1);
+        if (is_integer(args[0]))
+            return args[0];
+        break;
+    }
+    case primitive_op::bitwise_and:
+    case primitive_op::bitwise_or:
+    case primitive_op::bitwise_xor:
+    {
+        check_num_args(args, 2);
+        return common_integer(args);
+    }
+    case primitive_op::bitwise_lshift:
+    case primitive_op::bitwise_rshift:
+    {
+        check_num_args(args, 2);
+        if (is_integer(args[0]) and is_integer(args[1]))
+            return args[0];
+        break;
+    }
     case primitive_op::raise:
     {
         check_num_args(args, 2);
+        if (is_integer(args[0]) or is_integer(args[1]))
+            return pt::real64;
         auto ct = common_type(args);
         if (is_numeric(ct))
             return ct;
